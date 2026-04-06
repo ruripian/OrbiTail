@@ -1,10 +1,10 @@
 /**
  * 이슈 생성 다이얼로그 — 전체 필드 포함
  *
- * 필드: 제목, 설명, 상태, 우선순위, 담당자, 시작일, 마감일, 모듈, 사이클
- * 컨텍스트 자동 할당: 모듈/사이클 뷰에서 열면 해당 값이 기본 선택됨
+ * 필드: 제목, 설명, 상태, 우선순위, 담당자, 시작일, 마감일, 카테고리, 스프린트
+ * 컨텍스트 자동 할당: 카테고리/스프린트 뷰에서 열면 해당 값이 기본 선택됨
  */
-import { useEffect } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -25,7 +25,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import type { State, Module, Cycle, ProjectMember, IssueTemplate } from "@/types";
+import type { State, Category, Sprint, ProjectMember, IssueTemplate } from "@/types";
 
 const schema = z.object({
   title: z.string().min(1),
@@ -35,8 +35,8 @@ const schema = z.object({
   assignees: z.array(z.string()).optional(),
   start_date: z.string().optional().or(z.literal("")),
   due_date: z.string().optional().or(z.literal("")),
-  module: z.string().optional().or(z.literal("")),
-  cycle: z.string().optional().or(z.literal("")),
+  category: z.string().optional().or(z.literal("")),
+  sprint: z.string().optional().or(z.literal("")),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -48,10 +48,10 @@ interface Props {
   defaultStateId?: string;
   workspaceSlug: string;
   projectId: string;
-  /** 모듈 컨텍스트에서 생성 시 자동 할당 */
-  defaultModuleId?: string;
-  /** 사이클 컨텍스트에서 생성 시 자동 할당 */
-  defaultCycleId?: string;
+  /** 카테고리 컨텍스트에서 생성 시 자동 할당 */
+  defaultCategoryId?: string;
+  /** 스프린트 컨텍스트에서 생성 시 자동 할당 */
+  defaultSprintId?: string;
   /** 하위 이슈로 생성 시 부모 이슈 ID */
   parentIssueId?: string;
   /** 마감일 프리필 (캘린더에서 특정 날짜 클릭 시) — "YYYY-MM-DD" */
@@ -65,8 +65,8 @@ export function IssueCreateDialog({
   defaultStateId,
   workspaceSlug,
   projectId,
-  defaultModuleId,
-  defaultCycleId,
+  defaultCategoryId,
+  defaultSprintId,
   parentIssueId,
   defaultDueDate,
 }: Props) {
@@ -77,22 +77,22 @@ export function IssueCreateDialog({
     states.find((s) => s.group === "unstarted")?.id ?? states.find((s) => s.default)?.id ?? states[0]?.id ?? "";
   const initialStateId = defaultStateId ?? pickDefault();
 
-  /* 멤버/모듈/사이클 데이터 — 다이얼로그 열릴 때 fetch */
+  /* 멤버/카테고리/스프린트 데이터 — 다이얼로그 열릴 때 fetch */
   const { data: members = [] } = useQuery({
     queryKey: ["project-members", workspaceSlug, projectId],
     queryFn: () => projectsApi.members.list(workspaceSlug, projectId),
     enabled: open,
   });
 
-  const { data: modules = [] } = useQuery({
-    queryKey: ["modules", workspaceSlug, projectId],
-    queryFn: () => projectsApi.modules.list(workspaceSlug, projectId),
+  const { data: categories = [] } = useQuery({
+    queryKey: ["categories", workspaceSlug, projectId],
+    queryFn: () => projectsApi.categories.list(workspaceSlug, projectId),
     enabled: open,
   });
 
-  const { data: cycles = [] } = useQuery({
-    queryKey: ["cycles", workspaceSlug, projectId],
-    queryFn: () => projectsApi.cycles.list(workspaceSlug, projectId),
+  const { data: sprints = [] } = useQuery({
+    queryKey: ["sprints", workspaceSlug, projectId],
+    queryFn: () => projectsApi.sprints.list(workspaceSlug, projectId),
     enabled: open,
   });
 
@@ -123,12 +123,12 @@ export function IssueCreateDialog({
       title: "",
       description_html: "",
       state: initialStateId,
-      priority: "none",
+      priority: "medium",
       assignees: [],
       start_date: "",
       due_date: "",
-      module: defaultModuleId ?? "",
-      cycle: defaultCycleId ?? "",
+      category: defaultCategoryId ?? "",
+      sprint: defaultSprintId ?? "",
     },
   });
 
@@ -141,12 +141,12 @@ export function IssueCreateDialog({
         title: "",
         description_html: "",
         state: defaultStateId ?? pickDefault(),
-        priority: "none",
+        priority: "medium",
         assignees: [],
         start_date: "",
         due_date: defaultDueDate ?? "",
-        module: defaultModuleId ?? "",
-        cycle: defaultCycleId ?? "",
+        category: defaultCategoryId ?? "",
+        sprint: defaultSprintId ?? "",
       });
     }
   }, [open]);
@@ -163,8 +163,8 @@ export function IssueCreateDialog({
       if (data.assignees && data.assignees.length > 0) payload.assignees = data.assignees;
       if (data.start_date) payload.start_date = data.start_date;
       if (data.due_date) payload.due_date = data.due_date;
-      if (data.module) payload.module = data.module;
-      if (data.cycle) payload.cycle = data.cycle;
+      if (data.category) payload.category = data.category;
+      if (data.sprint) payload.sprint = data.sprint;
       if (parentIssueId) payload.parent = parentIssueId;
       return issuesApi.create(workspaceSlug, projectId, payload);
     },
@@ -244,7 +244,7 @@ export function IssueCreateDialog({
           {/* 제목 */}
           <div className="space-y-1">
             <Label htmlFor="title">{t("issues.create.issueTitle")}</Label>
-            <Input id="title" placeholder={t("issues.create.issueTitlePlaceholder")} {...register("title")} autoFocus />
+            <Input id="title" placeholder={t("issues.create.issueTitlePlaceholder")} {...register("title")} autoFocus autoComplete="off" />
             {errors.title && <p className="text-xs text-destructive">{t("issues.create.titleRequired")}</p>}
           </div>
 
@@ -265,7 +265,7 @@ export function IssueCreateDialog({
             <div className="space-y-1">
               <Label>{t("issues.create.status")}</Label>
               <Select
-                defaultValue={initialStateId}
+                value={watch("state")}
                 onValueChange={(v) => setValue("state", v)}
               >
                 <SelectTrigger>
@@ -286,7 +286,7 @@ export function IssueCreateDialog({
 
             <div className="space-y-1">
               <Label>{t("issues.create.priority")}</Label>
-              <Select defaultValue="none" onValueChange={(v) => setValue("priority", v as FormValues["priority"])}>
+              <Select value={watch("priority")} onValueChange={(v) => setValue("priority", v as FormValues["priority"])}>
                 <SelectTrigger>
                   <SelectValue placeholder={t("issues.create.priority")} />
                 </SelectTrigger>
@@ -301,34 +301,13 @@ export function IssueCreateDialog({
             </div>
           </div>
 
-          {/* 담당자 — 다중 선택 (체크박스 스타일) */}
-          <div className="space-y-1">
-            <Label>{t("issues.create.assignees")}</Label>
-            <div className="flex flex-wrap gap-1.5 p-2 border rounded-lg min-h-[40px]">
-              {members.length === 0 ? (
-                <span className="text-xs text-muted-foreground">{t("issues.create.noMembers")}</span>
-              ) : (
-                members.map((m: ProjectMember) => {
-                  const selected = selectedAssignees.includes(m.member.id);
-                  return (
-                    <button
-                      key={m.member.id}
-                      type="button"
-                      onClick={() => toggleAssignee(m.member.id)}
-                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
-                        selected
-                          ? "bg-primary/15 text-primary border border-primary/30"
-                          : "bg-muted text-muted-foreground hover:bg-muted/80 border border-transparent"
-                      }`}
-                    >
-                      <AvatarInitials name={m.member.display_name} size="xs" />
-                      {m.member.display_name}
-                    </button>
-                  );
-                })
-              )}
-            </div>
-          </div>
+          {/* 담당자 — 다중 선택 (체크박스 스타일 + 검색) */}
+          <AssigneeSelector
+            members={members}
+            selectedAssignees={selectedAssignees}
+            onToggle={toggleAssignee}
+            t={t}
+          />
 
           {/* 시작일 + 마감일 — 커스텀 DatePicker */}
           <div className="grid grid-cols-2 gap-3">
@@ -343,6 +322,8 @@ export function IssueCreateDialog({
                     onChange={(v) => field.onChange(v ?? "")}
                     placeholder={t("issues.create.startDate")}
                     className="border border-border rounded-md bg-input/60"
+                    hintDate={watch("due_date") || null}
+                    hintMode="after"
                   />
                 )}
               />
@@ -358,26 +339,28 @@ export function IssueCreateDialog({
                     onChange={(v) => field.onChange(v ?? "")}
                     placeholder={t("issues.create.dueDate")}
                     className="border border-border rounded-md bg-input/60"
+                    hintDate={watch("start_date") || null}
+                    hintMode="before"
                   />
                 )}
               />
             </div>
           </div>
 
-          {/* 모듈 + 사이클 */}
+          {/* 카테고리 + 스프린트 */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label>{t("issues.create.module")}</Label>
               <Select
-                defaultValue={defaultModuleId ?? ""}
-                onValueChange={(v) => setValue("module", v === "__none__" ? "" : v)}
+                value={watch("category") || "__none__"}
+                onValueChange={(v) => setValue("category", v === "__none__" ? "" : v)}
               >
                 <SelectTrigger>
                   <SelectValue placeholder={t("issues.create.noModule")} />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none__">{t("issues.create.noModule")}</SelectItem>
-                  {modules.map((m: Module) => (
+                  {categories.map((m: Category) => (
                     <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
                   ))}
                 </SelectContent>
@@ -387,15 +370,15 @@ export function IssueCreateDialog({
             <div className="space-y-1">
               <Label>{t("issues.create.cycle")}</Label>
               <Select
-                defaultValue={defaultCycleId ?? ""}
-                onValueChange={(v) => setValue("cycle", v === "__none__" ? "" : v)}
+                value={watch("sprint") || "__none__"}
+                onValueChange={(v) => setValue("sprint", v === "__none__" ? "" : v)}
               >
                 <SelectTrigger>
                   <SelectValue placeholder={t("issues.create.noCycle")} />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none__">{t("issues.create.noCycle")}</SelectItem>
-                  {cycles.map((c: Cycle) => (
+                  {sprints.map((c: Sprint) => (
                     <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                   ))}
                 </SelectContent>
@@ -415,5 +398,68 @@ export function IssueCreateDialog({
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/* ── 검색 가능한 담당자 선택기 ── */
+
+function AssigneeSelector({
+  members, selectedAssignees, onToggle, t,
+}: {
+  members: ProjectMember[];
+  selectedAssignees: string[];
+  onToggle: (id: string) => void;
+  t: (key: string) => string;
+}) {
+  const [query, setQuery] = useState("");
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return members;
+    return members.filter((m: ProjectMember) =>
+      m.member.display_name.toLowerCase().includes(q),
+    );
+  }, [members, query]);
+
+  return (
+    <div className="space-y-1">
+      <Label>{t("issues.create.assignees")}</Label>
+      {members.length > 5 && (
+        <Input
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={t("issues.picker.searchPlaceholder")}
+          autoComplete="off"
+          className="h-7 text-xs mb-1"
+        />
+      )}
+      <div className="flex flex-wrap gap-1.5 p-2 border rounded-lg min-h-[40px] max-h-[120px] overflow-y-auto">
+        {members.length === 0 ? (
+          <span className="text-xs text-muted-foreground">{t("issues.create.noMembers")}</span>
+        ) : filtered.length === 0 ? (
+          <span className="text-xs text-muted-foreground">{t("issues.picker.noResults")}</span>
+        ) : (
+          filtered.map((m: ProjectMember) => {
+            const selected = selectedAssignees.includes(m.member.id);
+            return (
+              <button
+                key={m.member.id}
+                type="button"
+                onClick={() => onToggle(m.member.id)}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                  selected
+                    ? "bg-primary/15 text-primary border border-primary/30"
+                    : "bg-muted text-muted-foreground hover:bg-muted/80 border border-transparent"
+                }`}
+              >
+                <AvatarInitials name={m.member.display_name} size="xs" />
+                {m.member.display_name}
+              </button>
+            );
+          })
+        )}
+      </div>
+    </div>
   );
 }

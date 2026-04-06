@@ -266,7 +266,7 @@ interface Props {
   workspaceSlug:    string;
   projectId:        string;
   onIssueClick:     (issueId: string) => void;
-  /** 이슈 쿼리 필터 (cycle/module URL 기반 필터) */
+  /** 이슈 쿼리 필터 (sprint/category URL 기반 필터) */
   issueFilter?:     Record<string, string>;
   settings:         CalendarSettings;
   onSettingsChange: (s: Partial<CalendarSettings>) => void;

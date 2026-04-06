@@ -14,6 +14,19 @@ const PRIORITY_COLOR: Record<string, string> = {
   urgent: "#ef4444", high: "#f97316", medium: "#eab308", low: "#3b82f6", none: "#9ca3af",
 };
 
+/* 다크모드 대응 Tooltip 스타일 */
+const tooltipStyle = {
+  contentStyle: {
+    background: "hsl(var(--card))",
+    border: "1px solid hsl(var(--border))",
+    borderRadius: 8,
+    fontSize: 12,
+    color: "hsl(var(--foreground))",
+  },
+  itemStyle: { color: "hsl(var(--foreground))" },
+  labelStyle: { color: "hsl(var(--muted-foreground))" },
+};
+
 /* 차트 카드 셸 */
 function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -47,10 +60,10 @@ export function StatsCharts({ stats, t }: Props) {
           <div className="flex items-center gap-4">
             <ResponsiveContainer width="50%" height={160}>
               <PieChart>
-                <Pie data={stats.by_state} dataKey="count" nameKey="state_name" cx="50%" cy="50%" innerRadius={35} outerRadius={62} paddingAngle={2}>
+                <Pie data={stats.by_state} dataKey="count" nameKey="state_name" cx="50%" cy="50%" innerRadius={35} outerRadius={62} paddingAngle={2} stroke="hsl(var(--card))">
                   {stats.by_state.map((s) => <Cell key={s.state_id} fill={s.color} />)}
                 </Pie>
-                <Tooltip />
+                <Tooltip {...tooltipStyle} />
               </PieChart>
             </ResponsiveContainer>
             <div className="flex-1 space-y-2">
@@ -74,9 +87,9 @@ export function StatsCharts({ stats, t }: Props) {
           <ResponsiveContainer width="100%" height={160}>
             <BarChart data={priorityData} layout="vertical" margin={{ left: 0, right: 8 }}>
               <XAxis type="number" hide />
-              <YAxis type="category" dataKey="name" width={70} tick={{ fontSize: 12 }} />
-              <Tooltip />
-              <Bar dataKey="count" radius={[0, 4, 4, 0]}>
+              <YAxis type="category" dataKey="name" width={70} tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} />
+              <Tooltip {...tooltipStyle} />
+              <Bar dataKey="count" radius={[0, 4, 4, 0]} stroke="none">
                 {priorityData.map((d, i) => <Cell key={i} fill={d.fill} />)}
               </Bar>
             </BarChart>
@@ -88,10 +101,10 @@ export function StatsCharts({ stats, t }: Props) {
       <ChartCard title={t("dashboard.charts.overTime")}>
         <ResponsiveContainer width="100%" height={160}>
           <LineChart data={recentTrend} margin={{ left: 0, right: 8, top: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
-            <XAxis dataKey="date" tickFormatter={(d: string) => d.slice(5)} tick={{ fontSize: 11 }} />
-            <YAxis width={28} tick={{ fontSize: 11 }} allowDecimals={false} />
-            <Tooltip />
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.4} />
+            <XAxis dataKey="date" tickFormatter={(d: string) => d.slice(5)} tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
+            <YAxis width={28} tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} allowDecimals={false} />
+            <Tooltip {...tooltipStyle} />
             <Line type="monotone" dataKey="created" stroke="#3b82f6" strokeWidth={2} dot={false} name={t("dashboard.charts.created")} />
             <Line type="monotone" dataKey="completed" stroke="#22c55e" strokeWidth={2} dot={false} name={t("dashboard.charts.completed")} />
           </LineChart>

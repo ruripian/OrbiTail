@@ -209,7 +209,7 @@ function SettingsPanel({
         <div className="space-y-1.5">
           <p className="text-xs text-muted-foreground/60 font-medium">{t("views.timeline.groupBy")}</p>
           <div className="flex gap-1.5 flex-wrap">
-            {(["none","state","priority","module","cycle"] as const).map((g) => (
+            {(["none","state","priority","category","sprint"] as const).map((g) => (
               <button
                 key={g}
                 onClick={() => onChange({ groupBy: g })}
@@ -224,8 +224,8 @@ function SettingsPanel({
                   none: t("views.timeline.groupNone"),
                   state: t("views.timeline.groupState"),
                   priority: t("views.timeline.groupPriority"),
-                  module: t("views.timeline.groupModule"),
-                  cycle: t("views.timeline.groupCycle"),
+                  category: t("views.timeline.groupModule"),
+                  sprint: t("views.timeline.groupCycle"),
                 }[g]}
               </button>
             ))}
@@ -269,7 +269,7 @@ interface Props {
   workspaceSlug:    string;
   projectId:        string;
   onIssueClick:     (issueId: string) => void;
-  issueFilter?:     { cycle?: string; module?: string };
+  issueFilter?:     { sprint?: string; category?: string };
   settings:         TimelineSettings;
   onSettingsChange: (s: Partial<TimelineSettings>) => void;
 }
@@ -305,22 +305,22 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
     queryFn:  () => projectsApi.states.list(workspaceSlug, projectId),
   });
 
-  /* 모듈/사이클 — 이슈 행 배지 + groupBy "module"/"cycle" 옵션용 */
-  const { data: projectModules = [] } = useQuery({
-    queryKey: ["modules", workspaceSlug, projectId],
-    queryFn:  () => projectsApi.modules.list(workspaceSlug, projectId),
+  /* 카테고리/스프린트 — 이슈 행 배지 + groupBy "category"/"sprint" 옵션용 */
+  const { data: projectCategories = [] } = useQuery({
+    queryKey: ["categories", workspaceSlug, projectId],
+    queryFn:  () => projectsApi.categories.list(workspaceSlug, projectId),
   });
-  const { data: projectCycles = [] } = useQuery({
-    queryKey: ["cycles", workspaceSlug, projectId],
-    queryFn:  () => projectsApi.cycles.list(workspaceSlug, projectId),
+  const { data: projectSprints = [] } = useQuery({
+    queryKey: ["sprints", workspaceSlug, projectId],
+    queryFn:  () => projectsApi.sprints.list(workspaceSlug, projectId),
   });
-  const moduleMap = useMemo(
-    () => new Map(projectModules.map((m) => [m.id, m.name])),
-    [projectModules],
+  const categoryMap = useMemo(
+    () => new Map(projectCategories.map((m) => [m.id, m.name])),
+    [projectCategories],
   );
-  const cycleMap = useMemo(
-    () => new Map(projectCycles.map((c) => [c.id, c.name])),
-    [projectCycles],
+  const sprintMap = useMemo(
+    () => new Map(projectSprints.map((c) => [c.id, c.name])),
+    [projectSprints],
   );
 
   /* 날짜 인라인 수정 뮤테이션 */
@@ -353,7 +353,7 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
   /* 좌측 서브컬럼 너비 (리사이즈 가능, localStorage 저장) */
   const [colWidths, setColWidths] = useState(() => {
     try {
-      const saved = localStorage.getItem("ouroboros_timeline_col_widths");
+      const saved = localStorage.getItem("orbitail_timeline_col_widths");
       if (saved) {
         const parsed = JSON.parse(saved);
         /* min/max 범위 검증 후 사용 */
@@ -371,7 +371,7 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
 
   /* colWidths 변경 시 localStorage에 저장 */
   useEffect(() => {
-    localStorage.setItem("ouroboros_timeline_col_widths", JSON.stringify(colWidths));
+    localStorage.setItem("orbitail_timeline_col_widths", JSON.stringify(colWidths));
   }, [colWidths]);
   const LEFT_W = colWidths.issue + colWidths.state + colWidths.assignee;
   const COL_ISSUE = colWidths.issue;
@@ -510,19 +510,19 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
         .map((s): Group => ({ label: s.name, color: s.color, issues: rootIssues.filter((i) => i.state === s.id) }))
         .filter((g) => g.issues.length > 0);
     }
-    if (settings.groupBy === "module") {
-      const groups: Group[] = projectModules
-        .map((m): Group => ({ label: m.name, color: "#a855f7", issues: rootIssues.filter((i) => i.module === m.id) }))
+    if (settings.groupBy === "category") {
+      const groups: Group[] = projectCategories
+        .map((m): Group => ({ label: m.name, color: "#a855f7", issues: rootIssues.filter((i) => i.category === m.id) }))
         .filter((g) => g.issues.length > 0);
-      const unassigned = rootIssues.filter((i) => !i.module);
+      const unassigned = rootIssues.filter((i) => !i.category);
       if (unassigned.length > 0) groups.push({ label: t("views.timeline.noModule"), color: "#6b7280", issues: unassigned });
       return groups;
     }
-    if (settings.groupBy === "cycle") {
-      const groups: Group[] = projectCycles
-        .map((c): Group => ({ label: c.name, color: "#3b82f6", issues: rootIssues.filter((i) => i.cycle === c.id) }))
+    if (settings.groupBy === "sprint") {
+      const groups: Group[] = projectSprints
+        .map((c): Group => ({ label: c.name, color: "#3b82f6", issues: rootIssues.filter((i) => i.sprint === c.id) }))
         .filter((g) => g.issues.length > 0);
-      const unassigned = rootIssues.filter((i) => !i.cycle);
+      const unassigned = rootIssues.filter((i) => !i.sprint);
       if (unassigned.length > 0) groups.push({ label: t("views.timeline.noCycle"), color: "#6b7280", issues: unassigned });
       return groups;
     }
@@ -531,7 +531,7 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
     return priorities
       .map((p): Group => ({ label: labels[p], color: PRIORITY_COLORS[p], issues: rootIssues.filter((i) => i.priority === p) }))
       .filter((g) => g.issues.length > 0);
-  }, [rootIssues, settings.groupBy, states, projectModules, projectCycles, t]);
+  }, [rootIssues, settings.groupBy, states, projectCategories, projectSprints, t]);
 
   /* 날짜 범위 — 기본 ±2개월, 스크롤 끝 도달 시 추가 2개월씩 lazy 로딩 (청크) */
   const CHUNK_DAYS = 60; // 2개월
@@ -1190,14 +1190,14 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
                         >
                           {row.issue.title}
                         </span>
-                        {row.issue.module && moduleMap.get(row.issue.module) && (
+                        {row.issue.category && categoryMap.get(row.issue.category) && (
                           <span className="text-2xs px-1.5 py-0.5 rounded-md bg-purple-500/15 text-purple-700 dark:text-purple-400 font-medium shrink-0">
-                            {moduleMap.get(row.issue.module)}
+                            {categoryMap.get(row.issue.category)}
                           </span>
                         )}
-                        {row.issue.cycle && cycleMap.get(row.issue.cycle) && (
+                        {row.issue.sprint && sprintMap.get(row.issue.sprint) && (
                           <span className="text-2xs px-1.5 py-0.5 rounded-md bg-blue-500/15 text-blue-700 dark:text-blue-400 font-medium shrink-0">
-                            {cycleMap.get(row.issue.cycle)}
+                            {sprintMap.get(row.issue.sprint)}
                           </span>
                         )}
                         <div className="ml-auto flex items-center gap-0.5 shrink-0">
@@ -1530,7 +1530,7 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
                   >
                     <Plus className="h-3.5 w-3.5 text-primary shrink-0" />
                     <input
-                      autoFocus
+                      ref={(el) => { if (el) el.focus({ preventScroll: true }); }}
                       type="text"
                       value={childTitle}
                       onChange={(e) => setChildTitle(e.target.value)}
@@ -1612,7 +1612,7 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
               <Plus className={cn("h-4 w-4 shrink-0 transition-colors", quickCreating ? "text-primary" : "text-muted-foreground/60")} />
               {quickCreating ? (
                 <input
-                  autoFocus
+                  ref={(el) => { if (el) el.focus({ preventScroll: true }); }}
                   type="text"
                   value={quickTitle}
                   onChange={(e) => setQuickTitle(e.target.value)}

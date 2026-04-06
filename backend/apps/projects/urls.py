@@ -9,10 +9,10 @@ from .views import (
     ProjectLeaveView,
     ProjectMemberListCreateView,
     ProjectMemberDetailView,
-    ModuleListCreateView,
-    ModuleDetailView,
-    CycleListCreateView,
-    CycleDetailView,
+    CategoryListCreateView,
+    CategoryDetailView,
+    SprintListCreateView,
+    SprintDetailView,
     StateListCreateView,
     StateDetailView,
     ProjectEventListCreateView,
@@ -70,27 +70,27 @@ urlpatterns = [
         ProjectMemberDetailView.as_view(),
         name="project-member-detail",
     ),
-    # 모듈
+    # 카테고리
     path(
-        "workspaces/<slug:workspace_slug>/projects/<uuid:project_pk>/modules/",
-        ModuleListCreateView.as_view(),
-        name="module-list",
+        "workspaces/<slug:workspace_slug>/projects/<uuid:project_pk>/categories/",
+        CategoryListCreateView.as_view(),
+        name="category-list",
     ),
     path(
-        "workspaces/<slug:workspace_slug>/projects/<uuid:project_pk>/modules/<uuid:pk>/",
-        ModuleDetailView.as_view(),
-        name="module-detail",
+        "workspaces/<slug:workspace_slug>/projects/<uuid:project_pk>/categories/<uuid:pk>/",
+        CategoryDetailView.as_view(),
+        name="category-detail",
     ),
-    # 사이클(스프린트)
+    # 스프린트
     path(
-        "workspaces/<slug:workspace_slug>/projects/<uuid:project_pk>/cycles/",
-        CycleListCreateView.as_view(),
-        name="cycle-list",
+        "workspaces/<slug:workspace_slug>/projects/<uuid:project_pk>/sprints/",
+        SprintListCreateView.as_view(),
+        name="sprint-list",
     ),
     path(
-        "workspaces/<slug:workspace_slug>/projects/<uuid:project_pk>/cycles/<uuid:pk>/",
-        CycleDetailView.as_view(),
-        name="cycle-detail",
+        "workspaces/<slug:workspace_slug>/projects/<uuid:project_pk>/sprints/<uuid:pk>/",
+        SprintDetailView.as_view(),
+        name="sprint-detail",
     ),
     # 상태
     path(

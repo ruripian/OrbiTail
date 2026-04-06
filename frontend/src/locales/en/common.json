@@ -1,6 +1,6 @@
 {
   "brand": {
-    "name": "OUROBOROS"
+    "name": "ORBITAIL"
   },
   "theme": {
     "toggle": "Toggle theme"
@@ -137,6 +137,10 @@
       "subIssuePlaceholder": "Sub-issue title...",
       "quickAddPlaceholder": "New issue title, then Enter...",
       "pressEnterToAdd": "Enter → Add",
+      "copy": "Copy",
+      "copied": "Issue copied",
+      "archive": "Archive",
+      "archived": "Issue archived",
       "delete": "Delete",
       "deleted": "Issue deleted",
       "deletedWithChildren": "{{count}} sub-issue(s) also deleted",
@@ -165,6 +169,7 @@
       "selected": "{{count}} selected",
       "changeState": "Change State",
       "changePriority": "Change Priority",
+      "changeAssignee": "Change Assignee",
       "delete": "Delete",
       "deleteConfirm": "Delete {{count}} selected issues?",
       "updated": "{{count}} issues updated",
@@ -275,7 +280,7 @@
   },
   "setup": {
     "title": "Initial Setup",
-    "subtitle": "Start your Ouroboros workspace",
+    "subtitle": "Start your OrbiTail workspace",
     "systemSection": "System",
     "adminSection": "Admin Account",
     "workspaceSection": "Workspace",
@@ -440,6 +445,10 @@
       }
     }
   },
+  "archivedProjects": {
+    "subtitle": "Archived projects are hidden from the sidebar but data is preserved",
+    "empty": "No archived projects"
+  },
   "discover": {
     "title": "Discover Projects",
     "subtitle": "Browse and join public projects in your workspace",
@@ -590,6 +599,7 @@
     "workspace": "Workspace",
     "home": "Home",
     "discover": "Discover",
+    "archived": "Archived",
     "projects": "Projects",
     "newProject": "New Project",
     "noProjects": "No projects",
@@ -790,9 +800,19 @@
       "timeline": "Timeline",
       "cycles": "Sprints",
       "analytics": "Analytics",
-      "trash": "Trash"
+      "trash": "Trash",
+      "archive": "Archive"
     },
     "addIssue": "Add Issue",
+    "archive": {
+      "empty": "No archived issues",
+      "emptyDescription": "Archived issues will appear here",
+      "description": "Archived issues are read-only. You can restore or permanently delete them.",
+      "restore": "Restore",
+      "restored": "Issue restored from archive",
+      "archivedDate": "Archived",
+      "readOnlyNotice": "This issue is archived and read-only. Restore to edit."
+    },
     "trash": {
       "empty": "No deleted issues",
       "emptyDescription": "Deleted issues will appear here",
@@ -801,6 +821,12 @@
       "retentionNotice": "Deleted issues are automatically permanently deleted after {{days}} days.",
       "autoDelete": "Auto-delete",
       "daysLeft": "{{count}}d left"
+    },
+    "categoryFilter": {
+      "all": "All Issues",
+      "noCategory": "No Category",
+      "label": "Category",
+      "manage": "Manage Categories"
     },
     "cycleFilter": {
       "all": "All Issues",

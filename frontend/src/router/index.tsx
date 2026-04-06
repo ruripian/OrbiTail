@@ -24,9 +24,10 @@ import { StatesPage } from "@/pages/project/settings/StatesPage";
 import { LabelsPage } from "@/pages/project/settings/LabelsPage";
 import { AutoArchivePage } from "@/pages/project/settings/AutoArchivePage";
 import { TemplatesPage } from "@/pages/project/settings/TemplatesPage";
-import { ModulesPage } from "@/pages/project/ModulesPage";
-import { CyclesPage } from "@/pages/project/CyclesPage";
+import { CategoriesPage } from "@/pages/project/CategoriesPage";
+import { SprintsPage } from "@/pages/project/SprintsPage";
 import { DiscoverProjectsPage } from "@/pages/project/DiscoverProjectsPage";
+import { ArchivedProjectsPage } from "@/pages/project/ArchivedProjectsPage";
 import { InviteAcceptPage } from "@/pages/invite/InviteAcceptPage";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -89,16 +90,17 @@ export const router = createBrowserRouter([
       { index: true, element: <WorkspaceDashboard /> },
       { path: "projects/create", element: <CreateProjectPage /> },
       { path: "projects/discover", element: <DiscoverProjectsPage /> },
+      { path: "projects/archived", element: <ArchivedProjectsPage /> },
       /* 이슈 페이지 — ?view=table|board|calendar|timeline, ?issue=uuid */
       { path: "projects/:projectId/issues", element: <ProjectIssuePage /> },
       /* 기존 /board 경로 호환 — 같은 컴포넌트, view=board로 진입 */
       { path: "projects/:projectId/board", element: <ProjectIssuePage /> },
-      { path: "projects/:projectId/modules", element: <ModulesPage /> },
-      /* 모듈별 이슈 뷰 — ProjectIssuePage가 moduleId URL 파라미터로 필터 */
-      { path: "projects/:projectId/modules/:moduleId/issues", element: <ProjectIssuePage /> },
-      { path: "projects/:projectId/cycles", element: <CyclesPage /> },
-      /* 사이클별 이슈 뷰 — ProjectIssuePage가 cycleId URL 파라미터로 필터 */
-      { path: "projects/:projectId/cycles/:cycleId/issues", element: <ProjectIssuePage /> },
+      { path: "projects/:projectId/categories", element: <CategoriesPage /> },
+      /* 카테고리별 이슈 뷰 — ProjectIssuePage가 categoryId URL 파라미터로 필터 */
+      { path: "projects/:projectId/categories/:categoryId/issues", element: <ProjectIssuePage /> },
+      { path: "projects/:projectId/sprints", element: <SprintsPage /> },
+      /* 스프린트별 이슈 뷰 — ProjectIssuePage가 sprintId URL 파라미터로 필터 */
+      { path: "projects/:projectId/sprints/:sprintId/issues", element: <ProjectIssuePage /> },
 
       // 개인 설정
       {

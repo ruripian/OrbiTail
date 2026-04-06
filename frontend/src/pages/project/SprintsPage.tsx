@@ -19,9 +19,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import type { Cycle, CycleStatus } from "@/types";
+import type { Sprint, SprintStatus } from "@/types";
 
-const CYCLE_STATUSES: CycleStatus[] = ["draft", "active", "completed", "cancelled"];
+const SPRINT_STATUSES: SprintStatus[] = ["draft", "active", "completed", "cancelled"];
 
 const schema = z.object({
   name: z.string().min(1),
@@ -32,14 +32,14 @@ const schema = z.object({
 });
 type FormValues = z.infer<typeof schema>;
 
-const STATUS_COLORS: Record<CycleStatus, string> = {
+const STATUS_COLORS: Record<SprintStatus, string> = {
   draft: "bg-muted text-muted-foreground",
   active: "bg-blue-500/10 text-blue-600",
   completed: "bg-green-500/10 text-green-600",
   cancelled: "bg-red-500/10 text-red-600",
 };
 
-export function CyclesPage() {
+export function SprintsPage() {
   const { workspaceSlug, projectId } = useParams<{
     workspaceSlug: string;
     projectId: string;
@@ -49,9 +49,9 @@ export function CyclesPage() {
   const navigate = useNavigate();
   const [createOpen, setCreateOpen] = useState(false);
 
-  const { data: cycles = [] } = useQuery({
-    queryKey: ["cycles", workspaceSlug, projectId],
-    queryFn: () => projectsApi.cycles.list(workspaceSlug!, projectId!),
+  const { data: sprints = [] } = useQuery({
+    queryKey: ["sprints", workspaceSlug, projectId],
+    queryFn: () => projectsApi.sprints.list(workspaceSlug!, projectId!),
   });
 
   const { register, handleSubmit, setValue, reset, formState: { errors } } = useForm<FormValues>({
@@ -60,18 +60,18 @@ export function CyclesPage() {
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: FormValues) => projectsApi.cycles.create(workspaceSlug!, projectId!, data),
+    mutationFn: (data: FormValues) => projectsApi.sprints.create(workspaceSlug!, projectId!, data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["cycles", workspaceSlug, projectId] });
+      qc.invalidateQueries({ queryKey: ["sprints", workspaceSlug, projectId] });
       reset();
       setCreateOpen(false);
     },
     onError: () => toast.error(t("cycles.createFailed")),
   });
 
-  /* 사이클 클릭 → 사이클 전용 이슈 뷰 */
-  const handleCycleClick = (cycle: Cycle) => {
-    navigate(`/${workspaceSlug}/projects/${projectId}/cycles/${cycle.id}/issues`);
+  /* 스프린트 클릭 → 스프린트 전용 이슈 뷰 */
+  const handleSprintClick = (sprint: Sprint) => {
+    navigate(`/${workspaceSlug}/projects/${projectId}/sprints/${sprint.id}/issues`);
   };
 
   /* 날짜 포맷 */
@@ -92,39 +92,39 @@ export function CyclesPage() {
         </Button>
       </div>
 
-      {/* 사이클 목록 */}
-      {cycles.length === 0 ? (
+      {/* 스프린트 목록 */}
+      {sprints.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
           <Zap className="h-10 w-10 mb-3 opacity-30" />
           <p className="text-sm">{t("cycles.empty")}</p>
         </div>
       ) : (
         <div className="grid gap-3 xl:grid-cols-2">
-          {cycles.map((cycle: Cycle) => (
+          {sprints.map((sprint: Sprint) => (
             <div
-              key={cycle.id}
-              onClick={() => handleCycleClick(cycle)}
+              key={sprint.id}
+              onClick={() => handleSprintClick(sprint)}
               className="flex items-center gap-4 rounded-xl border glass p-4 hover:bg-accent/50 cursor-pointer transition-colors"
             >
               <Zap className="h-5 w-5 text-muted-foreground shrink-0" />
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{cycle.name}</p>
+                <p className="text-sm font-medium truncate">{sprint.name}</p>
                 <p className="text-xs text-muted-foreground">
-                  {fmtDate(cycle.start_date)} ~ {fmtDate(cycle.end_date)}
+                  {fmtDate(sprint.start_date)} ~ {fmtDate(sprint.end_date)}
                 </p>
               </div>
-              <Badge variant="secondary" className={STATUS_COLORS[cycle.status]}>
-                {t(`cycles.status.${cycle.status}`)}
+              <Badge variant="secondary" className={STATUS_COLORS[sprint.status]}>
+                {t(`cycles.status.${sprint.status}`)}
               </Badge>
               <span className="text-xs text-muted-foreground shrink-0">
-                {t("cycles.issueCount", { count: cycle.issue_count })}
+                {t("cycles.issueCount", { count: sprint.issue_count })}
               </span>
             </div>
           ))}
         </div>
       )}
 
-      {/* 사이클 생성 다이얼로그 */}
+      {/* 스프린트 생성 다이얼로그 */}
       <Dialog open={createOpen} onOpenChange={(v) => { setCreateOpen(v); if (!v) reset(); }}>
         <DialogContent>
           <DialogHeader>
@@ -144,10 +144,10 @@ export function CyclesPage() {
 
             <div className="space-y-1">
               <Label>{t("cycles.statusLabel")}</Label>
-              <Select defaultValue="draft" onValueChange={(v) => setValue("status", v as CycleStatus)}>
+              <Select defaultValue="draft" onValueChange={(v) => setValue("status", v as SprintStatus)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {CYCLE_STATUSES.map((s) => (
+                  {SPRINT_STATUSES.map((s) => (
                     <SelectItem key={s} value={s}>{t(`cycles.status.${s}`)}</SelectItem>
                   ))}
                 </SelectContent>

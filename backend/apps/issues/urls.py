@@ -5,6 +5,9 @@ from .views import (
     IssueRestoreView,
     IssueTrashListView,
     IssueHardDeleteView,
+    IssueArchiveListView,
+    IssueArchiveView,
+    IssueDuplicateView,
     SubIssueListCreateView,
     IssueCommentListCreateView,
     IssueCommentDetailView,
@@ -31,6 +34,18 @@ urlpatterns = [
         IssueListCreateView.as_view(),
         name="issue-list",
     ),
+    # 보관함 — 보관된 이슈 목록
+    path(
+        "workspaces/<slug:workspace_slug>/projects/<uuid:project_pk>/issues/archive/",
+        IssueArchiveListView.as_view(),
+        name="issue-archive-list",
+    ),
+    # 이슈 보관 / 보관 해제
+    path(
+        "workspaces/<slug:workspace_slug>/projects/<uuid:project_pk>/issues/<uuid:pk>/archive/",
+        IssueArchiveView.as_view(),
+        name="issue-archive",
+    ),
     # 휴지통 — 삭제된 이슈 목록 (uuid 패턴보다 먼저 배치)
     path(
         "workspaces/<slug:workspace_slug>/projects/<uuid:project_pk>/issues/trash/",
@@ -41,6 +56,12 @@ urlpatterns = [
         "workspaces/<slug:workspace_slug>/projects/<uuid:project_pk>/issues/<uuid:pk>/",
         IssueDetailView.as_view(),
         name="issue-detail",
+    ),
+    # 이슈 딥카피 (하위 이슈 포함)
+    path(
+        "workspaces/<slug:workspace_slug>/projects/<uuid:project_pk>/issues/<uuid:pk>/duplicate/",
+        IssueDuplicateView.as_view(),
+        name="issue-duplicate",
     ),
     # 영구 삭제
     path(

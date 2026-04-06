@@ -26,7 +26,7 @@ interface MotionContextValue {
   staggerDelay: number;
 }
 
-const STORAGE_KEY = "ouroboros_motion_mode";
+const STORAGE_KEY = "orbitail_motion_mode";
 
 const MotionContext = createContext<MotionContextValue>({
   mode: "rich",

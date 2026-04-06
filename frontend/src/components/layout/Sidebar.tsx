@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   Home,
   Compass,
+  Archive,
   ListChecks,
   Layers,
   Plus,
@@ -19,7 +20,7 @@ import { cn } from "@/lib/utils";
 import { projectsApi } from "@/api/projects";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
 import { ProjectIcon } from "@/components/ui/project-icon-picker";
-import type { Project, Module } from "@/types";
+import type { Project, Category } from "@/types";
 
 function NavItem({
   to,
@@ -105,9 +106,9 @@ function ProjectItem({
     location.pathname === `${base}/issues` ||
     location.pathname === `${base}/board`;
 
-  const { data: modules = [] } = useQuery({
-    queryKey: ["modules", workspaceSlug, project.id],
-    queryFn: () => projectsApi.modules.list(workspaceSlug, project.id),
+  const { data: categories = [] } = useQuery({
+    queryKey: ["categories", workspaceSlug, project.id],
+    queryFn: () => projectsApi.categories.list(workspaceSlug, project.id),
     enabled: isActive,
   });
 
@@ -166,24 +167,24 @@ function ProjectItem({
         <div className="ml-3 pl-4 space-y-0.5 border-l-2 border-primary/20">
           <SubLink to={`${base}/issues`} icon={ListChecks} label={t("sidebar.issues")} active={issuesActive} />
           <SubLink
-            to={`${base}/modules`}
+            to={`${base}/categories`}
             icon={Layers}
             label={t("sidebar.modules")}
-            active={location.pathname === `${base}/modules`}
+            active={location.pathname === `${base}/categories`}
           />
-          {modules.map((mod: Module) => (
+          {categories.map((cat: Category) => (
             <Link
-              key={mod.id}
-              to={`${base}/modules/${mod.id}/issues`}
+              key={cat.id}
+              to={`${base}/categories/${cat.id}/issues`}
               className={cn(
                 "flex items-center gap-2 rounded-lg px-2.5 py-1 ml-4 text-xs transition-all duration-150",
-                location.pathname === `${base}/modules/${mod.id}/issues`
+                location.pathname === `${base}/categories/${cat.id}/issues`
                   ? "bg-primary/10 text-primary font-medium"
                   : "text-sidebar-foreground/65 hover:text-sidebar-foreground hover:bg-sidebar-accent/40"
               )}
             >
-              <ProjectIcon value={mod.icon_prop} size={10} className="!w-4 !h-4 shrink-0" />
-              <span className="truncate">{mod.name}</span>
+              <ProjectIcon value={cat.icon_prop} size={10} className="!w-4 !h-4 shrink-0" />
+              <span className="truncate">{cat.name}</span>
             </Link>
           ))}
           <SubLink
@@ -311,6 +312,13 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
           icon={Compass}
           label={t("sidebar.discover")}
           active={location.pathname === `/${workspaceSlug}/projects/discover`}
+        />
+
+        <NavItem
+          to={`/${workspaceSlug}/projects/archived`}
+          icon={Archive}
+          label={t("sidebar.archived")}
+          active={location.pathname === `/${workspaceSlug}/projects/archived`}
         />
 
         {favoriteProjects.length > 0 && (

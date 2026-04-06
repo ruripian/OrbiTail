@@ -1,8 +1,8 @@
 /**
- * Sprint 뷰 — 스프린트 관리 + 테이블형 이슈 목록 (계층 구조 지원)
+ * Sprint View -- sprint management + table-style issue list (hierarchy support)
  *
- * 좌측: 스프린트 리스트 (추가/삭제 포함)
- * 우측: 선택된 스프린트의 이슈 테이블 + 진행률
+ * Left: sprint list (add/delete)
+ * Right: selected sprint's issue table + progress
  */
 
 import { useState, useMemo } from "react";
@@ -23,9 +23,9 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DatePicker } from "@/components/ui/date-picker";
 import { PageTransition, StaggerList, StaggerItem, HoverLift } from "@/components/motion";
-import type { Cycle, CycleStatus, Issue, State } from "@/types";
+import type { Sprint, SprintStatus, Issue, State } from "@/types";
 
-const STATUS_STYLE: Record<CycleStatus, { bg: string; icon: React.ElementType }> = {
+const STATUS_STYLE: Record<SprintStatus, { bg: string; icon: React.ElementType }> = {
   active:    { bg: "bg-blue-500/10 text-blue-600",   icon: Circle },
   draft:     { bg: "bg-muted text-muted-foreground",  icon: Clock },
   completed: { bg: "bg-green-500/10 text-green-600",  icon: CheckCircle2 },
@@ -39,9 +39,9 @@ const PRIORITY_STYLE: Record<string, string> = {
 
 const fmtDate = formatDate;
 
-function calcProgress(cycle: Cycle): number {
-  const start = new Date(cycle.start_date).getTime();
-  const end = new Date(cycle.end_date).getTime();
+function calcProgress(sprint: Sprint): number {
+  const start = new Date(sprint.start_date).getTime();
+  const end = new Date(sprint.end_date).getTime();
   const now = Date.now();
   if (now >= end) return 100;
   if (now <= start) return 0;
@@ -54,10 +54,10 @@ interface Props {
   onIssueClick: (issueId: string) => void;
 }
 
-export function CycleView({ workspaceSlug, projectId, onIssueClick }: Props) {
+export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
   const { t } = useTranslation();
   const qc = useQueryClient();
-  const [selectedCycleId, setSelectedCycleId] = useState<string | null>(null);
+  const [selectedSprintId, setSelectedSprintId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
 
@@ -65,9 +65,9 @@ export function CycleView({ workspaceSlug, projectId, onIssueClick }: Props) {
   const [formStart, setFormStart] = useState<string | null>(null);
   const [formEnd, setFormEnd] = useState<string | null>(null);
 
-  const { data: cycles = [] } = useQuery({
-    queryKey: ["cycles", workspaceSlug, projectId],
-    queryFn: () => projectsApi.cycles.list(workspaceSlug, projectId),
+  const { data: sprints = [] } = useQuery({
+    queryKey: ["sprints", workspaceSlug, projectId],
+    queryFn: () => projectsApi.sprints.list(workspaceSlug, projectId),
   });
 
   const { data: states = [] } = useQuery({
@@ -76,28 +76,28 @@ export function CycleView({ workspaceSlug, projectId, onIssueClick }: Props) {
   });
   const stateMap = useMemo(() => new Map(states.map((s: State) => [s.id, s])), [states]);
 
-  const groupOrder: CycleStatus[] = ["active", "draft", "completed", "cancelled"];
-  const grouped = groupOrder.reduce<Record<string, Cycle[]>>((acc, status) => {
-    acc[status] = cycles.filter((c: Cycle) => c.status === status);
+  const groupOrder: SprintStatus[] = ["active", "draft", "completed", "cancelled"];
+  const grouped = groupOrder.reduce<Record<string, Sprint[]>>((acc, status) => {
+    acc[status] = sprints.filter((c: Sprint) => c.status === status);
     return acc;
   }, {});
 
-  const activeCycleId = selectedCycleId ?? grouped.active?.[0]?.id ?? cycles[0]?.id ?? null;
-  const selectedCycle = cycles.find((c: Cycle) => c.id === activeCycleId) ?? null;
+  const activeSprintId = selectedSprintId ?? grouped.active?.[0]?.id ?? sprints[0]?.id ?? null;
+  const selectedSprint = sprints.find((c: Sprint) => c.id === activeSprintId) ?? null;
 
   /* 이슈 목록 — 하위 이슈 포함 */
-  const { data: cycleIssues = [] } = useQuery({
-    queryKey: ["issues", workspaceSlug, projectId, { cycle: activeCycleId }, "with-sub"],
-    queryFn: () => issuesApi.list(workspaceSlug, projectId, { cycle: activeCycleId!, include_sub_issues: "true" }),
-    enabled: !!activeCycleId,
+  const { data: sprintIssues = [] } = useQuery({
+    queryKey: ["issues", workspaceSlug, projectId, { sprint: activeSprintId }, "with-sub"],
+    queryFn: () => issuesApi.list(workspaceSlug, projectId, { sprint: activeSprintId!, include_sub_issues: "true" }),
+    enabled: !!activeSprintId,
   });
 
   /* 계층 구조 — 부모-자식 매핑 */
   const { rootIssues, childrenMap } = useMemo(() => {
     const cMap = new Map<string, Issue[]>();
     const roots: Issue[] = [];
-    for (const issue of cycleIssues) {
-      if (issue.parent && cycleIssues.some((i) => i.id === issue.parent)) {
+    for (const issue of sprintIssues) {
+      if (issue.parent && sprintIssues.some((i) => i.id === issue.parent)) {
         if (!cMap.has(issue.parent)) cMap.set(issue.parent, []);
         cMap.get(issue.parent)!.push(issue);
       } else {
@@ -105,7 +105,7 @@ export function CycleView({ workspaceSlug, projectId, onIssueClick }: Props) {
       }
     }
     return { rootIssues: roots, childrenMap: cMap };
-  }, [cycleIssues]);
+  }, [sprintIssues]);
 
   /* 트리 행 생성 */
   const rows = useMemo(() => {
@@ -132,24 +132,24 @@ export function CycleView({ workspaceSlug, projectId, onIssueClick }: Props) {
     });
   };
 
-  const total = cycleIssues.length;
-  const completed = cycleIssues.filter((i: Issue) => i.state_detail?.group === "completed").length;
-  const inProgress = cycleIssues.filter((i: Issue) => i.state_detail?.group === "started").length;
-  const cancelled = cycleIssues.filter((i: Issue) => i.state_detail?.group === "cancelled").length;
+  const total = sprintIssues.length;
+  const completed = sprintIssues.filter((i: Issue) => i.state_detail?.group === "completed").length;
+  const inProgress = sprintIssues.filter((i: Issue) => i.state_detail?.group === "started").length;
+  const cancelled = sprintIssues.filter((i: Issue) => i.state_detail?.group === "cancelled").length;
   const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
-  const daysLeft = selectedCycle ? Math.max(0, Math.ceil((new Date(selectedCycle.end_date).getTime() - Date.now()) / 86400000)) : 0;
+  const daysLeft = selectedSprint ? Math.max(0, Math.ceil((new Date(selectedSprint.end_date).getTime() - Date.now()) / 86400000)) : 0;
 
   const createMutation = useMutation({
     mutationFn: () =>
-      projectsApi.cycles.create(workspaceSlug, projectId, {
+      projectsApi.sprints.create(workspaceSlug, projectId, {
         name: formName,
         start_date: formStart!,
         end_date: formEnd!,
         status: "draft",
       }),
-    onSuccess: (newCycle) => {
-      qc.invalidateQueries({ queryKey: ["cycles", workspaceSlug, projectId] });
-      setSelectedCycleId(newCycle.id);
+    onSuccess: (newSprint) => {
+      qc.invalidateQueries({ queryKey: ["sprints", workspaceSlug, projectId] });
+      setSelectedSprintId(newSprint.id);
       setCreateOpen(false);
       setFormName(""); setFormStart(null); setFormEnd(null);
       toast.success(t("cycles.created"));
@@ -158,10 +158,10 @@ export function CycleView({ workspaceSlug, projectId, onIssueClick }: Props) {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => projectsApi.cycles.delete(workspaceSlug, projectId, id),
+    mutationFn: (id: string) => projectsApi.sprints.delete(workspaceSlug, projectId, id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["cycles", workspaceSlug, projectId] });
-      setSelectedCycleId(null);
+      qc.invalidateQueries({ queryKey: ["sprints", workspaceSlug, projectId] });
+      setSelectedSprintId(null);
       toast.success(t("cycles.deleted"));
     },
     onError: () => toast.error(t("cycles.deleteFailed")),
@@ -191,12 +191,12 @@ export function CycleView({ workspaceSlug, projectId, onIssueClick }: Props) {
               </div>
 
               <StaggerList className="space-y-1">
-                {list.map((cycle: Cycle) => {
-                  const isSelected = cycle.id === activeCycleId;
-                  const timePct = calcProgress(cycle);
+                {list.map((sprint: Sprint) => {
+                  const isSelected = sprint.id === activeSprintId;
+                  const timePct = calcProgress(sprint);
 
                   return (
-                    <StaggerItem key={cycle.id}>
+                    <StaggerItem key={sprint.id}>
                       <div
                         className={cn(
                           "group w-full text-left rounded-xl px-3 py-2.5 transition-all duration-150 relative",
@@ -205,17 +205,17 @@ export function CycleView({ workspaceSlug, projectId, onIssueClick }: Props) {
                             : "hover:bg-muted/50 border border-transparent"
                         )}
                       >
-                        <button onClick={() => setSelectedCycleId(cycle.id)} className="w-full text-left">
+                        <button onClick={() => setSelectedSprintId(sprint.id)} className="w-full text-left">
                           <div className="flex items-center gap-2 mb-1">
                             <span className={cn("text-xs font-medium truncate flex-1", isSelected && "text-primary")}>
-                              {cycle.name}
+                              {sprint.name}
                             </span>
                             <Badge variant="secondary" className={cn("text-2xs px-1.5 py-0", STATUS_STYLE[status].bg)}>
                               {t(`cycles.status.${status}`)}
                             </Badge>
                           </div>
                           <div className="text-2xs text-muted-foreground mb-1.5">
-                            {fmtDate(cycle.start_date)} ~ {fmtDate(cycle.end_date)}
+                            {fmtDate(sprint.start_date)} ~ {fmtDate(sprint.end_date)}
                           </div>
                           <div className="h-1 rounded-full bg-muted/40 overflow-hidden">
                             <div
@@ -225,14 +225,14 @@ export function CycleView({ workspaceSlug, projectId, onIssueClick }: Props) {
                           </div>
                           <div className="flex items-center justify-between mt-1">
                             <span className="text-2xs text-muted-foreground">
-                              {t("cycles.issueCount", { count: cycle.issue_count })}
+                              {t("cycles.issueCount", { count: sprint.issue_count })}
                             </span>
                           </div>
                         </button>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (window.confirm(t("cycles.deleteConfirm"))) deleteMutation.mutate(cycle.id);
+                            if (window.confirm(t("cycles.deleteConfirm"))) deleteMutation.mutate(sprint.id);
                           }}
                           className="absolute top-2 right-2 p-1 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-opacity"
                         >
@@ -247,7 +247,7 @@ export function CycleView({ workspaceSlug, projectId, onIssueClick }: Props) {
           );
         })}
 
-        {cycles.length === 0 && (
+        {sprints.length === 0 && (
           <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
             <Zap className="h-8 w-8 mb-2 opacity-30" />
             <p className="text-xs">{t("cycles.empty")}</p>
@@ -256,19 +256,19 @@ export function CycleView({ workspaceSlug, projectId, onIssueClick }: Props) {
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        {selectedCycle ? (
+        {selectedSprint ? (
           <div className="p-5 space-y-4">
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <Zap className="h-4 w-4 text-primary" />
-                <h2 className="text-base font-semibold">{selectedCycle.name}</h2>
-                <Badge variant="secondary" className={STATUS_STYLE[selectedCycle.status].bg}>
-                  {t(`cycles.status.${selectedCycle.status}`)}
+                <h2 className="text-base font-semibold">{selectedSprint.name}</h2>
+                <Badge variant="secondary" className={STATUS_STYLE[selectedSprint.status].bg}>
+                  {t(`cycles.status.${selectedSprint.status}`)}
                 </Badge>
               </div>
               <p className="text-xs text-muted-foreground">
-                {fmtDate(selectedCycle.start_date)} ~ {fmtDate(selectedCycle.end_date)}
-                {selectedCycle.description && ` · ${selectedCycle.description}`}
+                {fmtDate(selectedSprint.start_date)} ~ {fmtDate(selectedSprint.end_date)}
+                {selectedSprint.description && ` · ${selectedSprint.description}`}
               </p>
             </div>
 

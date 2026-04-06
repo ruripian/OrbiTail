@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Plus, Circle } from "lucide-react";
 import { AvatarInitials } from "@/components/ui/avatar-initials";
@@ -30,12 +30,35 @@ const PRIORITY_VAR: Record<string, string> = {
 
 export function IssueListPage() {
   const { t } = useTranslation();
-  const { workspaceSlug, projectId } = useParams<{
+  const qc = useQueryClient();
+  const { workspaceSlug, projectId, categoryId, sprintId } = useParams<{
     workspaceSlug: string;
     projectId: string;
+    categoryId?: string;
+    sprintId?: string;
   }>();
   const [createOpen, setCreateOpen] = useState(false);
   const [selectedState, setSelectedState] = useState<State | null>(null);
+  const [inlineStateId, setInlineStateId] = useState<string | null>(null);
+  const [inlineTitle, setInlineTitle] = useState("");
+
+  const inlineCreateMutation = useMutation({
+    mutationFn: ({ title, stateId }: { title: string; stateId: string }) =>
+      issuesApi.create(workspaceSlug!, projectId!, {
+        title,
+        state: stateId,
+        priority: "medium",
+        project: projectId!,
+        ...(categoryId ? { category: categoryId } : {}),
+        ...(sprintId   ? { sprint:  sprintId }   : {}),
+      } as Partial<Issue>),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["issues", workspaceSlug, projectId] });
+      qc.invalidateQueries({ queryKey: ["my-issues", workspaceSlug] });
+      setInlineTitle("");
+      // 인라인 유지 — 연속 생성 가능
+    },
+  });
 
   const { data: issues = [] } = useQuery({
     queryKey: ["issues", workspaceSlug, projectId],
@@ -105,10 +128,11 @@ export function IssueListPage() {
 
               {/* 이슈 목록 */}
               <div className="rounded-xl border glass divide-y divide-border overflow-hidden">
-                {stateIssues.length === 0 ? (
+                {stateIssues.length === 0 && inlineStateId !== state.id ? (
                   <p className="px-4 py-3 text-xs text-muted-foreground">{t("issues.table.empty")}</p>
                 ) : (
-                  stateIssues.map((issue) => (
+                  <>
+                  {stateIssues.map((issue) => (
                     <Link
                       key={issue.id}
                       to={`/${workspaceSlug}/projects/${projectId}/issues/${issue.id}`}
@@ -145,9 +169,59 @@ export function IssueListPage() {
                         </div>
                       )}
                     </Link>
-                  ))
+                  ))}
+                  </>
                 )}
               </div>
+
+              {/* 인라인 이슈 추가 */}
+              {inlineStateId === state.id ? (
+                <div className="flex items-center gap-3 rounded-xl border border-dashed border-primary/40 bg-primary/5 px-4 py-2.5 mt-1.5">
+                  <Circle
+                    className="h-3 w-3 shrink-0"
+                    style={{ color: stateColor, fill: stateColor }}
+                  />
+                  <input
+                    ref={(el) => { if (el) el.focus({ preventScroll: true }); }}
+                    type="text"
+                    value={inlineTitle}
+                    onChange={(e) => setInlineTitle(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && inlineTitle.trim()) {
+                        e.preventDefault();
+                        inlineCreateMutation.mutate({ title: inlineTitle.trim(), stateId: state.id });
+                      }
+                      if (e.key === "Escape") {
+                        setInlineStateId(null);
+                        setInlineTitle("");
+                      }
+                    }}
+                    onBlur={() => {
+                      if (inlineTitle.trim()) {
+                        inlineCreateMutation.mutate({ title: inlineTitle.trim(), stateId: state.id });
+                      } else {
+                        setInlineStateId(null);
+                        setInlineTitle("");
+                      }
+                    }}
+                    placeholder={t("issues.table.quickAddPlaceholder")}
+                    autoComplete="off"
+                    className="flex-1 min-w-0 bg-transparent outline-none text-sm text-foreground placeholder:text-muted-foreground/50"
+                  />
+                  <span className="text-xs text-muted-foreground/60 shrink-0">
+                    {t("issues.table.pressEnterToAdd")}
+                  </span>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => { setInlineStateId(state.id); setInlineTitle(""); }}
+                  className="w-full flex items-center gap-2 rounded-xl border border-dashed border-border px-4 py-2 text-xs font-medium text-muted-foreground/50 hover:border-primary/40 hover:bg-primary/5 hover:text-primary transition-all duration-150 mt-1.5"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  {t("views.addIssue")}
+                </button>
+              )}
             </div>
           );
         })}
@@ -160,6 +234,8 @@ export function IssueListPage() {
         defaultStateId={selectedState?.id}
         workspaceSlug={workspaceSlug!}
         projectId={projectId!}
+        defaultCategoryId={categoryId}
+        defaultSprintId={sprintId}
       />
     </div>
   );

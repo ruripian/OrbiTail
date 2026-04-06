@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -7,7 +7,8 @@ import { projectsApi } from "@/api/projects";
 import { workspacesApi } from "@/api/workspaces";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Trash2, Crown } from "lucide-react";
+import { AvatarInitials } from "@/components/ui/avatar-initials";
+import { Trash2, Crown, Search, ChevronDown } from "lucide-react";
 import type { ProjectMember } from "@/types";
 
 const ROLES = [
@@ -104,29 +105,16 @@ export function MembersPage() {
         </p>
       </div>
 
-      {/* 멤버 추가 */}
+      {/* 멤버 추가 — 검색 가능한 드롭다운 */}
       {available.length > 0 && (
-        <div className="flex items-center gap-2 max-w-md">
-          <Select value={addUserId} onValueChange={setAddUserId}>
-            <SelectTrigger className="flex-1">
-              <SelectValue placeholder={t("project.settings.members.selectUser")} />
-            </SelectTrigger>
-            <SelectContent>
-              {available.map((wm) => (
-                <SelectItem key={wm.member.id} value={wm.member.id}>
-                  {wm.member.display_name} ({wm.member.email})
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button
-            size="sm"
-            disabled={!addUserId || addMutation.isPending}
-            onClick={() => addUserId && addMutation.mutate(addUserId)}
-          >
-            {t("project.settings.members.add")}
-          </Button>
-        </div>
+        <SearchableMemberAdd
+          available={available}
+          addUserId={addUserId}
+          setAddUserId={setAddUserId}
+          onAdd={(id) => addMutation.mutate(id)}
+          isPending={addMutation.isPending}
+          t={t}
+        />
       )}
 
       {/* 멤버 목록 */}
@@ -208,6 +196,124 @@ export function MembersPage() {
           );
         })}
       </div>
+    </div>
+  );
+}
+
+/* ── 검색 가능한 멤버 추가 드롭다운 ── */
+
+function SearchableMemberAdd({
+  available, addUserId, setAddUserId, onAdd, isPending, t,
+}: {
+  available: { member: { id: string; display_name: string; email: string } }[];
+  addUserId: string;
+  setAddUserId: (id: string) => void;
+  onAdd: (id: string) => void;
+  isPending: boolean;
+  t: (key: string) => string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+        setQuery("");
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  useEffect(() => {
+    if (open) setTimeout(() => inputRef.current?.focus(), 50);
+  }, [open]);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return available;
+    return available.filter(
+      (wm) =>
+        wm.member.display_name.toLowerCase().includes(q) ||
+        wm.member.email.toLowerCase().includes(q),
+    );
+  }, [available, query]);
+
+  const selected = available.find((wm) => wm.member.id === addUserId);
+
+  return (
+    <div className="flex items-center gap-2 max-w-md">
+      <div ref={containerRef} className="relative flex-1">
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="flex w-full min-h-9 items-center gap-2 rounded-md border border-border bg-input/60 px-3 py-1.5 text-sm text-left transition-colors hover:border-primary/50"
+        >
+          {selected ? (
+            <span className="flex items-center gap-2 truncate">
+              <AvatarInitials name={selected.member.display_name} size="xs" />
+              {selected.member.display_name}
+            </span>
+          ) : (
+            <span className="text-muted-foreground">{t("project.settings.members.selectUser")}</span>
+          )}
+          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground ml-auto shrink-0" />
+        </button>
+
+        {open && (
+          <div className="absolute left-0 right-0 top-full z-50 mt-1 rounded-lg border glass shadow-lg overflow-hidden">
+            <div className="flex items-center gap-2 border-b border-border px-3 py-2">
+              <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <input
+                ref={inputRef}
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={t("project.settings.members.selectUser")}
+                autoComplete="off"
+                className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+              />
+            </div>
+            <div className="overflow-y-auto py-1" style={{ maxHeight: 200 }}>
+              {filtered.length === 0 ? (
+                <div className="px-3 py-4 text-center text-xs text-muted-foreground">
+                  {t("issues.picker.noResults")}
+                </div>
+              ) : (
+                filtered.map((wm) => (
+                  <button
+                    key={wm.member.id}
+                    type="button"
+                    onClick={() => {
+                      setAddUserId(wm.member.id);
+                      setOpen(false);
+                      setQuery("");
+                    }}
+                    className="flex w-full items-center gap-2.5 px-3 py-1.5 text-sm hover:bg-muted/50 cursor-pointer transition-colors"
+                  >
+                    <AvatarInitials name={wm.member.display_name} size="sm" />
+                    <div className="flex-1 min-w-0 text-left">
+                      <div className="text-xs font-medium truncate">{wm.member.display_name}</div>
+                      <div className="text-2xs text-muted-foreground truncate">{wm.member.email}</div>
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+      <Button
+        size="sm"
+        disabled={!addUserId || isPending}
+        onClick={() => addUserId && onAdd(addUserId)}
+      >
+        {t("project.settings.members.add")}
+      </Button>
     </div>
   );
 }

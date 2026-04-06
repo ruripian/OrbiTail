@@ -1,9 +1,9 @@
 import { api } from "@/lib/axios";
-import type { Project, ProjectMember, Module, Cycle, State, ProjectEvent, PaginatedResponse } from "@/types";
+import type { Project, ProjectMember, Category, Sprint, State, ProjectEvent, PaginatedResponse } from "@/types";
 
 export const projectsApi = {
-  list: (workspaceSlug: string) =>
-    api.get<PaginatedResponse<Project>>(`/workspaces/${workspaceSlug}/projects/`).then((r) => r.data.results),
+  list: (workspaceSlug: string, params?: Record<string, string>) =>
+    api.get<PaginatedResponse<Project>>(`/workspaces/${workspaceSlug}/projects/`, { params }).then((r) => r.data.results),
 
   create: (workspaceSlug: string, data: Partial<Project> & { member_ids?: string[] }) =>
     api.post<Project>(`/workspaces/${workspaceSlug}/projects/`, data).then((r) => r.data),
@@ -54,22 +54,22 @@ export const projectsApi = {
       api.delete(`/workspaces/${workspaceSlug}/projects/${projectId}/members/${memberId}/`),
   },
 
-  // 모듈
-  modules: {
+  // 카테고리
+  categories: {
     list: (workspaceSlug: string, projectId: string) =>
-      api.get<PaginatedResponse<Module>>(`/workspaces/${workspaceSlug}/projects/${projectId}/modules/`).then((r) => r.data.results),
+      api.get<PaginatedResponse<Category>>(`/workspaces/${workspaceSlug}/projects/${projectId}/categories/`).then((r) => r.data.results),
 
-    create: (workspaceSlug: string, projectId: string, data: Partial<Module>) =>
-      api.post<Module>(`/workspaces/${workspaceSlug}/projects/${projectId}/modules/`, data).then((r) => r.data),
+    create: (workspaceSlug: string, projectId: string, data: Partial<Category>) =>
+      api.post<Category>(`/workspaces/${workspaceSlug}/projects/${projectId}/categories/`, data).then((r) => r.data),
 
-    get: (workspaceSlug: string, projectId: string, moduleId: string) =>
-      api.get<Module>(`/workspaces/${workspaceSlug}/projects/${projectId}/modules/${moduleId}/`).then((r) => r.data),
+    get: (workspaceSlug: string, projectId: string, categoryId: string) =>
+      api.get<Category>(`/workspaces/${workspaceSlug}/projects/${projectId}/categories/${categoryId}/`).then((r) => r.data),
 
-    update: (workspaceSlug: string, projectId: string, moduleId: string, data: Partial<Module>) =>
-      api.patch<Module>(`/workspaces/${workspaceSlug}/projects/${projectId}/modules/${moduleId}/`, data).then((r) => r.data),
+    update: (workspaceSlug: string, projectId: string, categoryId: string, data: Partial<Category>) =>
+      api.patch<Category>(`/workspaces/${workspaceSlug}/projects/${projectId}/categories/${categoryId}/`, data).then((r) => r.data),
 
-    delete: (workspaceSlug: string, projectId: string, moduleId: string) =>
-      api.delete(`/workspaces/${workspaceSlug}/projects/${projectId}/modules/${moduleId}/`),
+    delete: (workspaceSlug: string, projectId: string, categoryId: string) =>
+      api.delete(`/workspaces/${workspaceSlug}/projects/${projectId}/categories/${categoryId}/`),
   },
 
   // 상태
@@ -87,21 +87,21 @@ export const projectsApi = {
       api.delete(`/workspaces/${workspaceSlug}/projects/${projectId}/states/${stateId}/`),
   },
 
-  cycles: {
+  sprints: {
     list: (workspaceSlug: string, projectId: string) =>
-      api.get<PaginatedResponse<Cycle>>(`/workspaces/${workspaceSlug}/projects/${projectId}/cycles/`).then((r) => r.data.results),
+      api.get<PaginatedResponse<Sprint>>(`/workspaces/${workspaceSlug}/projects/${projectId}/sprints/`).then((r) => r.data.results),
 
-    create: (workspaceSlug: string, projectId: string, data: Partial<Cycle>) =>
-      api.post<Cycle>(`/workspaces/${workspaceSlug}/projects/${projectId}/cycles/`, data).then((r) => r.data),
+    create: (workspaceSlug: string, projectId: string, data: Partial<Sprint>) =>
+      api.post<Sprint>(`/workspaces/${workspaceSlug}/projects/${projectId}/sprints/`, data).then((r) => r.data),
 
-    get: (workspaceSlug: string, projectId: string, cycleId: string) =>
-      api.get<Cycle>(`/workspaces/${workspaceSlug}/projects/${projectId}/cycles/${cycleId}/`).then((r) => r.data),
+    get: (workspaceSlug: string, projectId: string, sprintId: string) =>
+      api.get<Sprint>(`/workspaces/${workspaceSlug}/projects/${projectId}/sprints/${sprintId}/`).then((r) => r.data),
 
-    update: (workspaceSlug: string, projectId: string, cycleId: string, data: Partial<Cycle>) =>
-      api.patch<Cycle>(`/workspaces/${workspaceSlug}/projects/${projectId}/cycles/${cycleId}/`, data).then((r) => r.data),
+    update: (workspaceSlug: string, projectId: string, sprintId: string, data: Partial<Sprint>) =>
+      api.patch<Sprint>(`/workspaces/${workspaceSlug}/projects/${projectId}/sprints/${sprintId}/`, data).then((r) => r.data),
 
-    delete: (workspaceSlug: string, projectId: string, cycleId: string) =>
-      api.delete(`/workspaces/${workspaceSlug}/projects/${projectId}/cycles/${cycleId}/`),
+    delete: (workspaceSlug: string, projectId: string, sprintId: string) =>
+      api.delete(`/workspaces/${workspaceSlug}/projects/${projectId}/sprints/${sprintId}/`),
   },
 
   // 캘린더 이벤트 (프로젝트 멤버 공유)

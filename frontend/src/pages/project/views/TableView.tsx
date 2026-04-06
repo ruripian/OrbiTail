@@ -18,17 +18,18 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Plus, SlidersHorizontal, Check,
   GitBranch, Link2, LayoutGrid, ChevronDown, ChevronRight,
-  GripVertical, MoreHorizontal, Trash2, CheckCircle2,
+  GripVertical, MoreHorizontal, Trash2, CheckCircle2, Copy, Archive,
 } from "lucide-react";
 import { toast } from "sonner";
+import { AvatarInitials } from "@/components/ui/avatar-initials";
 import { issuesApi } from "@/api/issues";
 import { IssueCreateDialog } from "@/components/issues/IssueCreateDialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { StatePicker } from "@/components/issues/state-picker";
 import { PriorityPicker } from "@/components/issues/priority-picker";
 import { AssigneePicker } from "@/components/issues/assignee-picker";
-import { ModulePicker } from "@/components/issues/module-picker";
-import { CyclePicker } from "@/components/issues/cycle-picker";
+import { CategoryPicker } from "@/components/issues/category-picker";
+import { SprintPicker } from "@/components/issues/sprint-picker";
 import { LabelPicker } from "@/components/issues/label-picker";
 import { useSavedFilters } from "@/hooks/useSavedFilters";
 import { projectsApi } from "@/api/projects";
@@ -43,7 +44,7 @@ import {
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
 import { DatePicker } from "@/components/ui/date-picker";
-import type { Issue, State, WorkspaceMember, Label, Module, Cycle } from "@/types";
+import type { Issue, State, WorkspaceMember, Label, Category, Sprint } from "@/types";
 
 /* 우선순위 상수 — 필터 표시용 (Picker는 자체 상수 사용) */
 import { PRIORITY_COLOR, PRIORITY_LIST } from "@/constants/priority";
@@ -51,7 +52,7 @@ import { PRIORITY_COLOR, PRIORITY_LIST } from "@/constants/priority";
 type ColId =
   | "state" | "priority" | "assignee"
   | "startDate" | "dueDate" | "label"
-  | "subIssues" | "links" | "module" | "cycle" | "id";
+  | "subIssues" | "links" | "category" | "sprint" | "id";
 
 interface ColDef {
   id: ColId;
@@ -70,11 +71,11 @@ const COL_DEFS: ColDef[] = [
   { id: "label",     tKey: "issues.table.cols.label",     width: 170, defaultVisible: true },
   { id: "subIssues", tKey: "issues.table.cols.subIssues", width: 96,  defaultVisible: true },
   { id: "links",     tKey: "issues.table.cols.links",     width: 84,  defaultVisible: true },
-  { id: "module",    tKey: "issues.table.cols.module",    width: 145, defaultVisible: false },
-  { id: "cycle",     tKey: "issues.table.cols.cycle",     width: 145, defaultVisible: false },
+  { id: "category",  tKey: "issues.table.cols.module",    width: 145, defaultVisible: false },
+  { id: "sprint",    tKey: "issues.table.cols.cycle",     width: 145, defaultVisible: false },
 ];
 
-const COL_STORAGE_KEY = "ouroboros_table_v2";
+const COL_STORAGE_KEY = "orbitail_table_v2";
 
 interface ColPrefs {
   order:   ColId[];
@@ -183,9 +184,10 @@ interface Props {
   projectId:     string;
   onIssueClick:  (issueId: string) => void;
   issueFilter?: Record<string, string>;
+  readOnly?:    boolean;
 }
 
-export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter }: Props) {
+export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter, readOnly }: Props) {
   const { t } = useTranslation();
   const qc = useQueryClient();
 
@@ -205,13 +207,13 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter 
     queryKey: ["project-members", workspaceSlug, projectId],
     queryFn:  () => projectsApi.members.list(workspaceSlug, projectId),
   });
-  const { data: projectModules = [] } = useQuery({
-    queryKey: ["modules", workspaceSlug, projectId],
-    queryFn:  () => projectsApi.modules.list(workspaceSlug, projectId),
+  const { data: projectCategories = [] } = useQuery({
+    queryKey: ["categories", workspaceSlug, projectId],
+    queryFn:  () => projectsApi.categories.list(workspaceSlug, projectId),
   });
-  const { data: projectCycles = [] } = useQuery({
-    queryKey: ["cycles", workspaceSlug, projectId],
-    queryFn:  () => projectsApi.cycles.list(workspaceSlug, projectId),
+  const { data: projectSprints = [] } = useQuery({
+    queryKey: ["sprints", workspaceSlug, projectId],
+    queryFn:  () => projectsApi.sprints.list(workspaceSlug, projectId),
   });
   const { data: labels = [] } = useQuery({
     queryKey: ["labels", projectId],
@@ -219,6 +221,35 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter 
   });
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [inlineAdding, setInlineAdding] = useState(false);
+  const [inlineTitle, setInlineTitle]   = useState("");
+
+  const inlineCreateMutation = useMutation({
+    mutationFn: (title: string) => {
+      const defaultState = states.find((s) => s.group === "unstarted")?.id ?? states.find((s) => s.default)?.id ?? states[0]?.id;
+      return issuesApi.create(workspaceSlug, projectId, {
+        title,
+        state: defaultState,
+        priority: "medium",
+        project: projectId,
+        ...(issueFilter?.category ? { category: issueFilter.category } : {}),
+        ...(issueFilter?.sprint  ? { sprint:  issueFilter.sprint }  : {}),
+      } as Partial<Issue>);
+    },
+    onSuccess: () => {
+      // 스크롤 위치 보존
+      const scrollEl = scrollRef.current;
+      const savedTop = scrollEl?.scrollTop ?? 0;
+
+      qc.invalidateQueries({ queryKey: ["issues", workspaceSlug, projectId] });
+      qc.invalidateQueries({ queryKey: ["my-issues", workspaceSlug] });
+      setInlineTitle("");
+      // 인라인 입력 유지 — 연속 생성 가능하도록 닫지 않음
+      requestAnimationFrame(() => {
+        if (scrollEl) scrollEl.scrollTop = savedTop;
+      });
+    },
+  });
 
   const [prefs, setPrefs] = useState<ColPrefs>(loadPrefs);
 
@@ -318,6 +349,17 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [lastClickedId, setLastClickedId] = useState<string | null>(null);
 
+  /** 이슈 id의 모든 하위 이슈 id를 재귀 수집 (React Query 캐시에서 읽기) */
+  const collectDescendants = (parentId: string): string[] => {
+    const cached = qc.getQueryData<Issue[]>(["sub-issues", parentId]) ?? [];
+    const result: string[] = [];
+    for (const child of cached) {
+      result.push(child.id);
+      result.push(...collectDescendants(child.id));
+    }
+    return result;
+  };
+
   const toggleSelect = (id: string, shiftKey: boolean) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -332,17 +374,24 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter 
           return next;
         }
       }
-      if (next.has(id)) next.delete(id); else next.add(id);
+      const descendants = collectDescendants(id);
+      if (next.has(id)) {
+        next.delete(id);
+        for (const cid of descendants) next.delete(cid);
+      } else {
+        next.add(id);
+        for (const cid of descendants) next.add(cid);
+      }
       return next;
     });
     setLastClickedId(id);
   };
 
   const toggleSelectAll = () => {
-    if (selectedIds.size === topLevelFiltered.length) {
+    if (selectedIds.size === allSelectableIds.size && [...allSelectableIds].every((id) => selectedIds.has(id))) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(topLevelFiltered.map((i) => i.id)));
+      setSelectedIds(new Set(allSelectableIds));
     }
   };
 
@@ -429,10 +478,18 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter 
         if (filters.priorities.size > 0 && !filters.priorities.has(issue.priority))                  return false;
         if (filters.assignees.size  > 0 && !issue.assignees.some((a) => filters.assignees.has(a)))  return false;
         if (filters.labels.size     > 0 && !issue.label.some((l) => filters.labels.has(l)))         return false;
-        /* 완료된 이슈 숨김 — state_detail.group 기준 */
+        /* 완료된 이슈 숨김 — state_detail.group 기준
+           단, 하위 이슈 중 미완료 항목이 있으면 숨기지 않음 */
         if (hideCompleted) {
           const g = issue.state_detail?.group;
-          if (g === "completed" || g === "cancelled") return false;
+          if (g === "completed" || g === "cancelled") {
+            const hasActiveChild = issue.sub_issues_count > 0 && issues.some(
+              (child) => child.parent === issue.id &&
+                child.state_detail?.group !== "completed" &&
+                child.state_detail?.group !== "cancelled"
+            );
+            if (!hasActiveChild) return false;
+          }
         }
         return true;
       })
@@ -444,6 +501,26 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter 
     }
     return base;
   }, [issues, filters, localOrder, hideCompleted]);
+
+  /* 전체 선택 대상 — 최상위 + 캐시에 로드된 하위 이슈 ID */
+  const allSelectableIds = useMemo(() => {
+    const ids = new Set<string>();
+    const addChildren = (parentId: string) => {
+      const cached = qc.getQueryData<Issue[]>(["sub-issues", parentId]) ?? [];
+      for (const child of cached) {
+        if (!ids.has(child.id)) {
+          ids.add(child.id);
+          addChildren(child.id);
+        }
+      }
+    };
+    for (const issue of topLevelFiltered) {
+      ids.add(issue.id);
+      addChildren(issue.id);
+    }
+    return ids;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [topLevelFiltered, issues]);
 
   /* 드래그 중 실시간 미리보기: 드래그 중인 카드를 hover 위치로 이동해 보여줌
      — 최상위 이슈 간 같은 레벨 이동에만 적용 (하위이슈는 IssueCard 내 liveSubOrder 처리) */
@@ -708,14 +785,16 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter 
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <Button
-          size="sm"
-          onClick={() => setCreateDialogOpen(true)}
-          className="h-8 text-xs gap-1.5 rounded-lg"
-        >
-          <Plus className="h-3.5 w-3.5" />
-          {t("views.addIssue")}
-        </Button>
+        {!readOnly && (
+          <Button
+            size="sm"
+            onClick={() => setCreateDialogOpen(true)}
+            className="h-8 text-xs gap-1.5 rounded-lg"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            {t("views.addIssue")}
+          </Button>
+        )}
       </div>
 
       <IssueCreateDialog
@@ -724,6 +803,8 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter 
         states={states}
         workspaceSlug={workspaceSlug}
         projectId={projectId}
+        defaultCategoryId={issueFilter?.category}
+        defaultSprintId={issueFilter?.sprint}
       />
 
       <div ref={scrollRef} data-scroll-container className="flex-1 overflow-auto">
@@ -734,8 +815,8 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter 
           <div className="sticky top-0 z-10 bg-background">
             <div className="flex items-center gap-3 px-4 py-2.5 border-b border-border min-w-max">
               <Checkbox
-                checked={selectedIds.size > 0 && selectedIds.size === topLevelFiltered.length}
-                indeterminate={selectedIds.size > 0 && selectedIds.size < topLevelFiltered.length}
+                checked={selectedIds.size > 0 && selectedIds.size === allSelectableIds.size}
+                indeterminate={selectedIds.size > 0 && selectedIds.size < allSelectableIds.size}
                 onChange={() => toggleSelectAll()}
               />
 
@@ -824,14 +905,65 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter 
                   projectIdentifier={project?.identifier}
                   depth={0}
                   onIssueClick={onIssueClick}
-                  modules={projectModules}
-                  cycles={projectCycles}
+                  categories={projectCategories}
+                  sprints={projectSprints}
                   hideCompleted={hideCompleted}
                   selected={selectedIds.has(issue.id)}
                   onToggleSelect={toggleSelect}
                   selectedIds={selectedIds}
                 />
               ))}
+
+              {/* 인라인 이슈 추가 — 리스트 최하단 */}
+              {readOnly ? null : inlineAdding ? (
+                <div className="flex items-center gap-3 rounded-xl border border-dashed border-primary/40 bg-primary/5 px-4 py-2.5 mb-1.5">
+                  <div className="w-5 shrink-0" />
+                  <input
+                    ref={(el) => { if (el) el.focus({ preventScroll: true }); }}
+                    type="text"
+                    value={inlineTitle}
+                    onChange={(e) => setInlineTitle(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && inlineTitle.trim()) {
+                        e.preventDefault();
+                        inlineCreateMutation.mutate(inlineTitle.trim());
+                      }
+                      if (e.key === "Escape") {
+                        setInlineAdding(false);
+                        setInlineTitle("");
+                      }
+                    }}
+                    onBlur={() => {
+                      if (inlineTitle.trim()) {
+                        inlineCreateMutation.mutate(inlineTitle.trim());
+                      } else {
+                        setInlineAdding(false);
+                        setInlineTitle("");
+                      }
+                    }}
+                    placeholder={t("issues.table.quickAddPlaceholder")}
+                    autoComplete="off"
+                    className="flex-1 min-w-0 bg-transparent outline-none text-sm text-foreground placeholder:text-muted-foreground/50"
+                  />
+                  <span className="text-xs text-muted-foreground/60 shrink-0">
+                    {t("issues.table.pressEnterToAdd")}
+                  </span>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setInlineAdding(true);
+                    requestAnimationFrame(() => {
+                      if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+                    });
+                  }}
+                  className="w-full flex items-center gap-2 rounded-xl border border-dashed border-border px-4 py-2.5 text-xs font-medium text-muted-foreground/50 hover:border-primary/40 hover:bg-primary/5 hover:text-primary transition-all duration-150 mb-1.5"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  {t("views.addIssue")}
+                </button>
+              )}
 
               {/* 하단 드롭 영역 — 하위 이슈를 여기로 드래그하면 최상위로 승격 */}
               {dragId && (
@@ -879,6 +1011,7 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter 
       <BulkToolbar
         selectedCount={selectedIds.size}
         states={states}
+        members={members}
         workspaceSlug={workspaceSlug}
         projectId={projectId}
         selectedIds={Array.from(selectedIds)}
@@ -890,10 +1023,11 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter 
 }
 
 function BulkToolbar({
-  selectedCount, states, workspaceSlug, projectId, selectedIds, onDone,
+  selectedCount, states, members, workspaceSlug, projectId, selectedIds, onDone,
 }: {
   selectedCount: number;
   states: State[];
+  members: WorkspaceMember[];
   workspaceSlug: string;
   projectId: string;
   selectedIds: string[];
@@ -970,6 +1104,26 @@ function BulkToolbar({
         </DropdownMenuContent>
       </DropdownMenu>
 
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="sm" className="text-xs gap-1.5">
+            {t("issues.bulk.changeAssignee")}
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent>
+          {members.map((m) => (
+            <DropdownMenuItem
+              key={m.member.id}
+              onClick={() => bulkUpdateMutation.mutate({ assignees: [m.member.id] })}
+              className="text-xs gap-2"
+            >
+              <AvatarInitials name={m.member.display_name} size="xs" />
+              {m.member.display_name}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+
       <Button
         variant="ghost"
         size="sm"
@@ -1004,8 +1158,8 @@ interface IssueCardProps {
   depth:              number;
   onIssueClick:       (id: string) => void;
   /* 인라인 picker용 전체 목록 */
-  modules:            Module[];
-  cycles:             Cycle[];
+  categories:         Category[];
+  sprints:            Sprint[];
   /* 완료된 하위 이슈 숨김 (상위 필터바 토글과 연동, 하위 이슈도 독립적으로 필터링) */
   hideCompleted:      boolean;
   /* 벌크 선택 */
@@ -1017,7 +1171,7 @@ interface IssueCardProps {
 function IssueCard({
   issue, activeCols, states, members, labels,
   workspaceSlug, projectId, projectIdentifier, depth, onIssueClick,
-  modules, cycles, hideCompleted, selected, onToggleSelect, selectedIds,
+  categories, sprints, hideCompleted, selected, onToggleSelect, selectedIds,
 }: IssueCardProps) {
   const { t } = useTranslation();
   const qc = useQueryClient();
@@ -1070,7 +1224,11 @@ function IssueCard({
   /* ── 인라인 하위 이슈 생성 ── */
   const createSubMutation = useMutation({
     mutationFn: (title: string) =>
-      issuesApi.subIssues.create(workspaceSlug, projectId, issue.id, { title }),
+      issuesApi.subIssues.create(workspaceSlug, projectId, issue.id, {
+        title, state: issue.state, priority: "medium",
+        ...(issue.category ? { category: issue.category } : {}),
+        ...(issue.sprint  ? { sprint:  issue.sprint }  : {}),
+      }),
     onSuccess: () => {
       // 스크롤 위치 보존 — 리패치 후에도 현재 보고 있는 곳 유지
       const scrollEl = document.querySelector("[data-scroll-container]");
@@ -1105,6 +1263,28 @@ function IssueCard({
       }
     },
   });
+
+  /* ── 이슈 복사 (딥카피 — 하위 이슈 포함) ── */
+  const handleCopy = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    issuesApi.duplicate(workspaceSlug, projectId, issue.id).then(() => {
+      qc.invalidateQueries({ queryKey: ["issues", workspaceSlug, projectId] });
+      qc.invalidateQueries({ queryKey: ["my-issues", workspaceSlug] });
+      if (issue.parent) qc.invalidateQueries({ queryKey: ["sub-issues", issue.parent] });
+      toast.success(t("issues.table.copied"));
+    });
+  };
+
+  /* ── 이슈 보관 ── */
+  const handleArchive = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    issuesApi.archive(workspaceSlug, projectId, issue.id).then(() => {
+      qc.invalidateQueries({ queryKey: ["issues", workspaceSlug, projectId] });
+      qc.invalidateQueries({ queryKey: ["issues-archive", workspaceSlug, projectId] });
+      if (issue.parent) qc.invalidateQueries({ queryKey: ["sub-issues", issue.parent] });
+      toast.success(t("issues.table.archived"));
+    });
+  };
 
   /* ── 이슈 삭제 (소프트 삭제 + 되돌리기 토스트) ── */
   const handleDelete = (e: React.MouseEvent) => {
@@ -1187,21 +1367,27 @@ function IssueCard({
             value={issue.start_date}
             onChange={(v) => updateMutation.mutate({ start_date: v })}
             placeholder={t("views.timeline.startDate")}
+            hintDate={issue.due_date}
+            hintMode="after"
           />
         );
 
       case "dueDate": {
+        const stateGroup = issue.state_detail?.group;
+        const isActiveState = stateGroup === "started" || stateGroup === "unstarted";
         const today = new Date(); today.setHours(0, 0, 0, 0);
         const due   = issue.due_date ? new Date(issue.due_date) : null;
         if (due) due.setHours(0, 0, 0, 0);
         const diff  = due ? Math.ceil((due.getTime() - today.getTime()) / 86_400_000) : null;
-        const overdueClass = diff === null ? "" : diff < 0 ? "text-red-500" : diff <= 3 ? "text-orange-400" : "text-muted-foreground";
+        const overdueClass = (!isActiveState || diff === null) ? "" : diff < 0 ? "text-red-500" : diff <= 3 ? "text-orange-400" : "text-muted-foreground";
         return (
           <DatePicker
             value={issue.due_date}
             onChange={(v) => updateMutation.mutate({ due_date: v })}
             placeholder={t("views.timeline.dueDate")}
             overdueClass={overdueClass}
+            hintDate={issue.start_date}
+            hintMode="before"
           />
         );
       }
@@ -1236,21 +1422,21 @@ function IssueCard({
           </div>
         );
 
-      case "module":
+      case "category":
         return (
-          <ModulePicker
-            modules={modules}
-            currentId={issue.module}
-            onChange={(id) => updateMutation.mutate({ module: id })}
+          <CategoryPicker
+            categories={categories}
+            currentId={issue.category}
+            onChange={(id) => updateMutation.mutate({ category: id })}
           />
         );
 
-      case "cycle":
+      case "sprint":
         return (
-          <CyclePicker
-            cycles={cycles}
-            currentId={issue.cycle}
-            onChange={(id) => updateMutation.mutate({ cycle: id })}
+          <SprintPicker
+            sprints={sprints}
+            currentId={issue.sprint}
+            onChange={(id) => updateMutation.mutate({ sprint: id })}
           />
         );
 
@@ -1390,6 +1576,20 @@ function IssueCard({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-32 rounded-xl p-1.5" onClick={(e) => e.stopPropagation()}>
               <DropdownMenuItem
+                className="gap-2 rounded-lg text-xs cursor-pointer"
+                onClick={handleCopy}
+              >
+                <Copy className="h-3.5 w-3.5" />
+                {t("issues.table.copy")}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="gap-2 rounded-lg text-xs cursor-pointer"
+                onClick={handleArchive}
+              >
+                <Archive className="h-3.5 w-3.5" />
+                {t("issues.table.archive")}
+              </DropdownMenuItem>
+              <DropdownMenuItem
                 className="gap-2 rounded-lg text-xs cursor-pointer text-destructive focus:text-destructive focus:bg-destructive/10"
                 onClick={handleDelete}
               >
@@ -1417,8 +1617,8 @@ function IssueCard({
               projectIdentifier={projectIdentifier}
               depth={depth + 1}
               onIssueClick={onIssueClick}
-              modules={modules}
-              cycles={cycles}
+              categories={categories}
+              sprints={sprints}
               hideCompleted={hideCompleted}
               selected={selectedIds?.has(sub.id)}
               onToggleSelect={onToggleSelect}
@@ -1433,7 +1633,7 @@ function IssueCard({
             >
               <div className="w-5 shrink-0" />
               <input
-                autoFocus
+                ref={(el) => { if (el) el.focus({ preventScroll: true }); }}
                 type="text"
                 value={childTitle}
                 onChange={(e) => setChildTitle(e.target.value)}
@@ -1448,10 +1648,15 @@ function IssueCard({
                   }
                 }}
                 onBlur={() => {
-                  setAddingChild(false);
-                  setChildTitle("");
+                  if (childTitle.trim()) {
+                    createSubMutation.mutate(childTitle.trim());
+                  } else {
+                    setAddingChild(false);
+                    setChildTitle("");
+                  }
                 }}
                 placeholder={t("issues.table.subIssuePlaceholder")}
+                autoComplete="off"
                 className="flex-1 min-w-0 bg-transparent outline-none text-sm text-foreground placeholder:text-muted-foreground/50"
               />
               <span className="text-xs text-muted-foreground/60 shrink-0">
@@ -1468,9 +1673,12 @@ function IssueCard({
         open={subDialogOpen}
         onOpenChange={setSubDialogOpen}
         states={states}
+        defaultStateId={issue.state}
         workspaceSlug={workspaceSlug}
         projectId={projectId}
         parentIssueId={issue.id}
+        defaultCategoryId={issue.category ?? undefined}
+        defaultSprintId={issue.sprint ?? undefined}
       />
     </div>
   );

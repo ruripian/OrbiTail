@@ -29,13 +29,13 @@ class IssueSerializer(serializers.ModelSerializer):
             "project", "project_identifier", "project_name", "workspace",
             "assignees", "assignee_details",
             "label", "label_details",
-            "module", "cycle",
+            "category", "sprint",
             "parent", "sub_issues_count", "link_count", "attachment_count",
             "sequence_id", "created_by", "created_by_detail",
             "due_date", "start_date", "estimate_point",
-            "sort_order", "created_at", "updated_at", "deleted_at",
+            "sort_order", "created_at", "updated_at", "archived_at", "deleted_at",
         ]
-        read_only_fields = ["id", "sequence_id", "created_by", "workspace", "created_at", "updated_at", "deleted_at"]
+        read_only_fields = ["id", "sequence_id", "created_by", "workspace", "created_at", "updated_at", "archived_at", "deleted_at"]
         # unique_together (project, sequence_id)는 Model.save()에서 자동으로 안전하게 할당되므로
         # serializer 단계 validator는 제거 — 그렇지 않으면 default=1이 이미 존재하는 경우 첫 이슈부터 실패
         validators = []

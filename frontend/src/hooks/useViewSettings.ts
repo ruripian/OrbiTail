@@ -18,7 +18,7 @@ export interface TimelineSettings {
   showCompleted: boolean;
   showNoDate:    boolean;
   hideWeekends:  boolean; // day scale에서 주말 컬럼 건너뛰기
-  groupBy:       "none" | "state" | "priority" | "module" | "cycle"; // 그룹화 기준
+  groupBy:       "none" | "state" | "priority" | "category" | "sprint"; // 그룹화 기준
 }
 
 interface AllSettings {
@@ -28,10 +28,10 @@ interface AllSettings {
 
 const DEFAULTS: AllSettings = {
   calendar: { showCompleted: true, showNoDate: false, hideWeekends: false, showEvents: true, alwaysExpand: false },
-  timeline: { scale: "week", showCompleted: false, showNoDate: false, hideWeekends: false, groupBy: "none" },
+  timeline: { scale: "day", showCompleted: false, showNoDate: false, hideWeekends: false, groupBy: "none" },
 };
 
-const KEY = "ouroboros_view_settings";
+const KEY = "orbitail_view_settings";
 
 function loadSettings(): AllSettings {
   try {

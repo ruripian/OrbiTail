@@ -7,31 +7,31 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import type { Cycle } from "@/types";
+import type { Sprint } from "@/types";
 
 /**
- * CyclePicker — 이슈 사이클 단일 선택 드롭다운 (인라인 편집용)
+ * SprintPicker — 이슈 스프린트 단일 선택 드롭다운 (인라인 편집용)
  *
- * 재사용: TableView, IssueDetailPage 등 사이클을 인라인 변경하는 모든 곳
+ * 재사용: TableView, IssueDetailPage 등 스프린트를 인라인 변경하는 모든 곳
  *
  * 사용:
- *   <CyclePicker
- *     cycles={projectCycles}
- *     currentId={issue.cycle}
- *     onChange={(id) => updateMutation.mutate({ cycle: id })}
+ *   <SprintPicker
+ *     sprints={projectSprints}
+ *     currentId={issue.sprint}
+ *     onChange={(id) => updateMutation.mutate({ sprint: id })}
  *   />
  */
 
 interface Props {
-  cycles:    Pick<Cycle, "id" | "name" | "status">[];
+  sprints:    Pick<Sprint, "id" | "name" | "status">[];
   currentId: string | null | undefined;
-  onChange:  (cycleId: string | null) => void;
+  onChange:  (sprintId: string | null) => void;
   className?: string;
 }
 
-export function CyclePicker({ cycles, currentId, onChange, className }: Props) {
+export function SprintPicker({ sprints, currentId, onChange, className }: Props) {
   const { t } = useTranslation();
-  const cur = currentId ? cycles.find((c) => c.id === currentId) : null;
+  const cur = currentId ? sprints.find((c) => c.id === currentId) : null;
 
   return (
     <DropdownMenu>
@@ -61,10 +61,10 @@ export function CyclePicker({ cycles, currentId, onChange, className }: Props) {
           {!currentId && <Check className="h-3 w-3 text-primary shrink-0" />}
         </DropdownMenuItem>
 
-        {cycles.length === 0 ? (
+        {sprints.length === 0 ? (
           <p className="text-xs text-muted-foreground px-2 py-1.5">{t("issues.picker.noCycles")}</p>
         ) : (
-          cycles.map((c) => (
+          sprints.map((c) => (
             <DropdownMenuItem
               key={c.id}
               className="gap-2 rounded-lg text-xs cursor-pointer"

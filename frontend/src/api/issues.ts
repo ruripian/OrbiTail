@@ -5,8 +5,8 @@ interface IssueFilters {
   state?: string;
   priority?: string;
   assignees?: string;
-  module?: string;
-  cycle?: string;
+  category?: string;
+  sprint?: string;
   search?: string;
   ordering?: string;
   include_sub_issues?: string; // "true"면 하위 이슈 포함 (타임라인 계층 뷰용)
@@ -50,6 +50,30 @@ export const issuesApi = {
   /** 이슈 영구 삭제 */
   hardDelete: (workspaceSlug: string, projectId: string, issueId: string) =>
     api.delete(`/workspaces/${workspaceSlug}/projects/${projectId}/issues/${issueId}/hard-delete/`),
+
+  /** 이슈 딥카피 (하위 이슈 포함 전체 복제) */
+  duplicate: (workspaceSlug: string, projectId: string, issueId: string) =>
+    api
+      .post<Issue>(`/workspaces/${workspaceSlug}/projects/${projectId}/issues/${issueId}/duplicate/`)
+      .then((r) => r.data),
+
+  /** 보관된 이슈 목록 */
+  listArchived: (workspaceSlug: string, projectId: string, filters?: Record<string, string>) =>
+    api
+      .get<PaginatedResponse<Issue>>(`/workspaces/${workspaceSlug}/projects/${projectId}/issues/archive/`, { params: filters })
+      .then((r) => r.data.results),
+
+  /** 이슈 보관 */
+  archive: (workspaceSlug: string, projectId: string, issueId: string) =>
+    api
+      .post<Issue>(`/workspaces/${workspaceSlug}/projects/${projectId}/issues/${issueId}/archive/`)
+      .then((r) => r.data),
+
+  /** 보관된 이슈 복원 */
+  unarchive: (workspaceSlug: string, projectId: string, issueId: string) =>
+    api
+      .delete<Issue>(`/workspaces/${workspaceSlug}/projects/${projectId}/issues/${issueId}/archive/`)
+      .then((r) => r.data),
 
   subIssues: {
     list: (workspaceSlug: string, projectId: string, issueId: string) =>

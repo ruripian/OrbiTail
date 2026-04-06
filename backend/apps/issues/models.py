@@ -51,15 +51,15 @@ class Issue(models.Model):
         related_name="assigned_issues",
     )
     label = models.ManyToManyField(Label, blank=True, related_name="issues")
-    module = models.ForeignKey(
-        "projects.Module",
+    category = models.ForeignKey(
+        "projects.Category",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
         related_name="issues",
     )
-    cycle = models.ForeignKey(
-        "projects.Cycle",
+    sprint = models.ForeignKey(
+        "projects.Sprint",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
@@ -85,6 +85,7 @@ class Issue(models.Model):
     sort_order = models.FloatField(default=65535)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    archived_at = models.DateTimeField(null=True, blank=True)  # 보관 — null이면 활성, 값이 있으면 보관함
     deleted_at = models.DateTimeField(null=True, blank=True)  # 소프트 삭제 — null이면 정상, 값이 있으면 휴지통
 
     class Meta:

@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from apps.accounts.serializers import UserSerializer
-from .models import Project, ProjectMember, Module, Cycle, State, ProjectEvent
+from .models import Project, ProjectMember, Category, Sprint, State, ProjectEvent
 
 
 class ProjectEventSerializer(serializers.ModelSerializer):
@@ -37,6 +37,8 @@ class ProjectSerializer(serializers.ModelSerializer):
     # lead는 쓰기 시 user id(UUID)만 받고, 읽기 시 lead_detail로 전체 User 정보 반환
     lead_detail = UserSerializer(source="lead", read_only=True)
     state_count = serializers.SerializerMethodField()
+    is_member = serializers.SerializerMethodField()
+    user_role = serializers.SerializerMethodField()
     # 초기 참여자 목록 — 생성 시에만 사용 (write-only). 생성자/리더는 자동 추가되므로 제외 가능
     member_ids = serializers.ListField(
         child=serializers.UUIDField(),
@@ -52,6 +54,7 @@ class ProjectSerializer(serializers.ModelSerializer):
             "id", "name", "identifier", "description",
             "workspace", "network", "icon_prop",
             "created_by", "lead", "lead_detail", "state_count",
+            "is_member", "user_role",
             "member_ids",
             "archived_at", "auto_archive_days",
             "created_at",
@@ -61,6 +64,19 @@ class ProjectSerializer(serializers.ModelSerializer):
 
     def get_state_count(self, obj):
         return obj.states.count()
+
+    def get_is_member(self, obj):
+        request = self.context.get("request")
+        if not request or not request.user.is_authenticated:
+            return False
+        return ProjectMember.objects.filter(project=obj, member=request.user).exists()
+
+    def get_user_role(self, obj):
+        request = self.context.get("request")
+        if not request or not request.user.is_authenticated:
+            return None
+        pm = ProjectMember.objects.filter(project=obj, member=request.user).first()
+        return pm.role if pm else None
 
     def validate_lead(self, value):
         """lead로 지정하려는 유저가 해당 워크스페이스 멤버인지 검증.
@@ -181,12 +197,12 @@ class ProjectMemberCreateSerializer(serializers.Serializer):
     )
 
 
-class ModuleSerializer(serializers.ModelSerializer):
+class CategorySerializer(serializers.ModelSerializer):
     lead_detail = UserSerializer(source="lead", read_only=True)
     issue_count = serializers.SerializerMethodField()
 
     class Meta:
-        model = Module
+        model = Category
         fields = [
             "id", "name", "description", "icon_prop", "status",
             "lead", "lead_detail",
@@ -199,12 +215,12 @@ class ModuleSerializer(serializers.ModelSerializer):
         return obj.issues.filter(deleted_at__isnull=True).count()
 
 
-class CycleSerializer(serializers.ModelSerializer):
+class SprintSerializer(serializers.ModelSerializer):
     created_by_detail = UserSerializer(source="created_by", read_only=True)
     issue_count = serializers.SerializerMethodField()
 
     class Meta:
-        model = Cycle
+        model = Sprint
         fields = [
             "id", "name", "description", "status",
             "start_date", "end_date",

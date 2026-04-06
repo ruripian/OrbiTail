@@ -1,6 +1,6 @@
 {
   "brand": {
-    "name": "OUROBOROS"
+    "name": "ORBITAIL"
   },
   "theme": {
     "toggle": "테마 전환"
@@ -137,6 +137,10 @@
       "subIssuePlaceholder": "하위 이슈 제목...",
       "quickAddPlaceholder": "새 이슈 제목 입력 후 Enter...",
       "pressEnterToAdd": "Enter → 추가",
+      "copy": "복사",
+      "copied": "이슈가 복사되었습니다",
+      "archive": "보관",
+      "archived": "이슈가 보관되었습니다",
       "delete": "삭제",
       "deleted": "이슈가 삭제되었습니다",
       "deletedWithChildren": "하위 이슈 {{count}}개도 함께 삭제됩니다",
@@ -165,6 +169,7 @@
       "selected": "{{count}}개 선택됨",
       "changeState": "상태 변경",
       "changePriority": "우선순위 변경",
+      "changeAssignee": "담당자 변경",
       "delete": "삭제",
       "deleteConfirm": "선택한 {{count}}개 이슈를 삭제하시겠습니까?",
       "updated": "{{count}}개 이슈가 업데이트되었습니다",
@@ -275,7 +280,7 @@
   },
   "setup": {
     "title": "초기 설정",
-    "subtitle": "Ouroboros 워크스페이스를 시작하세요",
+    "subtitle": "OrbiTail 워크스페이스를 시작하세요",
     "systemSection": "시스템",
     "adminSection": "관리자 계정",
     "workspaceSection": "워크스페이스",
@@ -440,6 +445,10 @@
       }
     }
   },
+  "archivedProjects": {
+    "subtitle": "보관된 프로젝트는 사이드바에서 숨겨지지만 데이터는 유지됩니다",
+    "empty": "보관된 프로젝트가 없습니다"
+  },
   "discover": {
     "title": "프로젝트 탐색",
     "subtitle": "워크스페이스의 공개 프로젝트를 탐색하고 참가하세요",
@@ -590,6 +599,7 @@
     "workspace": "워크스페이스",
     "home": "홈",
     "discover": "탐색",
+    "archived": "보관함",
     "projects": "프로젝트",
     "newProject": "새 프로젝트",
     "noProjects": "프로젝트가 없습니다",
@@ -790,9 +800,19 @@
       "timeline": "타임라인",
       "cycles": "스프린트",
       "analytics": "분석",
-      "trash": "휴지통"
+      "trash": "휴지통",
+      "archive": "보관함"
     },
     "addIssue": "이슈 추가",
+    "archive": {
+      "empty": "보관된 이슈가 없습니다",
+      "emptyDescription": "보관된 이슈가 여기에 표시됩니다",
+      "description": "보관된 이슈는 읽기 전용입니다. 복원하거나 삭제할 수 있습니다.",
+      "restore": "복원",
+      "restored": "이슈가 보관함에서 복원되었습니다",
+      "archivedDate": "보관일",
+      "readOnlyNotice": "보관된 이슈입니다. 수정하려면 복원하세요."
+    },
     "trash": {
       "empty": "삭제된 이슈가 없습니다",
       "emptyDescription": "삭제된 이슈가 여기에 표시됩니다",
@@ -801,6 +821,12 @@
       "retentionNotice": "삭제된 이슈는 {{days}}일 후 자동으로 영구 삭제됩니다.",
       "autoDelete": "자동 삭제",
       "daysLeft": "{{count}}일 남음"
+    },
+    "categoryFilter": {
+      "all": "전체 이슈",
+      "noCategory": "카테고리 없음",
+      "label": "카테고리",
+      "manage": "카테고리 관리"
     },
     "cycleFilter": {
       "all": "전체 이슈",

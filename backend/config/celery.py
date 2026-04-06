@@ -14,9 +14,9 @@ app.conf.beat_schedule = {
         "task": "apps.issues.tasks.auto_archive_completed_issues",
         "schedule": crontab(hour=3, minute=0),
     },
-    # 종료일 지난 사이클 자동 완료 — 매일 새벽 3시 30분
-    "auto-complete-expired-cycles": {
-        "task": "apps.issues.tasks.auto_complete_expired_cycles",
+    # 종료일 지난 스프린트 자동 완료 — 매일 새벽 3시 30분
+    "auto-complete-expired-sprints": {
+        "task": "apps.issues.tasks.auto_complete_expired_sprints",
         "schedule": crontab(hour=3, minute=30),
     },
     # 30일 이상 된 알림 자동 삭제 — 매일 새벽 4시

@@ -8,31 +8,31 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ProjectIcon } from "@/components/ui/project-icon-picker";
 import { cn } from "@/lib/utils";
-import type { Module } from "@/types";
+import type { Category } from "@/types";
 
 /**
- * ModulePicker — 이슈 모듈 단일 선택 드롭다운 (인라인 편집용)
+ * CategoryPicker — 이슈 카테고리 단일 선택 드롭다운 (인라인 편집용)
  *
- * 재사용: TableView, IssueDetailPage 등 모듈을 인라인 변경하는 모든 곳
+ * 재사용: TableView, IssueDetailPage 등 카테고리를 인라인 변경하는 모든 곳
  *
  * 사용:
- *   <ModulePicker
- *     modules={projectModules}
- *     currentId={issue.module}
- *     onChange={(id) => updateMutation.mutate({ module: id })}
+ *   <CategoryPicker
+ *     categories={projectCategories}
+ *     currentId={issue.category}
+ *     onChange={(id) => updateMutation.mutate({ category: id })}
  *   />
  */
 
 interface Props {
-  modules:   Pick<Module, "id" | "name" | "icon_prop">[];
+  categories:   Pick<Category, "id" | "name" | "icon_prop">[];
   currentId: string | null | undefined;
-  onChange:  (moduleId: string | null) => void;
+  onChange:  (categoryId: string | null) => void;
   className?: string;
 }
 
-export function ModulePicker({ modules, currentId, onChange, className }: Props) {
+export function CategoryPicker({ categories, currentId, onChange, className }: Props) {
   const { t } = useTranslation();
-  const cur = currentId ? modules.find((m) => m.id === currentId) : null;
+  const cur = currentId ? categories.find((m) => m.id === currentId) : null;
 
   return (
     <DropdownMenu>
@@ -66,10 +66,10 @@ export function ModulePicker({ modules, currentId, onChange, className }: Props)
           {!currentId && <Check className="h-3 w-3 text-primary shrink-0" />}
         </DropdownMenuItem>
 
-        {modules.length === 0 ? (
+        {categories.length === 0 ? (
           <p className="text-xs text-muted-foreground px-2 py-1.5">{t("issues.picker.noModules")}</p>
         ) : (
-          modules.map((m) => (
+          categories.map((m) => (
             <DropdownMenuItem
               key={m.id}
               className="gap-2 rounded-lg text-xs cursor-pointer"

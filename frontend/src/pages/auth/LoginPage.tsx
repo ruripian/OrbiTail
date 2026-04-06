@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AuthCard, AuthCardHeader } from "@/components/auth/AuthCard";
-import { OuroborosOrbit } from "@/components/auth/OuroborosOrbit";
+import { OrbiTailOrbit } from "@/components/auth/OrbiTailOrbit";
 
 const schema = z.object({
   email: z.string().email(),
@@ -48,7 +48,7 @@ export function LoginPage() {
 
   return (
     <>
-      <OuroborosOrbit size={1200} strokeW={5} offsetY={-40} />
+      <OrbiTailOrbit size={1200} strokeW={5} offsetY={-40} />
       <AuthCard>
         <AuthCardHeader subtitle={t("auth.login.subtitle")} />
 

@@ -22,13 +22,34 @@ interface Props {
   projectId:     string;
   onIssueClick:  (issueId: string) => void;
   issueFilter?: Record<string, string>;
+  readOnly?:    boolean;
 }
 
-export function BoardView({ workspaceSlug, projectId, onIssueClick, issueFilter }: Props) {
+export function BoardView({ workspaceSlug, projectId, onIssueClick, issueFilter, readOnly }: Props) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const [createOpen, setCreateOpen]       = useState(false);
   const [selectedState, setSelectedState] = useState<State | null>(null);
+  const [inlineStateId, setInlineStateId] = useState<string | null>(null);
+  const [inlineTitle, setInlineTitle]     = useState("");
+
+  const inlineCreateMutation = useMutation({
+    mutationFn: ({ title, stateId }: { title: string; stateId: string }) =>
+      issuesApi.create(workspaceSlug, projectId, {
+        title,
+        state: stateId,
+        priority: "medium",
+        project: projectId,
+        ...(issueFilter?.category ? { category: issueFilter.category } : {}),
+        ...(issueFilter?.sprint  ? { sprint:  issueFilter.sprint }  : {}),
+      } as Partial<Issue>),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["issues", workspaceSlug, projectId] });
+      qc.invalidateQueries({ queryKey: ["my-issues", workspaceSlug] });
+      setInlineTitle("");
+      setInlineStateId(null);
+    },
+  });
 
   /* 드래그 상태 */
   const [draggedIssueId, setDraggedIssueId] = useState<string | null>(null);
@@ -100,12 +121,14 @@ export function BoardView({ workspaceSlug, projectId, onIssueClick, issueFilter 
               <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full ml-auto">
                 {issuesByState[state.id]?.length ?? 0}
               </span>
-              <Button
-                variant="ghost" size="icon" className="h-5 w-5"
-                onClick={() => { setSelectedState(state); setCreateOpen(true); }}
-              >
-                <Plus className="h-3.5 w-3.5" />
-              </Button>
+              {!readOnly && (
+                <Button
+                  variant="ghost" size="icon" className="h-5 w-5"
+                  onClick={() => { setSelectedState(state); setCreateOpen(true); }}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </Button>
+              )}
             </div>
 
             <StaggerList className="space-y-2 flex-1 px-1">
@@ -115,7 +138,7 @@ export function BoardView({ workspaceSlug, projectId, onIssueClick, issueFilter 
                   <StaggerItem key={issue.id}>
                   <HoverLift>
                   <div
-                    draggable
+                    draggable={!readOnly}
                     onDragStart={(e) => {
                       e.dataTransfer.setData("issueId", issue.id);
                       setTimeout(() => setDraggedIssueId(issue.id), 0);
@@ -136,12 +159,14 @@ export function BoardView({ workspaceSlug, projectId, onIssueClick, issueFilter 
 
                     {/* 2행: 시작일 → 마감일 (기한 색상 차별) */}
                     {(issue.start_date || issue.due_date) && (() => {
+                      const stateGroup = state.group;
+                      const isActiveState = stateGroup === "started" || stateGroup === "unstarted";
                       const today = new Date(); today.setHours(0, 0, 0, 0);
                       const due   = issue.due_date ? new Date(issue.due_date) : null;
                       if (due) due.setHours(0, 0, 0, 0);
                       const diff  = due ? Math.ceil((due.getTime() - today.getTime()) / 86_400_000) : null;
                       const dueClass =
-                        diff === null ? "text-muted-foreground" :
+                        (!isActiveState || diff === null) ? "text-muted-foreground" :
                         diff < 0      ? "text-red-500 font-medium" :
                         diff <= 3     ? "text-orange-400 font-medium" :
                         "text-muted-foreground";
@@ -193,15 +218,47 @@ export function BoardView({ workspaceSlug, projectId, onIssueClick, issueFilter 
                 </div>
               )}
 
-              {/* 컬럼 하단 hover 시 "+ 이슈 추가" 영역 */}
-              <button
-                type="button"
-                onClick={() => { setSelectedState(state); setCreateOpen(true); }}
-                className="w-full mt-2 flex items-center justify-center gap-2 rounded-xl border border-dashed border-border px-3 py-3 text-xs font-medium text-muted-foreground/70 opacity-0 group-hover:opacity-100 hover:border-primary/50 hover:bg-primary/5 hover:text-primary transition-all duration-150"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                {t("views.addIssue")}
-              </button>
+              {/* 컬럼 하단 인라인 이슈 추가 */}
+              {readOnly ? null : inlineStateId === state.id ? (
+                <div className="mt-2 rounded-xl border border-dashed border-primary/40 bg-primary/5 p-2.5">
+                  <input
+                    ref={(el) => { if (el) el.focus({ preventScroll: true }); }}
+                    type="text"
+                    value={inlineTitle}
+                    onChange={(e) => setInlineTitle(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && inlineTitle.trim()) {
+                        e.preventDefault();
+                        inlineCreateMutation.mutate({ title: inlineTitle.trim(), stateId: state.id });
+                      }
+                      if (e.key === "Escape") {
+                        setInlineStateId(null);
+                        setInlineTitle("");
+                      }
+                    }}
+                    onBlur={() => {
+                      if (inlineTitle.trim()) {
+                        inlineCreateMutation.mutate({ title: inlineTitle.trim(), stateId: state.id });
+                      } else {
+                        setInlineStateId(null);
+                        setInlineTitle("");
+                      }
+                    }}
+                    placeholder={t("issues.table.quickAddPlaceholder")}
+                    autoComplete="off"
+                    className="w-full bg-transparent outline-none text-xs text-foreground placeholder:text-muted-foreground/50"
+                  />
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => { setInlineStateId(state.id); setInlineTitle(""); }}
+                  className="w-full mt-2 flex items-center justify-center gap-2 rounded-xl border border-dashed border-border px-3 py-3 text-xs font-medium text-muted-foreground/70 opacity-0 group-hover:opacity-100 hover:border-primary/50 hover:bg-primary/5 hover:text-primary transition-all duration-150"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  {t("views.addIssue")}
+                </button>
+              )}
             </StaggerList>
           </div>
         ))}
@@ -214,6 +271,8 @@ export function BoardView({ workspaceSlug, projectId, onIssueClick, issueFilter 
         defaultStateId={selectedState?.id}
         workspaceSlug={workspaceSlug}
         projectId={projectId}
+        defaultCategoryId={issueFilter?.category}
+        defaultSprintId={issueFilter?.sprint}
       />
     </div>
   );

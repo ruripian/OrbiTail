@@ -14,7 +14,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { Circle, ArrowRight, Calendar } from "lucide-react";
 import { PageTransition } from "@/components/motion";
 import { Skeleton } from "@/components/ui/skeleton";
-import { OuroborosOrbit } from "@/components/auth/OuroborosOrbit";
+import { OrbiTailOrbit } from "@/components/auth/OrbiTailOrbit";
 import type { Issue, State } from "@/types";
 
 /* ──────────────── 유틸 ──────────────── */
@@ -184,10 +184,12 @@ export function WorkspaceDashboard() {
 
   return (
     <PageTransition className="p-5 sm:p-8 overflow-y-auto h-full relative">
-      <OuroborosOrbit size={1000} strokeW={4} offsetY={-60} position="absolute" idPrefix="home-orb" />
+      <div className="absolute inset-0 overflow-hidden" style={{ zIndex: 0 }}>
+        <OrbiTailOrbit size={1000} strokeW={4} offsetY={-60} position="absolute" idPrefix="home-orb" />
+      </div>
 
       {/* 인사 섹션 */}
-      <div className="mb-8">
+      <div className="mb-8 relative z-10">
         <h1 className="text-3xl sm:text-4xl font-bold text-foreground tracking-tight">
           {t(getGreetingKey())}, <span className="text-primary">{user?.display_name ?? t("dashboard.there")}</span>
         </h1>
@@ -206,7 +208,7 @@ export function WorkspaceDashboard() {
       ) : (
         /* 2열 레이아웃 — xl 이상에선 좌: 내 할 일, 우: 최근 이슈 사이드바.
            xl 이하에선 세로 순차 배치. */
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px] xl:gap-6 xl:items-start">
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px] xl:gap-6 xl:items-start relative z-10">
           {/* 좌측: 내 할 일 (또는 빈 상태) */}
           <div className="space-y-5 min-w-0">
             {totalCount === 0 ? (
@@ -226,18 +228,21 @@ export function WorkspaceDashboard() {
             <aside className="rounded-2xl border border-border glass overflow-hidden xl:sticky xl:top-4">
               <div className="flex items-center justify-between px-5 py-4 border-b border-border">
                 <h2 className="text-base font-semibold">{t("dashboard.recentIssues")}</h2>
+              </div>
+              <div className="divide-y divide-border">
+                {recentIssues.map((issue) => (
+                  <IssueRow key={issue.id} issue={issue} workspaceSlug={workspaceSlug!} />
+                ))}
+              </div>
+              {/* 모두 보기 — 하단 고정 */}
+              <div className="px-5 py-3 border-t border-border">
                 <Link
-                  to={`/${workspaceSlug}`}
-                  className="flex items-center gap-1 text-sm text-primary hover:underline"
+                  to={`/${workspaceSlug}/discover`}
+                  className="flex items-center justify-center gap-1 text-sm text-primary hover:underline"
                 >
                   {t("dashboard.viewAll")}
                   <ArrowRight className="h-3.5 w-3.5" />
                 </Link>
-              </div>
-              <div className="divide-y divide-border">
-                {recentIssues.slice(0, 8).map((issue) => (
-                  <IssueRow key={issue.id} issue={issue} workspaceSlug={workspaceSlug!} />
-                ))}
               </div>
             </aside>
           )}

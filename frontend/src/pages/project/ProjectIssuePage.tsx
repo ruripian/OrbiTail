@@ -10,7 +10,7 @@ import { useCallback, useState } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { List, LayoutGrid, Calendar, GanttChart, Zap, ChevronDown, CheckCircle2, Circle, BarChart3 } from "lucide-react";
+import { List, LayoutGrid, Calendar, GanttChart, Zap, Layers, ChevronDown, CheckCircle2, Circle, BarChart3, Archive } from "lucide-react";
 import { issuesApi } from "@/api/issues";
 import { projectsApi } from "@/api/projects";
 import { cn } from "@/lib/utils";
@@ -27,38 +27,40 @@ import { TableView }    from "./views/TableView";
 import { BoardView }    from "./views/BoardView";
 import { CalendarView } from "./views/CalendarView";
 import { TimelineView } from "./views/TimelineView";
-import { CycleView }      from "./views/CycleView";
+import { SprintView }      from "./views/SprintView";
 import { AnalyticsView }  from "./views/AnalyticsView";
+import { ArchiveView }    from "./views/ArchiveView";
 import { TrashView }      from "./views/TrashView";
 import { useViewSettings } from "@/hooks/useViewSettings";
 import { ViewTransition } from "@/components/motion";
-import type { Cycle } from "@/types";
+import type { Category, Sprint } from "@/types";
 
-type ViewId = "table" | "board" | "calendar" | "timeline" | "cycles" | "analytics" | "trash";
+type ViewId = "table" | "board" | "calendar" | "timeline" | "sprints" | "analytics" | "archive" | "trash";
 
 const VIEW_IDS: { id: ViewId; key: string; Icon: React.ElementType }[] = [
   { id: "table",     key: "views.tabs.table",     Icon: List        },
   { id: "board",     key: "views.tabs.board",      Icon: LayoutGrid  },
   { id: "calendar",  key: "views.tabs.calendar",   Icon: Calendar    },
   { id: "timeline",  key: "views.tabs.timeline",   Icon: GanttChart  },
-  { id: "cycles",    key: "views.tabs.cycles",     Icon: Zap   },
+  { id: "sprints",    key: "views.tabs.cycles",     Icon: Zap   },
   { id: "analytics", key: "views.tabs.analytics",  Icon: BarChart3   },
+  { id: "archive",   key: "views.tabs.archive",    Icon: Archive     },
 ];
 
 export function ProjectIssuePage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { workspaceSlug, projectId, moduleId, cycleId } = useParams<{
+  const { workspaceSlug, projectId, categoryId, sprintId } = useParams<{
     workspaceSlug: string;
     projectId:     string;
-    moduleId?:     string;
-    cycleId?:      string;
+    categoryId?:   string;
+    sprintId?:     string;
   }>();
 
-  /* 모듈/사이클 컨텍스트 — 하위 뷰에 필터로 전달 */
+  /* 카테고리/스프린트 컨텍스트 — 하위 뷰에 필터로 전달 */
   const issueFilter = {
-    ...(moduleId ? { module: moduleId } : {}),
-    ...(cycleId  ? { cycle: cycleId }   : {}),
+    ...(categoryId ? { category: categoryId } : {}),
+    ...(sprintId   ? { sprint: sprintId }     : {}),
   };
   const [searchParams, setSearchParams] = useSearchParams();
   const { settings, updateCalendar, updateTimeline } = useViewSettings();
@@ -68,43 +70,71 @@ export function ProjectIssuePage() {
 
   const [createOpen, setCreateOpen] = useState(false);
 
+  /* 프로젝트 정보 — 읽기 전용 여부 판별 */
+  const { data: project } = useQuery({
+    queryKey: ["project", workspaceSlug, projectId],
+    queryFn:  () => projectsApi.get(workspaceSlug!, projectId!),
+  });
+  const readOnly = project ? !project.is_member : false;
+
   /* 이슈 목록 페이지용 state 데이터 (CreateDialog에 필요) */
   const { data: states = [] } = useQuery({
     queryKey: ["states", projectId],
     queryFn:  () => projectsApi.states.list(workspaceSlug!, projectId!),
   });
 
-  /* 사이클 목록 — 사이클 셀렉터용 */
-  const { data: cycles = [] } = useQuery({
-    queryKey: ["cycles", workspaceSlug, projectId],
-    queryFn:  () => projectsApi.cycles.list(workspaceSlug!, projectId!),
+  /* 카테고리 목록 — 카테고리 셀렉터용 */
+  const { data: categories = [] } = useQuery({
+    queryKey: ["categories", workspaceSlug, projectId],
+    queryFn:  () => projectsApi.categories.list(workspaceSlug!, projectId!),
   });
 
-  /* 현재 선택된 사이클 객체 */
-  const activeCycle = cycleId ? cycles.find((c: Cycle) => c.id === cycleId) : null;
-
-  /* 사이클 이슈 통계 — 사이클 선택 시에만 fetch */
-  const { data: cycleIssues = [] } = useQuery({
-    queryKey: ["issues", workspaceSlug, projectId, { cycle: cycleId }],
-    queryFn:  () => issuesApi.list(workspaceSlug!, projectId!, { cycle: cycleId! }),
-    enabled:  !!cycleId,
+  /* 스프린트 목록 — 스프린트 셀렉터용 */
+  const { data: sprints = [] } = useQuery({
+    queryKey: ["sprints", workspaceSlug, projectId],
+    queryFn:  () => projectsApi.sprints.list(workspaceSlug!, projectId!),
   });
 
-  /* 사이클 선택 시 URL 라우팅 */
-  const selectCycle = useCallback((id: string | null) => {
+  /* 현재 선택된 카테고리/스프린트 객체 */
+  const activeCategory = categoryId ? categories.find((c: Category) => c.id === categoryId) : null;
+  const activeSprint = sprintId ? sprints.find((c: Sprint) => c.id === sprintId) : null;
+
+  /* 스프린트 이슈 통계 — 스프린트 선택 시에만 fetch */
+  const { data: sprintIssues = [] } = useQuery({
+    queryKey: ["issues", workspaceSlug, projectId, { sprint: sprintId }],
+    queryFn:  () => issuesApi.list(workspaceSlug!, projectId!, { sprint: sprintId! }),
+    enabled:  !!sprintId,
+  });
+
+  /* 카테고리 선택 시 URL 라우팅 */
+  const selectCategory = useCallback((id: string | null) => {
     const base = `/${workspaceSlug}/projects/${projectId}`;
     const viewParam = currentView !== "table" ? `?view=${currentView}` : "";
     if (id) {
-      navigate(`${base}/cycles/${id}/issues${viewParam}`);
+      navigate(`${base}/categories/${id}/issues${viewParam}`);
     } else {
-      /* moduleId가 있으면 모듈 컨텍스트 유지 */
-      if (moduleId) {
-        navigate(`${base}/modules/${moduleId}/issues${viewParam}`);
+      if (sprintId) {
+        navigate(`${base}/sprints/${sprintId}/issues${viewParam}`);
       } else {
         navigate(`${base}/issues${viewParam}`);
       }
     }
-  }, [workspaceSlug, projectId, moduleId, currentView, navigate]);
+  }, [workspaceSlug, projectId, sprintId, currentView, navigate]);
+
+  /* 스프린트 선택 시 URL 라우팅 */
+  const selectSprint = useCallback((id: string | null) => {
+    const base = `/${workspaceSlug}/projects/${projectId}`;
+    const viewParam = currentView !== "table" ? `?view=${currentView}` : "";
+    if (id) {
+      navigate(`${base}/sprints/${id}/issues${viewParam}`);
+    } else {
+      if (categoryId) {
+        navigate(`${base}/categories/${categoryId}/issues${viewParam}`);
+      } else {
+        navigate(`${base}/issues${viewParam}`);
+      }
+    }
+  }, [workspaceSlug, projectId, categoryId, currentView, navigate]);
 
   /* 뷰 전환 */
   const setView = useCallback((v: ViewId) => {
@@ -143,43 +173,44 @@ export function ProjectIssuePage() {
           ))}
         </div>
 
+        {/* 카테고리 필터 */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
               className={cn(
                 "inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md border transition-all duration-150",
-                cycleId
+                categoryId
                   ? "bg-primary/10 text-primary border-primary/30"
                   : "text-muted-foreground border-border hover:bg-muted/40"
               )}
             >
-              <Zap className="h-3 w-3" />
-              {activeCycle ? activeCycle.name : t("views.cycleFilter.label")}
+              <Layers className="h-3 w-3" />
+              {activeCategory ? activeCategory.name : t("views.categoryFilter.label")}
               <ChevronDown className="h-3 w-3" />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-52">
             <DropdownMenuItem
-              className={cn("text-xs", !cycleId && "bg-muted/60")}
-              onClick={() => selectCycle(null)}
+              className={cn("text-xs", !categoryId && "bg-muted/60")}
+              onClick={() => selectCategory(null)}
             >
-              {t("views.cycleFilter.all")}
+              {t("views.categoryFilter.all")}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            {cycles.length === 0 ? (
+            {categories.length === 0 ? (
               <DropdownMenuItem disabled className="text-xs text-muted-foreground">
-                {t("cycles.empty")}
+                {t("modules.empty")}
               </DropdownMenuItem>
             ) : (
-              cycles.map((cycle: Cycle) => (
+              categories.map((cat: Category) => (
                 <DropdownMenuItem
-                  key={cycle.id}
-                  className={cn("text-xs flex items-center gap-2", cycleId === cycle.id && "bg-muted/60")}
-                  onClick={() => selectCycle(cycle.id)}
+                  key={cat.id}
+                  className={cn("text-xs flex items-center gap-2", categoryId === cat.id && "bg-muted/60")}
+                  onClick={() => selectCategory(cat.id)}
                 >
-                  <span className="flex-1 truncate">{cycle.name}</span>
+                  <span className="flex-1 truncate">{cat.name}</span>
                   <span className="text-2xs text-muted-foreground shrink-0">
-                    {t("cycles.issueCount", { count: cycle.issue_count })}
+                    {t("modules.issueCount", { count: cat.issue_count })}
                   </span>
                 </DropdownMenuItem>
               ))
@@ -187,7 +218,59 @@ export function ProjectIssuePage() {
             <DropdownMenuSeparator />
             <DropdownMenuItem
               className="text-xs text-primary"
-              onClick={() => navigate(`/${workspaceSlug}/projects/${projectId}/cycles`)}
+              onClick={() => navigate(`/${workspaceSlug}/projects/${projectId}/categories`)}
+            >
+              {t("views.categoryFilter.manage")}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {/* 스프린트 필터 */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              className={cn(
+                "inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md border transition-all duration-150",
+                sprintId
+                  ? "bg-primary/10 text-primary border-primary/30"
+                  : "text-muted-foreground border-border hover:bg-muted/40"
+              )}
+            >
+              <Zap className="h-3 w-3" />
+              {activeSprint ? activeSprint.name : t("views.cycleFilter.label")}
+              <ChevronDown className="h-3 w-3" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-52">
+            <DropdownMenuItem
+              className={cn("text-xs", !sprintId && "bg-muted/60")}
+              onClick={() => selectSprint(null)}
+            >
+              {t("views.cycleFilter.all")}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            {sprints.length === 0 ? (
+              <DropdownMenuItem disabled className="text-xs text-muted-foreground">
+                {t("cycles.empty")}
+              </DropdownMenuItem>
+            ) : (
+              sprints.map((sprint: Sprint) => (
+                <DropdownMenuItem
+                  key={sprint.id}
+                  className={cn("text-xs flex items-center gap-2", sprintId === sprint.id && "bg-muted/60")}
+                  onClick={() => selectSprint(sprint.id)}
+                >
+                  <span className="flex-1 truncate">{sprint.name}</span>
+                  <span className="text-2xs text-muted-foreground shrink-0">
+                    {t("cycles.issueCount", { count: sprint.issue_count })}
+                  </span>
+                </DropdownMenuItem>
+              ))
+            )}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="text-xs text-primary"
+              onClick={() => navigate(`/${workspaceSlug}/projects/${projectId}/sprints`)}
             >
               {t("views.cycleFilter.manage")}
             </DropdownMenuItem>
@@ -199,22 +282,22 @@ export function ProjectIssuePage() {
       </div>
       )}
 
-      {activeCycle && cycleIssues.length > 0 && (() => {
-        const total = cycleIssues.length;
-        const completed = cycleIssues.filter((i: { state_detail?: { group?: string } }) =>
+      {activeSprint && sprintIssues.length > 0 && (() => {
+        const total = sprintIssues.length;
+        const completed = sprintIssues.filter((i: { state_detail?: { group?: string } }) =>
           i.state_detail?.group === "completed"
         ).length;
-        const cancelled = cycleIssues.filter((i: { state_detail?: { group?: string } }) =>
+        const cancelled = sprintIssues.filter((i: { state_detail?: { group?: string } }) =>
           i.state_detail?.group === "cancelled"
         ).length;
-        const inProgress = cycleIssues.filter((i: { state_detail?: { group?: string } }) =>
+        const inProgress = sprintIssues.filter((i: { state_detail?: { group?: string } }) =>
           i.state_detail?.group === "started"
         ).length;
         const pct = Math.round((completed / total) * 100);
 
-        /* 사이클 기간 계산 */
-        const startDate = new Date(activeCycle.start_date);
-        const endDate = new Date(activeCycle.end_date);
+        /* 스프린트 기간 계산 */
+        const startDate = new Date(activeSprint.start_date);
+        const endDate = new Date(activeSprint.end_date);
         const now = new Date();
         const totalDays = Math.max(1, Math.ceil((endDate.getTime() - startDate.getTime()) / 86400000));
         const elapsed = Math.max(0, Math.min(totalDays, Math.ceil((now.getTime() - startDate.getTime()) / 86400000)));
@@ -224,7 +307,7 @@ export function ProjectIssuePage() {
           <div className="px-5 py-1.5 border-b border-border bg-muted/10 shrink-0 flex items-center gap-4 text-xs">
             <div className="flex items-center gap-1.5 shrink-0">
               <Zap className="h-3.5 w-3.5 text-primary" />
-              <span className="text-sm font-semibold">{activeCycle.name}</span>
+              <span className="text-sm font-semibold">{activeSprint.name}</span>
             </div>
             <span className="text-muted-foreground shrink-0 hidden lg:inline">
               {startDate.toLocaleDateString("ko-KR", { month: "short", day: "numeric" })}
@@ -267,6 +350,7 @@ export function ProjectIssuePage() {
             projectId={projectId!}
             onIssueClick={openIssue}
             issueFilter={issueFilter}
+            readOnly={readOnly}
           />
         )}
 
@@ -276,6 +360,7 @@ export function ProjectIssuePage() {
             projectId={projectId!}
             onIssueClick={openIssue}
             issueFilter={issueFilter}
+            readOnly={readOnly}
           />
         )}
 
@@ -301,8 +386,8 @@ export function ProjectIssuePage() {
           />
         )}
 
-        {currentView === "cycles" && (
-          <CycleView
+        {currentView === "sprints" && (
+          <SprintView
             workspaceSlug={workspaceSlug!}
             projectId={projectId!}
             onIssueClick={openIssue}
@@ -313,6 +398,14 @@ export function ProjectIssuePage() {
           <AnalyticsView
             workspaceSlug={workspaceSlug!}
             projectId={projectId!}
+          />
+        )}
+        {currentView === "archive" && (
+          <ArchiveView
+            workspaceSlug={workspaceSlug!}
+            projectId={projectId!}
+            onIssueClick={openIssue}
+            issueFilter={issueFilter}
           />
         )}
         {currentView === "trash" && (
@@ -334,8 +427,8 @@ export function ProjectIssuePage() {
         defaultStateId={states.find((s) => s.group === "unstarted")?.id ?? states.find((s) => s.default)?.id ?? states[0]?.id}
         workspaceSlug={workspaceSlug!}
         projectId={projectId!}
-        defaultModuleId={moduleId}
-        defaultCycleId={cycleId}
+        defaultCategoryId={categoryId}
+        defaultSprintId={sprintId}
       />
     </div>
   );

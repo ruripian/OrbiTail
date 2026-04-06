@@ -67,7 +67,7 @@ class ProjectMember(models.Model):
         unique_together = [["project", "member"]]
 
 
-class Module(models.Model):
+class Category(models.Model):
     """프로젝트 내 소규모 작업 단위 — 이슈를 논리적으로 그룹핑"""
 
     class Status(models.TextChoices):
@@ -80,7 +80,7 @@ class Module(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True, default="")
-    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="modules")
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="categories")
     icon_prop = models.JSONField(null=True, blank=True)  # {"name": "Box", "color": "#..."} — lucide 아이콘 선택
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.BACKLOG)
     lead = models.ForeignKey(
@@ -88,7 +88,7 @@ class Module(models.Model):
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name="led_modules",
+        related_name="led_categories",
     )
     start_date = models.DateField(null=True, blank=True)
     target_date = models.DateField(null=True, blank=True)
@@ -103,7 +103,7 @@ class Module(models.Model):
         return f"{self.project.identifier} / {self.name}"
 
 
-class Cycle(models.Model):
+class Sprint(models.Model):
     """스프린트 — 기간 기반 이슈 묶음"""
 
     class Status(models.TextChoices):
@@ -115,7 +115,7 @@ class Cycle(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True, default="")
-    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="cycles")
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="sprints")
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.DRAFT)
     start_date = models.DateField()
     end_date = models.DateField()
@@ -123,7 +123,7 @@ class Cycle(models.Model):
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
         null=True,
-        related_name="created_cycles",
+        related_name="created_sprints",
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

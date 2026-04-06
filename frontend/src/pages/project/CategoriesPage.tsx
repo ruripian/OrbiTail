@@ -18,17 +18,17 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ProjectIconPicker, ProjectIcon, type IconProp } from "@/components/ui/project-icon-picker";
-import type { Module } from "@/types";
+import type { Category } from "@/types";
 
-/* 모듈 = 거대 분류(백엔드/프론트엔드/DB 등). 단순한 이름·설명만 유지.
-   상태/일정은 Cycle(스프린트)에서 관리하므로 여기선 제거. */
+/* 카테고리 = 거대 분류(백엔드/프론트엔드/DB 등). 단순한 이름·설명만 유지.
+   상태/일정은 Sprint(스프린트)에서 관리하므로 여기선 제거. */
 const schema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
 });
 type FormValues = z.infer<typeof schema>;
 
-export function ModulesPage() {
+export function CategoriesPage() {
   const { workspaceSlug, projectId } = useParams<{
     workspaceSlug: string;
     projectId: string;
@@ -41,12 +41,12 @@ export function ModulesPage() {
   const [iconProp, setIconProp] = useState<IconProp | null>(null);
 
   /* 편집 다이얼로그 상태 */
-  const [editModule, setEditModule] = useState<Module | null>(null);
+  const [editCategory, setEditCategory] = useState<Category | null>(null);
   const [editIconProp, setEditIconProp] = useState<IconProp | null>(null);
 
-  const { data: modules = [] } = useQuery({
-    queryKey: ["modules", workspaceSlug, projectId],
-    queryFn: () => projectsApi.modules.list(workspaceSlug!, projectId!),
+  const { data: categories = [] } = useQuery({
+    queryKey: ["categories", workspaceSlug, projectId],
+    queryFn: () => projectsApi.categories.list(workspaceSlug!, projectId!),
   });
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({
@@ -64,23 +64,23 @@ export function ModulesPage() {
 
   /* 편집 다이얼로그 열릴 때 폼 초기화 */
   useEffect(() => {
-    if (editModule) {
-      editReset({ name: editModule.name, description: editModule.description ?? "" });
-      setEditIconProp(editModule.icon_prop as unknown as IconProp | null);
+    if (editCategory) {
+      editReset({ name: editCategory.name, description: editCategory.description ?? "" });
+      setEditIconProp(editCategory.icon_prop as unknown as IconProp | null);
     }
-  }, [editModule, editReset]);
+  }, [editCategory, editReset]);
 
   const createMutation = useMutation({
     mutationFn: (data: FormValues) => {
       /* status는 백엔드 기본값 "backlog" 사용, 날짜는 전송하지 않음
          iconProp: 사용자가 선택했으면 함께 전송, 안 했으면 null → 백엔드에서 기본 아이콘 */
-      return projectsApi.modules.create(workspaceSlug!, projectId!, {
+      return projectsApi.categories.create(workspaceSlug!, projectId!, {
         ...data,
         icon_prop: iconProp as unknown as Record<string, unknown> | null,
       });
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["modules", workspaceSlug, projectId] });
+      qc.invalidateQueries({ queryKey: ["categories", workspaceSlug, projectId] });
       reset();
       setIconProp(null);
       setCreateOpen(false);
@@ -90,44 +90,44 @@ export function ModulesPage() {
 
   const updateMutation = useMutation({
     mutationFn: (data: FormValues) => {
-      if (!editModule) throw new Error("No module selected");
-      return projectsApi.modules.update(workspaceSlug!, projectId!, editModule.id, {
+      if (!editCategory) throw new Error("No category selected");
+      return projectsApi.categories.update(workspaceSlug!, projectId!, editCategory.id, {
         ...data,
         icon_prop: editIconProp as unknown as Record<string, unknown> | null,
       });
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["modules", workspaceSlug, projectId] });
+      qc.invalidateQueries({ queryKey: ["categories", workspaceSlug, projectId] });
       toast.success(t("modules.updated"));
-      setEditModule(null);
+      setEditCategory(null);
     },
     onError: () => toast.error(t("modules.updateFailed")),
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (moduleId: string) => projectsApi.modules.delete(workspaceSlug!, projectId!, moduleId),
+    mutationFn: (categoryId: string) => projectsApi.categories.delete(workspaceSlug!, projectId!, categoryId),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["modules", workspaceSlug, projectId] });
+      qc.invalidateQueries({ queryKey: ["categories", workspaceSlug, projectId] });
       toast.success(t("modules.deleted"));
     },
     onError: () => toast.error(t("modules.deleteFailed")),
   });
 
-  const handleDelete = (e: React.MouseEvent, moduleId: string) => {
+  const handleDelete = (e: React.MouseEvent, categoryId: string) => {
     e.stopPropagation();
     if (window.confirm(t("modules.deleteConfirm"))) {
-      deleteMutation.mutate(moduleId);
+      deleteMutation.mutate(categoryId);
     }
   };
 
-  const handleEdit = (e: React.MouseEvent, mod: Module) => {
+  const handleEdit = (e: React.MouseEvent, cat: Category) => {
     e.stopPropagation();
-    setEditModule(mod);
+    setEditCategory(cat);
   };
 
-  // 모듈 클릭 → 모듈 전용 이슈 뷰로 이동
-  const handleModuleClick = (mod: Module) => {
-    navigate(`/${workspaceSlug}/projects/${projectId}/modules/${mod.id}/issues`);
+  // 카테고리 클릭 → 카테고리 전용 이슈 뷰로 이동
+  const handleCategoryClick = (cat: Category) => {
+    navigate(`/${workspaceSlug}/projects/${projectId}/categories/${cat.id}/issues`);
   };
 
   return (
@@ -144,39 +144,39 @@ export function ModulesPage() {
         </Button>
       </div>
 
-      {/* 모듈 목록 */}
-      {modules.length === 0 ? (
+      {/* 카테고리 목록 */}
+      {categories.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
           <Layers className="h-10 w-10 mb-3 opacity-30" />
           <p className="text-sm">{t("modules.empty")}</p>
         </div>
       ) : (
         <div className="grid gap-3 xl:grid-cols-2">
-          {modules.map((mod: Module) => (
+          {categories.map((cat: Category) => (
             <div
-              key={mod.id}
-              onClick={() => handleModuleClick(mod)}
+              key={cat.id}
+              onClick={() => handleCategoryClick(cat)}
               className="group flex items-center gap-4 rounded-xl border glass p-4 hover:bg-accent/50 cursor-pointer transition-colors"
             >
-              <ProjectIcon value={mod.icon_prop} size={20} />
+              <ProjectIcon value={cat.icon_prop} size={20} />
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{mod.name}</p>
-                {mod.description && (
-                  <p className="text-xs text-muted-foreground truncate">{mod.description}</p>
+                <p className="text-sm font-medium truncate">{cat.name}</p>
+                {cat.description && (
+                  <p className="text-xs text-muted-foreground truncate">{cat.description}</p>
                 )}
               </div>
               <span className="text-xs text-muted-foreground shrink-0">
-                {t("modules.issueCount", { count: mod.issue_count })}
+                {t("modules.issueCount", { count: cat.issue_count })}
               </span>
               <button
-                onClick={(e) => handleEdit(e, mod)}
+                onClick={(e) => handleEdit(e, cat)}
                 className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors shrink-0 opacity-0 group-hover:opacity-100"
                 title={t("modules.editTitle")}
               >
                 <Settings className="h-4 w-4" />
               </button>
               <button
-                onClick={(e) => handleDelete(e, mod.id)}
+                onClick={(e) => handleDelete(e, cat.id)}
                 className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0 opacity-0 group-hover:opacity-100"
                 title={t("modules.delete")}
               >
@@ -187,7 +187,7 @@ export function ModulesPage() {
         </div>
       )}
 
-      {/* 모듈 생성 다이얼로그 */}
+      {/* 카테고리 생성 다이얼로그 */}
       <Dialog open={createOpen} onOpenChange={(v) => { setCreateOpen(v); if (!v) reset(); }}>
         <DialogContent>
           <DialogHeader>
@@ -222,8 +222,8 @@ export function ModulesPage() {
         </DialogContent>
       </Dialog>
 
-      {/* 모듈 편집 다이얼로그 */}
-      <Dialog open={!!editModule} onOpenChange={(v) => { if (!v) setEditModule(null); }}>
+      {/* 카테고리 편집 다이얼로그 */}
+      <Dialog open={!!editCategory} onOpenChange={(v) => { if (!v) setEditCategory(null); }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{t("modules.editTitle")}</DialogTitle>
@@ -244,7 +244,7 @@ export function ModulesPage() {
             </div>
 
             <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => setEditModule(null)}>
+              <Button type="button" variant="outline" onClick={() => setEditCategory(null)}>
                 {t("modules.cancel")}
               </Button>
               <Button type="submit" disabled={updateMutation.isPending}>

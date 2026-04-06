@@ -35,20 +35,20 @@ def auto_archive_completed_issues():
 
 
 @shared_task
-def auto_complete_expired_cycles():
+def auto_complete_expired_sprints():
     """
-    종료일(end_date)이 지난 active 사이클을 자동으로 completed 상태로 변경한다.
+    종료일(end_date)이 지난 active 스프린트를 자동으로 completed 상태로 변경한다.
     매일 새벽 3시 30분에 실행된다.
     """
-    from apps.projects.models import Cycle
+    from apps.projects.models import Sprint
 
     today = timezone.now().date()
-    count = Cycle.objects.filter(
+    count = Sprint.objects.filter(
         status="active",
         end_date__lt=today,
     ).update(status="completed")
 
-    return f"Completed {count} expired cycles"
+    return f"Completed {count} expired sprints"
 
 
 TRASH_RETENTION_DAYS = 30  # 휴지통 보관 기간 (일)

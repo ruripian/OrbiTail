@@ -1,3 +1,4 @@
+from django.db.models import Q
 from django.utils import timezone
 from rest_framework import generics, permissions, status
 from rest_framework.generics import get_object_or_404
@@ -6,13 +7,23 @@ from rest_framework.views import APIView
 
 from apps.accounts.models import User
 from apps.workspaces.models import Workspace, WorkspaceMember
-from .models import Project, ProjectMember, Module, Cycle, State, ProjectEvent
+from .models import Project, ProjectMember, Category, Sprint, State, ProjectEvent
+
+
+def _project_readable_q(user):
+    """프로젝트 읽기 권한 Q 필터 — 멤버이거나 PUBLIC 프로젝트"""
+    return Q(members__member=user) | Q(network=Project.Network.PUBLIC)
+
+
+def _project_readable_via_project_q(user):
+    """프로젝트 하위 개체(Category, Sprint 등)용 읽기 권한 Q 필터"""
+    return Q(project__members__member=user) | Q(project__network=Project.Network.PUBLIC)
 from .serializers import (
     ProjectSerializer,
     ProjectMemberSerializer,
     ProjectMemberCreateSerializer,
-    ModuleSerializer,
-    CycleSerializer,
+    CategorySerializer,
+    SprintSerializer,
     StateSerializer,
     ProjectEventSerializer,
 )
@@ -24,8 +35,9 @@ class ProjectListCreateView(generics.ListCreateAPIView):
     def get_queryset(self):
         qs = Project.objects.filter(
             workspace__slug=self.kwargs["workspace_slug"],
-            members__member=self.request.user,
-        )
+        ).filter(
+            _project_readable_q(self.request.user)
+        ).distinct()
         # 기본: 보관되지 않은 프로젝트만 반환. ?archived=true 시 보관된 프로젝트도 포함
         if self.request.query_params.get("archived") != "true":
             qs = qs.filter(archived_at__isnull=True)
@@ -52,8 +64,23 @@ class ProjectDetailView(generics.RetrieveUpdateDestroyAPIView):
     def get_queryset(self):
         return Project.objects.filter(
             workspace__slug=self.kwargs["workspace_slug"],
-            members__member=self.request.user,
-        )
+        ).filter(
+            _project_readable_q(self.request.user)
+        ).distinct()
+
+    def update(self, request, *args, **kwargs):
+        """수정은 프로젝트 멤버만 가능"""
+        obj = self.get_object()
+        if not ProjectMember.objects.filter(project=obj, member=request.user).exists():
+            return Response({"detail": "프로젝트 멤버만 수정할 수 있습니다."}, status=status.HTTP_403_FORBIDDEN)
+        return super().update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        """삭제는 프로젝트 멤버만 가능"""
+        obj = self.get_object()
+        if not ProjectMember.objects.filter(project=obj, member=request.user).exists():
+            return Response({"detail": "프로젝트 멤버만 삭제할 수 있습니다."}, status=status.HTTP_403_FORBIDDEN)
+        return super().destroy(request, *args, **kwargs)
 
 
 class ProjectIdentifierCheckView(APIView):
@@ -182,8 +209,9 @@ class ProjectMemberListCreateView(generics.ListCreateAPIView):
     def get_queryset(self):
         return ProjectMember.objects.filter(
             project_id=self.kwargs["project_pk"],
-            project__members__member=self.request.user,
-        ).select_related("member")
+        ).filter(
+            _project_readable_via_project_q(self.request.user)
+        ).distinct().select_related("member")
 
     def create(self, request, *args, **kwargs):
         serializer = ProjectMemberCreateSerializer(data=request.data)
@@ -305,41 +333,44 @@ class ProjectMemberDetailView(generics.RetrieveUpdateDestroyAPIView):
         return super().destroy(request, *args, **kwargs)
 
 
-# ── 모듈 관리 ──
+# ── 카테고리 관리 ──
 
-class ModuleListCreateView(generics.ListCreateAPIView):
-    serializer_class = ModuleSerializer
+class CategoryListCreateView(generics.ListCreateAPIView):
+    serializer_class = CategorySerializer
 
     def get_queryset(self):
-        return Module.objects.filter(
+        return Category.objects.filter(
             project_id=self.kwargs["project_pk"],
-            project__members__member=self.request.user,
-        )
+        ).filter(
+            _project_readable_via_project_q(self.request.user)
+        ).distinct()
 
     def perform_create(self, serializer):
         serializer.save(project_id=self.kwargs["project_pk"])
 
 
-class ModuleDetailView(generics.RetrieveUpdateDestroyAPIView):
-    serializer_class = ModuleSerializer
+class CategoryDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = CategorySerializer
 
     def get_queryset(self):
-        return Module.objects.filter(
+        return Category.objects.filter(
             project_id=self.kwargs["project_pk"],
-            project__members__member=self.request.user,
-        )
+        ).filter(
+            _project_readable_via_project_q(self.request.user)
+        ).distinct()
 
 
-# ── 사이클(스프린트) 관리 ──
+# ── 스프린트 관리 ──
 
-class CycleListCreateView(generics.ListCreateAPIView):
-    serializer_class = CycleSerializer
+class SprintListCreateView(generics.ListCreateAPIView):
+    serializer_class = SprintSerializer
 
     def get_queryset(self):
-        return Cycle.objects.filter(
+        return Sprint.objects.filter(
             project_id=self.kwargs["project_pk"],
-            project__members__member=self.request.user,
-        )
+        ).filter(
+            _project_readable_via_project_q(self.request.user)
+        ).distinct()
 
     def perform_create(self, serializer):
         serializer.save(
@@ -348,14 +379,15 @@ class CycleListCreateView(generics.ListCreateAPIView):
         )
 
 
-class CycleDetailView(generics.RetrieveUpdateDestroyAPIView):
-    serializer_class = CycleSerializer
+class SprintDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = SprintSerializer
 
     def get_queryset(self):
-        return Cycle.objects.filter(
+        return Sprint.objects.filter(
             project_id=self.kwargs["project_pk"],
-            project__members__member=self.request.user,
-        )
+        ).filter(
+            _project_readable_via_project_q(self.request.user)
+        ).distinct()
 
 
 # ── 상태 관리 ──
@@ -366,8 +398,9 @@ class StateListCreateView(generics.ListCreateAPIView):
     def get_queryset(self):
         return State.objects.filter(
             project_id=self.kwargs["project_pk"],
-            project__members__member=self.request.user,
-        )
+        ).filter(
+            _project_readable_via_project_q(self.request.user)
+        ).distinct()
 
     def perform_create(self, serializer):
         serializer.save(project_id=self.kwargs["project_pk"])
@@ -379,8 +412,9 @@ class StateDetailView(generics.RetrieveUpdateDestroyAPIView):
     def get_queryset(self):
         return State.objects.filter(
             project_id=self.kwargs["project_pk"],
-            project__members__member=self.request.user,
-        )
+        ).filter(
+            _project_readable_via_project_q(self.request.user)
+        ).distinct()
 
 
 # ── 프로젝트 캘린더 이벤트 ──
@@ -393,8 +427,9 @@ class ProjectEventListCreateView(generics.ListCreateAPIView):
     def get_queryset(self):
         qs = ProjectEvent.objects.filter(
             project_id=self.kwargs["project_pk"],
-            project__members__member=self.request.user,
-        ).select_related("created_by")
+        ).filter(
+            _project_readable_via_project_q(self.request.user)
+        ).distinct().select_related("created_by")
         date_from = self.request.query_params.get("from")
         date_to = self.request.query_params.get("to")
         if date_from:
@@ -411,11 +446,12 @@ class ProjectEventListCreateView(generics.ListCreateAPIView):
 
 
 class ProjectEventDetailView(generics.RetrieveUpdateDestroyAPIView):
-    """이벤트 상세 / 수정 / 삭제 — 프로젝트 멤버 누구나 가능."""
+    """이벤트 상세 / 수정 / 삭제 — 읽기는 PUBLIC 프로젝트도 가능, 수정/삭제는 멤버만."""
     serializer_class = ProjectEventSerializer
 
     def get_queryset(self):
         return ProjectEvent.objects.filter(
             project_id=self.kwargs["project_pk"],
-            project__members__member=self.request.user,
-        ).select_related("created_by")
+        ).filter(
+            _project_readable_via_project_q(self.request.user)
+        ).distinct().select_related("created_by")

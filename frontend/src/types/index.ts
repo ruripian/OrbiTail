@@ -54,6 +54,8 @@ export interface Project {
   lead: string | null;
   lead_detail: User | null;
   state_count: number;
+  is_member: boolean;
+  user_role: 10 | 15 | 20 | null;
   archived_at: string | null;
   auto_archive_days: number | null;
   created_at: string;
@@ -66,15 +68,15 @@ export interface ProjectMember {
   created_at: string;
 }
 
-export type ModuleStatus = "backlog" | "active" | "paused" | "completed" | "cancelled";
-export type CycleStatus = "draft" | "active" | "completed" | "cancelled";
+export type CategoryStatus = "backlog" | "active" | "paused" | "completed" | "cancelled";
+export type SprintStatus = "draft" | "active" | "completed" | "cancelled";
 
-export interface Module {
+export interface Category {
   id: string;
   name: string;
   description: string;
   icon_prop: Record<string, unknown> | null;
-  status: ModuleStatus;
+  status: CategoryStatus;
   lead: string | null;
   lead_detail: User | null;
   start_date: string | null;
@@ -84,11 +86,11 @@ export interface Module {
   updated_at: string;
 }
 
-export interface Cycle {
+export interface Sprint {
   id: string;
   name: string;
   description: string;
-  status: CycleStatus;
+  status: SprintStatus;
   start_date: string;
   end_date: string;
   created_by: string;
@@ -138,8 +140,8 @@ export interface Issue {
   assignee_details: User[];
   label: string[];
   label_details: Label[];
-  module: string | null;
-  cycle: string | null;
+  category: string | null;
+  sprint: string | null;
   parent: string | null;
   sub_issues_count: number;
   link_count: number;
@@ -153,6 +155,7 @@ export interface Issue {
   sort_order: number;
   created_at: string;
   updated_at: string;
+  archived_at: string | null;
   deleted_at: string | null;
 }
 

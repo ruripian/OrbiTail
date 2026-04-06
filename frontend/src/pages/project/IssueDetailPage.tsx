@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ChevronLeft, Plus, Trash2, GitBranch, MessageSquare, Activity, Send, Link2, ExternalLink, X, AlertTriangle, Paperclip, Upload, FileText, Image as ImageIcon } from "lucide-react";
+import { ChevronLeft, Plus, Trash2, GitBranch, MessageSquare, Activity, Send, Link2, ExternalLink, X, AlertTriangle, Paperclip, Upload, FileText, Image as ImageIcon, Copy, Archive, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { issuesApi } from "@/api/issues";
 import { projectsApi } from "@/api/projects";
@@ -20,8 +20,8 @@ import { StatePicker } from "@/components/issues/state-picker";
 import { PriorityPicker } from "@/components/issues/priority-picker";
 import { AssigneePicker } from "@/components/issues/assignee-picker";
 import { LabelPicker } from "@/components/issues/label-picker";
-import { ModulePicker } from "@/components/issues/module-picker";
-import { CyclePicker } from "@/components/issues/cycle-picker";
+import { CategoryPicker } from "@/components/issues/category-picker";
+import { SprintPicker } from "@/components/issues/sprint-picker";
 import type { Issue, IssueAttachment, Priority } from "@/types";
 
 const PRIORITY_CONFIG: Record<Priority, { label: string; color: string }> = {
@@ -70,6 +70,8 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
     queryFn: () => issuesApi.get(workspaceSlug!, projectId!, issueId!),
   });
 
+  const isArchived = !!issue?.archived_at;
+
   const { data: states = [] } = useQuery({
     queryKey: ["states", projectId],
     queryFn: () => projectsApi.states.list(workspaceSlug!, projectId!),
@@ -88,15 +90,15 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
     enabled: !!issue,
   });
 
-  const { data: modules = [] } = useQuery({
-    queryKey: ["modules", workspaceSlug, projectId],
-    queryFn: () => projectsApi.modules.list(workspaceSlug!, projectId!),
+  const { data: categories = [] } = useQuery({
+    queryKey: ["categories", workspaceSlug, projectId],
+    queryFn: () => projectsApi.categories.list(workspaceSlug!, projectId!),
     enabled: !!issue,
   });
 
-  const { data: cycles = [] } = useQuery({
-    queryKey: ["cycles", workspaceSlug, projectId],
-    queryFn: () => projectsApi.cycles.list(workspaceSlug!, projectId!),
+  const { data: sprints = [] } = useQuery({
+    queryKey: ["sprints", workspaceSlug, projectId],
+    queryFn: () => projectsApi.sprints.list(workspaceSlug!, projectId!),
     enabled: !!issue,
   });
 
@@ -164,6 +166,30 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
     },
     onError: () => toast.error(t("common.issueDeleteError")),
   });
+
+  const handleCopyIssue = () => {
+    if (!issue) return;
+    issuesApi.duplicate(workspaceSlug!, projectId!, issue.id).then(() => {
+      qc.invalidateQueries({ queryKey: ["issues", workspaceSlug, projectId] });
+      qc.invalidateQueries({ queryKey: ["my-issues", workspaceSlug] });
+      if (issue.parent) qc.invalidateQueries({ queryKey: ["sub-issues", issue.parent] });
+      toast.success(t("issues.table.copied"));
+      // 복사 후 디테일 창 닫기
+      if (onClose) onClose();
+      else if (!inPanel) navigate(`/${workspaceSlug}/projects/${projectId}/issues`);
+    });
+  };
+
+  const handleArchiveIssue = () => {
+    if (!issue) return;
+    issuesApi.archive(workspaceSlug!, projectId!, issue.id).then(() => {
+      qc.invalidateQueries({ queryKey: ["issues", workspaceSlug, projectId] });
+      qc.invalidateQueries({ queryKey: ["issues-archive", workspaceSlug, projectId] });
+      toast.success(t("issues.table.archived"));
+      if (onClose) onClose();
+      else if (!inPanel) navigate(`/${workspaceSlug}/projects/${projectId}/issues`);
+    });
+  };
 
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleValue, setTitleValue] = useState("");
@@ -338,7 +364,14 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
 
         <p className="text-xs font-mono text-muted-foreground mb-2">{issueRef}</p>
 
-        {editingTitle ? (
+        {isArchived && (
+          <div className="flex items-center gap-2 mb-3 px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-600 dark:text-amber-400">
+            <Archive className="h-3.5 w-3.5 shrink-0" />
+            {t("views.archive.readOnlyNotice")}
+          </div>
+        )}
+
+        {!isArchived && editingTitle ? (
           <input
             className="w-full text-2xl font-semibold bg-transparent border-b-2 border-primary outline-none pb-1 mb-4"
             value={titleValue}
@@ -352,15 +385,14 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
           />
         ) : (
           <h1
-            className="text-2xl font-semibold mb-4 cursor-text hover:opacity-80 transition-opacity"
-            onClick={() => setEditingTitle(true)}
-            title={t("common.clickToEdit")}
+            className={cn("text-2xl font-semibold mb-4", !isArchived && "cursor-text hover:opacity-80 transition-opacity")}
+            onClick={() => !isArchived && setEditingTitle(true)}
           >
             {issue.title}
           </h1>
         )}
 
-        <div className="mb-6">
+        <div className={cn("mb-6", isArchived && "pointer-events-none opacity-70")}>
           <RichTextEditor
             content={descValue}
             onChange={setDescValue}
@@ -423,7 +455,7 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
               </Link>
             ))}
 
-            {addingSubIssue ? (
+            {isArchived ? null : addingSubIssue ? (
               <div className="flex items-center gap-2 px-3 py-2.5 border rounded-md">
                 <input
                   className="flex-1 text-sm bg-transparent outline-none placeholder:text-muted-foreground"
@@ -448,7 +480,7 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
                       setSubIssueTitle("");
                     }
                   }}
-                  autoFocus
+                  ref={(el) => { if (el) el.focus({ preventScroll: true }); }}
                 />
                 <button
                   className="text-xs text-muted-foreground hover:text-foreground transition-colors"
@@ -509,7 +541,7 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
               </div>
             ))}
 
-            {addingLink ? (
+            {isArchived ? null : addingLink ? (
               <div className="border rounded-md p-3 space-y-2">
                 <input
                   className="w-full text-xs bg-transparent border-b border-border outline-none pb-1 placeholder:text-muted-foreground"
@@ -607,17 +639,19 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
               );
             })}
 
-            <label className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors py-1.5 cursor-pointer">
-              <Upload className="h-3.5 w-3.5" />
-              {uploadAttachmentMutation.isPending ? t("issues.detail.attachments.uploading") : t("issues.detail.attachments.upload")}
-              <input
-                type="file"
-                multiple
-                className="hidden"
-                onChange={handleFileUpload}
-                disabled={uploadAttachmentMutation.isPending}
-              />
-            </label>
+            {!isArchived && (
+              <label className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors py-1.5 cursor-pointer">
+                <Upload className="h-3.5 w-3.5" />
+                {uploadAttachmentMutation.isPending ? t("issues.detail.attachments.uploading") : t("issues.detail.attachments.upload")}
+                <input
+                  type="file"
+                  multiple
+                  className="hidden"
+                  onChange={handleFileUpload}
+                  disabled={uploadAttachmentMutation.isPending}
+                />
+              </label>
+            )}
           </div>
         )}
 
@@ -650,29 +684,30 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
               </div>
             ))}
 
-            <div className="flex gap-2 pt-1">
-              <textarea
-                className="flex-1 text-sm bg-muted/20 border border-border rounded-md px-3 py-2 outline-none resize-none focus:border-primary transition-colors min-h-[72px]"
-                value={commentText}
-                onChange={(e) => setCommentText(e.target.value)}
-                placeholder={t("issues.detail.comments.placeholder")}
-                onKeyDown={(e) => {
-                  // Ctrl/Cmd + Enter로 즉시 등록
-                  if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && commentText.trim()) {
-                    createCommentMutation.mutate();
-                  }
-                }}
-              />
-              <Button
-                size="sm"
-                disabled={!commentText.trim() || createCommentMutation.isPending}
-                onClick={() => createCommentMutation.mutate()}
-                className="self-end"
-                title={t("issues.detail.comments.submit")}
-              >
-                <Send className="h-3.5 w-3.5" />
-              </Button>
-            </div>
+            {!isArchived && (
+              <div className="flex gap-2 pt-1">
+                <textarea
+                  className="flex-1 text-sm bg-muted/20 border border-border rounded-md px-3 py-2 outline-none resize-none focus:border-primary transition-colors min-h-[72px]"
+                  value={commentText}
+                  onChange={(e) => setCommentText(e.target.value)}
+                  placeholder={t("issues.detail.comments.placeholder")}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && commentText.trim()) {
+                      createCommentMutation.mutate();
+                    }
+                  }}
+                />
+                <Button
+                  size="sm"
+                  disabled={!commentText.trim() || createCommentMutation.isPending}
+                  onClick={() => createCommentMutation.mutate()}
+                  className="self-end"
+                  title={t("issues.detail.comments.submit")}
+                >
+                  <Send className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            )}
           </div>
         )}
 
@@ -710,7 +745,7 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
 
       <div className="w-[26rem] shrink-0 border-l border-border overflow-y-auto bg-muted/5">
         {/* pt-10: 패널 모드에서 닫기(X) 버튼과 겹침 방지 */}
-        <div className={cn("divide-y divide-border/60", inPanel && "pt-10")}>
+        <div className={cn("divide-y divide-border/60", inPanel && "pt-10", isArchived && "pointer-events-none opacity-70")}>
 
           <div className="grid grid-cols-2 gap-3 px-4 py-3">
             <div>
@@ -759,19 +794,19 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
           <div className="grid grid-cols-2 gap-3 px-4 py-3">
             <div className="min-w-0">
               <p className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground/70 mb-1.5">{t("sidebar.modules")}</p>
-              <ModulePicker
-                modules={modules}
-                currentId={issue.module}
-                onChange={(id) => updateMutation.mutate({ module: id })}
+              <CategoryPicker
+                categories={categories}
+                currentId={issue.category}
+                onChange={(id) => updateMutation.mutate({ category: id })}
                 className="border border-border rounded-md bg-input/60 hover:bg-primary/10"
               />
             </div>
             <div className="min-w-0">
               <p className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground/70 mb-1.5">{t("views.cycleFilter.label")}</p>
-              <CyclePicker
-                cycles={cycles}
-                currentId={issue.cycle}
-                onChange={(id) => updateMutation.mutate({ cycle: id })}
+              <SprintPicker
+                sprints={sprints}
+                currentId={issue.sprint}
+                onChange={(id) => updateMutation.mutate({ sprint: id })}
                 className="border border-border rounded-md bg-input/60 hover:bg-primary/10"
               />
             </div>
@@ -785,6 +820,8 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
                 onChange={(v) => updateMutation.mutate({ start_date: v })}
                 placeholder={t("datePicker.placeholder")}
                 className="border border-border rounded-md bg-input/60 hover:bg-primary/10"
+                hintDate={issue.due_date ?? null}
+                hintMode="after"
               />
             </div>
             <div className="min-w-0">
@@ -794,6 +831,8 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
                 onChange={(v) => updateMutation.mutate({ due_date: v })}
                 placeholder={t("datePicker.placeholder")}
                 className="border border-border rounded-md bg-input/60 hover:bg-primary/10"
+                hintDate={issue.start_date ?? null}
+                hintMode="before"
               />
             </div>
           </div>
@@ -822,7 +861,46 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
             </div>
           </div>
 
-          <div className="px-4 py-3">
+          <div className={cn("px-4 py-3", isArchived && "pointer-events-auto opacity-100")}>
+            {isArchived ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full text-xs font-semibold h-7 gap-1.5 mb-3"
+                onClick={() => {
+                  issuesApi.unarchive(workspaceSlug!, projectId!, issue.id).then(() => {
+                    qc.invalidateQueries({ queryKey: ["issues", workspaceSlug, projectId] });
+                    qc.invalidateQueries({ queryKey: ["issues-archive", workspaceSlug, projectId] });
+                    qc.invalidateQueries({ queryKey: ["issue", issueId] });
+                    toast.success(t("views.archive.restored"));
+                  });
+                }}
+              >
+                <RotateCcw className="h-3 w-3" />
+                {t("views.archive.restore")}
+              </Button>
+            ) : (
+              <div className="flex gap-2 mb-3">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex-1 text-xs font-semibold h-7 gap-1.5"
+                  onClick={handleCopyIssue}
+                >
+                  <Copy className="h-3 w-3" />
+                  {t("issues.table.copy")}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex-1 text-xs font-semibold h-7 gap-1.5"
+                  onClick={handleArchiveIssue}
+                >
+                  <Archive className="h-3 w-3" />
+                  {t("issues.table.archive")}
+                </Button>
+              </div>
+            )}
             <div className="p-2.5 border border-destructive/20 bg-destructive/5 rounded-lg">
               <p className="text-2xs font-bold text-destructive mb-2 flex items-center gap-1.5">
                 <AlertTriangle className="h-3 w-3" /> DANGER ZONE

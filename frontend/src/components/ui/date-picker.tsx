@@ -27,10 +27,14 @@ export interface DatePickerProps {
   /** 날짜가 지났을 때 텍스트 색상 클래스 (선택) */
   overdueClass?: string;
   className?:   string;
+  /** 기준 날짜 힌트 — 이 날짜 이전(before) 또는 이후(after)를 흐림 처리 */
+  hintDate?:    string | null;
+  /** hintDate 기준 흐림 방향: "before" = hintDate 이전 흐림, "after" = hintDate 이후 흐림 */
+  hintMode?:    "before" | "after";
 }
 
 export function DatePicker({
-  value, onChange, placeholder, overdueClass, className,
+  value, onChange, placeholder, overdueClass, className, hintDate, hintMode,
 }: DatePickerProps) {
   const { t } = useTranslation();
   const resolvedPlaceholder = placeholder ?? t("datePicker.placeholder");
@@ -54,6 +58,14 @@ export function DatePicker({
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+
+  /* hintDate 파싱 — 시작일/마감일 간 상대 흐림 처리용 */
+  const parsedHint = hintDate ? (() => {
+    const [y, m, d] = hintDate.split("-").map(Number);
+    const dt = new Date(y, m - 1, d);
+    dt.setHours(0, 0, 0, 0);
+    return dt;
+  })() : null;
 
   /* 달력 열기 — trigger 위치 기준으로 팝오버 위치 계산 */
   const openCalendar = () => {
@@ -215,8 +227,13 @@ export function DatePicker({
                 thisDate.setHours(0, 0, 0, 0);
                 const isToday    = thisDate.getTime() === today.getTime();
                 const isSelected = !!selectedDate && thisDate.getTime() === selectedDate.getTime();
-                const isPast     = thisDate < today;
                 const dow        = i % 7; // 0=일, 6=토
+
+                /* hintDate 기반 흐림 — 선택 불가가 아닌 시각 힌트 */
+                const isHinted = parsedHint && !isSelected && !isToday && (
+                  (hintMode === "before" && thisDate < parsedHint) ||
+                  (hintMode === "after"  && thisDate > parsedHint)
+                );
 
                 /* 주말 배경 tint — 시각 구분 강화 */
                 const weekendBg = !isSelected && !isToday
@@ -233,13 +250,13 @@ export function DatePicker({
                         ? "bg-primary text-primary-foreground shadow-md shadow-primary/40 scale-105 ring-1 ring-primary/30"
                         : isToday
                           ? "ring-2 ring-primary text-primary bg-primary/10"
-                          : isPast
+                          : isHinted
                             ? "text-muted-foreground/40 hover:bg-white/8 hover:text-muted-foreground"
                             : "hover:bg-primary/10 hover:text-primary",
                       /* 일요일 */
-                      !isSelected && !isToday && dow === 0 ? "text-rose-500" : "",
+                      !isSelected && !isToday && dow === 0 && !isHinted ? "text-rose-500" : "",
                       /* 토요일 */
-                      !isSelected && !isToday && dow === 6 ? "text-sky-500" : "",
+                      !isSelected && !isToday && dow === 6 && !isHinted ? "text-sky-500" : "",
                       /* 주말 배경 tint */
                       weekendBg,
                     )}

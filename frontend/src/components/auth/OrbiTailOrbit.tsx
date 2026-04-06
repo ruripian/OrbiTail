@@ -1,5 +1,5 @@
 /**
- * OuroborosOrbit — 로고 path 기반 궤도 행성 애니메이션
+ * OrbiTailOrbit — 로고 path 기반 궤도 행성 애니메이션
  *
  * 사용처: 로그인 페이지 배경, 홈 대시보드 중앙
  * 색상: 테마 CSS 변수(--primary) — currentColor 사용
@@ -36,7 +36,7 @@ const ORBITERS = [
   { pathKey: "edge4" as const, dur: "14s", r: 3.5, delay: "-5s" },
 ];
 
-interface OuroborosOrbitProps {
+interface OrbiTailOrbitProps {
   /** SVG max-width (px). 기본 1200 */
   size?: number;
   /** path stroke 두께. 기본 5 */
@@ -49,20 +49,20 @@ interface OuroborosOrbitProps {
   idPrefix?: string;
 }
 
-export function OuroborosOrbit({
+export function OrbiTailOrbit({
   size = 1200,
   strokeW = 5,
   offsetY = 0,
   position = "fixed",
   idPrefix = "orb",
-}: OuroborosOrbitProps) {
+}: OrbiTailOrbitProps) {
   const { isRich } = useMotion();
   const filterId = `${idPrefix}-glow`;
   const translateY = offsetY ? `translateY(${offsetY}px)` : undefined;
 
   return (
     <div
-      className={`ouroboros-orbit pointer-events-none ${position} inset-0 overflow-hidden text-primary`}
+      className={`orbitail-orbit pointer-events-none ${position} inset-0 overflow-hidden text-primary`}
       aria-hidden="true"
     >
       <svg

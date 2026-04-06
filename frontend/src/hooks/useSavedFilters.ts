@@ -22,7 +22,7 @@ interface Filters {
   labels: Set<string>;
 }
 
-const STORAGE_KEY = "ouroboros_saved_filters";
+const STORAGE_KEY = "orbitail_saved_filters";
 
 function loadAll(): Record<string, FilterPreset[]> {
   try {
