@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="frontend/public/logo.svg" width="80" alt="Ouroboros" />
+  <img src="frontend/public/logo.svg" width="80" alt="OrbiTail" />
 </p>
 
-<h1 align="center">Ouroboros</h1>
+<h1 align="center">OrbiTail</h1>
 
 <p align="center">
   Self-hosted project management tool

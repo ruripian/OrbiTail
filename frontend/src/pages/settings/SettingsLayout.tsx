@@ -1,7 +1,7 @@
 import { NavLink, Outlet, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { User, Lock, SlidersHorizontal, Users, UsersRound } from "lucide-react";
+import { User, Lock, SlidersHorizontal, Users, UsersRound, Github, ExternalLink } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { workspacesApi } from "@/api/workspaces";
 import { cn } from "@/lib/utils";
@@ -100,6 +100,22 @@ export function SettingsLayout() {
             </NavLink>
           </>
         )}
+        {/* 하단 — 프로젝트 링크 */}
+        <div className="mt-auto pt-6 space-y-2">
+          <p className="px-2 text-2xs font-semibold uppercase tracking-widest text-muted-foreground">
+            {t("settings.layout.sponsor")}
+          </p>
+          <a
+            href="https://github.com/ruripian/ouroboros"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+          >
+            <Github className="h-4 w-4 shrink-0" />
+            <span className="flex-1 truncate">{t("settings.layout.sponsorGithub")}</span>
+            <ExternalLink className="h-3 w-3 shrink-0 opacity-40" />
+          </a>
+        </div>
       </aside>
 
       {/* 탭 컨텐츠 */}

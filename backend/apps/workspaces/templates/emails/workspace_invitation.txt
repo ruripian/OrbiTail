@@ -25,4 +25,4 @@
 이 메일은 {{ workspace_name }} 워크스페이스의 초대 때문에
 발송되었습니다. 본인이 초대받은 게 아니라면 무시해도 됩니다.
 
-Powered by Ouroboros
+Powered by OrbiTail
