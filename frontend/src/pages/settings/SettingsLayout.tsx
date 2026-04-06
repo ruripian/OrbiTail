@@ -106,7 +106,7 @@ export function SettingsLayout() {
             {t("settings.layout.sponsor")}
           </p>
           <a
-            href="https://github.com/ruripian/ouroboros"
+            href="https://github.com/ruripian/OrbiTail"
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"

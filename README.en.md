@@ -29,7 +29,7 @@
 ## Quick Start (Development)
 
 ```bash
-git clone https://github.com/ruripian/ouroboros.git
+git clone https://github.com/ruripian/OrbiTail.git
 cd ouroboros
 
 cp .env.example .env
@@ -58,7 +58,7 @@ Access:
 ### Deploy
 
 ```bash
-git clone https://github.com/ruripian/ouroboros.git
+git clone https://github.com/ruripian/OrbiTail.git
 cd ouroboros
 
 cp .env.example .env

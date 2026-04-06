@@ -29,7 +29,7 @@
 ## 빠른 시작 (개발 환경)
 
 ```bash
-git clone https://github.com/ruripian/ouroboros.git
+git clone https://github.com/ruripian/OrbiTail.git
 cd ouroboros
 
 cp .env.example .env
@@ -58,7 +58,7 @@ docker compose up -d
 ### 배포
 
 ```bash
-git clone https://github.com/ruripian/ouroboros.git
+git clone https://github.com/ruripian/OrbiTail.git
 cd ouroboros
 
 cp .env.example .env
