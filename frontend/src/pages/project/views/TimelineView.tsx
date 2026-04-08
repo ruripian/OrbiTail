@@ -296,7 +296,7 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
       /* params 대신 URL에 직접 쿼리 스트링 붙이기 — axios params 변환 이슈 회피 */
       const qs = new URLSearchParams({ ...issueFilter, include_sub_issues: "true" } as Record<string, string>).toString();
       const res = await api.get(`/workspaces/${workspaceSlug}/projects/${projectId}/issues/?${qs}`);
-      return res.data.results as Issue[];
+      return (res.data.results ?? res.data) as Issue[];
     },
   });
 

@@ -23,6 +23,7 @@ from .serializers import (
 
 class IssueListCreateView(generics.ListCreateAPIView):
     serializer_class = IssueSerializer
+    pagination_class = None  # 캘린더/타임라인 등 전체 이슈 필요 — 페이지네이션 해제
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ["state", "priority", "assignees", "label", "category", "sprint"]
     search_fields = ["title"]

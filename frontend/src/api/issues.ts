@@ -15,8 +15,8 @@ interface IssueFilters {
 export const issuesApi = {
   list: (workspaceSlug: string, projectId: string, filters?: IssueFilters) =>
     api
-      .get<PaginatedResponse<Issue>>(`/workspaces/${workspaceSlug}/projects/${projectId}/issues/`, { params: filters })
-      .then((r) => r.data.results),
+      .get<Issue[]>(`/workspaces/${workspaceSlug}/projects/${projectId}/issues/`, { params: filters })
+      .then((r) => r.data),
 
   create: (workspaceSlug: string, projectId: string, data: Partial<Issue>) =>
     api
