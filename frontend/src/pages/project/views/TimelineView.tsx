@@ -12,7 +12,8 @@
 
 import { useState, useMemo, useRef, useEffect, Fragment } from "react";
 import { createPortal } from "react-dom";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { useIssueRefresh } from "@/hooks/useIssueMutations";
 import { useTranslation } from "react-i18next";
 import { Settings2, ChevronDown, Plus, ChevronRight } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
@@ -276,7 +277,7 @@ interface Props {
 
 export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilter, settings, onSettingsChange }: Props) {
   const { t } = useTranslation();
-  const qc = useQueryClient();
+  const { refresh } = useIssueRefresh(workspaceSlug, projectId);
   const firstDow = useAuthStore((s) => s.user?.first_day_of_week ?? 0); // 0=일요일, 1=월요일
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsBtnRef = useRef<HTMLButtonElement>(null);
@@ -332,8 +333,8 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
       if (scrollRef.current) savedScrollLeft.current = scrollRef.current.scrollLeft;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["issues", workspaceSlug, projectId, issueFilter] });
-      // invalidateQueries 후 rangeStart/rangeEnd가 재계산되어 DOM이 바뀌기 전까지
+      refresh();
+      // refresh 후 rangeStart/rangeEnd가 재계산되어 DOM이 바뀌기 전까지
       // 두 프레임을 기다린 뒤 스크롤 위치를 복원 (double rAF 패턴)
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
@@ -414,7 +415,7 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
       });
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["issues", workspaceSlug, projectId] });
+      refresh();
       /* 새 이슈는 날짜 없이 생성됨 → showNoDate가 꺼져 있으면 안 보이므로 자동 켜기 */
       if (!settings.showNoDate) onSettingsChange({ showNoDate: true });
     },
@@ -448,8 +449,7 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
     onSuccess: (_, vars) => {
       setChildTitle("");
       setAddingChildFor(null);
-      qc.invalidateQueries({ queryKey: ["issues", workspaceSlug, projectId] });
-      qc.invalidateQueries({ queryKey: ["sub-issues", vars.parentId] });
+      refresh(vars.parentId);
     },
     onError: () => toast.error(t("issues.detail.toast.subIssueCreateFailed")),
   });

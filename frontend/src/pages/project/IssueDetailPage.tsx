@@ -14,6 +14,7 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { AvatarInitials } from "@/components/ui/avatar-initials";
 import { formatLongDate } from "@/utils/date-format";
 import { useParentChain } from "@/hooks/useParentChain";
+import { useIssueRefresh } from "@/hooks/useIssueMutations";
 import { ParentChainBreadcrumb } from "@/components/issues/parent-chain-breadcrumb";
 import { ParentPicker } from "@/components/issues/parent-picker";
 import { StatePicker } from "@/components/issues/state-picker";
@@ -64,6 +65,7 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
   const issueId = issueIdOverride ?? paramIssueId;
   const user = useAuthStore((s) => s.user);
   const qc = useQueryClient();
+  const { refresh, refreshWithArchive, refreshIssue } = useIssueRefresh(workspaceSlug!, projectId!);
 
   const { data: issue, isLoading } = useQuery({
     queryKey: ["issue", issueId],
@@ -147,20 +149,17 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
     mutationFn: (data: Partial<Issue>) =>
       issuesApi.update(workspaceSlug!, projectId!, issueId!, data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["issue", issueId] });
-      qc.invalidateQueries({ queryKey: ["activities", issueId] });
-      qc.invalidateQueries({ queryKey: ["issues", workspaceSlug, projectId] });
-      qc.invalidateQueries({ queryKey: ["my-issues", workspaceSlug] });
-      qc.invalidateQueries({ queryKey: ["recent-issues", workspaceSlug] });
+      refreshIssue(issueId!);
+      refresh(issue?.parent);
     },
     onError: () => toast.error(t("issues.detail.toast.updateFailed")),
   });
 
   const deleteMutation = useMutation({
     mutationFn: () => issuesApi.delete(workspaceSlug!, projectId!, issueId!),
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success(t("common.issueDeleteSuccess"));
-      qc.invalidateQueries({ queryKey: ["issues", workspaceSlug, projectId] });
+      await refresh(issue?.parent);
       if (onClose) onClose();
       else if (!inPanel) navigate(`/${workspaceSlug}/projects/${projectId}/issues`);
     },
@@ -170,9 +169,7 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
   const handleCopyIssue = () => {
     if (!issue) return;
     issuesApi.duplicate(workspaceSlug!, projectId!, issue.id).then(() => {
-      qc.invalidateQueries({ queryKey: ["issues", workspaceSlug, projectId] });
-      qc.invalidateQueries({ queryKey: ["my-issues", workspaceSlug] });
-      if (issue.parent) qc.invalidateQueries({ queryKey: ["sub-issues", issue.parent] });
+      refresh(issue.parent);
       toast.success(t("issues.table.copied"));
       // 복사 후 디테일 창 닫기
       if (onClose) onClose();
@@ -183,8 +180,7 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
   const handleArchiveIssue = () => {
     if (!issue) return;
     issuesApi.archive(workspaceSlug!, projectId!, issue.id).then(() => {
-      qc.invalidateQueries({ queryKey: ["issues", workspaceSlug, projectId] });
-      qc.invalidateQueries({ queryKey: ["issues-archive", workspaceSlug, projectId] });
+      refreshWithArchive(issue.parent);
       toast.success(t("issues.table.archived"));
       if (onClose) onClose();
       else if (!inPanel) navigate(`/${workspaceSlug}/projects/${projectId}/issues`);
@@ -307,9 +303,8 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
     onSuccess: () => {
       setSubIssueTitle("");
       setAddingSubIssue(false);
-      qc.invalidateQueries({ queryKey: ["sub-issues", issueId] });
-      // sub_issues_count 반영을 위해 부모 이슈도 갱신
-      qc.invalidateQueries({ queryKey: ["issue", issueId] });
+      refresh(issueId);
+      refreshIssue(issueId!);
     },
     onError: () => toast.error(t("issues.detail.toast.subIssueCreateFailed")),
   });
@@ -881,9 +876,8 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
                 className="w-full text-xs font-semibold h-7 gap-1.5 mb-3"
                 onClick={() => {
                   issuesApi.unarchive(workspaceSlug!, projectId!, issue.id).then(() => {
-                    qc.invalidateQueries({ queryKey: ["issues", workspaceSlug, projectId] });
-                    qc.invalidateQueries({ queryKey: ["issues-archive", workspaceSlug, projectId] });
-                    qc.invalidateQueries({ queryKey: ["issue", issueId] });
+                    refreshWithArchive(issue.parent);
+                    refreshIssue(issueId!);
                     toast.success(t("views.archive.restored"));
                   });
                 }}

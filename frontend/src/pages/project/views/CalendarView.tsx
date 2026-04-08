@@ -9,6 +9,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useIssueRefresh } from "@/hooks/useIssueMutations";
 import { useTranslation } from "react-i18next";
 import { ChevronLeft, ChevronRight, Settings2, Maximize2, Minimize2, Plus } from "lucide-react";
 import { issuesApi } from "@/api/issues";
@@ -282,6 +283,7 @@ export function CalendarView({ workspaceSlug, projectId, onIssueClick, issueFilt
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsBtnRef = useRef<HTMLButtonElement>(null);
   const qc = useQueryClient();
+  const { refresh, refreshIssue } = useIssueRefresh(workspaceSlug, projectId);
 
   /* 확장된 이슈/이벤트 id 집합 — chip을 span bar로 확장 표시. 세션 동안만 유지 */
   const [expandedIssues, setExpandedIssues] = useState<Set<string>>(new Set());
@@ -367,10 +369,8 @@ export function CalendarView({ workspaceSlug, projectId, onIssueClick, issueFilt
       issuesApi.update(workspaceSlug, projectId, id, data),
     onSuccess: (_, variables) => {
       /* 드래그 변경이 모든 관련 뷰/패널에 즉시 반영되도록 넓게 invalidate */
-      qc.invalidateQueries({ queryKey: ["issues", workspaceSlug, projectId] });
-      qc.invalidateQueries({ queryKey: ["issue", variables.id] });
-      qc.invalidateQueries({ queryKey: ["my-issues", workspaceSlug] });
-      qc.invalidateQueries({ queryKey: ["recent-issues", workspaceSlug] });
+      refresh();
+      refreshIssue(variables.id);
     },
   });
 

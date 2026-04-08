@@ -4,13 +4,14 @@
  */
 
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Plus, CalendarRange } from "lucide-react";
 import { formatDate } from "@/utils/date-format";
 import { AvatarInitials } from "@/components/ui/avatar-initials";
 import { issuesApi } from "@/api/issues";
 import { projectsApi } from "@/api/projects";
+import { useIssueRefresh } from "@/hooks/useIssueMutations";
 import { Button } from "@/components/ui/button";
 import { IssueCreateDialog } from "@/components/issues/IssueCreateDialog";
 import { cn } from "@/lib/utils";
@@ -27,7 +28,7 @@ interface Props {
 
 export function BoardView({ workspaceSlug, projectId, onIssueClick, issueFilter, readOnly }: Props) {
   const { t } = useTranslation();
-  const qc = useQueryClient();
+  const { refresh } = useIssueRefresh(workspaceSlug, projectId);
   const [createOpen, setCreateOpen]       = useState(false);
   const [selectedState, setSelectedState] = useState<State | null>(null);
   const [inlineStateId, setInlineStateId] = useState<string | null>(null);
@@ -44,8 +45,7 @@ export function BoardView({ workspaceSlug, projectId, onIssueClick, issueFilter,
         ...(issueFilter?.sprint  ? { sprint:  issueFilter.sprint }  : {}),
       } as Partial<Issue>),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["issues", workspaceSlug, projectId] });
-      qc.invalidateQueries({ queryKey: ["my-issues", workspaceSlug] });
+      refresh();
       setInlineTitle("");
       setInlineStateId(null);
     },
@@ -69,9 +69,7 @@ export function BoardView({ workspaceSlug, projectId, onIssueClick, issueFilter,
     mutationFn: ({ issueId, stateId }: { issueId: string; stateId: string }) =>
       issuesApi.update(workspaceSlug, projectId, issueId, { state: stateId }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["issues", workspaceSlug, projectId] });
-      qc.invalidateQueries({ queryKey: ["my-issues", workspaceSlug] });
-      qc.invalidateQueries({ queryKey: ["recent-issues", workspaceSlug] });
+      refresh();
     },
   });
 

@@ -32,6 +32,7 @@ import { CategoryPicker } from "@/components/issues/category-picker";
 import { SprintPicker } from "@/components/issues/sprint-picker";
 import { LabelPicker } from "@/components/issues/label-picker";
 import { useSavedFilters } from "@/hooks/useSavedFilters";
+import { useIssueRefresh } from "@/hooks/useIssueMutations";
 import { projectsApi } from "@/api/projects";
 import { cn } from "@/lib/utils";
 import { Z_MODAL } from "@/constants/z-index";
@@ -190,6 +191,7 @@ interface Props {
 export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter, readOnly }: Props) {
   const { t } = useTranslation();
   const qc = useQueryClient();
+  const { refresh } = useIssueRefresh(workspaceSlug, projectId);
 
   const { data: project } = useQuery({
     queryKey: ["project", workspaceSlug, projectId],
@@ -241,8 +243,7 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
       const scrollEl = scrollRef.current;
       const savedTop = scrollEl?.scrollTop ?? 0;
 
-      qc.invalidateQueries({ queryKey: ["issues", workspaceSlug, projectId] });
-      qc.invalidateQueries({ queryKey: ["my-issues", workspaceSlug] });
+      refresh();
       setInlineTitle("");
       // 인라인 입력 유지 — 연속 생성 가능하도록 닫지 않음
       requestAnimationFrame(() => {
@@ -1174,7 +1175,7 @@ function IssueCard({
   categories, sprints, hideCompleted, selected, onToggleSelect, selectedIds,
 }: IssueCardProps) {
   const { t } = useTranslation();
-  const qc = useQueryClient();
+  const { refresh, refreshWithArchive, refreshIssue } = useIssueRefresh(workspaceSlug, projectId);
 
   /* ── 컨텍스트에서 DnD 상태·핸들러 수신 ── */
   const { dragId, nestTargetId, dropTarget, dropZone, onDragStart, onDragOver, onDragEnd, onDrop } =
@@ -1234,8 +1235,7 @@ function IssueCard({
       const scrollEl = document.querySelector("[data-scroll-container]");
       const savedTop = scrollEl?.scrollTop ?? 0;
 
-      qc.invalidateQueries({ queryKey: ["sub-issues", issue.id] });
-      qc.invalidateQueries({ queryKey: ["issues", workspaceSlug, projectId] });
+      refresh(issue.id);
 
       // 입력 즉시 닫기 — 하나 생성하면 완료
       setChildTitle("");
@@ -1253,14 +1253,8 @@ function IssueCard({
     mutationFn: (data: Partial<Issue>) =>
       issuesApi.update(workspaceSlug, projectId, issue.id, data),
     onSuccess: () => {
-      /* 넓은 범위 무효화 — issueFilter 객체 참조 불일치 방지 */
-      qc.invalidateQueries({ queryKey: ["issues", workspaceSlug, projectId] });
-      qc.invalidateQueries({ queryKey: ["my-issues", workspaceSlug] });
-      qc.invalidateQueries({ queryKey: ["recent-issues", workspaceSlug] });
-      qc.invalidateQueries({ queryKey: ["issue", issue.id] });
-      if (issue.parent) {
-        qc.invalidateQueries({ queryKey: ["sub-issues", issue.parent] });
-      }
+      refreshIssue(issue.id);
+      refresh(issue.parent);
     },
   });
 
@@ -1268,9 +1262,7 @@ function IssueCard({
   const handleCopy = (e: React.MouseEvent) => {
     e.stopPropagation();
     issuesApi.duplicate(workspaceSlug, projectId, issue.id).then(() => {
-      qc.invalidateQueries({ queryKey: ["issues", workspaceSlug, projectId] });
-      qc.invalidateQueries({ queryKey: ["my-issues", workspaceSlug] });
-      if (issue.parent) qc.invalidateQueries({ queryKey: ["sub-issues", issue.parent] });
+      refresh(issue.parent);
       toast.success(t("issues.table.copied"));
     });
   };
@@ -1279,9 +1271,7 @@ function IssueCard({
   const handleArchive = (e: React.MouseEvent) => {
     e.stopPropagation();
     issuesApi.archive(workspaceSlug, projectId, issue.id).then(() => {
-      qc.invalidateQueries({ queryKey: ["issues", workspaceSlug, projectId] });
-      qc.invalidateQueries({ queryKey: ["issues-archive", workspaceSlug, projectId] });
-      if (issue.parent) qc.invalidateQueries({ queryKey: ["sub-issues", issue.parent] });
+      refreshWithArchive(issue.parent);
       toast.success(t("issues.table.archived"));
     });
   };
@@ -1289,19 +1279,15 @@ function IssueCard({
   /* ── 이슈 삭제 (소프트 삭제 + 되돌리기 토스트) ── */
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
+    console.log("[DELETE] triggered for:", issue.id, issue.title);
 
-    // 낙관적 제거: 올바른 캐시에서 즉시 삭제
-    if (!issue.parent) {
-      qc.setQueryData<Issue[]>(["issues", workspaceSlug, projectId], (old = []) =>
-        old.filter((i) => i.id !== issue.id)
-      );
-    } else {
-      qc.setQueryData<Issue[]>(["sub-issues", issue.parent], (old = []) =>
-        old.filter((i) => i.id !== issue.id)
-      );
-    }
-
-    issuesApi.delete(workspaceSlug, projectId, issue.id);
+    issuesApi.delete(workspaceSlug, projectId, issue.id)
+      .then(() => {
+        console.log("[DELETE] success, invalidating...");
+        refresh(issue.parent);
+      })
+      .then(() => console.log("[DELETE] invalidation done"))
+      .catch((err) => console.error("[DELETE] error:", err));
 
     // 되돌리기 토스트 (8초 유지)
     toast(t("issues.table.deleted"), {
@@ -1313,10 +1299,7 @@ function IssueCard({
         label: t("issues.table.undo"),
         onClick: () => {
           issuesApi.restore(workspaceSlug, projectId, issue.id).then(() => {
-            qc.invalidateQueries({ queryKey: ["issues", workspaceSlug, projectId] });
-            if (issue.parent) {
-              qc.invalidateQueries({ queryKey: ["sub-issues", issue.parent] });
-            }
+            refresh(issue.parent);
           });
         },
       },
@@ -1544,7 +1527,7 @@ function IssueCard({
             {issue.title}
           </span>
           <button
-            onClick={(e) => { e.stopPropagation(); setAddingChild(true); }}
+            onClick={(e) => { e.stopPropagation(); setAddingChild(true); setExpanded(true); }}
             title={t("issues.table.addSubIssue")}
             className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-muted/60 shrink-0"
           >
@@ -1601,33 +1584,7 @@ function IssueCard({
         </div>
       </div>
 
-      {expanded && (
-        <div className="mt-1 space-y-1">
-          {/* liveSubOrder: 하위 이슈도 드래그 중 실시간 순서 미리보기 */}
-          {liveSubOrder.map((sub) => (
-            <IssueCard
-              key={sub.id}
-              issue={sub}
-              activeCols={activeCols}
-              states={states}
-              members={members}
-              labels={labels}
-              workspaceSlug={workspaceSlug}
-              projectId={projectId}
-              projectIdentifier={projectIdentifier}
-              depth={depth + 1}
-              onIssueClick={onIssueClick}
-              categories={categories}
-              sprints={sprints}
-              hideCompleted={hideCompleted}
-              selected={selectedIds?.has(sub.id)}
-              onToggleSelect={onToggleSelect}
-              selectedIds={selectedIds}
-            />
-          ))}
-        </div>
-      )}
-
+      {/* 인라인 하위 이슈 입력창 — 상위 항목 바로 아래, 기존 하위 이슈 위에 배치 */}
       {addingChild && (
         <div
           style={{ marginLeft: (depth + 1) * 28 }}
@@ -1664,6 +1621,33 @@ function IssueCard({
           <span className="text-xs text-muted-foreground/60 shrink-0">
             {t("issues.table.pressEnterToAdd")}
           </span>
+        </div>
+      )}
+
+      {expanded && (
+        <div className="mt-1 space-y-1">
+          {/* liveSubOrder: 하위 이슈도 드래그 중 실시간 순서 미리보기 */}
+          {liveSubOrder.map((sub) => (
+            <IssueCard
+              key={sub.id}
+              issue={sub}
+              activeCols={activeCols}
+              states={states}
+              members={members}
+              labels={labels}
+              workspaceSlug={workspaceSlug}
+              projectId={projectId}
+              projectIdentifier={projectIdentifier}
+              depth={depth + 1}
+              onIssueClick={onIssueClick}
+              categories={categories}
+              sprints={sprints}
+              hideCompleted={hideCompleted}
+              selected={selectedIds?.has(sub.id)}
+              onToggleSelect={onToggleSelect}
+              selectedIds={selectedIds}
+            />
+          ))}
         </div>
       )}
 

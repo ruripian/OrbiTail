@@ -8,7 +8,8 @@ import { useEffect, useState, useMemo } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { useIssueRefresh } from "@/hooks/useIssueMutations";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { issuesApi } from "@/api/issues";
@@ -71,7 +72,7 @@ export function IssueCreateDialog({
   defaultDueDate,
 }: Props) {
   const { t } = useTranslation();
-  const qc = useQueryClient();
+  const { refresh } = useIssueRefresh(workspaceSlug, projectId);
   /* Todo(unstarted) 우선 → default → 첫 번째 */
   const pickDefault = () =>
     states.find((s) => s.group === "unstarted")?.id ?? states.find((s) => s.default)?.id ?? states[0]?.id ?? "";
@@ -169,14 +170,7 @@ export function IssueCreateDialog({
       return issuesApi.create(workspaceSlug, projectId, payload);
     },
     onSuccess: async () => {
-      await Promise.all([
-        qc.refetchQueries({ queryKey: ["issues", workspaceSlug, projectId] }),
-        qc.invalidateQueries({ queryKey: ["my-issues", workspaceSlug] }),
-        qc.invalidateQueries({ queryKey: ["recent-issues", workspaceSlug] }),
-        parentIssueId
-          ? qc.invalidateQueries({ queryKey: ["sub-issues", parentIssueId] })
-          : Promise.resolve(),
-      ]);
+      await refresh(parentIssueId);
       reset();
       onOpenChange(false);
     },
