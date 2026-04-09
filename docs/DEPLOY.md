@@ -121,13 +121,13 @@ docker compose -f docker-compose.prod.yml logs -f celery
 ### DB 백업
 
 ```bash
-docker compose -f docker-compose.prod.yml exec db pg_dump -U ouroboros ouroboros > backup_$(date +%Y%m%d).sql
+docker compose -f docker-compose.prod.yml exec db pg_dump -U orbitail orbitail > backup_$(date +%Y%m%d).sql
 ```
 
 ### DB 복원
 
 ```bash
-cat backup.sql | docker compose -f docker-compose.prod.yml exec -T db psql -U ouroboros ouroboros
+cat backup.sql | docker compose -f docker-compose.prod.yml exec -T db psql -U orbitail orbitail
 ```
 
 ### Django 관리 명령어

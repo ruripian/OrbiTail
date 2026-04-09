@@ -64,9 +64,9 @@ ASGI_APPLICATION = "config.asgi.application"
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": config("POSTGRES_DB", default="ouroboros"),
-        "USER": config("POSTGRES_USER", default="ouroboros"),
-        "PASSWORD": config("POSTGRES_PASSWORD", default="ouroboros"),
+        "NAME": config("POSTGRES_DB", default="orbitail"),
+        "USER": config("POSTGRES_USER", default="orbitail"),
+        "PASSWORD": config("POSTGRES_PASSWORD", default="orbitail"),
         "HOST": config("DB_HOST", default="db"),
         "PORT": config("DB_PORT", default="5432"),
     }
@@ -172,12 +172,12 @@ EMAIL_USE_TLS = config("EMAIL_USE_TLS", default=True, cast=bool)
 EMAIL_USE_SSL = config("EMAIL_USE_SSL", default=False, cast=bool)
 EMAIL_HOST_USER = config("EMAIL_HOST_USER", default="")
 EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD", default="")
-DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default="noreply@ouroboros.local")
+DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default="noreply@orbitail.local")
 FRONTEND_URL = config("FRONTEND_URL", default="http://localhost:5173")
 
 # DRF Spectacular
 SPECTACULAR_SETTINGS = {
-    "TITLE": "Ouroboros API",
+    "TITLE": "OrbiTail API",
     "DESCRIPTION": "Project management API",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,

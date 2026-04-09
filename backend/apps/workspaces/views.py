@@ -283,7 +283,7 @@ class WorkspaceInvitationListCreateView(APIView):
         html_body = render_to_string("emails/workspace_invitation.html", context)
 
         mail = EmailMultiAlternatives(
-            subject=f"[Ouroboros] {workspace.name} 워크스페이스 초대",
+            subject=f"[OrbiTail] {workspace.name} 워크스페이스 초대",
             body=text_body,
             from_email=settings.DEFAULT_FROM_EMAIL,
             to=[data["email"]],

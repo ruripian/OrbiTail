@@ -7,7 +7,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, path.resolve(__dirname, ".."), "");
 
   /* DOMAIN 환경변수로 허용 호스트 동적 설정
-     예: DOMAIN=ouroboros.aipl.co.kr → ["ouroboros.aipl.co.kr"]
+     예: DOMAIN=orbitail.example.com → ["orbitail.example.com"]
      비어있으면 기본값(localhost)만 허용 */
   const allowedHosts: string[] = [];
   if (env.DOMAIN) allowedHosts.push(env.DOMAIN);

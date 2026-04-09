@@ -70,10 +70,10 @@ class RegisterView(generics.CreateAPIView):
             )
             verify_url = f"{settings.FRONTEND_URL}/auth/verify-email?token={token_obj.token}"
             send_mail(
-                subject="[Ouroboros] 이메일 인증 안내",
+                subject="[OrbiTail] 이메일 인증 안내",
                 message=(
                     f"안녕하세요, {user.display_name}님.\n\n"
-                    f"Ouroboros 에 가입하신 것을 환영합니다.\n"
+                    f"OrbiTail 에 가입하신 것을 환영합니다.\n"
                     f"아래 링크를 클릭하여 이메일 인증을 완료해주세요.\n\n"
                     f"{verify_url}\n\n"
                     f"인증 완료 후 관리자 승인을 거쳐 계정이 활성화됩니다.\n"
@@ -186,7 +186,7 @@ class EmailChangeRequestView(APIView):
 
         verify_url = f"{settings.FRONTEND_URL}/email-change/verify?token={token_obj.token}"
         send_mail(
-            subject="[Ouroboros] 이메일 변경 인증",
+            subject="[OrbiTail] 이메일 변경 인증",
             message=(
                 f"안녕하세요, {user.display_name}님.\n\n"
                 f"아래 링크를 클릭하여 이메일 변경을 완료하세요.\n\n"
@@ -302,7 +302,7 @@ class PasswordResetRequestView(APIView):
 
         reset_url = f"{settings.FRONTEND_URL}/auth/reset-password?token={token_obj.token}"
         send_mail(
-            subject="[Ouroboros] 비밀번호 재설정",
+            subject="[OrbiTail] 비밀번호 재설정",
             message=(
                 f"안녕하세요, {user.display_name}님.\n\n"
                 f"아래 링크를 클릭하여 비밀번호를 재설정하세요.\n\n"
@@ -380,10 +380,10 @@ class AdminUserApproveView(APIView):
         
         login_url = f"{settings.FRONTEND_URL}/auth/login"
         send_mail(
-            subject="[Ouroboros] 계정 승인 완료 안내",
+            subject="[OrbiTail] 계정 승인 완료 안내",
             message=(
                 f"안녕하세요, {user.display_name}님.\n\n"
-                f"관리자가 Ouroboros 계정을 승인했습니다.\n"
+                f"관리자가 OrbiTail 계정을 승인했습니다.\n"
                 f"이제 로그인하여 이용할 수 있습니다.\n\n"
                 f"로그인 주소: {login_url}"
             ),

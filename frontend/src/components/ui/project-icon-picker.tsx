@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 
 /**
- * Ouroboros 전용 아이콘 선택기 — lucide 아이콘 48개 + 색상 10개
+ * OrbiTail 전용 아이콘 선택기 — lucide 아이콘 48개 + 색상 10개
  *
  * 저장 형식(icon_prop JSON):
  *   { type: "lucide", name: "Box", color: "#5E6AD2" }

@@ -30,7 +30,7 @@
 
 ```bash
 git clone https://github.com/ruripian/OrbiTail.git
-cd ouroboros
+cd OrbiTail
 
 cp .env.example .env
 
@@ -59,7 +59,7 @@ Access:
 
 ```bash
 git clone https://github.com/ruripian/OrbiTail.git
-cd ouroboros
+cd OrbiTail
 
 cp .env.example .env
 vi .env
@@ -102,7 +102,7 @@ docker compose -f docker-compose.prod.yml logs -f backend
 
 # DB Backup
 docker compose -f docker-compose.prod.yml exec db \
-  pg_dump -U ouroboros ouroboros > backup-$(date +%F).sql
+  pg_dump -U orbitail orbitail > backup-$(date +%F).sql
 
 # Create admin (CLI)
 docker compose -f docker-compose.prod.yml exec backend \

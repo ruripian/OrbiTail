@@ -207,7 +207,7 @@ class CategorySerializer(serializers.ModelSerializer):
             "id", "name", "description", "icon_prop", "status",
             "lead", "lead_detail",
             "start_date", "target_date",
-            "issue_count", "created_at", "updated_at",
+            "sort_order", "issue_count", "created_at", "updated_at",
         ]
         read_only_fields = ["id", "created_at", "updated_at"]
 

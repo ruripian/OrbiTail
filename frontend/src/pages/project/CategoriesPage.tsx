@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -6,8 +6,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { Plus, Layers, Trash2, Settings } from "lucide-react";
+import { Plus, Layers, Trash2, Settings, GripVertical } from "lucide-react";
 import { projectsApi } from "@/api/projects";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -113,6 +114,31 @@ export function CategoriesPage() {
     onError: () => toast.error(t("modules.deleteFailed")),
   });
 
+  /* ── 카테고리 DnD 순서 변경 ── */
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const dragIdRef = useRef<string | null>(null);
+
+  const reorderMutation = useMutation({
+    mutationFn: (order: string[]) => projectsApi.categories.reorder(workspaceSlug!, projectId!, order),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["categories", workspaceSlug, projectId] }),
+  });
+
+  const handleCategoryDrop = (targetId: string) => {
+    const currentDragId = dragIdRef.current;
+    if (!currentDragId || currentDragId === targetId) { setDragId(null); setDragOverId(null); dragIdRef.current = null; return; }
+    const ids = categories.map((c: Category) => c.id);
+    const fromIdx = ids.indexOf(currentDragId);
+    const toIdx = ids.indexOf(targetId);
+    if (fromIdx === -1 || toIdx === -1) { setDragId(null); setDragOverId(null); dragIdRef.current = null; return; }
+    ids.splice(fromIdx, 1);
+    ids.splice(toIdx, 0, currentDragId);
+    reorderMutation.mutate(ids);
+    setDragId(null);
+    setDragOverId(null);
+    dragIdRef.current = null;
+  };
+
   const handleDelete = (e: React.MouseEvent, categoryId: string) => {
     e.stopPropagation();
     if (window.confirm(t("modules.deleteConfirm"))) {
@@ -155,9 +181,19 @@ export function CategoriesPage() {
           {categories.map((cat: Category) => (
             <div
               key={cat.id}
+              draggable
+              onDragStart={(e) => { e.dataTransfer.effectAllowed = "move"; dragIdRef.current = cat.id; setDragId(cat.id); }}
+              onDragOver={(e) => { e.preventDefault(); setDragOverId(cat.id); }}
+              onDragEnd={() => { dragIdRef.current = null; setDragId(null); setDragOverId(null); }}
+              onDrop={(e) => { e.preventDefault(); handleCategoryDrop(cat.id); }}
               onClick={() => handleCategoryClick(cat)}
-              className="group flex items-center gap-4 rounded-xl border glass p-4 hover:bg-accent/50 cursor-pointer transition-colors"
+              className={cn(
+                "group flex items-center gap-4 rounded-xl border glass p-4 hover:bg-accent/50 cursor-pointer transition-all",
+                dragOverId === cat.id && dragId !== cat.id && "ring-2 ring-primary/40",
+                dragId === cat.id && "opacity-50",
+              )}
             >
+              <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground/0 group-hover:text-muted-foreground/40 transition-colors cursor-grab" />
               <ProjectIcon value={cat.icon_prop} size={20} />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">{cat.name}</p>

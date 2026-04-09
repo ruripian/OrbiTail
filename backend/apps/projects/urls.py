@@ -11,6 +11,7 @@ from .views import (
     ProjectMemberDetailView,
     CategoryListCreateView,
     CategoryDetailView,
+    CategoryReorderView,
     SprintListCreateView,
     SprintDetailView,
     StateListCreateView,
@@ -80,6 +81,11 @@ urlpatterns = [
         "workspaces/<slug:workspace_slug>/projects/<uuid:project_pk>/categories/<uuid:pk>/",
         CategoryDetailView.as_view(),
         name="category-detail",
+    ),
+    path(
+        "workspaces/<slug:workspace_slug>/projects/<uuid:project_pk>/categories/reorder/",
+        CategoryReorderView.as_view(),
+        name="category-reorder",
     ),
     # 스프린트
     path(

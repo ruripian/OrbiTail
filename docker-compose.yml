@@ -4,11 +4,11 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-ouroboros}
-      POSTGRES_USER: ${POSTGRES_USER:-ouroboros}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ouroboros}
+      POSTGRES_DB: ${POSTGRES_DB:-orbitail}
+      POSTGRES_USER: ${POSTGRES_USER:-orbitail}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-orbitail}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ouroboros}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-orbitail}"]
       interval: 5s
       timeout: 5s
       retries: 5

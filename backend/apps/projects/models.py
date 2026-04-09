@@ -92,12 +92,13 @@ class Category(models.Model):
     )
     start_date = models.DateField(null=True, blank=True)
     target_date = models.DateField(null=True, blank=True)
+    sort_order = models.IntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = "project_modules"
-        ordering = ["-created_at"]
+        ordering = ["sort_order", "-created_at"]
 
     def __str__(self):
         return f"{self.project.identifier} / {self.name}"

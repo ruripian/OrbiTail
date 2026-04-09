@@ -81,6 +81,7 @@ export interface Category {
   lead_detail: User | null;
   start_date: string | null;
   target_date: string | null;
+  sort_order: number;
   issue_count: number;
   created_at: string;
   updated_at: string;

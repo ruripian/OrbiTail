@@ -1544,7 +1544,7 @@ function IssueCard({
             {issue.title}
           </span>
           <button
-            onClick={(e) => { e.stopPropagation(); setAddingChild(true); setExpanded(true); }}
+            onClick={(e) => { e.stopPropagation(); setAddingChild(true); }}
             title={t("issues.table.addSubIssue")}
             className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-muted/60 shrink-0"
           >
@@ -1625,47 +1625,45 @@ function IssueCard({
               selectedIds={selectedIds}
             />
           ))}
+        </div>
+      )}
 
-          {addingChild && (
-            <div
-              style={{ marginLeft: (depth + 1) * 28 }}
-              className="flex items-center gap-3 rounded-xl border border-dashed border-primary/40 bg-primary/5 px-4 py-2.5"
-            >
-              <div className="w-5 shrink-0" />
-              <input
-                ref={(el) => { if (el) el.focus({ preventScroll: true }); }}
-                type="text"
-                value={childTitle}
-                onChange={(e) => setChildTitle(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && childTitle.trim()) {
-                    e.preventDefault();
-                    createSubMutation.mutate(childTitle.trim());
-                  }
-                  if (e.key === "Escape") {
-                    setAddingChild(false);
-                    setChildTitle("");
-                  }
-                }}
-                onBlur={() => {
-                  if (childTitle.trim()) {
-                    createSubMutation.mutate(childTitle.trim());
-                  } else {
-                    setAddingChild(false);
-                    setChildTitle("");
-                  }
-                }}
-                placeholder={t("issues.table.subIssuePlaceholder")}
-                autoComplete="off"
-                className="flex-1 min-w-0 bg-transparent outline-none text-sm text-foreground placeholder:text-muted-foreground/50"
-              />
-              <span className="text-xs text-muted-foreground/60 shrink-0">
-                {t("issues.table.pressEnterToAdd")}
-              </span>
-            </div>
-          )}
-
-
+      {addingChild && (
+        <div
+          style={{ marginLeft: (depth + 1) * 28 }}
+          className="mt-1 flex items-center gap-3 rounded-xl border border-dashed border-primary/40 bg-primary/5 px-4 py-2.5"
+        >
+          <div className="w-5 shrink-0" />
+          <input
+            ref={(el) => { if (el) el.focus({ preventScroll: true }); }}
+            type="text"
+            value={childTitle}
+            onChange={(e) => setChildTitle(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && childTitle.trim()) {
+                e.preventDefault();
+                createSubMutation.mutate(childTitle.trim());
+              }
+              if (e.key === "Escape") {
+                setAddingChild(false);
+                setChildTitle("");
+              }
+            }}
+            onBlur={() => {
+              if (childTitle.trim()) {
+                createSubMutation.mutate(childTitle.trim());
+              } else {
+                setAddingChild(false);
+                setChildTitle("");
+              }
+            }}
+            placeholder={t("issues.table.subIssuePlaceholder")}
+            autoComplete="off"
+            className="flex-1 min-w-0 bg-transparent outline-none text-sm text-foreground placeholder:text-muted-foreground/50"
+          />
+          <span className="text-xs text-muted-foreground/60 shrink-0">
+            {t("issues.table.pressEnterToAdd")}
+          </span>
         </div>
       )}
 

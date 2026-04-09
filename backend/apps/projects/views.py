@@ -360,6 +360,17 @@ class CategoryDetailView(generics.RetrieveUpdateDestroyAPIView):
         ).distinct()
 
 
+class CategoryReorderView(generics.GenericAPIView):
+    """카테고리 순서 변경 — POST { "order": ["id1", "id2", ...] }"""
+    def post(self, request, *args, **kwargs):
+        order = request.data.get("order", [])
+        for idx, cat_id in enumerate(order):
+            Category.objects.filter(
+                id=cat_id, project_id=self.kwargs["project_pk"]
+            ).update(sort_order=idx * 10000)
+        return Response({"ok": True})
+
+
 # ── 스프린트 관리 ──
 
 class SprintListCreateView(generics.ListCreateAPIView):

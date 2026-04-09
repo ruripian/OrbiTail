@@ -612,6 +612,7 @@
     "favorite": "즐겨찾기에 추가",
     "unfavorite": "즐겨찾기에서 제거",
     "allFavorited": "모든 프로젝트가 즐겨찾기에 있습니다",
+    "privateProjects": "비공개",
     "logout": "로그아웃"
   },
   "topbar": {

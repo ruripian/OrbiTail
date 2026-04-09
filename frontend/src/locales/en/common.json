@@ -612,6 +612,7 @@
     "favorite": "Add to favorites",
     "unfavorite": "Remove from favorites",
     "allFavorited": "All projects are in favorites",
+    "privateProjects": "Private",
     "logout": "Logout"
   },
   "topbar": {

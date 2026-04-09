@@ -70,6 +70,9 @@ export const projectsApi = {
 
     delete: (workspaceSlug: string, projectId: string, categoryId: string) =>
       api.delete(`/workspaces/${workspaceSlug}/projects/${projectId}/categories/${categoryId}/`),
+
+    reorder: (workspaceSlug: string, projectId: string, order: string[]) =>
+      api.post(`/workspaces/${workspaceSlug}/projects/${projectId}/categories/reorder/`, { order }),
   },
 
   // 상태

@@ -55,7 +55,7 @@ interface Props {
 export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: Props = {}) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [, setSearchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { workspaceSlug, projectId, issueId: paramIssueId } = useParams<{
     workspaceSlug: string;
     projectId: string;
@@ -433,10 +433,22 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
         {activeTab === "sub-issues" && (
           <div className="space-y-1.5">
             {subIssues.map((sub) => (
-              <Link
+              <div
                 key={sub.id}
-                to={`/${workspaceSlug}/projects/${projectId}/issues?issue=${sub.id}`}
-                className="flex items-center gap-3 px-3 py-2.5 rounded-md border hover:bg-muted/30 transition-colors"
+                role="button"
+                tabIndex={0}
+                onClick={() => {
+                  if (inPanel) {
+                    setSearchParams((p) => { p.set("issue", sub.id); return p; });
+                  } else {
+                    const viewParam = searchParams.get("view");
+                    const qs = new URLSearchParams();
+                    if (viewParam) qs.set("view", viewParam);
+                    qs.set("issue", sub.id);
+                    navigate(`/${workspaceSlug}/projects/${projectId}/issues?${qs.toString()}`);
+                  }
+                }}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-md border hover:bg-muted/30 transition-colors cursor-pointer"
               >
                 <span
                   className="h-2.5 w-2.5 rounded-full shrink-0"
@@ -452,7 +464,7 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
                 >
                   {PRIORITY_CONFIG[sub.priority].label}
                 </span>
-              </Link>
+              </div>
             ))}
 
             {isArchived ? null : addingSubIssue ? (

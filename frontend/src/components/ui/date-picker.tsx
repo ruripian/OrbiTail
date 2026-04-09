@@ -141,24 +141,35 @@ export function DatePicker({
 
   return (
     <>
-      {/* ── 트리거 버튼 ── */}
-      <button
-        type="button"
-        ref={triggerRef}
-        onClick={(e) => {
-          e.stopPropagation();
-          open ? setOpen(false) : openCalendar();
-        }}
-        className={cn(
-          "flex items-center gap-1 text-xs rounded-lg px-2 py-1 transition-all duration-150 w-full text-left min-h-[28px]",
-          "hover:bg-primary/15 hover:text-primary hover:shadow-sm",
-          displayValue ? (overdueClass ?? "text-foreground") : "text-muted-foreground/40",
-          open && "bg-primary/15 text-primary",
-          className
+      {/* ── 트리거 버튼 + 날짜 지우기 ── */}
+      <div className={cn("flex items-center group/date w-full", className)}>
+        <button
+          type="button"
+          ref={triggerRef}
+          onClick={(e) => {
+            e.stopPropagation();
+            open ? setOpen(false) : openCalendar();
+          }}
+          className={cn(
+            "flex items-center gap-1 text-xs rounded-lg px-2 py-1 transition-all duration-150 flex-1 text-left min-h-[28px]",
+            "hover:bg-primary/15 hover:text-primary hover:shadow-sm",
+            displayValue ? (overdueClass ?? "text-foreground") : "text-muted-foreground/40",
+            open && "bg-primary/15 text-primary",
+          )}
+        >
+          {displayValue ?? <span className="opacity-40">{resolvedPlaceholder}</span>}
+        </button>
+        {displayValue && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onChange(null); }}
+            className="p-1 rounded-md opacity-0 group-hover/date:opacity-100 transition-opacity text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10 shrink-0"
+            title={t("datePicker.clear")}
+          >
+            <X className="h-3 w-3" />
+          </button>
         )}
-      >
-        {displayValue ?? <span className="opacity-40">{resolvedPlaceholder}</span>}
-      </button>
+      </div>
 
       {/* ── 달력 팝오버 — body에 포탈로 렌더 (Dialog/backdrop-filter containing block 회피) ── */}
       {open && createPortal(

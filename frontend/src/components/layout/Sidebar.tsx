@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { Link, useParams, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Home,
   Compass,
@@ -15,6 +15,7 @@ import {
   Star,
   GripVertical,
   Trash2,
+  Lock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { projectsApi } from "@/api/projects";
@@ -106,11 +107,33 @@ function ProjectItem({
     location.pathname === `${base}/issues` ||
     location.pathname === `${base}/board`;
 
+  const qc = useQueryClient();
   const { data: categories = [] } = useQuery({
     queryKey: ["categories", workspaceSlug, project.id],
     queryFn: () => projectsApi.categories.list(workspaceSlug, project.id),
     enabled: isActive,
   });
+
+  /* 카테고리 DnD */
+  const [catDragId, setCatDragId] = useState<string | null>(null);
+  const [catDragOverId, setCatDragOverId] = useState<string | null>(null);
+  const catDragRef = useRef<string | null>(null);
+  const catReorder = useMutation({
+    mutationFn: (order: string[]) => projectsApi.categories.reorder(workspaceSlug, project.id, order),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["categories", workspaceSlug, project.id] }),
+  });
+  const handleCatDrop = (targetId: string) => {
+    const srcId = catDragRef.current;
+    if (!srcId || srcId === targetId) { setCatDragId(null); setCatDragOverId(null); catDragRef.current = null; return; }
+    const ids = categories.map((c: Category) => c.id);
+    const from = ids.indexOf(srcId);
+    const to = ids.indexOf(targetId);
+    if (from === -1 || to === -1) { setCatDragId(null); setCatDragOverId(null); catDragRef.current = null; return; }
+    ids.splice(from, 1);
+    ids.splice(to, 0, srcId);
+    catReorder.mutate(ids);
+    setCatDragId(null); setCatDragOverId(null); catDragRef.current = null;
+  };
 
   return (
     <div
@@ -145,6 +168,9 @@ function ProjectItem({
             </span>
           )}
           <span className="truncate flex-1 text-sm">{project.name}</span>
+          {project.network === 2 && (
+            <Lock className="h-3 w-3 shrink-0 text-muted-foreground/50" />
+          )}
           {isActive && (
             <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
           )}
@@ -176,11 +202,18 @@ function ProjectItem({
             <Link
               key={cat.id}
               to={`${base}/categories/${cat.id}/issues`}
+              draggable
+              onDragStart={(e) => { e.stopPropagation(); e.dataTransfer.effectAllowed = "move"; catDragRef.current = cat.id; setCatDragId(cat.id); }}
+              onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setCatDragOverId(cat.id); }}
+              onDragEnd={() => { catDragRef.current = null; setCatDragId(null); setCatDragOverId(null); }}
+              onDrop={(e) => { e.preventDefault(); e.stopPropagation(); handleCatDrop(cat.id); }}
               className={cn(
                 "flex items-center gap-2 rounded-lg px-2.5 py-1 ml-4 text-xs transition-all duration-150",
                 location.pathname === `${base}/categories/${cat.id}/issues`
                   ? "bg-primary/10 text-primary font-medium"
-                  : "text-sidebar-foreground/65 hover:text-sidebar-foreground hover:bg-sidebar-accent/40"
+                  : "text-sidebar-foreground/65 hover:text-sidebar-foreground hover:bg-sidebar-accent/40",
+                catDragOverId === cat.id && catDragId !== cat.id && "ring-1 ring-primary/40",
+                catDragId === cat.id && "opacity-50",
               )}
             >
               <ProjectIcon value={cat.icon_prop} size={10} className="!w-4 !h-4 shrink-0" />
@@ -233,23 +266,30 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
   });
 
   const favoriteProjects = sortedProjects.filter((p) => favIds.has(p.id));
-  const otherProjects = sortedProjects.filter((p) => !favIds.has(p.id));
+  const publicProjects = sortedProjects.filter((p) => !favIds.has(p.id) && p.network === 0);
+  const privateProjects = sortedProjects.filter((p) => !favIds.has(p.id) && p.network === 2);
+  const otherProjects = [...publicProjects, ...privateProjects];
 
-  /* DnD 상태 */
+  /* DnD 상태 — ref로 최신값 유지 (stale closure 방지) */
   const [dragId, setDragId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const dragIdRef = useRef<string | null>(null);
 
   const handleDrop = (targetId: string) => {
-    if (!dragId || dragId === targetId) { setDragId(null); setDragOverId(null); return; }
+    const currentDragId = dragIdRef.current;
+    if (!currentDragId || currentDragId === targetId) { setDragId(null); setDragOverId(null); dragIdRef.current = null; return; }
     const ids = sortedProjects.map((p) => p.id);
-    const fromIdx = ids.indexOf(dragId);
+    const fromIdx = ids.indexOf(currentDragId);
     const toIdx = ids.indexOf(targetId);
-    if (fromIdx === -1 || toIdx === -1) return;
+    if (fromIdx === -1 || toIdx === -1) { setDragId(null); setDragOverId(null); dragIdRef.current = null; return; }
     ids.splice(fromIdx, 1);
-    ids.splice(toIdx, 0, dragId);
+    /* fromIdx > toIdx → 위로 이동: toIdx 그대로 (대상 앞에 삽입)
+       fromIdx < toIdx → 아래로 이동: toIdx 이미 1 줄었으므로 대상 앞에 삽입 됨 */
+    ids.splice(toIdx, 0, currentDragId);
     setProjectOrder(slug, ids);
     setDragId(null);
     setDragOverId(null);
+    dragIdRef.current = null;
   };
 
   const handleSelectProject = (project: Project) => {
@@ -268,9 +308,9 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
       onSelect={handleSelectProject}
       onToggleFavorite={(id) => toggleFavorite(slug, id)}
       draggable
-      onDragStart={() => setDragId(project.id)}
+      onDragStart={() => { dragIdRef.current = project.id; setDragId(project.id); }}
       onDragOver={() => setDragOverId(project.id)}
-      onDragEnd={() => { setDragId(null); setDragOverId(null); }}
+      onDragEnd={() => { dragIdRef.current = null; setDragId(null); setDragOverId(null); }}
       onDrop={() => handleDrop(project.id)}
       isDragOver={dragOverId === project.id && dragId !== project.id}
     />
@@ -350,19 +390,33 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
           </div>
 
           <div className="space-y-0.5">
-            {otherProjects.length === 0 && favoriteProjects.length === 0 ? (
+            {publicProjects.length === 0 && privateProjects.length === 0 && favoriteProjects.length === 0 ? (
               <p className="px-3 py-2 text-xs text-sidebar-foreground/70">
                 {t("sidebar.noProjects")}
               </p>
-            ) : otherProjects.length === 0 ? (
+            ) : publicProjects.length === 0 && privateProjects.length === 0 ? (
               <p className="px-3 py-2 text-xs text-sidebar-foreground/50">
                 {t("sidebar.allFavorited")}
               </p>
             ) : (
-              otherProjects.map(renderProject)
+              publicProjects.map(renderProject)
             )}
           </div>
         </div>
+
+        {privateProjects.length > 0 && (
+          <div className="mt-5">
+            <div className="flex items-center gap-2 px-3 mb-2">
+              <Lock className="h-3 w-3 text-muted-foreground/60" />
+              <span className="text-xs font-semibold uppercase tracking-widest text-sidebar-foreground/65">
+                {t("sidebar.privateProjects")}
+              </span>
+            </div>
+            <div className="space-y-0.5">
+              {privateProjects.map(renderProject)}
+            </div>
+          </div>
+        )}
       </nav>
 
       <div className="border-t border-border p-3 space-y-1">
