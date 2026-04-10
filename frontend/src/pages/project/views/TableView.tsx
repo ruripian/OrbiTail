@@ -33,6 +33,7 @@ import { SprintPicker } from "@/components/issues/sprint-picker";
 import { LabelPicker } from "@/components/issues/label-picker";
 import { useSavedFilters } from "@/hooks/useSavedFilters";
 import { useIssueRefresh } from "@/hooks/useIssueMutations";
+import { useUndoStore } from "@/stores/undoStore";
 import { projectsApi } from "@/api/projects";
 import { cn } from "@/lib/utils";
 import { Z_MODAL } from "@/constants/z-index";
@@ -1016,6 +1017,7 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
         workspaceSlug={workspaceSlug}
         projectId={projectId}
         selectedIds={Array.from(selectedIds)}
+        allIssues={issues}
         onDone={() => setSelectedIds(new Set())}
       />
     )}
@@ -1024,7 +1026,7 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
 }
 
 function BulkToolbar({
-  selectedCount, states, members, workspaceSlug, projectId, selectedIds, onDone,
+  selectedCount, states, members, workspaceSlug, projectId, selectedIds, onDone, allIssues,
 }: {
   selectedCount: number;
   states: State[];
@@ -1033,26 +1035,71 @@ function BulkToolbar({
   projectId: string;
   selectedIds: string[];
   onDone: () => void;
+  allIssues: Issue[];
 }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
+  const pushUndo = useUndoStore((s) => s.push);
 
   const bulkUpdateMutation = useMutation({
-    mutationFn: (updates: Record<string, unknown>) =>
-      issuesApi.bulkUpdate(workspaceSlug, projectId, selectedIds, updates),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["issues", workspaceSlug, projectId] });
-      qc.invalidateQueries({ queryKey: ["my-issues", workspaceSlug] });
+    mutationFn: (updates: Record<string, unknown>) => {
+      /* undo용으로 변경 직전 값을 캡처 — 키별로 각 이슈의 이전 값을 저장 */
+      const previousByIssue: Record<string, Record<string, unknown>> = {};
+      for (const id of selectedIds) {
+        const issue = allIssues.find((i) => i.id === id);
+        if (!issue) continue;
+        const prev: Record<string, unknown> = {};
+        for (const key of Object.keys(updates)) {
+          prev[key] = (issue as unknown as Record<string, unknown>)[key];
+        }
+        previousByIssue[id] = prev;
+      }
+      return issuesApi.bulkUpdate(workspaceSlug, projectId, selectedIds, updates).then(() => previousByIssue);
+    },
+    onSuccess: async (previousByIssue) => {
+      // 선택된 이슈의 sub-issues 캐시도 함께 무효화 (담당자/상태 등 부모 변경 시 트리에서도 반영)
+      selectedIds.forEach((id) => qc.invalidateQueries({ queryKey: ["sub-issues", id] }));
+      // 화면이 보고 있는 active 쿼리를 강제 refetch 후 await — 셀렉션 해제 전 데이터 갱신 보장
+      await Promise.all([
+        qc.refetchQueries({ queryKey: ["issues", workspaceSlug, projectId], type: "active" }),
+        qc.refetchQueries({ queryKey: ["my-issues", workspaceSlug], type: "active" }),
+      ]);
+      /* undo: 각 이슈에 대해 이전 값으로 복구하는 PATCH 호출 */
+      pushUndo({
+        label: t("issues.bulk.updated", { count: selectedCount }),
+        undo: async () => {
+          await Promise.all(
+            Object.entries(previousByIssue).map(([id, prev]) =>
+              issuesApi.update(workspaceSlug, projectId, id, prev as Partial<Issue>)
+            )
+          );
+          await qc.refetchQueries({ queryKey: ["issues", workspaceSlug, projectId], type: "active" });
+        },
+      });
       toast.success(t("issues.bulk.updated", { count: selectedCount }));
       onDone();
     },
   });
 
   const bulkDeleteMutation = useMutation({
-    mutationFn: () => issuesApi.bulkDelete(workspaceSlug, projectId, selectedIds),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["issues", workspaceSlug, projectId] });
-      qc.invalidateQueries({ queryKey: ["my-issues", workspaceSlug] });
+    mutationFn: () => {
+      const idsCopy = [...selectedIds];
+      return issuesApi.bulkDelete(workspaceSlug, projectId, selectedIds).then(() => idsCopy);
+    },
+    onSuccess: async (deletedIds) => {
+      selectedIds.forEach((id) => qc.invalidateQueries({ queryKey: ["sub-issues", id] }));
+      await Promise.all([
+        qc.refetchQueries({ queryKey: ["issues", workspaceSlug, projectId], type: "active" }),
+        qc.refetchQueries({ queryKey: ["my-issues", workspaceSlug], type: "active" }),
+      ]);
+      /* undo: 삭제된 각 이슈를 restore */
+      pushUndo({
+        label: t("issues.bulk.deleted", { count: selectedCount }),
+        undo: async () => {
+          await Promise.all(deletedIds.map((id) => issuesApi.restore(workspaceSlug, projectId, id)));
+          await qc.refetchQueries({ queryKey: ["issues", workspaceSlug, projectId], type: "active" });
+        },
+      });
       toast.success(t("issues.bulk.deleted", { count: selectedCount }));
       onDone();
     },
@@ -1248,13 +1295,34 @@ function IssueCard({
     },
   });
 
-  /* ── 자기 자신 인라인 업데이트 ── */
+  /* ── 자기 자신 인라인 업데이트 — undo 스택에 자동 등록 ── */
+  const pushUndo = useUndoStore((s) => s.push);
   const updateMutation = useMutation({
     mutationFn: (data: Partial<Issue>) =>
       issuesApi.update(workspaceSlug, projectId, issue.id, data),
-    onSuccess: () => {
+    onMutate: (data) => {
+      /* 변경 직전 값을 캡처해서 undo 콜백에 사용 */
+      const previous: Partial<Issue> = {};
+      for (const key of Object.keys(data) as (keyof Issue)[]) {
+        (previous as Record<string, unknown>)[key] = (issue as unknown as Record<string, unknown>)[key];
+      }
+      return { previous };
+    },
+    onSuccess: (_d, _v, ctx) => {
       refreshIssue(issue.id);
       refresh(issue.parent);
+      /* undo 스택 등록 — 이전 값으로 되돌리는 PATCH 호출 */
+      if (ctx?.previous) {
+        const previous = ctx.previous;
+        pushUndo({
+          label: `${issue.title}`,
+          undo: async () => {
+            await issuesApi.update(workspaceSlug, projectId, issue.id, previous);
+            refreshIssue(issue.id);
+            refresh(issue.parent);
+          },
+        });
+      }
     },
   });
 

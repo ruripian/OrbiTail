@@ -10,7 +10,7 @@
  *  - 설정 패널: 기존 글라스 스타일 유지
  */
 
-import { useState, useMemo, useRef, useEffect, Fragment } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback, Fragment } from "react";
 import { createPortal } from "react-dom";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useIssueRefresh } from "@/hooks/useIssueMutations";
@@ -24,7 +24,8 @@ import { projectsApi } from "@/api/projects";
 import { cn } from "@/lib/utils";
 import { Z_SETTINGS_OVERLAY, Z_SETTINGS_PANEL } from "@/constants/z-index";
 import type { TimelineSettings } from "@/hooks/useViewSettings";
-import type { Issue, State } from "@/types";
+import type { Issue, State, ProjectEvent } from "@/types";
+import { EVENT_TYPES } from "@/constants/event-types";
 import { toast } from "sonner";
 function parseLocalDate(str: string): Date {
   const [y, m, d] = str.split("-").map(Number);
@@ -237,6 +238,7 @@ function SettingsPanel({
           { key: "showCompleted" as const, label: t("views.timeline.showCompleted") },
           { key: "showNoDate"    as const, label: t("views.timeline.showNoDate") },
           { key: "hideWeekends"  as const, label: t("views.timeline.hideWeekends") },
+          { key: "showEvents"    as const, label: t("views.timeline.showEvents") },
         ].map(({ key, label }) => (
           <label key={key} className="flex items-center gap-3 cursor-pointer group">
             <div
@@ -284,6 +286,8 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
   const scrollRef       = useRef<HTMLDivElement>(null);
   const savedScrollLeft = useRef<number>(0);
   const didScrollToday  = useRef(false); // 초기 마운트 시 오늘 날짜로 한 번만 스크롤
+  /* 스케일 변경 전 화면 중앙 날짜 — 변경 후 동일 날짜로 스크롤 복원 */
+  const pendingCenterDate = useRef<Date | null>(null);
 
   /* ── 빈 영역 pan drag 상태 ── */
   const panRef = useRef<{ startX: number; scrollLeft: number } | null>(null);
@@ -304,6 +308,13 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
   const { data: states = [] } = useQuery({
     queryKey: ["states", projectId],
     queryFn:  () => projectsApi.states.list(workspaceSlug, projectId),
+  });
+
+  /* 캘린더와 공유: 프로젝트 이벤트 — settings.showEvents 활성 시 타임라인 상단에 별도 그룹으로 표시 */
+  const { data: events = [] } = useQuery({
+    queryKey: ["events", workspaceSlug, projectId],
+    queryFn:  () => projectsApi.events.list(workspaceSlug, projectId),
+    enabled:  !!settings.showEvents,
   });
 
   /* 카테고리/스프린트 — 이슈 행 배지 + groupBy "category"/"sprint" 옵션용 */
@@ -566,6 +577,30 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
   const totalWidth = columns.length * colW;
   const pxPerDay   = colW / (settings.scale === "day" ? 1 : settings.scale === "week" ? 7 : 30);
 
+  /* 스케일 변경 시 화면 중앙 날짜 보존 — 변경 직전 중앙 날짜를 ref에 저장하고
+     변경 후 effect에서 새 픽셀 좌표로 스크롤 복원 */
+  const handleSettingsChange = useCallback((s: Partial<TimelineSettings>) => {
+    if (s.scale !== undefined && s.scale !== settings.scale && scrollRef.current) {
+      const container = scrollRef.current;
+      const centerPx = container.scrollLeft + container.clientWidth / 2;
+      const dayOffset = centerPx / pxPerDay;
+      pendingCenterDate.current = addDays(rangeStart, Math.round(dayOffset));
+    }
+    onSettingsChange(s);
+  }, [settings.scale, pxPerDay, rangeStart, onSettingsChange]);
+
+  useEffect(() => {
+    if (!pendingCenterDate.current || !scrollRef.current) return;
+    const container = scrollRef.current;
+    const target = pendingCenterDate.current;
+    pendingCenterDate.current = null;
+    /* 새 scale의 pxPerDay로 다시 계산 */
+    const newPxPerDay = COL_WIDTH[settings.scale] / (settings.scale === "day" ? 1 : settings.scale === "week" ? 7 : 30);
+    const dayOffset = diffDays(rangeStart, target);
+    const targetPx = dayOffset * newPxPerDay;
+    container.scrollLeft = Math.max(0, targetPx - container.clientWidth / 2);
+  }, [settings.scale, rangeStart]);
+
   const [dragState, setDragState] = useState<{
     issueId: string;
     type: "start" | "end" | "both";
@@ -815,7 +850,10 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
     return headers;
   }, [columns, colW, settings.scale, t]);
 
-  type Row = { type: "group"; group: Group } | { type: "issue"; issue: Issue; stateObj?: State; depth: number; hasChildren: boolean };
+  type Row =
+    | { type: "group"; group: Group }
+    | { type: "issue"; issue: Issue; stateObj?: State; depth: number; hasChildren: boolean }
+    | { type: "event"; event: ProjectEvent };
 
   /* 접힌 parent 이슈 — children을 rows에서 숨김 */
   /* 그룹 접기 — 그룹 라벨 기준 (state id, priority key, module id 등) */
@@ -841,6 +879,18 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
 
   const rows: Row[] = useMemo(() => {
     const r: Row[] = [];
+
+    /* 이벤트 — 활성화 시 최상단에 "Events" 그룹으로 배치 */
+    if (settings.showEvents && events.length > 0) {
+      const eventsGroup: Group = { label: t("views.timeline.eventsGroup"), color: "#a855f7", issues: [] };
+      r.push({ type: "group", group: eventsGroup });
+      if (!collapsedGroups.has(eventsGroup.label)) {
+        for (const evt of events) {
+          r.push({ type: "event", event: evt });
+        }
+      }
+    }
+
     /* 각 그룹의 루트 이슈들 → 트리 walk로 자식까지 indent로 배치 */
     const walk = (issue: Issue, depth: number) => {
       const children = childrenByParent.get(issue.id) ?? [];
@@ -860,7 +910,7 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
       for (const root of group.issues) walk(root, 0);
     }
     return r;
-  }, [groups, settings.groupBy, stateMap, collapsedIds, collapsedGroups, childrenByParent]);
+  }, [groups, settings.groupBy, settings.showEvents, events, stateMap, collapsedIds, collapsedGroups, childrenByParent, t]);
 
   const today = useMemo(() => { const d = new Date(); d.setHours(0,0,0,0); return d; }, []);
 
@@ -954,7 +1004,7 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
           {settingsOpen && (
             <SettingsPanel
               settings={settings}
-              onChange={onSettingsChange}
+              onChange={handleSettingsChange}
               onClose={() => setSettingsOpen(false)}
               triggerRef={settingsBtnRef}
             />
@@ -1142,7 +1192,23 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
                       : undefined,
                   }}
                 >
-                  {isGroup && row.type === "group" ? (
+                  {row.type === "event" ? (
+                    (() => {
+                      const TypeIcon = EVENT_TYPES[row.event.event_type]?.icon ?? EVENT_TYPES.other.icon;
+                      return (
+                        <div className="flex items-center gap-2 w-full pl-4 pr-3 overflow-hidden">
+                          <span
+                            className="h-2 w-2 rounded-full shrink-0"
+                            style={{ background: row.event.color }}
+                          />
+                          <TypeIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" strokeWidth={2.2} />
+                          <span className="text-sm truncate text-foreground/85 font-medium" title={row.event.title}>
+                            {row.event.title}
+                          </span>
+                        </div>
+                      );
+                    })()
+                  ) : isGroup && row.type === "group" ? (
                     <button
                       type="button"
                       onClick={(e) => { e.stopPropagation(); toggleGroupCollapse(row.group.label); }}
@@ -1398,12 +1464,47 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
                     />
                   )}
 
-                  {/* 간트 바 — 솔리드, 85% 불투명, 6px radius */}
+                  {/* 이벤트 바 — 이벤트 색상, 일반 클릭 시 캘린더로 이동/편집은 향후 */}
+                  {row.type === "event" && (() => {
+                    if (!row.event.date) return null;
+                    const evtStart = parseLocalDate(row.event.date);
+                    const evtEnd   = row.event.end_date ? parseLocalDate(row.event.end_date) : evtStart;
+                    const bs = getBarBounds(evtStart, evtEnd);
+                    const barColor = row.event.color;
+                    const barH = ROW_H - 18;
+                    return (
+                      <div
+                        data-no-pan
+                        title={row.event.title}
+                        className="absolute flex items-center overflow-hidden"
+                        style={{
+                          left:      bs.left + 3,
+                          width:     Math.max(bs.width - 6, 8),
+                          height:    barH,
+                          top:       (ROW_H - barH) / 2,
+                          backgroundColor: barColor,
+                          color:           "#fff",
+                          borderRadius:    5,
+                          cursor:          "pointer",
+                          transition:      "filter 0.15s",
+                        }}
+                        onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.filter = "brightness(1.08)"; }}
+                        onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.filter = "none"; }}
+                      >
+                        <span className="text-xs font-semibold truncate px-3 pointer-events-none">
+                          {row.event.title}
+                        </span>
+                      </div>
+                    );
+                  })()}
+
+                  {/* 간트 바 — 솔리드 100% 불투명, 6px radius
+                      한쪽 날짜만 있으면 그 날짜를 양쪽으로 사용 (1일짜리 바) */}
                   {row.type === "issue" && (() => {
-                    if (!row.issue.start_date || !row.issue.due_date) return null;
-                    
-                    let renderStart = parseLocalDate(row.issue.start_date);
-                    let renderDue   = parseLocalDate(row.issue.due_date);
+                    if (!row.issue.start_date && !row.issue.due_date) return null;
+
+                    let renderStart = parseLocalDate(row.issue.start_date ?? row.issue.due_date!);
+                    let renderDue   = parseLocalDate(row.issue.due_date ?? row.issue.start_date!);
                     const isDragging = dragState?.issueId === row.issue.id;
 
                     if (isDragging) {
@@ -1427,19 +1528,20 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
                     return (
                       <div
                         data-no-pan
+                        title={row.issue.title}
                         className="absolute flex items-center overflow-visible group/bar"
                         style={{
                           left:      bs.left + 3,
                           width:     Math.max(bs.width - 6, 8),
                           height:    barH,
                           top:       (ROW_H - barH) / 2,
-                          /* B 스타일: tint 본체 + 좌측 컬러 stripe — 캘린더와 통일 */
-                          backgroundColor: `${barColor}26`, // ~15% tint
+                          /* 가시성 향상: 100% 불투명 + 흰색 텍스트 */
+                          backgroundColor: barColor,
                           borderLeft:      `3px solid ${barColor}`,
-                          borderRight:     `1px solid ${barColor}40`,
-                          borderTop:       `1px solid ${barColor}40`,
-                          borderBottom:    `1px solid ${barColor}40`,
-                          color:           barColor,
+                          borderRight:     `1px solid ${barColor}`,
+                          borderTop:       `1px solid ${barColor}`,
+                          borderBottom:    `1px solid ${barColor}`,
+                          color:           "#fff",
                           borderRadius: 5,
                           boxShadow: isDragging
                             ? `0 4px 16px ${barColor}60`
@@ -1459,15 +1561,15 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
                         }}
                       >
                         {/* Drag Handle: Start */}
-                        <div 
+                        <div
                           className="absolute left-0 top-0 bottom-0 w-2.5 cursor-ew-resize hover:bg-black/10 transition-colors z-20 rounded-l-[6px]"
                           onMouseDown={(e) => {
                             e.stopPropagation();
                             setDragState({
                               issueId: row.issue.id,
                               type: "start",
-                              initialStart: parseLocalDate(row.issue.start_date!),
-                              initialDue: parseLocalDate(row.issue.due_date!),
+                              initialStart: parseLocalDate(row.issue.start_date ?? row.issue.due_date!),
+                              initialDue: parseLocalDate(row.issue.due_date ?? row.issue.start_date!),
                               startX: e.clientX,
                               currentX: e.clientX,
                             });
@@ -1483,8 +1585,8 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
                             setDragState({
                               issueId: row.issue.id,
                               type: "both",
-                              initialStart: parseLocalDate(row.issue.start_date!),
-                              initialDue: parseLocalDate(row.issue.due_date!),
+                              initialStart: parseLocalDate(row.issue.start_date ?? row.issue.due_date!),
+                              initialDue: parseLocalDate(row.issue.due_date ?? row.issue.start_date!),
                               startX: e.clientX,
                               currentX: e.clientX,
                             });
@@ -1496,15 +1598,15 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
                         </div>
 
                         {/* Drag Handle: End */}
-                        <div 
+                        <div
                           className="absolute right-0 top-0 bottom-0 w-2.5 cursor-ew-resize hover:bg-black/10 transition-colors z-20 rounded-r-[6px]"
                           onMouseDown={(e) => {
                             e.stopPropagation();
                             setDragState({
                               issueId: row.issue.id,
                               type: "end",
-                              initialStart: parseLocalDate(row.issue.start_date!),
-                              initialDue: parseLocalDate(row.issue.due_date!),
+                              initialStart: parseLocalDate(row.issue.start_date ?? row.issue.due_date!),
+                              initialDue: parseLocalDate(row.issue.due_date ?? row.issue.start_date!),
                               startX: e.clientX,
                               currentX: e.clientX,
                             });

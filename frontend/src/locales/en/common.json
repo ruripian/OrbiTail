@@ -426,7 +426,15 @@
           "viewer": "Viewer",
           "member": "Member",
           "admin": "Admin"
-        }
+        },
+        "permsTitle": "Granular permissions",
+        "permsHint": "Grant individual permissions to non-admin members. Admins automatically have all permissions.",
+        "permMember": "Member",
+        "permEdit": "Edit",
+        "permArchive": "Archive",
+        "permDelete": "Trash",
+        "permPurge": "Purge",
+        "permEmpty": "No non-admin members."
       },
       "autoArchive": {
         "title": "Auto Archive",
@@ -538,6 +546,11 @@
       "cancelled": "Cancelled"
     }
   },
+  "announcements": {
+    "title": "Announcements & Updates",
+    "new": "New announcement",
+    "empty": "No announcements yet."
+  },
   "calendar": {
     "today": "Today",
     "jan": "Jan", "feb": "Feb", "mar": "Mar", "apr": "Apr",
@@ -554,10 +567,14 @@
     "settings": {
       "title": "Calendar Settings",
       "showCompleted": "Show completed issues",
-      "showNoDate": "Show issues without dates",
       "hideWeekends": "Hide weekends",
       "showEvents": "Show events",
       "alwaysExpand": "Always expand"
+    },
+    "filter": {
+      "all": "All",
+      "me": "My schedule",
+      "user": "By user"
     }
   },
   "events": {
@@ -584,7 +601,10 @@
       "type": "Type",
       "color": "Color",
       "description": "Description",
-      "descriptionPlaceholder": "Notes or details"
+      "descriptionPlaceholder": "Notes or details",
+      "participants": "Participants",
+      "global": "Project-wide event",
+      "globalHint": "Applies to all members of this project"
     },
     "type": {
       "meeting": "Meeting",
@@ -600,14 +620,23 @@
     "home": "Home",
     "discover": "Discover",
     "archived": "Archived",
+    "announcements": "Announcements",
     "projects": "Projects",
     "newProject": "New Project",
     "noProjects": "No projects",
     "issues": "Issues",
     "modules": "Categories",
     "cycles": "Sprints",
-    "settings": "Settings",
+    "settings": "Workspace settings",
     "connected": "Connected",
+    "connection": {
+      "connected": "Realtime connected",
+      "connecting": "Connecting...",
+      "disconnected": "Disconnected",
+      "connectedTooltip": "Realtime sync is active — other users' changes will appear instantly.",
+      "connectingTooltip": "Connecting to the realtime sync server.",
+      "disconnectedTooltip": "Realtime sync is down. Reconnecting automatically — refresh the page to see the latest data."
+    },
     "favorites": "Favorites",
     "favorite": "Add to favorites",
     "unfavorite": "Remove from favorites",
@@ -857,6 +886,8 @@
       "showCompleted": "Show completed issues",
       "showNoDate": "Show issues without dates",
       "hideWeekends": "Hide weekends",
+      "showEvents": "Show events",
+      "eventsGroup": "Events",
       "today": "Today",
       "settingsBtn": "Settings",
       "issuesColumn": "Issues",

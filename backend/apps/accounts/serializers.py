@@ -1,7 +1,7 @@
 from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-from .models import User
+from .models import User, Announcement
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -13,6 +13,19 @@ class UserSerializer(serializers.ModelSerializer):
             "first_day_of_week", "theme", "created_at",
         ]
         read_only_fields = ["id", "email", "is_staff", "created_at"]
+
+
+class AnnouncementSerializer(serializers.ModelSerializer):
+    created_by_detail = UserSerializer(source="created_by", read_only=True)
+
+    class Meta:
+        model = Announcement
+        fields = [
+            "id", "title", "body", "version", "category",
+            "is_published", "created_by", "created_by_detail",
+            "created_at", "updated_at",
+        ]
+        read_only_fields = ["id", "created_by", "created_at", "updated_at"]
 
 
 class RegisterSerializer(serializers.ModelSerializer):

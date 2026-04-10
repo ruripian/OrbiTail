@@ -426,7 +426,15 @@
           "viewer": "뷰어",
           "member": "멤버",
           "admin": "관리자"
-        }
+        },
+        "permsTitle": "세분화 권한",
+        "permsHint": "관리자가 아닌 멤버에게 개별 권한을 부여합니다. 관리자는 모든 권한이 자동으로 허용됩니다.",
+        "permMember": "멤버",
+        "permEdit": "수정",
+        "permArchive": "보관",
+        "permDelete": "휴지통",
+        "permPurge": "영구 삭제",
+        "permEmpty": "관리자가 아닌 멤버가 없습니다."
       },
       "autoArchive": {
         "title": "자동 보관",
@@ -538,6 +546,11 @@
       "cancelled": "취소됨"
     }
   },
+  "announcements": {
+    "title": "공지 & 업데이트",
+    "new": "새 공지",
+    "empty": "등록된 공지가 없습니다."
+  },
   "calendar": {
     "today": "오늘",
     "jan": "1월", "feb": "2월", "mar": "3월", "apr": "4월",
@@ -554,10 +567,14 @@
     "settings": {
       "title": "캘린더 설정",
       "showCompleted": "완료된 이슈 표시",
-      "showNoDate": "날짜 없는 이슈 표시",
       "hideWeekends": "주말 숨기기",
       "showEvents": "이벤트 표시",
       "alwaysExpand": "항상 확장"
+    },
+    "filter": {
+      "all": "전체",
+      "me": "내 일정",
+      "user": "사용자별"
     }
   },
   "events": {
@@ -584,7 +601,10 @@
       "type": "타입",
       "color": "색상",
       "description": "설명",
-      "descriptionPlaceholder": "메모 또는 참고사항"
+      "descriptionPlaceholder": "메모 또는 참고사항",
+      "participants": "참여자",
+      "global": "프로젝트 전체 일정",
+      "globalHint": "이 프로젝트에 참여하는 모든 멤버에게 해당되는 일정입니다"
     },
     "type": {
       "meeting": "회의",
@@ -600,14 +620,23 @@
     "home": "홈",
     "discover": "탐색",
     "archived": "보관함",
+    "announcements": "공지 & 업데이트",
     "projects": "프로젝트",
     "newProject": "새 프로젝트",
     "noProjects": "프로젝트가 없습니다",
     "issues": "이슈",
     "modules": "카테고리",
     "cycles": "스프린트",
-    "settings": "설정",
+    "settings": "워크스페이스 설정",
     "connected": "연결됨",
+    "connection": {
+      "connected": "실시간 연결됨",
+      "connecting": "연결 중...",
+      "disconnected": "연결 끊김",
+      "connectedTooltip": "워크스페이스 실시간 동기화가 활성화되어 있습니다 — 다른 사람의 변경이 즉시 반영됩니다.",
+      "connectingTooltip": "실시간 동기화 서버에 연결하는 중입니다.",
+      "disconnectedTooltip": "실시간 동기화가 끊겼습니다. 자동으로 재연결됩니다 — 페이지를 새로고침하면 최신 데이터를 볼 수 있습니다."
+    },
     "favorites": "즐겨찾기",
     "favorite": "즐겨찾기에 추가",
     "unfavorite": "즐겨찾기에서 제거",
@@ -857,6 +886,8 @@
       "showCompleted": "완료된 이슈 표시",
       "showNoDate": "날짜 없는 이슈 표시",
       "hideWeekends": "주말 숨기기",
+      "showEvents": "이벤트 표시",
+      "eventsGroup": "이벤트",
       "today": "오늘",
       "settingsBtn": "설정",
       "issuesColumn": "이슈",

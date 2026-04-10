@@ -16,12 +16,17 @@ import {
   GripVertical,
   Trash2,
   Lock,
+  Megaphone,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { projectsApi } from "@/api/projects";
+import { workspacesApi } from "@/api/workspaces";
+import { announcementsApi } from "@/api/announcements";
+import { useAuthStore } from "@/stores/authStore";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
 import { ProjectIcon } from "@/components/ui/project-icon-picker";
 import type { Project, Category } from "@/types";
+import type { WsStatus } from "@/hooks/useWebSocket";
 
 function NavItem({
   to,
@@ -238,18 +243,56 @@ function ProjectItem({
   );
 }
 
-export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
+function AnnouncementsNavItem({ workspaceSlug, active }: { workspaceSlug: string; active: boolean }) {
+  const { t } = useTranslation();
+  const { data: unread = 0 } = useQuery({
+    queryKey: ["announcements-unread"],
+    queryFn:  announcementsApi.unreadCount,
+    refetchInterval: 60_000,
+  });
+  return (
+    <Link
+      to={`/${workspaceSlug}/announcements`}
+      className={cn(
+        "flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-all duration-150",
+        active
+          ? "bg-primary/12 text-primary shadow-sm"
+          : "text-sidebar-foreground/75 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+      )}
+    >
+      <Megaphone className="h-4 w-4 shrink-0" />
+      <span className="truncate flex-1">{t("sidebar.announcements")}</span>
+      {unread > 0 && (
+        <span className="ml-auto inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-primary text-primary-foreground text-2xs font-bold">
+          {unread > 99 ? "99+" : unread}
+        </span>
+      )}
+    </Link>
+  );
+}
+
+export function Sidebar({ onNavigate, wsStatus = "connecting" }: { onNavigate?: () => void; wsStatus?: WsStatus } = {}) {
   const { t } = useTranslation();
   const { workspaceSlug } = useParams<{ workspaceSlug: string }>();
   const location = useLocation();
   const navigate = useNavigate();
   const { currentProject, setCurrentProject, favorites, projectOrder, toggleFavorite, setProjectOrder } = useWorkspaceStore();
+  const userId = useAuthStore((s) => s.user?.id);
 
   const { data: projects = [] } = useQuery({
     queryKey: ["projects", workspaceSlug],
     queryFn: () => projectsApi.list(workspaceSlug!),
     enabled: !!workspaceSlug,
   });
+
+  /* 워크스페이스 설정 접근 권한 — Admin(20)+ 만 노출 */
+  const { data: wsMembers = [] } = useQuery({
+    queryKey: ["workspace-members", workspaceSlug],
+    queryFn: () => workspacesApi.members(workspaceSlug!),
+    enabled: !!workspaceSlug,
+  });
+  const myRole = wsMembers.find((m) => m.member.id === userId)?.role ?? 0;
+  const canAccessWorkspaceSettings = myRole >= 20;
 
   const slug = workspaceSlug ?? "";
   const favIds = new Set(favorites[slug] ?? []);
@@ -361,6 +404,8 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
           active={location.pathname === `/${workspaceSlug}/projects/archived`}
         />
 
+        <AnnouncementsNavItem workspaceSlug={workspaceSlug ?? ""} active={location.pathname === `/${workspaceSlug}/announcements`} />
+
         {favoriteProjects.length > 0 && (
           <div className="mt-5">
             <div className="flex items-center gap-2 px-3 mb-2">
@@ -420,25 +465,37 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
       </nav>
 
       <div className="border-t border-border p-3 space-y-1">
-        <Link
-          to={`/${workspaceSlug}/settings/profile`}
-          className={cn(
-            "flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-all duration-150",
-            location.pathname.startsWith(`/${workspaceSlug}/settings`)
-              ? "bg-primary/10 text-primary"
-              : "text-sidebar-foreground/75 hover:bg-sidebar-accent hover:text-sidebar-foreground"
-          )}
-        >
-          <Settings className="h-4 w-4 shrink-0" />
-          <span>{t("sidebar.settings")}</span>
-        </Link>
+        {canAccessWorkspaceSettings && (
+          <Link
+            to={`/${workspaceSlug}/settings/workspace-members`}
+            className={cn(
+              "flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-all duration-150",
+              location.pathname.startsWith(`/${workspaceSlug}/settings/workspace`)
+                ? "bg-primary/10 text-primary"
+                : "text-sidebar-foreground/75 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+            )}
+          >
+            <Settings className="h-4 w-4 shrink-0" />
+            <span>{t("sidebar.settings")}</span>
+          </Link>
+        )}
 
-        <div className="flex items-center gap-2 rounded-xl px-3 py-2">
+        <div
+          className="flex items-center gap-2 rounded-xl px-3 py-2"
+          title={t(`sidebar.connection.${wsStatus}Tooltip`)}
+        >
           <span className="relative flex h-2 w-2">
-            <span className="absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75 animate-ping" />
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" />
+            {wsStatus === "connected" && (
+              <span className="absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75 animate-ping" />
+            )}
+            <span className={cn(
+              "relative inline-flex h-2 w-2 rounded-full",
+              wsStatus === "connected" && "bg-green-500",
+              wsStatus === "connecting" && "bg-amber-400",
+              wsStatus === "disconnected" && "bg-rose-500",
+            )} />
           </span>
-          <span className="text-xs text-sidebar-foreground/70">{t("sidebar.connected")}</span>
+          <span className="text-xs text-sidebar-foreground/70">{t(`sidebar.connection.${wsStatus}`)}</span>
         </div>
       </div>
     </aside>

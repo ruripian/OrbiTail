@@ -11,6 +11,10 @@ from .views import (
     PasswordResetConfirmView,
     AdminUserListView,
     AdminUserApproveView,
+    AnnouncementListCreateView,
+    AnnouncementDetailView,
+    AnnouncementUnreadCountView,
+    AnnouncementMarkSeenView,
 )
 
 urlpatterns = [
@@ -28,4 +32,10 @@ urlpatterns = [
     # Admin
     path("admin/users/", AdminUserListView.as_view(), name="admin-user-list"),
     path("admin/users/<uuid:pk>/approve/", AdminUserApproveView.as_view(), name="admin-user-approve"),
+
+    # Announcements
+    path("announcements/", AnnouncementListCreateView.as_view(), name="announcement-list-create"),
+    path("announcements/<uuid:pk>/", AnnouncementDetailView.as_view(), name="announcement-detail"),
+    path("announcements/unread/", AnnouncementUnreadCountView.as_view(), name="announcement-unread"),
+    path("announcements/mark-seen/", AnnouncementMarkSeenView.as_view(), name="announcement-mark-seen"),
 ]

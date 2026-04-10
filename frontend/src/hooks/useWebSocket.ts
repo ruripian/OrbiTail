@@ -11,7 +11,7 @@
  *   - notification.new: 새 알림   → notifications 쿼리 invalidate
  */
 
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
 interface WebSocketEvent {
@@ -21,11 +21,14 @@ interface WebSocketEvent {
   [key: string]: unknown;
 }
 
-export function useWebSocket(workspaceSlug: string | undefined) {
+export type WsStatus = "connecting" | "connected" | "disconnected";
+
+export function useWebSocket(workspaceSlug: string | undefined): WsStatus {
   const qc = useQueryClient();
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const getAccessToken = useCallback(() => localStorage.getItem("access_token"), []);
+  const [status, setStatus] = useState<WsStatus>("disconnected");
 
   useEffect(() => {
     if (!workspaceSlug) return;
@@ -38,10 +41,12 @@ export function useWebSocket(workspaceSlug: string | undefined) {
     const url = `${protocol}//${window.location.host}/ws/workspace/${workspaceSlug}/?token=${token}`;
 
     function connect() {
+      setStatus("connecting");
       const ws = new WebSocket(url);
       wsRef.current = ws;
 
       ws.onopen = () => {
+        setStatus("connected");
         /* 연결 성공 시 재연결 타이머 초기화 */
         if (reconnectTimer.current) {
           clearTimeout(reconnectTimer.current);
@@ -60,6 +65,7 @@ export function useWebSocket(workspaceSlug: string | undefined) {
 
       ws.onclose = (e) => {
         wsRef.current = null;
+        setStatus("disconnected");
         /* 비정상 종료 시 5초 후 재연결 */
         if (e.code !== 1000) {
           reconnectTimer.current = setTimeout(connect, 5000);
@@ -119,4 +125,6 @@ export function useWebSocket(workspaceSlug: string | undefined) {
       }
     };
   }, [workspaceSlug, qc, getAccessToken]);
+
+  return status;
 }

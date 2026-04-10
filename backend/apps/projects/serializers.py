@@ -6,12 +6,14 @@ from .models import Project, ProjectMember, Category, Sprint, State, ProjectEven
 class ProjectEventSerializer(serializers.ModelSerializer):
     """프로젝트 캘린더 이벤트 serializer — 프론트 렌더 + CRUD 공통."""
     created_by_detail = UserSerializer(source="created_by", read_only=True)
+    participant_details = UserSerializer(source="participants", many=True, read_only=True)
 
     class Meta:
         model = ProjectEvent
         fields = [
             "id", "project", "title", "date", "end_date",
             "event_type", "color", "description",
+            "is_global", "participants", "participant_details",
             "created_by", "created_by_detail",
             "created_at", "updated_at",
         ]
@@ -182,10 +184,18 @@ class ProjectSerializer(serializers.ModelSerializer):
 
 class ProjectMemberSerializer(serializers.ModelSerializer):
     member = UserSerializer(read_only=True)
+    effective_perms = serializers.SerializerMethodField()
 
     class Meta:
         model = ProjectMember
-        fields = ["id", "member", "role", "created_at"]
+        fields = [
+            "id", "member", "role",
+            "can_edit", "can_archive", "can_delete", "can_purge",
+            "effective_perms", "created_at",
+        ]
+
+    def get_effective_perms(self, obj):
+        return obj.effective_perms
 
 
 class ProjectMemberCreateSerializer(serializers.Serializer):

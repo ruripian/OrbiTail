@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useParams } from "react-router-dom";
+import { Navigate, useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -127,6 +127,12 @@ export function WorkspaceMembersPage() {
   };
 
   const ownerCount = members.filter((m) => m.role === 25).length;
+
+  /* 권한 가드 — Admin(20) 미만은 개인 설정 페이지로 리다이렉트.
+     모든 hooks 호출 이후 위치에 두어 순서 안정성 보장 */
+  if (members.length > 0 && myRole < 20) {
+    return <Navigate to={`/${workspaceSlug}/settings/profile`} replace />;
+  }
 
   return (
     <div className="space-y-6">

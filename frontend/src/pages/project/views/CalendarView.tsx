@@ -11,7 +11,7 @@ import { createPortal } from "react-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useIssueRefresh } from "@/hooks/useIssueMutations";
 import { useTranslation } from "react-i18next";
-import { ChevronLeft, ChevronRight, Settings2, Maximize2, Minimize2, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Settings2, Maximize2, Minimize2, Plus, User as UserIcon, Users } from "lucide-react";
 import { issuesApi } from "@/api/issues";
 import { projectsApi } from "@/api/projects";
 import { cn } from "@/lib/utils";
@@ -21,6 +21,9 @@ import type { Issue, ProjectEvent } from "@/types";
 import { EVENT_TYPES } from "@/constants/event-types";
 import { EventDialog } from "@/components/events/EventDialog";
 import { IssueCreateDialog } from "@/components/issues/IssueCreateDialog";
+import { useAuthStore } from "@/stores/authStore";
+import { AvatarInitials } from "@/components/ui/avatar-initials";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 /** "YYYY-MM-DD" 문자열을 로컬 타임으로 파싱 (UTC 오프셋 문제 방지) */
 function parseLocalDate(str: string): Date {
@@ -229,7 +232,6 @@ function SettingsPanel({ settings, onChange, onClose, triggerRef }: SettingsPane
 
         {([
           { key: "showCompleted" as const, label: t("calendar.settings.showCompleted") },
-          { key: "showNoDate"    as const, label: t("calendar.settings.showNoDate") },
           { key: "hideWeekends"  as const, label: t("calendar.settings.hideWeekends") },
           { key: "showEvents"    as const, label: t("calendar.settings.showEvents") },
           { key: "alwaysExpand"  as const, label: t("calendar.settings.alwaysExpand") },
@@ -364,6 +366,14 @@ export function CalendarView({ workspaceSlug, projectId, onIssueClick, issueFilt
     queryFn:  () => projectsApi.states.list(workspaceSlug, projectId),
   });
 
+  /* 사용자 필터: null=전체, "me"=내 일정, userId=특정 사용자 */
+  const currentUserId = useAuthStore((s) => s.user?.id);
+  const [userFilter, setUserFilter] = useState<string | null>(null);
+  const { data: members = [] } = useQuery({
+    queryKey: ["project-members", workspaceSlug, projectId],
+    queryFn:  () => projectsApi.members.list(workspaceSlug, projectId),
+  });
+
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: Partial<Issue> }) =>
       issuesApi.update(workspaceSlug, projectId, id, data),
@@ -389,11 +399,17 @@ export function CalendarView({ workspaceSlug, projectId, onIssueClick, issueFilt
     [states]
   );
 
+  /* 사용자 필터로 매칭할 ID 결정 — "me"는 현재 로그인 유저 id로 변환 */
+  const filterUserId = userFilter === "me" ? currentUserId : userFilter;
+
   /* 설정 필터 + 드래그 중 가상 날짜 반영 */
   const renderIssues = useMemo(() => {
     const arr = issues.filter((issue) => {
       if (!settings.showCompleted && completedStateIds.has(issue.state)) return false;
-      if (!settings.showNoDate && !issue.start_date && !issue.due_date) return false;
+      // 캘린더는 날짜가 있는 이슈만 의미가 있음 — 둘 다 없으면 항상 제외
+      if (!issue.start_date && !issue.due_date) return false;
+      // 사용자 필터: 해당 사용자가 담당자에 포함되어야 함
+      if (filterUserId && !(issue.assignees ?? []).includes(filterUserId)) return false;
       return true;
     });
 
@@ -426,13 +442,18 @@ export function CalendarView({ workspaceSlug, projectId, onIssueClick, issueFilt
       }
       return { ...issue, start_date: toIso(renderStart), due_date: toIso(renderDue) };
     });
-  }, [issues, settings, completedStateIds, dragState]);
+  }, [issues, settings, completedStateIds, dragState, filterUserId]);
 
-  /* 드래그 중 이벤트 가상 날짜 반영 */
+  /* 드래그 중 이벤트 가상 날짜 반영 + 사용자 필터.
+     "내 일정" 또는 특정 사용자 필터 시 — 글로벌 이벤트(is_global=true)는 항상 표시,
+     비글로벌은 본인이 participants에 포함된 경우만 표시. */
   const renderEvents = useMemo(() => {
-    if (!settings.showEvents) return events;
-    if (!dragState || dragState.targetType !== "event") return events;
-    return events.map((evt) => {
+    if (!settings.showEvents) return [];
+    const filtered = filterUserId
+      ? events.filter((e) => e.is_global || (e.participants ?? []).includes(filterUserId))
+      : events;
+    if (!dragState || dragState.targetType !== "event") return filtered;
+    return filtered.map((evt) => {
       if (evt.id !== dragState.targetId) return evt;
       const deltaDaysX  = Math.round((dragState.currentX - dragState.startX) / dragState.cellWidth);
       const deltaWeeksY = dragState.rowHeight > 0
@@ -453,7 +474,7 @@ export function CalendarView({ workspaceSlug, projectId, onIssueClick, issueFilt
       }
       return { ...evt, date: toIso(renderStart), end_date: toIso(renderEnd) };
     });
-  }, [events, settings.showEvents, dragState]);
+  }, [events, settings.showEvents, dragState, filterUserId]);
 
   /* 이슈 상태 색상 맵 */
   const stateColorMap = useMemo(
@@ -593,6 +614,69 @@ export function CalendarView({ workspaceSlug, projectId, onIssueClick, issueFilt
             </button>
           </div>
 
+          {/* 사용자 필터 — All / Me / 특정 사용자 */}
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setUserFilter(null)}
+              className={cn(
+                "text-xs font-medium px-3 py-1 rounded-md border transition-colors flex items-center gap-1.5",
+                userFilter === null
+                  ? "bg-primary/10 border-primary/40 text-primary"
+                  : "border-border text-muted-foreground hover:text-foreground hover:bg-muted/40"
+              )}
+              title={t("calendar.filter.all")}
+            >
+              <Users className="h-3.5 w-3.5" />
+              {t("calendar.filter.all")}
+            </button>
+            <button
+              onClick={() => setUserFilter("me")}
+              className={cn(
+                "text-xs font-medium px-3 py-1 rounded-md border transition-colors flex items-center gap-1.5",
+                userFilter === "me"
+                  ? "bg-primary/10 border-primary/40 text-primary"
+                  : "border-border text-muted-foreground hover:text-foreground hover:bg-muted/40"
+              )}
+              title={t("calendar.filter.me")}
+            >
+              <UserIcon className="h-3.5 w-3.5" />
+              {t("calendar.filter.me")}
+            </button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className={cn(
+                    "text-xs font-medium px-3 py-1 rounded-md border transition-colors flex items-center gap-1.5",
+                    userFilter && userFilter !== "me"
+                      ? "bg-primary/10 border-primary/40 text-primary"
+                      : "border-border text-muted-foreground hover:text-foreground hover:bg-muted/40"
+                  )}
+                >
+                  {userFilter && userFilter !== "me" ? (
+                    (() => {
+                      const m = members.find((x) => x.member.id === userFilter);
+                      return m ? <><AvatarInitials name={m.member.display_name} size="xs" />{m.member.display_name}</> : t("calendar.filter.user");
+                    })()
+                  ) : (
+                    t("calendar.filter.user")
+                  )}
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="max-h-64 overflow-y-auto">
+                {members.map((m) => (
+                  <DropdownMenuItem
+                    key={m.member.id}
+                    onClick={() => setUserFilter(m.member.id)}
+                    className="text-xs gap-2"
+                  >
+                    <AvatarInitials name={m.member.display_name} size="xs" />
+                    {m.member.display_name}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+
           <div className="relative">
             <button
               ref={settingsBtnRef}
@@ -646,8 +730,8 @@ export function CalendarView({ workspaceSlug, projectId, onIssueClick, issueFilt
           })}
         </div>
 
-        {/* ── 월간 그리드 — flex col으로 각 주 행이 균등 높이 ── */}
-        <div className="flex-1 flex flex-col overflow-y-auto divide-y divide-border">
+        {/* ── 월간 그리드 — 행은 콘텐츠에 따라 자라고, 컨테이너가 부족하면 페이지 스크롤 ── */}
+        <div className="flex-1 flex flex-col overflow-y-auto divide-y divide-border" data-calendar-grid>
           {weeks.map((week, wi) => {
             const weekStart = week[0];
             const weekEnd   = week[6];
@@ -682,11 +766,27 @@ export function CalendarView({ workspaceSlug, projectId, onIssueClick, issueFilt
               }
             }
 
+            /* 셀별 칩 개수를 미리 계산 → 행 minHeight에 반영 (콘텐츠가 많을수록 행이 자람) */
+            const CHIP_H = 26; // 칩 높이 + 간격
+            const cellTotalH: number[] = new Array(totalCols).fill(0);
+            for (let i = 0; i < week.length; i++) {
+              const day = week[i];
+              if (settings.hideWeekends && (i === 0 || i === 6)) continue;
+              const colIdx = settings.hideWeekends ? i - 1 : i;
+              const chipsCount = getChipsForDay(renderIssues, day, effectiveExpanded).length;
+              cellTotalH[colIdx] = 36 + (colBarH[colIdx] || 0) + chipsCount * CHIP_H + 8;
+            }
+            const dynamicMinH = Math.max(96, ...cellTotalH);
+
             return (
               <div
                 key={wi}
-                className="relative min-h-[72px] xl:min-h-[96px] flex-1"
+                className="relative min-h-[96px] xl:min-h-[120px] flex-1"
                 data-week-row
+                style={{
+                  /* 콘텐츠(바 + 칩)에 따라 행이 자란다. flex-1은 남는 공간 균등 분배 담당 */
+                  minHeight: dynamicMinH,
+                }}
               >
                 {/* ── 막대 레이어 (absolute 오버레이) — top-9(36px) = 날짜 숫자 영역 높이 ── */}
                 {/* pointer-events-none이 컨테이너에 있으므로 개별 바에 pointer-events-auto 필수 */}
@@ -950,7 +1050,7 @@ export function CalendarView({ workspaceSlug, projectId, onIssueClick, issueFilt
                       <div
                         key={di}
                         className={cn(
-                          "relative flex flex-col group transition-colors hover:bg-accent/40",
+                          "relative flex flex-col group transition-colors hover:bg-accent/40 overflow-hidden",
                           // 이전/다음 달 날짜: 흐린 배경
                           !isCurrentMonth && "bg-muted/[0.08]",
                           // 오늘: primary tint + ring-inset으로 강조
@@ -979,9 +1079,10 @@ export function CalendarView({ workspaceSlug, projectId, onIssueClick, issueFilt
                           </span>
                         </div>
 
-                        {/* 칩 영역 — 해당 열에 bar가 있으면 그 높이만큼 paddingTop, 없으면 0 */}
+                        {/* 칩 영역 — 해당 열에 bar가 있으면 그 높이만큼 paddingTop, 없으면 0
+                            콘텐츠에 따라 자유롭게 자람 → 행이 늘어나며 페이지 스크롤 */}
                         <div
-                          className="flex flex-col gap-0.5 px-1 pb-1 overflow-hidden"
+                          className="flex flex-col gap-0.5 px-1 pb-1"
                           style={{
                             paddingTop: (() => {
                               const colIdx = settings.hideWeekends ? di - 1 : di;

@@ -29,6 +29,7 @@ import { SprintsPage } from "@/pages/project/SprintsPage";
 import { DiscoverProjectsPage } from "@/pages/project/DiscoverProjectsPage";
 import { ArchivedProjectsPage } from "@/pages/project/ArchivedProjectsPage";
 import { InviteAcceptPage } from "@/pages/invite/InviteAcceptPage";
+import { AnnouncementsPage } from "@/pages/AnnouncementsPage";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   // accessToken 존재 여부로 인증 체크 (getter 대신 selector 사용)
@@ -88,6 +89,7 @@ export const router = createBrowserRouter([
     ),
     children: [
       { index: true, element: <WorkspaceDashboard /> },
+      { path: "announcements", element: <AnnouncementsPage /> },
       { path: "projects/create", element: <CreateProjectPage /> },
       { path: "projects/discover", element: <DiscoverProjectsPage /> },
       { path: "projects/archived", element: <ArchivedProjectsPage /> },

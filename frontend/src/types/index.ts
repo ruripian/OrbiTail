@@ -65,6 +65,12 @@ export interface ProjectMember {
   id: string;
   member: User;
   role: 10 | 15 | 20;
+  can_edit:    boolean;
+  can_archive: boolean;
+  can_delete:  boolean;
+  can_purge:   boolean;
+  /** 백엔드 계산 — role >= ADMIN 이면 모두 true. UI 가드는 이 값을 사용 */
+  effective_perms: { can_edit: boolean; can_archive: boolean; can_delete: boolean; can_purge: boolean };
   created_at: string;
 }
 
@@ -111,6 +117,9 @@ export interface ProjectEvent {
   event_type: "meeting" | "trip" | "deadline" | "presentation" | "milestone" | "other";
   color: string;              // hex
   description: string;
+  is_global: boolean;          // 워크스페이스 전역 공유
+  participants: string[];      // user id 배열
+  participant_details: User[]; // 읽기 전용
   created_by: string | null;
   created_by_detail: User | null;
   created_at: string;

@@ -44,6 +44,14 @@ class User(AbstractBaseUser, PermissionsMixin):
     language = models.CharField(max_length=10, default="ko")
     # 주의 시작 요일: 0=일요일, 1=월요일
     first_day_of_week = models.IntegerField(default=0)
+    # 마지막으로 본 공지 ID — null이면 모든 공지가 unread
+    last_seen_announcement = models.ForeignKey(
+        "Announcement",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
     theme = models.CharField(max_length=10, choices=Theme.choices, default=Theme.SYSTEM)
     # 소프트 삭제: 계정 탈퇴 시 설정. 이 값이 set이면 로그인 불가 (is_active=False와 병행).
     deleted_at = models.DateTimeField(null=True, blank=True)
@@ -121,3 +129,33 @@ class PasswordResetToken(models.Model):
 
     def is_valid(self) -> bool:
         return not self.is_used and self.expires_at > tz.now()
+
+
+class Announcement(models.Model):
+    """제품 공지/업데이트 — 모든 워크스페이스 사용자에게 공유.
+    버전 태그를 붙여 릴리스 노트로도 활용. is_staff 만 작성/편집 가능."""
+
+    class Category(models.TextChoices):
+        FEATURE     = "feature",     "신규 기능"
+        IMPROVEMENT = "improvement", "개선"
+        BUGFIX      = "bugfix",      "버그 수정"
+        NOTICE      = "notice",      "공지"
+
+    id          = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    title       = models.CharField(max_length=255)
+    body        = models.TextField()  # markdown
+    version     = models.CharField(max_length=32, blank=True, default="")  # 예: "v1.4.0"
+    category    = models.CharField(max_length=20, choices=Category.choices, default=Category.NOTICE)
+    is_published = models.BooleanField(default=True)
+    created_by  = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="created_announcements",
+    )
+    created_at  = models.DateTimeField(auto_now_add=True)
+    updated_at  = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "announcements"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"[{self.version or '-'}] {self.title}"

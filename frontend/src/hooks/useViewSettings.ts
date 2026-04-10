@@ -7,7 +7,6 @@ import { useState, useCallback } from "react";
 
 export interface CalendarSettings {
   showCompleted:  boolean; // 완료 이슈 표시
-  showNoDate:     boolean; // 날짜 없는 이슈 표시
   hideWeekends:   boolean; // 토/일 컬럼 숨기기
   showEvents:     boolean; // 프로젝트 캘린더 이벤트 표시
   alwaysExpand:   boolean; // 기간이 있는 이슈를 항상 bar로 확장 표시
@@ -18,6 +17,7 @@ export interface TimelineSettings {
   showCompleted: boolean;
   showNoDate:    boolean;
   hideWeekends:  boolean; // day scale에서 주말 컬럼 건너뛰기
+  showEvents:    boolean; // 프로젝트 캘린더 이벤트를 타임라인 상단에 표시
   groupBy:       "none" | "state" | "priority" | "category" | "sprint"; // 그룹화 기준
 }
 
@@ -27,8 +27,8 @@ interface AllSettings {
 }
 
 const DEFAULTS: AllSettings = {
-  calendar: { showCompleted: true, showNoDate: false, hideWeekends: false, showEvents: true, alwaysExpand: false },
-  timeline: { scale: "day", showCompleted: false, showNoDate: false, hideWeekends: false, groupBy: "none" },
+  calendar: { showCompleted: true, hideWeekends: false, showEvents: true, alwaysExpand: false },
+  timeline: { scale: "day", showCompleted: false, showNoDate: false, hideWeekends: false, showEvents: true, groupBy: "none" },
 };
 
 const KEY = "orbitail_view_settings";

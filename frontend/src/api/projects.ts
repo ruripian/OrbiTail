@@ -50,6 +50,10 @@ export const projectsApi = {
     updateRole: (workspaceSlug: string, projectId: string, memberId: string, data: { role: number }) =>
       api.patch<ProjectMember>(`/workspaces/${workspaceSlug}/projects/${projectId}/members/${memberId}/`, data).then((r) => r.data),
 
+    /** 세분화 권한 업데이트 — can_edit/can_archive/can_delete/can_purge */
+    updatePerms: (workspaceSlug: string, projectId: string, memberId: string, data: Partial<ProjectMember>) =>
+      api.patch<ProjectMember>(`/workspaces/${workspaceSlug}/projects/${projectId}/members/${memberId}/`, data).then((r) => r.data),
+
     remove: (workspaceSlug: string, projectId: string, memberId: string) =>
       api.delete(`/workspaces/${workspaceSlug}/projects/${projectId}/members/${memberId}/`),
   },

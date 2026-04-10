@@ -10,8 +10,9 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 
-from .models import EmailChangeToken, EmailVerificationToken, PasswordResetToken, User
+from .models import Announcement, EmailChangeToken, EmailVerificationToken, PasswordResetToken, User
 from .serializers import (
+    AnnouncementSerializer,
     CustomTokenObtainPairSerializer,
     EmailChangeRequestSerializer,
     EmailChangeVerifySerializer,
@@ -392,3 +393,58 @@ class AdminUserApproveView(APIView):
         )
 
         return Response({"detail": "사용자가 승인되었습니다."})
+
+
+class AnnouncementListCreateView(generics.ListCreateAPIView):
+    """공지/업데이트 목록 + 생성. is_published=True 만 반환. 작성은 staff 만."""
+    serializer_class = AnnouncementSerializer
+
+    def get_permissions(self):
+        if self.request.method == "POST":
+            return [permissions.IsAdminUser()]
+        return [permissions.IsAuthenticated()]
+
+    def get_queryset(self):
+        qs = Announcement.objects.all()
+        if not self.request.user.is_staff:
+            qs = qs.filter(is_published=True)
+        return qs
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+
+
+class AnnouncementDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = AnnouncementSerializer
+    queryset = Announcement.objects.all()
+
+    def get_permissions(self):
+        if self.request.method in ("GET", "HEAD", "OPTIONS"):
+            return [permissions.IsAuthenticated()]
+        return [permissions.IsAdminUser()]
+
+
+class AnnouncementUnreadCountView(APIView):
+    """현재 사용자가 안 읽은 공지 개수"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        qs = Announcement.objects.filter(is_published=True)
+        last_seen = request.user.last_seen_announcement
+        if last_seen:
+            qs = qs.filter(created_at__gt=last_seen.created_at)
+        return Response({"unread": qs.count()})
+
+
+class AnnouncementMarkSeenView(APIView):
+    """가장 최근 공지를 본 것으로 표시"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        latest = Announcement.objects.filter(is_published=True).first()
+        if latest:
+            request.user.last_seen_announcement = latest
+            request.user.save(update_fields=["last_seen_announcement"])
+        return Response({"detail": "ok"})
+
+

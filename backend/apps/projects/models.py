@@ -60,11 +60,29 @@ class ProjectMember(models.Model):
         related_name="project_memberships",
     )
     role = models.IntegerField(choices=Role.choices, default=Role.MEMBER)
+    # 세분화 권한 — 역할이 ADMIN 미만이어도 개별 부여 가능.
+    # 프론트는 effective_perms로 합쳐서 가드.
+    can_edit    = models.BooleanField(default=True)   # 이슈/필드 수정
+    can_archive = models.BooleanField(default=False)  # 보관함 이동 (소프트)
+    can_delete  = models.BooleanField(default=False)  # 휴지통 이동 (소프트 삭제)
+    can_purge   = models.BooleanField(default=False)  # 휴지통에서 영구 삭제
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         db_table = "project_members"
         unique_together = [["project", "member"]]
+
+    @property
+    def effective_perms(self) -> dict:
+        """역할(role)이 ADMIN이면 모든 권한 자동 허용. 그 미만은 플래그 값 사용."""
+        if self.role >= self.Role.ADMIN:
+            return {"can_edit": True, "can_archive": True, "can_delete": True, "can_purge": True}
+        return {
+            "can_edit":    self.can_edit,
+            "can_archive": self.can_archive,
+            "can_delete":  self.can_delete,
+            "can_purge":   self.can_purge,
+        }
 
 
 class Category(models.Model):
@@ -157,6 +175,15 @@ class ProjectEvent(models.Model):
     event_type  = models.CharField(max_length=20, choices=EventType.choices, default=EventType.OTHER)
     color       = models.CharField(max_length=7, default="#5E6AD2")  # hex
     description = models.TextField(blank=True, default="")
+    # is_global=True (기본): 이 프로젝트의 모든 멤버에게 해당되는 일정.
+    #   → 누구나 "내 일정" 필터에서도 보임. 사실상 participants 미지정 = 전체 선택.
+    # is_global=False: 명시된 participants 에게만 해당. "내 일정"은 본인이 포함될 때만 표시.
+    is_global   = models.BooleanField(default=True)
+    participants = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        related_name="participating_events",
+        blank=True,
+    )
     created_by  = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True,
         related_name="created_events",

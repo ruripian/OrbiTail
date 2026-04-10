@@ -66,6 +66,13 @@ export function MembersPage() {
     onError: () => toast.error(t("project.settings.members.updateFailed")),
   });
 
+  const permsMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Partial<ProjectMember> }) =>
+      projectsApi.members.updatePerms(workspaceSlug!, projectId!, id, data),
+    onSuccess: invalidate,
+    onError: () => toast.error(t("project.settings.members.updateFailed")),
+  });
+
   const removeMutation = useMutation({
     mutationFn: (id: string) =>
       projectsApi.members.remove(workspaceSlug!, projectId!, id),
@@ -195,6 +202,53 @@ export function MembersPage() {
             </div>
           );
         })}
+      </div>
+
+      {/* ── 세분화 권한 — Admin 미만 멤버에게만 적용. Admin은 전체 자동 허용 ── */}
+      <div className="mt-8 space-y-2">
+        <h2 className="text-sm font-semibold">{t("project.settings.members.permsTitle")}</h2>
+        <p className="text-xs text-muted-foreground mb-3">{t("project.settings.members.permsHint")}</p>
+        <div className="rounded-lg border border-border overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/40 text-xs text-muted-foreground">
+              <tr>
+                <th className="text-left px-3 py-2 font-semibold">{t("project.settings.members.permMember")}</th>
+                <th className="text-center px-3 py-2 font-semibold">{t("project.settings.members.permEdit")}</th>
+                <th className="text-center px-3 py-2 font-semibold">{t("project.settings.members.permArchive")}</th>
+                <th className="text-center px-3 py-2 font-semibold">{t("project.settings.members.permDelete")}</th>
+                <th className="text-center px-3 py-2 font-semibold">{t("project.settings.members.permPurge")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {members.filter((m) => m.role < 20).map((pm) => {
+                const togglePerm = (k: "can_edit" | "can_archive" | "can_delete" | "can_purge") =>
+                  permsMutation.mutate({ id: pm.id, data: { [k]: !pm[k] } });
+                return (
+                  <tr key={pm.id} className="border-t border-border">
+                    <td className="px-3 py-2">{pm.member.display_name}</td>
+                    {(["can_edit", "can_archive", "can_delete", "can_purge"] as const).map((k) => (
+                      <td key={k} className="text-center px-3 py-2">
+                        <input
+                          type="checkbox"
+                          checked={pm[k]}
+                          onChange={() => togglePerm(k)}
+                          className="h-4 w-4 rounded border-border"
+                        />
+                      </td>
+                    ))}
+                  </tr>
+                );
+              })}
+              {members.filter((m) => m.role < 20).length === 0 && (
+                <tr>
+                  <td colSpan={5} className="text-center text-xs text-muted-foreground py-4">
+                    {t("project.settings.members.permEmpty")}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
