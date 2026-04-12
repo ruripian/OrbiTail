@@ -39,6 +39,17 @@ def _broadcast_to_workspace(workspace_slug, event):
         pass
 
 
+def _issue_breadcrumb(issue) -> str:
+    """이슈 표시명 — 부모가 있으면 'Parent → Title' 한 줄로.
+
+    한 단계만 표시(조부모까지는 안 감) — 메시지 길이 트레이드오프.
+    parent FK는 lazy 로드되므로 호출 측에서 select_related 필수 아님.
+    """
+    if issue.parent_id and issue.parent:
+        return f"{issue.parent.title} → {issue.title}"
+    return issue.title
+
+
 def _create_notifications(recipients, actor, issue, ntype, message):
     """알림 일괄 생성 헬퍼 — actor 본인은 제외, WebSocket으로 실시간 전달.
 
@@ -116,12 +127,14 @@ def notify_on_issue_activity(sender, instance, created, **kwargs):
     if not assignees:
         return
 
-    # 변경 내용을 메시지로 구성
+    # 변경 내용을 메시지로 구성 — 프로젝트 + 부모 컨텍스트 포함
     field = activity.field or activity.verb
+    breadcrumb = _issue_breadcrumb(issue)
+    project_name = issue.project.name
     if activity.new_value:
-        message = f"{actor.display_name}님이 이슈 '{issue.title}'의 {field}을(를) 변경했습니다."
+        message = f"{actor.display_name}님이 {project_name}에서 '{breadcrumb}'의 {field}을(를) 변경했습니다."
     else:
-        message = f"{actor.display_name}님이 이슈 '{issue.title}'을(를) 업데이트했습니다."
+        message = f"{actor.display_name}님이 {project_name}에서 '{breadcrumb}'을(를) 업데이트했습니다."
 
     _create_notifications(
         recipients=assignees,
@@ -151,7 +164,10 @@ def notify_on_comment(sender, instance, created, **kwargs):
     User = get_user_model()
     recipients = list(User.objects.filter(id__in=recipients_ids))
 
-    message = f"{actor.display_name}님이 이슈 '{issue.title}'에 댓글을 남겼습니다."
+    message = (
+        f"{actor.display_name}님이 {issue.project.name}에서 "
+        f"'{_issue_breadcrumb(issue)}'에 댓글을 남겼습니다."
+    )
 
     _create_notifications(
         recipients=recipients,
@@ -186,7 +202,16 @@ def notify_on_issue_created(sender, instance, created, **kwargs):
     if not recipients:
         return
 
-    message = f"{actor.display_name}님이 새 이슈 '{issue.title}'을(를) 생성했습니다."
+    if issue.parent_id and issue.parent:
+        message = (
+            f"{actor.display_name}님이 {issue.project.name}에서 "
+            f"'{issue.parent.title}' 아래에 새 이슈 '{issue.title}'을(를) 생성했습니다."
+        )
+    else:
+        message = (
+            f"{actor.display_name}님이 {issue.project.name}에 "
+            f"새 이슈 '{issue.title}'을(를) 생성했습니다."
+        )
     _create_notifications(
         recipients=recipients,
         actor=actor,
@@ -218,7 +243,10 @@ def notify_on_assignee_added(sender, instance, action, pk_set, **kwargs):
     User = get_user_model()
     new_assignees = list(User.objects.filter(id__in=pk_set))
 
-    message = f"{actor.display_name}님이 이슈 '{issue.title}'에 담당자로 배정했습니다."
+    message = (
+        f"{actor.display_name}님이 {issue.project.name}에서 "
+        f"'{_issue_breadcrumb(issue)}'에 담당자로 배정했습니다."
+    )
 
     _create_notifications(
         recipients=new_assignees,

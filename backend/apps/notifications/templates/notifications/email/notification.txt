@@ -5,7 +5,8 @@ OrbiTail에서 새 알림이 도착했어요.
 [ {{ type_label }} ]
 {{ message }}
 
-{% if issue_title %}이슈: {{ issue_title }}
+{% if project_name %}프로젝트: {{ project_name }}
+{% endif %}{% if issue_title %}이슈: {% if parent_title %}{{ parent_title }} → {% endif %}{{ issue_title }}
 {% endif %}열기: {{ issue_url }}
 
 — 알림 설정 변경: {{ settings_url }}
@@ -16,7 +17,8 @@ You have a new notification on OrbiTail.
 [ {{ type_label }} ]
 {{ message }}
 
-{% if issue_title %}Issue: {{ issue_title }}
+{% if project_name %}Project: {{ project_name }}
+{% endif %}{% if issue_title %}Issue: {% if parent_title %}{{ parent_title }} → {% endif %}{{ issue_title }}
 {% endif %}Open: {{ issue_url }}
 
 — Manage notifications: {{ settings_url }}

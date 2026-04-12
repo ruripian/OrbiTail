@@ -71,17 +71,26 @@ def send_notification_email(self, recipient_id, ntype, message, issue_id, actor_
     type_label = _TYPE_LABELS.get(ntype, {}).get(lang, ntype)
     subject = f"[OrbiTail] {type_label}"
 
-    # 이슈 딥링크 — 워크스페이스/프로젝트 정보가 필요하므로 lazy 로딩
-    issue_url = settings.FRONTEND_URL
+    # 이슈 딥링크 — 라우트 형식: /<slug>/projects/<id>/issues?issue=<uuid>
+    base = settings.FRONTEND_URL.rstrip("/")
+    issue_url = base
     issue_title = ""
+    project_name = ""
+    parent_title = ""
     if issue_id:
         from apps.issues.models import Issue
         try:
-            issue = Issue.objects.select_related("project", "workspace").get(id=issue_id)
+            issue = (
+                Issue.objects
+                .select_related("project", "workspace", "parent")
+                .get(id=issue_id)
+            )
             issue_title = issue.title
+            project_name = issue.project.name
+            parent_title = issue.parent.title if issue.parent_id and issue.parent else ""
             issue_url = (
-                f"{settings.FRONTEND_URL.rstrip('/')}/"
-                f"{issue.workspace.slug}/projects/{issue.project_id}/issues/{issue.id}"
+                f"{base}/{issue.workspace.slug}"
+                f"/projects/{issue.project_id}/issues?issue={issue.id}"
             )
         except Issue.DoesNotExist:
             pass
@@ -91,10 +100,12 @@ def send_notification_email(self, recipient_id, ntype, message, issue_id, actor_
         "message": message,
         "actor_name": actor_name,
         "issue_title": issue_title,
+        "project_name": project_name,
+        "parent_title": parent_title,
         "issue_url": issue_url,
         "recipient_name": recipient.display_name,
-        "frontend_url": settings.FRONTEND_URL.rstrip("/"),
-        "settings_url": f"{settings.FRONTEND_URL.rstrip('/')}/settings/preferences",
+        "frontend_url": base,
+        "settings_url": f"{base}/settings/preferences",
         "lang": lang,
     }
 

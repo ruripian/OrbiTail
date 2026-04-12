@@ -39,11 +39,19 @@
           {% if issue_title %}
           <tr>
             <td style="padding:8px 32px 0;">
-              <p style="margin:0;font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:0.04em;font-weight:600;">
+              {% if project_name %}
+              <p style="margin:0;font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.06em;font-weight:600;">
+                {% if lang == 'ko' %}프로젝트{% else %}Project{% endif %}
+              </p>
+              <p style="margin:4px 0 12px;font-size:13px;color:#374151;line-height:1.45;">
+                {{ project_name }}
+              </p>
+              {% endif %}
+              <p style="margin:0;font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.06em;font-weight:600;">
                 {% if lang == 'ko' %}이슈{% else %}Issue{% endif %}
               </p>
               <p style="margin:6px 0 0;font-size:15px;font-weight:600;color:#111827;line-height:1.45;">
-                {{ issue_title }}
+                {% if parent_title %}<span style="color:#9ca3af;font-weight:500;">{{ parent_title }} →</span> {% endif %}{{ issue_title }}
               </p>
             </td>
           </tr>
