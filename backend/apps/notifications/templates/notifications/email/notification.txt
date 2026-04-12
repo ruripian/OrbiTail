@@ -1,0 +1,23 @@
+{% if lang == 'ko' %}{{ recipient_name }}님,
+
+OrbiTail에서 새 알림이 도착했어요.
+
+[ {{ type_label }} ]
+{{ message }}
+
+{% if issue_title %}이슈: {{ issue_title }}
+{% endif %}열기: {{ issue_url }}
+
+— 알림 설정 변경: {{ settings_url }}
+{% else %}Hi {{ recipient_name }},
+
+You have a new notification on OrbiTail.
+
+[ {{ type_label }} ]
+{{ message }}
+
+{% if issue_title %}Issue: {{ issue_title }}
+{% endif %}Open: {{ issue_url }}
+
+— Manage notifications: {{ settings_url }}
+{% endif %}

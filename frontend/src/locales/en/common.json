@@ -360,7 +360,27 @@
         "states": "States",
         "labels": "Labels",
         "autoArchive": "Auto Archive",
-        "templates": "Issue Templates"
+        "templates": "Issue Templates",
+        "notifications": "Notifications"
+      },
+      "notifications": {
+        "title": "Notification settings",
+        "subtitle": "Tune in-app and email notifications for this project.",
+        "inAppTitle": "In-app notifications",
+        "inAppDesc": "Always shown in the bell tray and as toasts while you're using OrbiTail. They can't be turned off.",
+        "emailTitle": "Email notifications",
+        "muteLabel": "Mute project emails",
+        "muteDesc": "When on, you'll receive no emails related to this project. In-app notifications are unaffected.",
+        "overrideTitle": "Override global email settings",
+        "overrideSubtitle": "Per type: follow your global setting, or force on/off just for this project.",
+        "inherit": "Inherit",
+        "on": "On",
+        "off": "Off",
+        "projectOnlyTitle": "Project-only emails",
+        "projectOnlySubtitle": "Extra email notifications you can opt into for this project.",
+        "issueCreatedLabel": "When a new issue is created",
+        "issueCreatedDesc": "Get an email whenever someone creates an issue in this project.",
+        "saveFailed": "Failed to save."
       },
       "general": {
         "title": "General",
@@ -702,6 +722,7 @@
       "workspace": "Workspace",
       "workspaceMembers": "Members",
       "sponsor": "Enjoying this project?",
+      "repository": "GitHub Repository",
       "sponsorGithub": "GitHub Sponsors",
       "sponsorKofi": "Ko-fi"
     },
@@ -786,7 +807,17 @@
       "save": "Save",
       "saving": "Saving...",
       "saved": "Preferences saved.",
-      "saveFailed": "Failed to save."
+      "saveFailed": "Failed to save.",
+      "notifTitle": "Notifications",
+      "notifSubtitle": "Choose which events trigger in-app and email notifications. You can override these per project.",
+      "inAppTitle": "In-app notifications",
+      "inAppDesc": "Always shown in the bell tray and as toasts while you're using OrbiTail. They can't be turned off.",
+      "emailTitle": "Email notifications",
+      "notifEmailMaster": "Enable email notifications",
+      "notifEmailMasterDesc": "Turn off to stop all notification emails.",
+      "notifIssueAssigned": "When you're assigned to an issue",
+      "notifIssueUpdated": "When an issue you're on is updated",
+      "notifCommentAdded": "When someone comments on an issue you're on"
     },
     "security": {
       "title": "Security",

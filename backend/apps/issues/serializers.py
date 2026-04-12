@@ -50,6 +50,30 @@ class IssueSerializer(serializers.ModelSerializer):
     def get_attachment_count(self, obj):
         return obj.attachments.count()
 
+    def validate_parent(self, value):
+        """parent로 자기 자신 또는 자손을 지정하는 시도를 차단.
+
+        프론트에 검증이 있어도 race condition / 다른 클라이언트 경로 대비 서버에서도 막음.
+        """
+        if value is None:
+            return value
+        instance = self.instance
+        if instance is None:
+            return value  # 신규 생성: 자기 자신이 될 수 없으므로 검증 불필요
+        if value.pk == instance.pk:
+            raise serializers.ValidationError("이슈를 자기 자신의 하위로 만들 수 없습니다.")
+        # 자손 체크: parent 후보의 조상 체인을 거슬러 올라가 instance가 나오면 순환
+        seen = set()
+        cur = value
+        while cur is not None:
+            if cur.pk in seen:
+                break  # 기존 데이터에 이미 순환이 있으면 무한루프 방지
+            seen.add(cur.pk)
+            if cur.pk == instance.pk:
+                raise serializers.ValidationError("이슈를 자신의 자손 아래로 옮길 수 없습니다.")
+            cur = cur.parent
+        return value
+
     def create(self, validated_data):
         assignees = validated_data.pop("assignees", [])
         labels = validated_data.pop("label", [])

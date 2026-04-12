@@ -1,10 +1,13 @@
 import { NavLink, Outlet, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { User, Lock, SlidersHorizontal, Users, UsersRound, Github, ExternalLink } from "lucide-react";
+import { User, Lock, SlidersHorizontal, Users, UsersRound, Github, Heart, ExternalLink } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { workspacesApi } from "@/api/workspaces";
+import { api } from "@/lib/axios";
 import { cn } from "@/lib/utils";
+
+interface VersionInfo { version: string; commit: string | null; repo: string }
 
 export function SettingsLayout() {
   const { t } = useTranslation();
@@ -20,6 +23,16 @@ export function SettingsLayout() {
   });
   const myRole = wsMembers.find((m) => m.member.id === user?.id)?.role ?? 0;
   const canManageWorkspace = myRole >= 20;
+
+  /* 백엔드 버전 정보 — 빌드 시 frontend에 박힌 __APP_VERSION__과 비교 표시.
+     백엔드는 git 커밋 해시도 알려줌. */
+  const { data: versionInfo } = useQuery<VersionInfo>({
+    queryKey: ["app-version"],
+    queryFn: async () => (await api.get("/version/")).data,
+    staleTime: 5 * 60 * 1000,
+  });
+  const frontendVersion = __APP_VERSION__;
+  const repoUrl = versionInfo?.repo ?? "https://github.com/ruripian/OrbiTail";
 
   // 설정 탭 목록 (t() 사용을 위해 컴포넌트 내부에 정의)
   const TABS = [
@@ -100,20 +113,47 @@ export function SettingsLayout() {
             </NavLink>
           </>
         )}
-        {/* 하단 — 프로젝트 링크 */}
+        {/* 하단 — 프로젝트 링크 + 버전 정보 */}
         <div className="mt-auto pt-6 space-y-2">
           <p className="px-2 text-2xs font-semibold uppercase tracking-widest text-muted-foreground">
             {t("settings.layout.sponsor")}
           </p>
+          {/* GitHub 저장소 */}
           <a
-            href="https://github.com/ruripian/OrbiTail"
+            href={repoUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
           >
             <Github className="h-4 w-4 shrink-0" />
+            <span className="flex-1 truncate">{t("settings.layout.repository")}</span>
+            <ExternalLink className="h-3 w-3 shrink-0 opacity-40" />
+          </a>
+          {/* GitHub Sponsors */}
+          <a
+            href="https://github.com/sponsors/ruripian"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+          >
+            <Heart className="h-4 w-4 shrink-0 text-pink-500/80" />
             <span className="flex-1 truncate">{t("settings.layout.sponsorGithub")}</span>
             <ExternalLink className="h-3 w-3 shrink-0 opacity-40" />
+          </a>
+          {/* 버전 — 프론트(빌드)/백엔드 버전이 다르면 둘 다 표시 */}
+          <a
+            href={`${repoUrl}/releases`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 rounded-md px-2 py-1 text-2xs text-muted-foreground/70 hover:text-foreground transition-colors"
+            title={versionInfo?.commit ? `commit ${versionInfo.commit}` : undefined}
+          >
+            <span className="flex-1 truncate font-mono">
+              {versionInfo && versionInfo.version !== frontendVersion
+                ? `v${frontendVersion} / api v${versionInfo.version}`
+                : `v${frontendVersion}`}
+              {versionInfo?.commit ? ` (${versionInfo.commit})` : ""}
+            </span>
           </a>
         </div>
       </aside>

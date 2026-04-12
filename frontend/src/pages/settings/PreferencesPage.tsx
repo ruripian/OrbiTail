@@ -2,11 +2,12 @@ import { useForm } from "react-hook-form";
 import { useTranslation, getI18n } from "react-i18next";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 
 import { settingsApi } from "@/api/settings";
+import { notificationsApi, type NotificationPreference } from "@/api/notifications";
 import { useAuthStore } from "@/stores/authStore";
 import { useTheme } from "@/lib/theme-provider";
 import { useMotion, type MotionMode } from "@/lib/motion-provider";
@@ -76,6 +77,35 @@ export function PreferencesPage() {
 
   // watch로 현재 값 추적 (Select에 value 바인딩 필요)
   const values = watch();
+
+  /* ── 알림 환경설정 (이메일) — 별도 엔드포인트로 즉시 저장 ── */
+  const qc = useQueryClient();
+  const { data: notifPrefs } = useQuery({
+    queryKey: ["notification-preferences"],
+    queryFn:  notificationsApi.getPreferences,
+    staleTime: 30_000,
+  });
+  const notifMutation = useMutation({
+    mutationFn: (data: Partial<NotificationPreference>) => notificationsApi.updatePreferences(data),
+    /* 옵티미스틱 업데이트 — 토글 즉시 반영, 실패 시 롤백 */
+    onMutate: async (patch) => {
+      await qc.cancelQueries({ queryKey: ["notification-preferences"] });
+      const prev = qc.getQueryData<NotificationPreference>(["notification-preferences"]);
+      if (prev) qc.setQueryData(["notification-preferences"], { ...prev, ...patch });
+      return { prev };
+    },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.prev) qc.setQueryData(["notification-preferences"], ctx.prev);
+      toast.error(t("settings.preferences.saveFailed"));
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["notification-preferences"] }),
+  });
+
+  const NOTIF_KEYS = [
+    { key: "email_issue_assigned", labelKey: "settings.preferences.notifIssueAssigned" },
+    { key: "email_comment_added",  labelKey: "settings.preferences.notifCommentAdded" },
+    { key: "email_issue_updated",  labelKey: "settings.preferences.notifIssueUpdated" },
+  ] as const;
 
   return (
     <div className="space-y-8">
@@ -209,6 +239,89 @@ export function PreferencesPage() {
           {mutation.isPending ? t("settings.preferences.saving") : t("settings.preferences.save")}
         </Button>
       </form>
+
+      {/* ── 알림 환경설정 ── */}
+      <div className="pt-8 mt-2 border-t border-border space-y-8">
+        <div>
+          <h2 className="text-base font-semibold">{t("settings.preferences.notifTitle")}</h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            {t("settings.preferences.notifSubtitle")}
+          </p>
+        </div>
+
+        {/* 인앱 알림 — 항상 표시, 토글 없음 */}
+        <section className="space-y-2">
+          <h3 className="text-sm font-semibold">{t("settings.preferences.inAppTitle")}</h3>
+          <p className="text-xs text-muted-foreground">
+            {t("settings.preferences.inAppDesc")}
+          </p>
+        </section>
+
+        {/* 메일 알림 */}
+        <section className="space-y-5">
+          <h3 className="text-sm font-semibold">{t("settings.preferences.emailTitle")}</h3>
+
+          {/* 마스터 토글 */}
+          <NotifToggle
+            label={t("settings.preferences.notifEmailMaster")}
+            description={t("settings.preferences.notifEmailMasterDesc")}
+            checked={notifPrefs?.email_enabled ?? true}
+            onChange={(v) => notifMutation.mutate({ email_enabled: v })}
+          />
+
+          {/* 타입별 토글 — 마스터가 꺼져있으면 비활성화 */}
+          <div className={cn("space-y-3 pl-2", !(notifPrefs?.email_enabled ?? true) && "opacity-40 pointer-events-none")}>
+            {NOTIF_KEYS.map(({ key, labelKey }) => (
+              <NotifToggle
+                key={key}
+                label={t(labelKey)}
+                checked={(notifPrefs?.[key] ?? true) as boolean}
+                onChange={(v) => notifMutation.mutate({ [key]: v } as Partial<NotificationPreference>)}
+              />
+            ))}
+          </div>
+        </section>
+      </div>
     </div>
+  );
+}
+
+/* 작은 토글 행 컴포넌트 — PreferencesPage 안에서만 사용 */
+function NotifToggle({
+  label, description, checked, onChange,
+}: {
+  label: string;
+  description?: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <label className="flex items-start justify-between gap-4 cursor-pointer group">
+      <div className="flex-1 min-w-0">
+        <div className="text-sm font-medium text-foreground">{label}</div>
+        {description && (
+          <div className="text-xs text-muted-foreground mt-0.5">{description}</div>
+        )}
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        onClick={() => onChange(!checked)}
+        className={cn(
+          "shrink-0 h-5 w-9 rounded-full border transition-colors flex items-center px-0.5 mt-0.5",
+          checked
+            ? "bg-primary border-primary"
+            : "bg-muted/40 border-border group-hover:border-border/80"
+        )}
+      >
+        <span
+          className={cn(
+            "h-4 w-4 rounded-full shadow-sm transition-transform",
+            checked ? "translate-x-4 bg-primary-foreground" : "translate-x-0 bg-muted-foreground/60"
+          )}
+        />
+      </button>
+    </label>
   );
 }

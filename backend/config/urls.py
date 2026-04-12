@@ -5,11 +5,13 @@ from django.conf.urls.static import static
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from apps.accounts.setup_views import SetupStatusView, SetupView
 from apps.workspaces.views import InvitationDetailView, InvitationAcceptView
+from config.version import VersionView
 
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),
+    path("api/version/", VersionView.as_view(), name="version"),
     path("api/auth/", include("apps.accounts.urls")),
     path("api/workspaces/", include("apps.workspaces.urls")),
     path("api/", include("apps.projects.urls")),

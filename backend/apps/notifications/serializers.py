@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from apps.accounts.serializers import UserSerializer
-from .models import Notification
+from .models import Notification, NotificationPreference, ProjectNotificationPreference
 
 
 class NotificationSerializer(serializers.ModelSerializer):
@@ -25,3 +25,30 @@ class NotificationSerializer(serializers.ModelSerializer):
             "id", "type", "message", "actor", "issue",
             "workspace", "created_at",
         ]
+
+
+class NotificationPreferenceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = NotificationPreference
+        fields = [
+            "email_enabled",
+            "email_issue_assigned",
+            "email_issue_updated",
+            "email_comment_added",
+            "updated_at",
+        ]
+        read_only_fields = ["updated_at"]
+
+
+class ProjectNotificationPreferenceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProjectNotificationPreference
+        fields = [
+            "muted",
+            "email_issue_assigned",
+            "email_issue_updated",
+            "email_comment_added",
+            "email_issue_created",
+            "updated_at",
+        ]
+        read_only_fields = ["updated_at"]

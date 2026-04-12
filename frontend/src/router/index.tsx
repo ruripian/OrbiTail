@@ -24,6 +24,7 @@ import { StatesPage } from "@/pages/project/settings/StatesPage";
 import { LabelsPage } from "@/pages/project/settings/LabelsPage";
 import { AutoArchivePage } from "@/pages/project/settings/AutoArchivePage";
 import { TemplatesPage } from "@/pages/project/settings/TemplatesPage";
+import { NotificationsPage as ProjectNotificationsPage } from "@/pages/project/settings/NotificationsPage";
 import { CategoriesPage } from "@/pages/project/CategoriesPage";
 import { SprintsPage } from "@/pages/project/SprintsPage";
 import { DiscoverProjectsPage } from "@/pages/project/DiscoverProjectsPage";
@@ -124,12 +125,13 @@ export const router = createBrowserRouter([
         element: <ProjectSettingsLayout />,
         children: [
           { index: true, element: <Navigate to="general" replace /> },
-          { path: "general",      element: <GeneralPage /> },
-          { path: "members",      element: <MembersPage /> },
-          { path: "states",       element: <StatesPage /> },
-          { path: "labels",       element: <LabelsPage /> },
-          { path: "auto-archive", element: <AutoArchivePage /> },
-          { path: "templates",    element: <TemplatesPage /> },
+          { path: "general",       element: <GeneralPage /> },
+          { path: "members",       element: <MembersPage /> },
+          { path: "states",        element: <StatesPage /> },
+          { path: "labels",        element: <LabelsPage /> },
+          { path: "auto-archive",  element: <AutoArchivePage /> },
+          { path: "templates",     element: <TemplatesPage /> },
+          { path: "notifications", element: <ProjectNotificationsPage /> },
         ],
       },
     ],

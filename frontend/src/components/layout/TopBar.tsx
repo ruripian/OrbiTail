@@ -226,7 +226,8 @@ export function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
           className="flex h-9 w-9 items-center justify-center rounded-xl hover:bg-accent text-muted-foreground transition-colors outline-none"
           aria-label="Toggle theme"
         >
-          {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+          {/* 현재 테마 상태를 나타냄 — 다크면 달, 라이트면 해. 클릭 시 반대로 전환 */}
+          {theme === "dark" ? <Moon size={18} /> : <Sun size={18} />}
         </button>
 
         {user && (

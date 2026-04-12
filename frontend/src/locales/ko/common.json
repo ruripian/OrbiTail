@@ -360,7 +360,27 @@
         "states": "상태",
         "labels": "라벨",
         "autoArchive": "자동 보관",
-        "templates": "이슈 템플릿"
+        "templates": "이슈 템플릿",
+        "notifications": "알림"
+      },
+      "notifications": {
+        "title": "알림 설정",
+        "subtitle": "이 프로젝트의 인앱 알림과 메일 알림을 조정합니다.",
+        "inAppTitle": "인앱 알림",
+        "inAppDesc": "OrbiTail에 접속해 있을 때 우상단 알림함과 토스트로 항상 표시됩니다. 끌 수 없어요.",
+        "emailTitle": "메일 알림",
+        "muteLabel": "이 프로젝트 메일 음소거",
+        "muteDesc": "켜면 이 프로젝트와 관련된 메일은 전부 받지 않아요(인앱 알림은 그대로 표시).",
+        "overrideTitle": "전역 메일 알림 재정의",
+        "overrideSubtitle": "타입별로 전역 설정을 따르거나, 이 프로젝트에서만 강제로 켜고 끄세요.",
+        "inherit": "전역 따름",
+        "on": "켬",
+        "off": "끔",
+        "projectOnlyTitle": "프로젝트 전용 메일",
+        "projectOnlySubtitle": "이 프로젝트에서만 추가로 받을 메일 알림입니다.",
+        "issueCreatedLabel": "새 이슈 생성 시",
+        "issueCreatedDesc": "이 프로젝트에 새 이슈가 만들어지면 메일로 알려드려요.",
+        "saveFailed": "저장에 실패했습니다."
       },
       "general": {
         "title": "일반",
@@ -702,6 +722,7 @@
       "workspace": "워크스페이스",
       "workspaceMembers": "멤버 관리",
       "sponsor": "이 프로젝트가 마음에 드셨나요?",
+      "repository": "GitHub 저장소",
       "sponsorGithub": "GitHub Sponsors",
       "sponsorKofi": "Ko-fi"
     },
@@ -786,7 +807,17 @@
       "save": "저장",
       "saving": "저장 중...",
       "saved": "환경설정이 저장되었습니다.",
-      "saveFailed": "저장에 실패했습니다."
+      "saveFailed": "저장에 실패했습니다.",
+      "notifTitle": "알림",
+      "notifSubtitle": "어떤 이벤트로 인앱·메일 알림을 받을지 정할 수 있습니다. 프로젝트마다 따로 조정할 수도 있어요.",
+      "inAppTitle": "인앱 알림",
+      "inAppDesc": "OrbiTail에 접속해 있을 때 우상단 알림함과 토스트로 항상 표시됩니다. 끌 수 없어요.",
+      "emailTitle": "메일 알림",
+      "notifEmailMaster": "메일 알림 사용",
+      "notifEmailMasterDesc": "끄면 모든 알림 메일이 발송되지 않습니다.",
+      "notifIssueAssigned": "이슈에 담당자로 배정될 때",
+      "notifIssueUpdated": "담당 이슈가 변경될 때",
+      "notifCommentAdded": "담당 이슈에 새 댓글이 달릴 때"
     },
     "security": {
       "title": "보안",

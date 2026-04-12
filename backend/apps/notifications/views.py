@@ -1,8 +1,12 @@
 from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from .models import Notification
-from .serializers import NotificationSerializer
+from .models import Notification, NotificationPreference, ProjectNotificationPreference
+from .serializers import (
+    NotificationSerializer,
+    NotificationPreferenceSerializer,
+    ProjectNotificationPreferenceSerializer,
+)
 
 
 class NotificationListView(generics.ListAPIView):
@@ -60,3 +64,58 @@ class NotificationUnreadCountView(APIView):
             read=False,
         ).count()
         return Response({"count": count})
+
+
+class NotificationPreferenceView(APIView):
+    """현재 사용자의 전역 알림 환경설정 (이메일 발송 토글)"""
+
+    def get(self, request):
+        prefs = NotificationPreference.for_user(request.user)
+        return Response(NotificationPreferenceSerializer(prefs).data)
+
+    def patch(self, request):
+        prefs = NotificationPreference.for_user(request.user)
+        serializer = NotificationPreferenceSerializer(prefs, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+
+class ProjectNotificationPreferenceView(APIView):
+    """현재 사용자의 특정 프로젝트 알림 환경설정.
+
+    - 글로벌 타입은 NULL/T/F 로 상속/override
+    - 프로젝트 전용: email_issue_created
+    프로젝트 멤버만 접근 가능.
+    """
+
+    def _get_project(self, request, workspace_slug, project_pk):
+        from apps.projects.models import Project, ProjectMember
+        from django.db.models import Q
+        # 멤버 여부 확인 — 비공개 프로젝트 차단
+        try:
+            project = Project.objects.filter(
+                Q(members__member=request.user) | Q(network=Project.Network.PUBLIC),
+                workspace__slug=workspace_slug,
+                id=project_pk,
+            ).distinct().get()
+        except Project.DoesNotExist:
+            return None
+        return project
+
+    def get(self, request, workspace_slug, project_pk):
+        project = self._get_project(request, workspace_slug, project_pk)
+        if not project:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        prefs = ProjectNotificationPreference.for_user_project(request.user, project)
+        return Response(ProjectNotificationPreferenceSerializer(prefs).data)
+
+    def patch(self, request, workspace_slug, project_pk):
+        project = self._get_project(request, workspace_slug, project_pk)
+        if not project:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        prefs = ProjectNotificationPreference.for_user_project(request.user, project)
+        serializer = ProjectNotificationPreferenceSerializer(prefs, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)

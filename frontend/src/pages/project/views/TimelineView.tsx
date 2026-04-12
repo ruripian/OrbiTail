@@ -483,11 +483,36 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
   };
 
   const filteredIssues = useMemo(() => {
+    /* 부모→자식 맵: 필터 적용 전 raw issues 기준으로 빌드해야
+       "필터로 숨겨진 부모의 자손" 탐색이 가능 */
+    const rawChildrenMap = new Map<string, Issue[]>();
+    for (const i of issues) {
+      if (i.parent) {
+        if (!rawChildrenMap.has(i.parent)) rawChildrenMap.set(i.parent, []);
+        rawChildrenMap.get(i.parent)!.push(i);
+      }
+    }
+    /* 자손 중 "표시되어야 할 dated 이슈"가 하나라도 있는지 — 부모 보존 판단용
+       (showCompleted/stateFilter도 함께 고려해 가짜 보존 방지) */
+    const hasVisibleDatedDescendant = (id: string): boolean => {
+      const kids = rawChildrenMap.get(id) ?? [];
+      for (const k of kids) {
+        if (!settings.showCompleted && completedIds.has(k.state)) continue;
+        if (stateFilter.size > 0 && !stateFilter.has(k.state)) continue;
+        if (k.start_date || k.due_date) return true;
+        if (hasVisibleDatedDescendant(k.id)) return true;
+      }
+      return false;
+    };
+
     return issues.filter((issue) => {
       if (!settings.showCompleted && completedIds.has(issue.state)) return false;
-      /* 자식 이슈(parent 있음)는 showNoDate 필터 우회 — 부모-자식 계층 유지를 위해.
-         날짜 없는 루트 이슈만 showNoDate=false일 때 숨김 */
-      if (!settings.showNoDate && !issue.parent && !issue.start_date && !issue.due_date) return false;
+      /* showNoDate=false: 날짜 없는 root 이슈는 숨김.
+         단, dated 자손이 있으면 계층 표시를 위해 부모를 보존 */
+      if (!settings.showNoDate && !issue.parent && !issue.start_date && !issue.due_date) {
+        if (!hasVisibleDatedDescendant(issue.id)) return false;
+      }
+      /* 자식 이슈(parent 있음)는 showNoDate 필터 우회 */
       /* 상태 필터: 선택된 state가 있으면 그것만 표시 */
       if (stateFilter.size > 0 && !stateFilter.has(issue.state)) return false;
       return true;

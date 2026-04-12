@@ -156,8 +156,10 @@ const RowDragContext = createContext<RowDragCtx>({
 });
 
 /** 순환 참조 검증 — dragId를 targetId의 하위로 넣으면 순환이 생기는지 확인.
- *  targetId에서 parent 체인을 따라 올라가다가 dragId를 만나면 순환 */
+ *  - dragId === targetId: 자기 자신을 자기 자신에 넣는 경우 → 즉시 차단
+ *  - 그 외: targetId가 dragId의 자손이면 순환 */
 function wouldCreateCycle(issues: Issue[], dragId: string, targetId: string): boolean {
+  if (dragId === targetId) return true; // self-nest 직접 차단
   /* targetId가 dragId의 자손인지 확인 — dragId 기준 하위 트리 탐색 */
   const childrenMap = new Map<string | null, Issue[]>();
   for (const iss of issues) {
@@ -438,6 +440,10 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
     dragIdRef.current     = null;
     dragParentRef.current = null;
     nestTargetRef.current = null;
+    /* dropTargetRef/dropZoneRef도 함께 리셋 — 안 그러면 이전 드래그의 타겟이
+       다음 드래그로 새서 ghost-card 폴백이 잘못된 effectiveTarget을 반환할 수 있음 */
+    dropTargetRef.current = null;
+    dropZoneRef.current   = "after";
     setDragId(null);
     setNestTargetId(null);
     setDropTarget(null);
@@ -447,6 +453,9 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
   const handleDragStart = (issue: Issue) => {
     dragIdRef.current     = issue.id;
     dragParentRef.current = issue.parent ?? null;
+    /* 새 드래그 시작 시 stale 참조 제거 — clearDrag와 동일한 이유 */
+    dropTargetRef.current = null;
+    dropZoneRef.current   = "after";
     setDragId(issue.id);
   };
 
@@ -836,8 +845,8 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
               />
 
               <div
-                className="flex items-center gap-2 shrink-0"
-                style={{ width: "var(--col-w-_title)", minWidth: "var(--col-w-_title)" }}
+                className="flex items-center gap-2 flex-1"
+                style={{ minWidth: "var(--col-w-_title)" }}
               >
                 <div className="w-5 shrink-0" />
                 <span className="text-xs font-semibold text-muted-foreground/70 uppercase tracking-wide select-none overflow-hidden text-ellipsis">
@@ -882,6 +891,14 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
                   </Fragment>
                 );
               })}
+              {/* 마지막 컬럼 뒤 리사이즈 핸들 — 마지막 컬럼도 늘릴 수 있도록 */}
+              {activeCols.length > 0 && (
+                <ColDropIndicator
+                  active={false}
+                  onResizeStart={!dragColId ? (e) => startResize(e, activeCols[activeCols.length - 1].id) : undefined}
+                  isResizing={resizingCol === activeCols[activeCols.length - 1].id}
+                />
+              )}
             </div>
           </div>
 
@@ -1565,10 +1582,11 @@ function IssueCard({
 
         <div className="w-[10px] self-stretch shrink-0 flex items-center text-transparent">|</div>
 
-        {/* 제목 영역 (인덴트를 제목 패딩으로 이동시켜 전체 컬럼 정렬 유지) */}
+        {/* 제목 영역 (인덴트를 제목 패딩으로 이동시켜 전체 컬럼 정렬 유지)
+            flex-1: 잉여 가로 공간을 제목 컬럼이 흡수 — 헤더와 동일하게 적용해 정렬 일치 */}
         <div
-          className="flex items-center gap-2 shrink-0 overflow-hidden"
-          style={{ width: "var(--col-w-_title)", minWidth: "var(--col-w-_title)", paddingLeft: indent }}
+          className="flex items-center gap-2 flex-1 overflow-hidden"
+          style={{ minWidth: "var(--col-w-_title)", paddingLeft: indent }}
         >
           {/* 확장 토글 / 그립 아이콘 (w-5 고정) */}
           <div className="w-5 h-5 shrink-0 flex items-center justify-center">

@@ -40,8 +40,16 @@ def _broadcast_to_workspace(workspace_slug, event):
 
 
 def _create_notifications(recipients, actor, issue, ntype, message):
-    """알림 일괄 생성 헬퍼 — actor 본인은 제외, WebSocket으로 실시간 전달"""
-    notifications = [
+    """알림 일괄 생성 헬퍼 — actor 본인은 제외, WebSocket으로 실시간 전달.
+
+    추가로 각 수신자의 prefs를 확인해 이메일 발송 태스크를 큐에 적재.
+    prefs 체크는 Celery 태스크 안에서 다시 한번 — 큐 적재 후 사용자가 끄는 경우 대비.
+    """
+    targets = [u for u in recipients if u.id != actor.id]
+    if not targets:
+        return
+
+    Notification.objects.bulk_create([
         Notification(
             recipient=user,
             actor=actor,
@@ -50,21 +58,35 @@ def _create_notifications(recipients, actor, issue, ntype, message):
             workspace=issue.workspace,
             message=message,
         )
-        for user in recipients
-        if user.id != actor.id  # 자기 자신에게는 알림 안 보냄
-    ]
-    if notifications:
-        Notification.objects.bulk_create(notifications)
+        for user in targets
+    ])
 
-        # WebSocket 알림 브로드캐스트
-        _broadcast_to_workspace(issue.workspace.slug, {
-            "type": "notification.new",
-            "notification_type": ntype,
-            "message": message,
-            "issue_id": str(issue.id),
-            "project_id": str(issue.project_id),
-            "actor_name": actor.display_name,
-        })
+    # WebSocket 알림 브로드캐스트
+    _broadcast_to_workspace(issue.workspace.slug, {
+        "type": "notification.new",
+        "notification_type": ntype,
+        "message": message,
+        "issue_id": str(issue.id),
+        "project_id": str(issue.project_id),
+        "actor_name": actor.display_name,
+    })
+
+    # 이메일 발송 — Celery 태스크로 위임 (실패해도 인앱 알림은 보존)
+    from .tasks import send_notification_email
+    project_id = str(issue.project_id) if issue else None
+    for user in targets:
+        try:
+            send_notification_email.delay(
+                recipient_id=str(user.id),
+                ntype=ntype,
+                message=message,
+                issue_id=str(issue.id) if issue else None,
+                actor_name=actor.display_name,
+                project_id=project_id,
+            )
+        except Exception:
+            # 브로커 다운 등 — 인앱 알림 흐름은 막지 않음
+            pass
 
 
 @receiver(post_save, sender=IssueActivity)
@@ -136,6 +158,40 @@ def notify_on_comment(sender, instance, created, **kwargs):
         actor=actor,
         issue=issue,
         ntype=Notification.Type.COMMENT_ADDED,
+        message=message,
+    )
+
+
+@receiver(post_save, sender=Issue)
+def notify_on_issue_created(sender, instance, created, **kwargs):
+    """프로젝트 새 이슈 — 해당 프로젝트의 `email_issue_created` 구독자에게 알림.
+
+    프로젝트별 opt-in 이라 기본 동작은 비활성. 일반 이슈 생성과 무관하게 동작.
+    """
+    if not created:
+        return
+    issue = instance
+    actor = issue.created_by
+    if not actor:
+        return
+
+    from .models import ProjectNotificationPreference
+    subscribers_qs = (
+        ProjectNotificationPreference.objects
+        .filter(project=issue.project, email_issue_created=True, muted=False)
+        .exclude(user=actor)
+        .select_related("user")
+    )
+    recipients = [p.user for p in subscribers_qs if p.user.is_active]
+    if not recipients:
+        return
+
+    message = f"{actor.display_name}님이 새 이슈 '{issue.title}'을(를) 생성했습니다."
+    _create_notifications(
+        recipients=recipients,
+        actor=actor,
+        issue=issue,
+        ntype=Notification.Type.ISSUE_CREATED,
         message=message,
     )
 

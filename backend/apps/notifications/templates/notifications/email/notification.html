@@ -1,0 +1,87 @@
+{% spaceless %}
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ type_label }} — OrbiTail</title>
+</head>
+<body style="margin:0;padding:0;background:#f4f4f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Apple SD Gothic Neo','Noto Sans KR',sans-serif;color:#1f2937;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#f4f4f7;padding:32px 16px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="560" cellspacing="0" cellpadding="0" border="0" style="max-width:560px;width:100%;background:#ffffff;border-radius:14px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.06),0 8px 24px rgba(0,0,0,0.04);">
+
+          {# ── Header ── #}
+          <tr>
+            <td style="padding:28px 32px 0;">
+              <div style="display:inline-block;padding:6px 12px;border-radius:999px;background:#eef2ff;color:#4338ca;font-size:12px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;">
+                {{ type_label }}
+              </div>
+              <h1 style="margin:18px 0 4px;font-size:20px;font-weight:700;line-height:1.35;color:#111827;">
+                {% if lang == 'ko' %}{{ recipient_name }}님께 새 알림이 있어요{% else %}Hi {{ recipient_name }}, you have a new notification{% endif %}
+              </h1>
+              <p style="margin:0;font-size:13px;color:#6b7280;">
+                {% if lang == 'ko' %}{{ actor_name }}님으로부터{% else %}From {{ actor_name }}{% endif %}
+              </p>
+            </td>
+          </tr>
+
+          {# ── Message body ── #}
+          <tr>
+            <td style="padding:24px 32px 8px;">
+              <div style="padding:18px 20px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;font-size:14.5px;line-height:1.6;color:#1f2937;">
+                {{ message }}
+              </div>
+            </td>
+          </tr>
+
+          {% if issue_title %}
+          <tr>
+            <td style="padding:8px 32px 0;">
+              <p style="margin:0;font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:0.04em;font-weight:600;">
+                {% if lang == 'ko' %}이슈{% else %}Issue{% endif %}
+              </p>
+              <p style="margin:6px 0 0;font-size:15px;font-weight:600;color:#111827;line-height:1.45;">
+                {{ issue_title }}
+              </p>
+            </td>
+          </tr>
+          {% endif %}
+
+          {# ── CTA ── #}
+          <tr>
+            <td style="padding:24px 32px 8px;">
+              <a href="{{ issue_url }}" style="display:inline-block;padding:12px 22px;background:#4f46e5;color:#ffffff;text-decoration:none;border-radius:10px;font-size:14px;font-weight:600;">
+                {% if lang == 'ko' %}OrbiTail에서 열기 →{% else %}Open in OrbiTail →{% endif %}
+              </a>
+            </td>
+          </tr>
+
+          {# ── Footer ── #}
+          <tr>
+            <td style="padding:28px 32px 28px;border-top:1px solid #f1f5f9;margin-top:24px;">
+              <p style="margin:18px 0 6px;font-size:11.5px;color:#9ca3af;line-height:1.55;">
+                {% if lang == 'ko' %}
+                  이 메일은 OrbiTail 알림 환경설정에 따라 발송되었습니다.
+                  더 이상 받고 싶지 않다면
+                  <a href="{{ settings_url }}" style="color:#4f46e5;text-decoration:underline;">알림 설정</a>에서 변경할 수 있어요.
+                {% else %}
+                  This email was sent based on your OrbiTail notification preferences.
+                  You can change them in
+                  <a href="{{ settings_url }}" style="color:#4f46e5;text-decoration:underline;">notification settings</a>.
+                {% endif %}
+              </p>
+              <p style="margin:4px 0 0;font-size:11px;color:#cbd5e1;">
+                © OrbiTail · <a href="{{ frontend_url }}" style="color:#cbd5e1;text-decoration:none;">{{ frontend_url }}</a>
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+{% endspaceless %}

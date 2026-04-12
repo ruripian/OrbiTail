@@ -1,15 +1,16 @@
 import { NavLink, Outlet, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Settings, Circle, Tag, Users, Archive, FileText } from "lucide-react";
+import { Settings, Circle, Tag, Users, Archive, FileText, Bell } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const TABS = [
-  { to: "general",      tKey: "project.settings.tabs.general",      icon: Settings },
-  { to: "members",      tKey: "project.settings.tabs.members",      icon: Users },
-  { to: "states",       tKey: "project.settings.tabs.states",       icon: Circle },
-  { to: "labels",       tKey: "project.settings.tabs.labels",       icon: Tag },
-  { to: "templates",    tKey: "project.settings.tabs.templates",    icon: FileText },
-  { to: "auto-archive", tKey: "project.settings.tabs.autoArchive",  icon: Archive },
+  { to: "general",       tKey: "project.settings.tabs.general",       icon: Settings },
+  { to: "members",       tKey: "project.settings.tabs.members",       icon: Users },
+  { to: "states",        tKey: "project.settings.tabs.states",        icon: Circle },
+  { to: "labels",        tKey: "project.settings.tabs.labels",        icon: Tag },
+  { to: "templates",     tKey: "project.settings.tabs.templates",     icon: FileText },
+  { to: "auto-archive",  tKey: "project.settings.tabs.autoArchive",   icon: Archive },
+  { to: "notifications", tKey: "project.settings.tabs.notifications", icon: Bell },
 ];
 
 export function ProjectSettingsLayout() {

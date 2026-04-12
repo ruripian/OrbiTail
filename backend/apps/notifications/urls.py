@@ -26,4 +26,16 @@ urlpatterns = [
         views.NotificationUnreadCountView.as_view(),
         name="notification-unread-count",
     ),
+    # GET/PATCH /api/notifications/preferences/ — 사용자 전역 알림 환경설정
+    path(
+        "notifications/preferences/",
+        views.NotificationPreferenceView.as_view(),
+        name="notification-preferences",
+    ),
+    # GET/PATCH /api/workspaces/<slug>/projects/<pk>/notification-preferences/ — 프로젝트 단위
+    path(
+        "workspaces/<str:workspace_slug>/projects/<uuid:project_pk>/notification-preferences/",
+        views.ProjectNotificationPreferenceView.as_view(),
+        name="project-notification-preferences",
+    ),
 ]
