@@ -1,5 +1,7 @@
 # Calendar
 
+**English** · [한국어](캘린더)
+
 The Calendar view shows **issues with dates** and **standalone events** side by side on a monthly grid. Switch to it from the tab bar at the top of any project.
 
 ![Calendar month view](https://raw.githubusercontent.com/ruripian/OrbiTail/main/docs/wiki-screenshots/03-calendar-month.png)

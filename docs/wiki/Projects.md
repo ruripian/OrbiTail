@@ -1,5 +1,7 @@
 # Projects
 
+**English** · [한국어](프로젝트)
+
 Projects are the unit of organization inside a workspace. Each project has its own issues, states, categories, sprints, labels, events, and members. A workspace can hold any number of projects.
 
 ## Creating a project

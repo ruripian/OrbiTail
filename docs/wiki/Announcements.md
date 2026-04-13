@@ -1,5 +1,7 @@
 # Announcements
 
+**English** · [한국어](공지사항)
+
 The Announcements page is OrbiTail's built-in channel for **release notes** and **broadcast notices**. Every workspace user sees the same feed, and new items trigger an unread dot on the **Announcements** sidebar item until you open the page.
 
 ![Announcements list](https://raw.githubusercontent.com/ruripian/OrbiTail/main/docs/wiki-screenshots/08-announcements-list.png)

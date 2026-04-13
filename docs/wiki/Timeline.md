@@ -1,5 +1,7 @@
 # Timeline
 
+**English** · [한국어](타임라인)
+
 The Timeline view is OrbiTail's roadmap — a Gantt-style chart that plots every dated issue and event against a continuous horizontal time axis. It is the best place to spot overlap, slack, and long-running work across a project.
 
 ![Timeline overview](https://raw.githubusercontent.com/ruripian/OrbiTail/main/docs/wiki-screenshots/04-timeline-overview.png)

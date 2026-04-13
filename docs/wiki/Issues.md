@@ -1,5 +1,7 @@
 # Issues
 
+**English** · [한국어](이슈)
+
 Issues are the unit of work in OrbiTail. Each one has a title, a state, a priority, an assignee, dates, labels, and an optional parent issue. A project's issues can be viewed as a **Table**, a **Board**, a **Calendar**, a **Timeline**, or as **Sprints** — this page focuses on the Table view, which is the default.
 
 ## Table view
