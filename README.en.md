@@ -12,6 +12,10 @@
   <a href="README.md">한국어</a> · English
 </p>
 
+<p align="center">
+  📖 <a href="https://github.com/ruripian/OrbiTail/wiki">User Wiki (English)</a> · <a href="https://github.com/ruripian/OrbiTail/wiki/한국어">사용자 위키 (한국어)</a>
+</p>
+
 ---
 
 ## Tech Stack
