@@ -8,7 +8,7 @@ Issues are the unit of work in OrbiTail. Each one has a title, a state, a priori
 
 Open any project and click **Issues** in the sidebar to land on the table.
 
-![Table view](https://raw.githubusercontent.com/ruripian/OrbiTail/main/docs/wiki-screenshots/02-table-view.png)
+![Table view](https://raw.githubusercontent.com/ruripian/OrbiTail/main/docs/wiki-screenshots/02-table-view.png?v=2)
 
 Each row is an issue, rendered as a card with the ID, title, state, priority, assignee, start date, due date, and labels. You can:
 
@@ -21,7 +21,7 @@ Each row is an issue, rendered as a card with the ID, title, state, priority, as
 
 The filter bar above the table lets you narrow the list by status, priority, assignee, label, and more. Open any filter chip to pick values.
 
-![Filter dropdown](https://raw.githubusercontent.com/ruripian/OrbiTail/main/docs/wiki-screenshots/02-table-filters.png)
+![Filter dropdown](https://raw.githubusercontent.com/ruripian/OrbiTail/main/docs/wiki-screenshots/02-table-filters.png?v=2)
 
 Filters are combined with AND — an issue must match every active filter to appear. The counter at the top right of the page updates live to show how many issues match.
 
@@ -29,7 +29,7 @@ Filters are combined with AND — an issue must match every active filter to app
 
 Every cell in the table is a picker. Click directly on a state, priority, assignee, or date and OrbiTail opens an inline dropdown right where you clicked.
 
-![Inline state picker](https://raw.githubusercontent.com/ruripian/OrbiTail/main/docs/wiki-screenshots/02-table-inline-edit.png)
+![Inline state picker](https://raw.githubusercontent.com/ruripian/OrbiTail/main/docs/wiki-screenshots/02-table-inline-edit.png?v=2)
 
 Pick a new value and the row saves immediately. Press **Cmd/Ctrl + Z** anywhere in the app to undo the change — the undo stack captures previous values from inline edits and from bulk actions.
 
@@ -37,7 +37,7 @@ Pick a new value and the row saves immediately. Press **Cmd/Ctrl + Z** anywhere 
 
 Select multiple issues using the checkboxes on the left of each row. As soon as you have at least one selection, a **bulk toolbar** appears at the bottom of the page.
 
-![Bulk toolbar](https://raw.githubusercontent.com/ruripian/OrbiTail/main/docs/wiki-screenshots/02-table-bulk-edit.png)
+![Bulk toolbar](https://raw.githubusercontent.com/ruripian/OrbiTail/main/docs/wiki-screenshots/02-table-bulk-edit.png?v=2)
 
 From the toolbar you can:
 
@@ -53,7 +53,7 @@ Bulk changes are also undoable with **Cmd/Ctrl + Z**.
 
 Click **+ Add issue** in the top right of the table, or use the keyboard shortcut **C**.
 
-![Create issue dialog](https://raw.githubusercontent.com/ruripian/OrbiTail/main/docs/wiki-screenshots/02-issue-create.png)
+![Create issue dialog](https://raw.githubusercontent.com/ruripian/OrbiTail/main/docs/wiki-screenshots/02-issue-create.png?v=2)
 
 Fill in the title (required), and optionally set priority, status, assignees, dates, category, and sprint. The status defaults to your project's default state. Click **Create issue** to save.
 
@@ -61,7 +61,7 @@ Fill in the title (required), and optionally set priority, status, assignees, da
 
 Click any issue title in the table to open its detail page. This is where you add rich-text descriptions, sub-issues, links, attachments, and comments.
 
-![Issue detail](https://raw.githubusercontent.com/ruripian/OrbiTail/main/docs/wiki-screenshots/02-issue-detail.png)
+![Issue detail](https://raw.githubusercontent.com/ruripian/OrbiTail/main/docs/wiki-screenshots/02-issue-detail.png?v=2)
 
 The right-hand side holds all the editable fields (state, priority, assignees, category, sprint, dates, labels, parent) and the primary actions:
 

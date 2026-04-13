@@ -4,7 +4,7 @@
 
 The Timeline view is OrbiTail's roadmap — a Gantt-style chart that plots every dated issue and event against a continuous horizontal time axis. It is the best place to spot overlap, slack, and long-running work across a project.
 
-![Timeline overview](https://raw.githubusercontent.com/ruripian/OrbiTail/main/docs/wiki-screenshots/04-timeline-overview.png)
+![Timeline overview](https://raw.githubusercontent.com/ruripian/OrbiTail/main/docs/wiki-screenshots/04-timeline-overview.png?v=2)
 
 Each row is an issue. The colored bar spans from its start date to its due date. Issues with only one date render as a single-day bar so they are still visible. Hover a bar to see the full title in a tooltip, and click it to jump to the issue detail page.
 
@@ -20,7 +20,7 @@ Rows group automatically by **Category** (Design, Engineering, QA…) so related
 
 Open the **Settings** button in the top right for filters and display options.
 
-![Timeline settings](https://raw.githubusercontent.com/ruripian/OrbiTail/main/docs/wiki-screenshots/04-timeline-settings.png)
+![Timeline settings](https://raw.githubusercontent.com/ruripian/OrbiTail/main/docs/wiki-screenshots/04-timeline-settings.png?v=2)
 
 The settings panel lets you:
 

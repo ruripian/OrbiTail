@@ -4,7 +4,7 @@
 
 The Calendar view shows **issues with dates** and **standalone events** side by side on a monthly grid. Switch to it from the tab bar at the top of any project.
 
-![Calendar month view](https://raw.githubusercontent.com/ruripian/OrbiTail/main/docs/wiki-screenshots/03-calendar-month.png)
+![Calendar month view](https://raw.githubusercontent.com/ruripian/OrbiTail/main/docs/wiki-screenshots/03-calendar-month.png?v=2)
 
 ## Issues vs events
 
@@ -17,7 +17,7 @@ A small dot on the day number tells you how many items land on that day.
 
 The **My schedule** toggle at the top of the calendar narrows the view to items that involve you personally.
 
-![My schedule filter](https://raw.githubusercontent.com/ruripian/OrbiTail/main/docs/wiki-screenshots/03-calendar-my-schedule.png)
+![My schedule filter](https://raw.githubusercontent.com/ruripian/OrbiTail/main/docs/wiki-screenshots/03-calendar-my-schedule.png?v=2)
 
 When **My schedule** is active, the calendar shows only:
 
@@ -31,7 +31,7 @@ Flip the toggle off to see everything the project has on the calendar.
 
 Click an empty day cell to create a new event on that day, or click an existing event to edit it. Either way you land on the same dialog.
 
-![Event dialog](https://raw.githubusercontent.com/ruripian/OrbiTail/main/docs/wiki-screenshots/03-event-dialog.png)
+![Event dialog](https://raw.githubusercontent.com/ruripian/OrbiTail/main/docs/wiki-screenshots/03-event-dialog.png?v=2)
 
 You can set:
 

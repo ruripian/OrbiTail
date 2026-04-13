@@ -4,7 +4,7 @@
 
 When you sign in, OrbiTail drops you into your **workspace home**. This page greets you by name, shows how many issues are assigned to you, and surfaces the most recent updates across the workspace.
 
-![Workspace home](https://raw.githubusercontent.com/ruripian/OrbiTail/main/docs/wiki-screenshots/01-dashboard-overview.png)
+![Workspace home](https://raw.githubusercontent.com/ruripian/OrbiTail/main/docs/wiki-screenshots/01-dashboard-overview.png?v=2)
 
 Everything else is one click away from the **left sidebar**.
 
@@ -12,7 +12,7 @@ Everything else is one click away from the **left sidebar**.
 
 The sidebar is the spine of OrbiTail. From top to bottom:
 
-![Sidebar](https://raw.githubusercontent.com/ruripian/OrbiTail/main/docs/wiki-screenshots/01-sidebar-detail.png)
+![Sidebar](https://raw.githubusercontent.com/ruripian/OrbiTail/main/docs/wiki-screenshots/01-sidebar-detail.png?v=2)
 
 - **Workspace switcher** — the logo and name at the top. Click to switch between workspaces you belong to.
 - **Home** — workspace home page with your assigned issues and recent activity.
@@ -26,7 +26,7 @@ The sidebar is the spine of OrbiTail. From top to bottom:
 
 In the top right of every page, your avatar opens a personal menu.
 
-![User menu](https://raw.githubusercontent.com/ruripian/OrbiTail/main/docs/wiki-screenshots/01-topbar-user-menu.png)
+![User menu](https://raw.githubusercontent.com/ruripian/OrbiTail/main/docs/wiki-screenshots/01-topbar-user-menu.png?v=2)
 
 From here you can jump to your **Profile Settings**, open **Preferences** (language, theme), or **Log out**.
 

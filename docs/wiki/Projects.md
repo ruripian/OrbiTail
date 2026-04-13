@@ -8,7 +8,7 @@ Projects are the unit of organization inside a workspace. Each project has its o
 
 Click the **+** button next to **PROJECTS** in the sidebar, or open the workspace home and use the **Create project** button. You will see this dialog:
 
-![Create project dialog](https://raw.githubusercontent.com/ruripian/OrbiTail/main/docs/wiki-screenshots/05-project-create.png)
+![Create project dialog](https://raw.githubusercontent.com/ruripian/OrbiTail/main/docs/wiki-screenshots/05-project-create.png?v=2)
 
 Fill in:
 
@@ -27,7 +27,7 @@ A brand new project ships with five default states (Backlog, Todo, In Progress, 
 
 Every project has its own member list, which is a subset of the workspace. Open **Workspace settings → Members** from inside a project to manage it.
 
-![Project members and permissions](https://raw.githubusercontent.com/ruripian/OrbiTail/main/docs/wiki-screenshots/05-project-members.png)
+![Project members and permissions](https://raw.githubusercontent.com/ruripian/OrbiTail/main/docs/wiki-screenshots/05-project-members.png?v=2)
 
 Each member has a **role**:
 
@@ -48,6 +48,6 @@ Admins automatically have every flag regardless of what the checkboxes show.
 
 Projects you are done with (but don't want to lose) can be archived. An archived project is hidden from the main sidebar but still reachable through **Archived** at the top of the sidebar.
 
-![Archived projects](https://raw.githubusercontent.com/ruripian/OrbiTail/main/docs/wiki-screenshots/05-archived-projects.png)
+![Archived projects](https://raw.githubusercontent.com/ruripian/OrbiTail/main/docs/wiki-screenshots/05-archived-projects.png?v=2)
 
 Each archived project shows a **Restore** button that brings it back into the active list with all its issues and history intact. Archiving is a completely reversible soft-delete — nothing is ever erased this way.

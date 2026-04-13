@@ -4,7 +4,7 @@
 
 The Announcements page is OrbiTail's built-in channel for **release notes** and **broadcast notices**. Every workspace user sees the same feed, and new items trigger an unread dot on the **Announcements** sidebar item until you open the page.
 
-![Announcements list](https://raw.githubusercontent.com/ruripian/OrbiTail/main/docs/wiki-screenshots/08-announcements-list.png)
+![Announcements list](https://raw.githubusercontent.com/ruripian/OrbiTail/main/docs/wiki-screenshots/08-announcements-list.png?v=2)
 
 Each card shows the **category** (Feature, Improvement, Bugfix, Notice), the optional **version tag**, the **title**, the **publish date**, and a short body. Categories are color-coded so you can skim for what matters to you.
 

@@ -4,7 +4,7 @@
 
 Your personal settings live under the avatar menu in the top right of every page. Click **Profile Settings** to land on the profile editor.
 
-![Profile page](https://raw.githubusercontent.com/ruripian/OrbiTail/main/docs/wiki-screenshots/09-profile-page.png)
+![Profile page](https://raw.githubusercontent.com/ruripian/OrbiTail/main/docs/wiki-screenshots/09-profile-page.png?v=2)
 
 The left rail splits your settings into sections:
 
