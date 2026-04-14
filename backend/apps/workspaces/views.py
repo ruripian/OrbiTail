@@ -8,6 +8,7 @@ from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.accounts.permissions import IsSuperUser
 from .models import Workspace, WorkspaceMember, WorkspaceInvitation
 from .serializers import (
     WorkspaceSerializer,
@@ -360,6 +361,143 @@ class InvitationDetailView(APIView):
             "message": invitation.message,
             "expires_at": invitation.expires_at.isoformat(),
         })
+
+
+class AdminWorkspaceListView(generics.ListAPIView):
+    """슈퍼유저용 전체 워크스페이스 목록"""
+    permission_classes = [IsSuperUser]
+    serializer_class = WorkspaceSerializer
+
+    def get_queryset(self):
+        qs = Workspace.objects.select_related("owner").all().order_by("-created_at")
+        search = self.request.query_params.get("search", "").strip()
+        if search:
+            from django.db.models import Q
+            qs = qs.filter(Q(name__icontains=search) | Q(slug__icontains=search))
+        return qs
+
+
+class AdminWorkspaceCreateView(APIView):
+    """슈퍼유저가 임의 소유자를 지정해 워크스페이스를 생성.
+
+    요청 바디: { name, slug, owner_id }
+    """
+    permission_classes = [IsSuperUser]
+
+    def post(self, request):
+        from apps.accounts.models import User
+        from apps.audit.models import log_admin_action
+
+        name = (request.data.get("name") or "").strip()
+        slug = (request.data.get("slug") or "").strip()
+        owner_id = request.data.get("owner_id")
+
+        if not name or not slug or not owner_id:
+            return Response(
+                {"detail": "name, slug, owner_id 가 모두 필요합니다."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if Workspace.objects.filter(slug=slug).exists():
+            return Response({"detail": "이미 사용 중인 slug 입니다."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            owner = User.objects.get(pk=owner_id)
+        except User.DoesNotExist:
+            return Response({"detail": "소유자로 지정할 사용자를 찾을 수 없습니다."}, status=status.HTTP_404_NOT_FOUND)
+
+        workspace = Workspace.objects.create(name=name, slug=slug, owner=owner)
+        WorkspaceMember.objects.create(
+            workspace=workspace, member=owner, role=WorkspaceMember.Role.OWNER,
+        )
+
+        log_admin_action(
+            actor=request.user,
+            action="workspace_create",
+            target_type="workspace",
+            target_id=workspace.id,
+            target_label=workspace.name,
+            metadata={"slug": workspace.slug, "owner_email": owner.email},
+        )
+        return Response(WorkspaceSerializer(workspace).data, status=status.HTTP_201_CREATED)
+
+
+class AdminWorkspaceDeleteView(APIView):
+    """슈퍼유저가 임의 워크스페이스를 삭제"""
+    permission_classes = [IsSuperUser]
+
+    def delete(self, request, slug):
+        from apps.audit.models import log_admin_action
+        try:
+            workspace = Workspace.objects.get(slug=slug)
+        except Workspace.DoesNotExist:
+            return Response({"detail": "워크스페이스를 찾을 수 없습니다."}, status=status.HTTP_404_NOT_FOUND)
+
+        ws_id = workspace.id
+        ws_name = workspace.name
+        workspace.delete()
+
+        log_admin_action(
+            actor=request.user,
+            action="workspace_delete",
+            target_type="workspace",
+            target_id=ws_id,
+            target_label=ws_name,
+        )
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class AdminWorkspaceOwnerView(APIView):
+    """슈퍼유저 또는 현재 Owner 가 워크스페이스 소유자를 이관.
+
+    요청 바디: { owner_id }
+    """
+    permission_classes = [IsSuperUser]
+
+    def patch(self, request, slug):
+        from apps.accounts.models import User
+        from apps.audit.models import log_admin_action
+
+        try:
+            workspace = Workspace.objects.get(slug=slug)
+        except Workspace.DoesNotExist:
+            return Response({"detail": "워크스페이스를 찾을 수 없습니다."}, status=status.HTTP_404_NOT_FOUND)
+
+        new_owner_id = request.data.get("owner_id")
+        if not new_owner_id:
+            return Response({"detail": "owner_id 가 필요합니다."}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            new_owner = User.objects.get(pk=new_owner_id)
+        except User.DoesNotExist:
+            return Response({"detail": "사용자를 찾을 수 없습니다."}, status=status.HTTP_404_NOT_FOUND)
+
+        old_owner_email = workspace.owner.email if workspace.owner else ""
+
+        # 기존 Owner들을 Admin으로 강등
+        WorkspaceMember.objects.filter(
+            workspace=workspace, role=WorkspaceMember.Role.OWNER,
+        ).update(role=WorkspaceMember.Role.ADMIN)
+
+        # 새 owner 의 멤버십이 없으면 생성, 있으면 OWNER로 승격
+        membership, _ = WorkspaceMember.objects.get_or_create(
+            workspace=workspace, member=new_owner,
+            defaults={"role": WorkspaceMember.Role.OWNER},
+        )
+        if membership.role != WorkspaceMember.Role.OWNER:
+            membership.role = WorkspaceMember.Role.OWNER
+            membership.save(update_fields=["role"])
+
+        workspace.owner = new_owner
+        workspace.save(update_fields=["owner", "updated_at"])
+
+        log_admin_action(
+            actor=request.user,
+            action="workspace_owner",
+            target_type="workspace",
+            target_id=workspace.id,
+            target_label=workspace.name,
+            metadata={"from": old_owner_email, "to": new_owner.email},
+        )
+        return Response(WorkspaceSerializer(workspace).data)
 
 
 class InvitationAcceptView(APIView):

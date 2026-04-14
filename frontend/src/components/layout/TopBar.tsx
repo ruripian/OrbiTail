@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Search, Settings, LogOut, User, Sun, Moon, Bell, CheckCheck, MessageSquare, UserPlus, RefreshCw, Menu } from "lucide-react";
+import { Search, Settings, LogOut, User, Sun, Moon, Bell, CheckCheck, MessageSquare, UserPlus, RefreshCw, Menu, ShieldAlert } from "lucide-react";
 import { motion } from "framer-motion";
 import { useMotion } from "@/lib/motion-provider";
 import { useAuthStore } from "@/stores/authStore";
@@ -281,6 +281,19 @@ export function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
                 <Settings className="h-4 w-4" />
                 {t("topbar.preferences")}
               </DropdownMenuItem>
+
+              {(user.is_superuser || user.is_workspace_admin) && (
+                <>
+                  <DropdownMenuSeparator className="my-1" />
+                  <DropdownMenuItem
+                    onClick={() => navigate(`/${workspaceSlug}/admin/users`)}
+                    className="cursor-pointer rounded-lg gap-2.5 px-3 py-2"
+                  >
+                    <ShieldAlert className="h-4 w-4" />
+                    {t("topbar.adminPanel")}
+                  </DropdownMenuItem>
+                </>
+              )}
 
               <DropdownMenuSeparator className="my-1" />
 

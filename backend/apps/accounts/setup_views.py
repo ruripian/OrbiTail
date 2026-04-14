@@ -4,7 +4,7 @@ from rest_framework import status, permissions, serializers
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from .models import User
-from .serializers import UserSerializer
+from .serializers import MeSerializer
 
 
 class SetupStatusView(APIView):
@@ -63,5 +63,5 @@ class SetupView(APIView):
             "detail": "Setup complete.",
             "access": str(refresh.access_token),
             "refresh": str(refresh),
-            "user": UserSerializer(user).data,
+            "user": MeSerializer(user).data,
         }, status=status.HTTP_201_CREATED)

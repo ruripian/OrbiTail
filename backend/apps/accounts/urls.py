@@ -11,6 +11,9 @@ from .views import (
     PasswordResetConfirmView,
     AdminUserListView,
     AdminUserApproveView,
+    AdminUserSuperuserView,
+    AdminUserSuspendView,
+    AdminUserDeleteView,
     AnnouncementListCreateView,
     AnnouncementDetailView,
     AnnouncementUnreadCountView,
@@ -29,9 +32,12 @@ urlpatterns = [
     path("password-reset/", PasswordResetRequestView.as_view(), name="password-reset-request"),
     path("password-reset/confirm/", PasswordResetConfirmView.as_view(), name="password-reset-confirm"),
     
-    # Admin
+    # Admin — 사용자 관리
     path("admin/users/", AdminUserListView.as_view(), name="admin-user-list"),
     path("admin/users/<uuid:pk>/approve/", AdminUserApproveView.as_view(), name="admin-user-approve"),
+    path("admin/users/<uuid:pk>/superuser/", AdminUserSuperuserView.as_view(), name="admin-user-superuser"),
+    path("admin/users/<uuid:pk>/suspend/", AdminUserSuspendView.as_view(), name="admin-user-suspend"),
+    path("admin/users/<uuid:pk>/", AdminUserDeleteView.as_view(), name="admin-user-delete"),
 
     # Announcements
     path("announcements/", AnnouncementListCreateView.as_view(), name="announcement-list-create"),

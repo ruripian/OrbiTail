@@ -14,6 +14,7 @@ urlpatterns = [
     path("api/version/", VersionView.as_view(), name="version"),
     path("api/auth/", include("apps.accounts.urls")),
     path("api/workspaces/", include("apps.workspaces.urls")),
+    path("api/admin/audit/", include("apps.audit.urls")),
     path("api/", include("apps.projects.urls")),
     path("api/", include("apps.issues.urls")),
     path("api/", include("apps.notifications.urls")),

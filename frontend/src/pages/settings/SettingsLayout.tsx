@@ -1,7 +1,7 @@
 import { NavLink, Outlet, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { User, Lock, SlidersHorizontal, Users, UsersRound, Github, Heart, ExternalLink } from "lucide-react";
+import { User, Lock, SlidersHorizontal, UsersRound, Github, Heart, ExternalLink } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { workspacesApi } from "@/api/workspaces";
 import { api } from "@/lib/axios";
@@ -90,29 +90,6 @@ export function SettingsLayout() {
           </>
         )}
 
-        {user?.is_staff && (
-          <>
-            <div className="pt-4 pb-2">
-              <p className="px-2 text-2xs font-semibold uppercase tracking-widest text-muted-foreground">
-                {t("settings.layout.admin")}
-              </p>
-            </div>
-            <NavLink
-              to={`${base}/users`}
-              className={({ isActive }) =>
-                cn(
-                  "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
-                  isActive
-                    ? "bg-accent text-foreground font-medium"
-                    : "text-muted-foreground hover:bg-accent hover:text-foreground"
-                )
-              }
-            >
-              <Users className="h-4 w-4 shrink-0" />
-              {t("settings.layout.userManagement")}
-            </NavLink>
-          </>
-        )}
         {/* 하단 — 프로젝트 링크 + 버전 정보 */}
         <div className="mt-auto pt-6 space-y-2">
           <p className="px-2 text-2xs font-semibold uppercase tracking-widest text-muted-foreground">

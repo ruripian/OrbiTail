@@ -5,14 +5,46 @@ from .models import User, Announcement
 
 
 class UserSerializer(serializers.ModelSerializer):
+    """공용 사용자 직렬화기 — 리스트 응답에도 쓰이므로 N+1 유발 필드는 금지."""
+
     class Meta:
         model = User
         fields = [
             "id", "email", "display_name", "first_name", "last_name",
-            "avatar", "is_staff", "timezone", "language",
+            "avatar",
+            "is_staff", "is_superuser", "is_approved", "is_email_verified",
+            "is_suspended",
+            "timezone", "language",
             "first_day_of_week", "theme", "created_at",
         ]
-        read_only_fields = ["id", "email", "is_staff", "created_at"]
+        read_only_fields = [
+            "id", "email", "is_staff", "is_superuser", "is_approved",
+            "is_email_verified", "is_suspended", "created_at",
+        ]
+
+
+class MeSerializer(UserSerializer):
+    """`/api/auth/me/` 전용 — 현재 사용자에 한해 워크스페이스 관리자 여부를 계산해 포함."""
+
+    is_workspace_admin = serializers.SerializerMethodField()
+
+    class Meta(UserSerializer.Meta):
+        fields = UserSerializer.Meta.fields + ["is_workspace_admin"]
+        read_only_fields = UserSerializer.Meta.read_only_fields + ["is_workspace_admin"]
+
+    def get_is_workspace_admin(self, obj) -> bool:
+        from apps.workspaces.models import WorkspaceMember
+        return WorkspaceMember.objects.filter(
+            member=obj, role__gte=WorkspaceMember.Role.ADMIN,
+        ).exists()
+
+
+class AdminUserSerializer(UserSerializer):
+    """관리자 페이지 전용 — 마지막 로그인, 활성화 여부, 가입일까지 포함"""
+
+    class Meta(UserSerializer.Meta):
+        fields = UserSerializer.Meta.fields + ["is_active", "last_login", "deleted_at"]
+        read_only_fields = UserSerializer.Meta.read_only_fields + ["last_login", "deleted_at"]
 
 
 class AnnouncementSerializer(serializers.ModelSerializer):
@@ -47,7 +79,7 @@ class RegisterSerializer(serializers.ModelSerializer):
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
         data = super().validate(attrs)
-        data["user"] = UserSerializer(self.user).data
+        data["user"] = MeSerializer(self.user).data
         return data
 
 

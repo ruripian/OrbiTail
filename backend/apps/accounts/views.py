@@ -11,11 +11,14 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 
 from .models import Announcement, EmailChangeToken, EmailVerificationToken, PasswordResetToken, User
+from .permissions import IsSuperUser, IsWorkspaceAdminOrSuperUser
 from .serializers import (
+    AdminUserSerializer,
     AnnouncementSerializer,
     CustomTokenObtainPairSerializer,
     EmailChangeRequestSerializer,
     EmailChangeVerifySerializer,
+    MeSerializer,
     PasswordChangeSerializer,
     PasswordResetConfirmSerializer,
     PasswordResetRequestSerializer,
@@ -41,6 +44,24 @@ class RegisterView(generics.CreateAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
+
+        # 첫 가입자 부트스트랩 — 시스템에 슈퍼유저가 0명이면 이 계정을 즉시 슈퍼유저로 승격.
+        # `createsuperuser` 없이 웹 가입만으로 초기 관리자 계정 셋업이 가능하도록 하는 장치.
+        if not User.objects.filter(is_superuser=True).exclude(pk=user.pk).exists():
+            user.is_superuser = True
+            user.is_staff = True
+            user.is_active = True
+            user.is_approved = True
+            user.is_email_verified = True
+            user.save(update_fields=[
+                "is_superuser", "is_staff", "is_active",
+                "is_approved", "is_email_verified",
+            ])
+            return Response(
+                {"detail": "첫 관리자 계정으로 등록되었습니다. 바로 로그인할 수 있습니다.",
+                 "email_verification_required": False, "auto_activated": True, "bootstrap_superuser": True},
+                status=status.HTTP_201_CREATED,
+            )
 
         # 초대 토큰 유효성 검증 — 일치하면 즉시 활성화(관리자 승인 우회)
         # 초대 자체가 관리자 승인의 증거이고, 링크 수신 = 이메일 소유 증명
@@ -105,7 +126,7 @@ class CustomTokenObtainPairView(TokenObtainPairView):
 
 
 class MeView(generics.RetrieveUpdateAPIView):
-    serializer_class = UserSerializer
+    serializer_class = MeSerializer
 
     def get_object(self):
         return self.request.user
@@ -240,7 +261,7 @@ class EmailChangeVerifyView(APIView):
             "detail": "이메일이 변경되었습니다.",
             "access": str(refresh.access_token),
             "refresh": str(refresh),
-            "user": UserSerializer(user).data,
+            "user": MeSerializer(user).data,
         })
 
 
@@ -347,26 +368,43 @@ class PasswordResetConfirmView(APIView):
 
 
 class AdminUserListView(generics.ListAPIView):
-    """슈퍼어드민용 전체 사용자 목록"""
-    permission_classes = [permissions.IsAdminUser]
-    serializer_class = UserSerializer
+    """관리자 페이지용 전체 사용자 목록 — 워크스페이스 관리자 이상 접근 가능.
+
+    슈퍼유저만 볼 수 있는 플래그(is_superuser 등)는 Serializer 레벨에서 read-only로 노출되며,
+    실제 권한 변경 엔드포인트에서 별도 가드.
+    """
+    permission_classes = [IsWorkspaceAdminOrSuperUser]
+    serializer_class = AdminUserSerializer
 
     def get_queryset(self):
         qs = User.objects.all().order_by("-created_at")
         status_param = self.request.query_params.get("status")
+        search = self.request.query_params.get("search", "").strip()
         if status_param == "pending":
-            # 이메일 인증까지 마친 대기자 (혹은 그냥 이메일 인증 안 했어도 관리자가 볼 수 있게 하려면 조건 조절 가능)
             qs = qs.filter(is_email_verified=True, is_approved=False)
         elif status_param == "approved":
             qs = qs.filter(is_approved=True)
+        elif status_param == "suspended":
+            qs = qs.filter(is_suspended=True)
+        elif status_param == "superusers":
+            qs = qs.filter(is_superuser=True)
+        if search:
+            from django.db.models import Q
+            qs = qs.filter(
+                Q(email__icontains=search) |
+                Q(display_name__icontains=search) |
+                Q(first_name__icontains=search) |
+                Q(last_name__icontains=search)
+            )
         return qs
 
 
 class AdminUserApproveView(APIView):
-    """사용자 가입 승인"""
-    permission_classes = [permissions.IsAdminUser]
+    """사용자 가입 승인 — 워크스페이스 관리자 이상"""
+    permission_classes = [IsWorkspaceAdminOrSuperUser]
 
     def post(self, request, pk):
+        from apps.audit.models import log_admin_action
         try:
             user = User.objects.get(pk=pk)
         except User.DoesNotExist:
@@ -378,7 +416,15 @@ class AdminUserApproveView(APIView):
         user.is_approved = True
         user.is_active = True
         user.save()
-        
+
+        log_admin_action(
+            actor=request.user,
+            action="user_approve",
+            target_type="user",
+            target_id=user.id,
+            target_label=user.email,
+        )
+
         login_url = f"{settings.FRONTEND_URL}/auth/login"
         send_mail(
             subject="[OrbiTail] 계정 승인 완료 안내",
@@ -393,6 +439,126 @@ class AdminUserApproveView(APIView):
         )
 
         return Response({"detail": "사용자가 승인되었습니다."})
+
+
+class AdminUserSuperuserView(APIView):
+    """슈퍼유저 권한 부여/회수 — 슈퍼유저만"""
+    permission_classes = [IsSuperUser]
+
+    def patch(self, request, pk):
+        from apps.audit.models import log_admin_action
+        try:
+            user = User.objects.get(pk=pk)
+        except User.DoesNotExist:
+            return Response({"detail": "사용자를 찾을 수 없습니다."}, status=status.HTTP_404_NOT_FOUND)
+
+        new_value = request.data.get("is_superuser")
+        if new_value is None:
+            return Response({"detail": "is_superuser 값이 필요합니다."}, status=status.HTTP_400_BAD_REQUEST)
+        new_value = bool(new_value)
+
+        # 본인 강등 금지 — 실수로 전체 접근을 잃는 것을 방지
+        if user.pk == request.user.pk and not new_value:
+            return Response(
+                {"detail": "본인의 슈퍼유저 권한은 해제할 수 없습니다. 다른 슈퍼유저가 대신 진행해야 합니다."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # 마지막 슈퍼유저 강등 방지
+        if not new_value and user.is_superuser:
+            other_count = User.objects.filter(is_superuser=True).exclude(pk=user.pk).count()
+            if other_count == 0:
+                return Response(
+                    {"detail": "마지막 슈퍼유저는 강등할 수 없습니다."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        if user.is_superuser == new_value:
+            return Response(AdminUserSerializer(user).data)
+
+        user.is_superuser = new_value
+        if new_value:
+            # 슈퍼유저는 staff 권한과 활성화 상태도 자동 부여
+            user.is_staff = True
+            user.is_active = True
+            user.is_approved = True
+        user.save()
+
+        log_admin_action(
+            actor=request.user,
+            action="superuser_grant" if new_value else "superuser_revoke",
+            target_type="user",
+            target_id=user.id,
+            target_label=user.email,
+        )
+        return Response(AdminUserSerializer(user).data)
+
+
+class AdminUserSuspendView(APIView):
+    """사용자 일시 정지/해제 — 슈퍼유저만. 다른 슈퍼유저는 정지할 수 없음."""
+    permission_classes = [IsSuperUser]
+
+    def patch(self, request, pk):
+        from apps.audit.models import log_admin_action
+        try:
+            user = User.objects.get(pk=pk)
+        except User.DoesNotExist:
+            return Response({"detail": "사용자를 찾을 수 없습니다."}, status=status.HTTP_404_NOT_FOUND)
+
+        if user.pk == request.user.pk:
+            return Response({"detail": "본인을 정지할 수 없습니다."}, status=status.HTTP_400_BAD_REQUEST)
+        if user.is_superuser:
+            return Response(
+                {"detail": "슈퍼유저는 정지할 수 없습니다. 먼저 슈퍼유저 권한을 해제하세요."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        new_value = bool(request.data.get("is_suspended"))
+        user.is_suspended = new_value
+        user.is_active = not new_value
+        user.save(update_fields=["is_suspended", "is_active", "updated_at"])
+
+        log_admin_action(
+            actor=request.user,
+            action="user_suspend" if new_value else "user_unsuspend",
+            target_type="user",
+            target_id=user.id,
+            target_label=user.email,
+        )
+        return Response(AdminUserSerializer(user).data)
+
+
+class AdminUserDeleteView(APIView):
+    """사용자 하드 삭제 — 슈퍼유저만. 생성한 이슈 등은 CASCADE 관계에 따라 삭제됨."""
+    permission_classes = [IsSuperUser]
+
+    def delete(self, request, pk):
+        from apps.audit.models import log_admin_action
+        try:
+            user = User.objects.get(pk=pk)
+        except User.DoesNotExist:
+            return Response({"detail": "사용자를 찾을 수 없습니다."}, status=status.HTTP_404_NOT_FOUND)
+
+        if user.pk == request.user.pk:
+            return Response({"detail": "본인은 삭제할 수 없습니다."}, status=status.HTTP_400_BAD_REQUEST)
+        if user.is_superuser:
+            return Response(
+                {"detail": "슈퍼유저는 삭제할 수 없습니다. 먼저 슈퍼유저 권한을 해제하세요."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        snapshot_email = user.email
+        snapshot_id = user.id
+        user.delete()
+
+        log_admin_action(
+            actor=request.user,
+            action="user_delete",
+            target_type="user",
+            target_id=snapshot_id,
+            target_label=snapshot_email,
+        )
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class AnnouncementListCreateView(generics.ListCreateAPIView):

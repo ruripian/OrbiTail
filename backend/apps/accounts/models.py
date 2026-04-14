@@ -40,6 +40,8 @@ class User(AbstractBaseUser, PermissionsMixin):
     is_email_verified = models.BooleanField(default=False)
     is_approved = models.BooleanField(default=False)
     is_staff = models.BooleanField(default=False)
+    # 관리자가 계정을 일시 정지한 상태 — 로그인 차단 (is_active와 독립적으로 토글 가능)
+    is_suspended = models.BooleanField(default=False)
     timezone = models.CharField(max_length=100, default="Asia/Seoul")
     language = models.CharField(max_length=10, default="ko")
     # 주의 시작 요일: 0=일요일, 1=월요일

@@ -4,6 +4,8 @@ import { toast } from "sonner";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 import { SponsorButton } from "./SponsorButton";
+import { authApi } from "@/api/auth";
+import { useAuthStore } from "@/stores/authStore";
 import { useWorkspaceColors } from "@/hooks/useWorkspaceColors";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { useIsDesktop } from "@/hooks/useMediaQuery";
@@ -20,6 +22,16 @@ export function AppLayout() {
 
   // WebSocket 실시간 업데이트 — 워크스페이스별 연결
   const wsStatus = useWebSocket(workspaceSlug);
+
+  /* 앱 진입 시 /me/ 를 한 번 갱신 — 백엔드에서 새로 추가된 플래그
+     (is_superuser, is_workspace_admin, is_suspended 등) 를 기존 세션에 주입 */
+  const updateUser = useAuthStore((s) => s.updateUser);
+  useEffect(() => {
+    authApi
+      .me()
+      .then((u) => updateUser(u))
+      .catch(() => { /* 401 등은 axios 인터셉터가 처리 */ });
+  }, [updateUser]);
 
   /* 글로벌 Undo 단축키 — Cmd/Ctrl+Z. input/textarea/contenteditable 안에서는 무시. */
   const popUndo = useUndoStore((s) => s.popAndRun);

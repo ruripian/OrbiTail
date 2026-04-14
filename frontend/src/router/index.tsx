@@ -15,8 +15,12 @@ import { SettingsLayout } from "@/pages/settings/SettingsLayout";
 import { ProfilePage } from "@/pages/settings/ProfilePage";
 import { PreferencesPage } from "@/pages/settings/PreferencesPage";
 import { SecurityPage } from "@/pages/settings/SecurityPage";
-import { UsersPage } from "@/pages/settings/UsersPage";
 import { WorkspaceMembersPage } from "@/pages/settings/WorkspaceMembersPage";
+import { AdminLayout } from "@/pages/admin/AdminLayout";
+import { AdminUsersPage } from "@/pages/admin/AdminUsersPage";
+import { AdminWorkspacesPage } from "@/pages/admin/AdminWorkspacesPage";
+import { AdminSuperusersPage } from "@/pages/admin/AdminSuperusersPage";
+import { AdminAuditLogPage } from "@/pages/admin/AdminAuditLogPage";
 import { ProjectSettingsLayout } from "@/pages/project/settings/ProjectSettingsLayout";
 import { GeneralPage } from "@/pages/project/settings/GeneralPage";
 import { MembersPage } from "@/pages/project/settings/MembersPage";
@@ -105,7 +109,7 @@ export const router = createBrowserRouter([
       /* 스프린트별 이슈 뷰 — ProjectIssuePage가 sprintId URL 파라미터로 필터 */
       { path: "projects/:projectId/sprints/:sprintId/issues", element: <ProjectIssuePage /> },
 
-      // 개인 설정
+      // 개인 / 워크스페이스 설정
       {
         path: "settings",
         element: <SettingsLayout />,
@@ -114,8 +118,20 @@ export const router = createBrowserRouter([
           { path: "profile",     element: <ProfilePage /> },
           { path: "preferences", element: <PreferencesPage /> },
           { path: "security",    element: <SecurityPage /> },
-          { path: "users",       element: <UsersPage /> },
           { path: "workspace-members", element: <WorkspaceMembersPage /> },
+        ],
+      },
+
+      // 관리자 페이지 — 워크스페이스 관리자 이상 접근, 일부 탭은 슈퍼유저 전용
+      {
+        path: "admin",
+        element: <AdminLayout />,
+        children: [
+          { index: true, element: <Navigate to="users" replace /> },
+          { path: "users",      element: <AdminUsersPage /> },
+          { path: "workspaces", element: <AdminWorkspacesPage /> },
+          { path: "superusers", element: <AdminSuperusersPage /> },
+          { path: "audit",      element: <AdminAuditLogPage /> },
         ],
       },
 

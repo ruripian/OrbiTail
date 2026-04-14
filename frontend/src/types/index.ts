@@ -6,10 +6,47 @@ export interface User {
   last_name: string;
   avatar: string | null;
   is_staff: boolean;
+  is_superuser: boolean;
+  is_approved: boolean;
+  is_email_verified: boolean;
+  is_suspended: boolean;
+  /** 어떤 워크스페이스에서든 ADMIN 이상 역할 보유 여부 — /admin 진입 게이트용 */
+  is_workspace_admin: boolean;
   timezone: string;
   language: string;
   first_day_of_week: number;
   theme: "light" | "dark" | "system";
+  created_at: string;
+}
+
+/** 관리자 페이지에서만 노출되는 확장 필드 */
+export interface AdminUser extends User {
+  is_active: boolean;
+  last_login: string | null;
+  deleted_at: string | null;
+}
+
+export type AuditAction =
+  | "superuser_grant"
+  | "superuser_revoke"
+  | "user_approve"
+  | "user_suspend"
+  | "user_unsuspend"
+  | "user_delete"
+  | "workspace_create"
+  | "workspace_delete"
+  | "workspace_owner";
+
+export interface AuditLog {
+  id: string;
+  actor: string | null;
+  actor_detail: User | null;
+  actor_label: string;
+  action: AuditAction;
+  target_type: "user" | "workspace";
+  target_id: string | null;
+  target_label: string;
+  metadata: Record<string, unknown>;
   created_at: string;
 }
 
