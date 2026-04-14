@@ -845,8 +845,8 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
               />
 
               <div
-                className="flex items-center gap-2 flex-1"
-                style={{ minWidth: "var(--col-w-_title)" }}
+                className="flex items-center gap-2 shrink-0 overflow-hidden"
+                style={{ width: "var(--col-w-_title)", minWidth: "var(--col-w-_title)" }}
               >
                 <div className="w-5 shrink-0" />
                 <span className="text-xs font-semibold text-muted-foreground/70 uppercase tracking-wide select-none overflow-hidden text-ellipsis">
@@ -1582,11 +1582,10 @@ function IssueCard({
 
         <div className="w-[10px] self-stretch shrink-0 flex items-center text-transparent">|</div>
 
-        {/* 제목 영역 (인덴트를 제목 패딩으로 이동시켜 전체 컬럼 정렬 유지)
-            flex-1: 잉여 가로 공간을 제목 컬럼이 흡수 — 헤더와 동일하게 적용해 정렬 일치 */}
+        {/* 제목 영역 (인덴트를 제목 패딩으로 이동시켜 전체 컬럼 정렬 유지) */}
         <div
-          className="flex items-center gap-2 flex-1 overflow-hidden"
-          style={{ minWidth: "var(--col-w-_title)", paddingLeft: indent }}
+          className="flex items-center gap-2 shrink-0 overflow-hidden"
+          style={{ width: "var(--col-w-_title)", minWidth: "var(--col-w-_title)", paddingLeft: indent }}
         >
           {/* 확장 토글 / 그립 아이콘 (w-5 고정) */}
           <div className="w-5 h-5 shrink-0 flex items-center justify-center">
@@ -1633,7 +1632,7 @@ function IssueCard({
           </Fragment>
         ))}
 
-        <div className="shrink-0 ml-2 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="shrink-0 ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
