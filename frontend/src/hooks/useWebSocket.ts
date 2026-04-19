@@ -5,10 +5,15 @@
  * 서버 이벤트 수신 시 React Query 캐시를 자동으로 invalidate합니다.
  *
  * 이벤트 타입:
- *   - issue.updated:    이슈 변경 → issues 쿼리 invalidate
- *   - issue.created:    이슈 생성 → issues 쿼리 invalidate
- *   - issue.deleted:    이슈 삭제 → issues 쿼리 invalidate
- *   - notification.new: 새 알림   → notifications 쿼리 invalidate
+ *   - issue.updated / issue.created / issue.deleted → 모든 이슈 관련 쿼리 invalidate
+ *   - issue.archived → 보관함 + 이슈 목록 invalidate
+ *   - issue.commented → 댓글/활동 쿼리 invalidate
+ *   - notification.new → 알림 쿼리 invalidate
+ *
+ * 성능 참고:
+ *   invalidateQueries는 해당 쿼리를 사용 중인 컴포넌트가 마운트된 경우에만
+ *   실제 refetch가 발생. 마운트되지 않은 쿼리는 stale 마킹만 하므로
+ *   넓게 invalidate 해도 네트워크 부담이 크지 않음.
  */
 
 import { useEffect, useRef, useCallback, useState } from "react";
@@ -36,7 +41,6 @@ export function useWebSocket(workspaceSlug: string | undefined): WsStatus {
     const token = getAccessToken();
     if (!token) return;
 
-    /* WebSocket URL — 같은 도메인/포트로 접속 (개발: vite proxy, 프로덕션: nginx proxy가 /ws를 backend로 라우팅) */
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const url = `${protocol}//${window.location.host}/ws/workspace/${workspaceSlug}/?token=${token}`;
 
@@ -47,7 +51,6 @@ export function useWebSocket(workspaceSlug: string | undefined): WsStatus {
 
       ws.onopen = () => {
         setStatus("connected");
-        /* 연결 성공 시 재연결 타이머 초기화 */
         if (reconnectTimer.current) {
           clearTimeout(reconnectTimer.current);
           reconnectTimer.current = null;
@@ -66,7 +69,6 @@ export function useWebSocket(workspaceSlug: string | undefined): WsStatus {
       ws.onclose = (e) => {
         wsRef.current = null;
         setStatus("disconnected");
-        /* 비정상 종료 시 5초 후 재연결 */
         if (e.code !== 1000) {
           reconnectTimer.current = setTimeout(connect, 5000);
         }
@@ -77,39 +79,70 @@ export function useWebSocket(workspaceSlug: string | undefined): WsStatus {
       };
     }
 
+    /** 모든 이슈 관련 쿼리를 invalidate — Table/Board/Calendar/Timeline/Sprint 등 전 뷰 반영 */
+    function invalidateIssueQueries(event: WebSocketEvent) {
+      // prefix 매칭: ["issues", workspaceSlug, ...] 하위 모두 (목록, 필터별 등)
+      qc.invalidateQueries({ queryKey: ["issues", workspaceSlug] });
+      qc.invalidateQueries({ queryKey: ["my-issues", workspaceSlug] });
+      qc.invalidateQueries({ queryKey: ["recent-issues", workspaceSlug] });
+      qc.invalidateQueries({ queryKey: ["issue-stats", workspaceSlug] });
+
+      // 단건 이슈 (IssueDetailPage 패널)
+      if (event.issue_id) {
+        qc.invalidateQueries({ queryKey: ["issue", event.issue_id] });
+      }
+
+      // 프로젝트별 쿼리 (휴지통, 보관함 포함)
+      if (event.project_id) {
+        qc.invalidateQueries({ queryKey: ["issues-trash", workspaceSlug, event.project_id] });
+        qc.invalidateQueries({ queryKey: ["issues-archive", workspaceSlug, event.project_id] });
+      }
+    }
+
     function handleEvent(event: WebSocketEvent) {
       switch (event.type) {
         case "issue.updated":
         case "issue.created":
         case "issue.deleted":
-          /* 이슈 관련 쿼리 전체 invalidate */
-          qc.invalidateQueries({ queryKey: ["issues", workspaceSlug] });
-          qc.invalidateQueries({ queryKey: ["my-issues", workspaceSlug] });
-          qc.invalidateQueries({ queryKey: ["recent-issues", workspaceSlug] });
-          qc.invalidateQueries({ queryKey: ["issue-stats", workspaceSlug] });
+        case "issue.archived":
+        case "issue.bulk_updated":
+        case "issue.bulk_deleted":
+          invalidateIssueQueries(event);
+          break;
+
+        case "issue.commented":
+          // 댓글/활동 로그
           if (event.issue_id) {
             qc.invalidateQueries({ queryKey: ["issue", event.issue_id] });
+            qc.invalidateQueries({ queryKey: ["comments", event.issue_id] });
+            qc.invalidateQueries({ queryKey: ["activities", event.issue_id] });
           }
+          // 알림도 갱신 (댓글 알림)
+          qc.invalidateQueries({ queryKey: ["notifications", workspaceSlug] });
+          qc.invalidateQueries({ queryKey: ["notifications-unread", workspaceSlug] });
+          break;
+
+        case "event.updated":
+        case "event.created":
+        case "event.deleted":
+          // 프로젝트 이벤트 (캘린더)
           if (event.project_id) {
-            qc.invalidateQueries({ queryKey: ["issues", workspaceSlug, event.project_id] });
+            qc.invalidateQueries({ queryKey: ["events", workspaceSlug, event.project_id] });
           }
           break;
 
         case "notification.new":
-          /* 알림 쿼리 invalidate — TopBar 벨 카운터 즉시 갱신 */
           qc.invalidateQueries({ queryKey: ["notifications", workspaceSlug] });
           qc.invalidateQueries({ queryKey: ["notifications-unread", workspaceSlug] });
           break;
 
         case "pong":
-          /* ping/pong 응답 — 무시 */
           break;
       }
     }
 
     connect();
 
-    /* ping 간격: 30초마다 연결 유지 */
     const pingInterval = setInterval(() => {
       if (wsRef.current?.readyState === WebSocket.OPEN) {
         wsRef.current.send(JSON.stringify({ type: "ping" }));

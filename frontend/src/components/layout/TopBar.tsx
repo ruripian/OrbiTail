@@ -1,14 +1,15 @@
 import { useState, useEffect, useCallback } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Search, Settings, LogOut, User, Sun, Moon, Bell, CheckCheck, MessageSquare, UserPlus, RefreshCw, Menu, ShieldAlert } from "lucide-react";
+import { Search, Settings, LogOut, User, Sun, Moon, Bell, CheckCheck, MessageSquare, UserPlus, RefreshCw, Menu, ShieldAlert, ChevronsUpDown, Check } from "lucide-react";
 import { motion } from "framer-motion";
 import { useMotion } from "@/lib/motion-provider";
 import { useAuthStore } from "@/stores/authStore";
 import { useTheme } from "@/lib/theme-provider";
 import { api } from "@/lib/axios";
 import { notificationsApi } from "@/api/notifications";
+import { workspacesApi } from "@/api/workspaces";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -28,24 +29,33 @@ export function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
   const navigate = useNavigate();
   const { workspaceSlug } = useParams<{ workspaceSlug: string }>();
   const { theme, setTheme } = useTheme();
+  const location = useLocation();
+  const isDocumentMode = location.pathname.includes("/documents");
   const [searchOpen, setSearchOpen] = useState(false);
   const qc = useQueryClient();
   const { isRich } = useMotion();
 
-  /* 알림 미읽음 수 — 30초마다 polling */
+  /* 워크스페이스 목록 — 전환 드롭다운용 */
+  const { data: workspaces = [] } = useQuery({
+    queryKey: ["workspaces"],
+    queryFn: () => workspacesApi.list(),
+  });
+
+  /* 알림 미읽음 수 — WebSocket notification.new 이벤트로 즉시 갱신,
+     polling은 WS 연결 끊김 fallback (60초) */
   const { data: unreadCount = 0 } = useQuery({
     queryKey: ["notifications-unread", workspaceSlug],
     queryFn: () => notificationsApi.unreadCount(workspaceSlug!),
     enabled: !!workspaceSlug,
-    refetchInterval: 30_000,
+    refetchInterval: 60_000,
   });
 
-  /* 알림 목록 — 드롭다운 열 때 fetch */
+  /* 알림 목록 — WebSocket으로 실시간 갱신, polling은 fallback */
   const { data: notifications = [] } = useQuery({
     queryKey: ["notifications", workspaceSlug],
     queryFn: () => notificationsApi.list(workspaceSlug!),
     enabled: !!workspaceSlug,
-    refetchInterval: 30_000,
+    refetchInterval: 60_000,
   });
 
   /* 개별 읽음 처리 */
@@ -112,17 +122,53 @@ export function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
         </button>
       )}
 
-      {/* 검색창 — 클릭 시 검색 다이얼로그 열기 */}
-      <div
-        onClick={() => setSearchOpen(true)}
-        className="flex items-center gap-2.5 rounded-xl border bg-muted/30 px-4 h-9 text-sm text-muted-foreground w-auto sm:w-72 flex-1 sm:flex-none cursor-pointer hover:bg-muted/50 hover:border-border transition-all duration-150 group"
-      >
-        <Search className="h-4.5 w-4.5 shrink-0 group-hover:text-foreground transition-colors" />
-        <span className="group-hover:text-foreground/70 transition-colors">{t("topbar.search")}</span>
+      {/* 워크스페이스 전환 + 검색 */}
+      <div className="flex items-center gap-2 flex-1 sm:flex-none">
+        {workspaces.length > 1 && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="flex items-center gap-1.5 rounded-xl border bg-muted/30 px-3 h-9 text-sm font-medium hover:bg-muted/50 hover:border-border transition-all duration-150 shrink-0 max-w-[160px]">
+                <span className="truncate">{workspaces.find((w) => w.slug === workspaceSlug)?.name ?? workspaceSlug}</span>
+                <ChevronsUpDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-56">
+              <DropdownMenuLabel className="text-xs text-muted-foreground">{t("topbar.switchWorkspace")}</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {workspaces.map((ws) => (
+                <DropdownMenuItem
+                  key={ws.id}
+                  className="gap-2 cursor-pointer"
+                  onClick={() => navigate(`/${ws.slug}`)}
+                >
+                  <div className="h-6 w-6 rounded-md bg-primary/10 flex items-center justify-center text-xs font-bold text-primary shrink-0">
+                    {ws.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{ws.name}</p>
+                    <p className="text-xs text-muted-foreground">/{ws.slug}</p>
+                  </div>
+                  {ws.slug === workspaceSlug && <Check className="h-4 w-4 text-primary shrink-0" />}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+
+        {/* 검색창 — 클릭 시 검색 다이얼로그 열기 */}
+        <div
+          onClick={() => setSearchOpen(true)}
+          className="flex items-center gap-2.5 rounded-xl border bg-muted/30 px-4 h-9 text-sm text-muted-foreground w-auto sm:w-72 flex-1 sm:flex-none cursor-pointer hover:bg-muted/50 hover:border-border transition-all duration-150 group"
+        >
+          <Search className="h-4.5 w-4.5 shrink-0 group-hover:text-foreground transition-colors" />
+          <span className="group-hover:text-foreground/70 transition-colors">
+            {isDocumentMode ? t("topbar.searchDocs") : t("topbar.search")}
+          </span>
+        </div>
       </div>
 
       {/* 전역 검색 다이얼로그 */}
-      <CommandSearchDialog open={searchOpen} onOpenChange={setSearchOpen} />
+      <CommandSearchDialog open={searchOpen} onOpenChange={setSearchOpen} documentMode={isDocumentMode} />
 
       {/* 우측 패널 — 알림 + 테마 토글 + 프로필 */}
       <div className="flex items-center gap-2">
@@ -136,18 +182,18 @@ export function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
                   isRich ? (
                     <motion.span
                       key={unreadCount}
-                      className="absolute -top-1 -right-1 flex h-[18px] w-[18px] items-center justify-center rotate-45 rounded-[2px] bg-gradient-to-br from-amber-500 to-amber-600 shadow-[0_2px_8px_rgba(229,168,0,0.5)]"
+                      className="absolute -top-0.5 -right-0.5 flex h-[18px] min-w-[18px] px-1 items-center justify-center rounded-full bg-gradient-to-br from-amber-500 to-amber-600 shadow-[0_2px_8px_rgba(229,168,0,0.5)]"
                       initial={{ scale: 0 }}
                       animate={{ scale: [0, 1.3, 1] }}
                       transition={{ type: "spring", stiffness: 500, damping: 20 }}
                     >
-                      <span className="-rotate-45 text-3xs font-extrabold text-amber-950">
+                      <span className="text-3xs font-extrabold text-amber-950">
                         {unreadCount > 99 ? "99+" : unreadCount}
                       </span>
                     </motion.span>
                   ) : (
-                    <span className="absolute -top-1 -right-1 flex h-[18px] w-[18px] items-center justify-center rotate-45 rounded-[2px] bg-gradient-to-br from-amber-500 to-amber-600 shadow-[0_2px_8px_rgba(229,168,0,0.5)]">
-                      <span className="-rotate-45 text-3xs font-extrabold text-amber-950">
+                    <span className="absolute -top-0.5 -right-0.5 flex h-[18px] min-w-[18px] px-1 items-center justify-center rounded-full bg-gradient-to-br from-amber-500 to-amber-600 shadow-[0_2px_8px_rgba(229,168,0,0.5)]">
+                      <span className="text-3xs font-extrabold text-amber-950">
                         {unreadCount > 99 ? "99+" : unreadCount}
                       </span>
                     </span>

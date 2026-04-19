@@ -17,14 +17,21 @@ import {
   Trash2,
   Lock,
   Megaphone,
+  FileText,
+  User as UserIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { projectsApi } from "@/api/projects";
 import { workspacesApi } from "@/api/workspaces";
 import { announcementsApi } from "@/api/announcements";
 import { useAuthStore } from "@/stores/authStore";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
 import { ProjectIcon } from "@/components/ui/project-icon-picker";
+import { AppSwitcher } from "./AppSwitcher";
 import type { Project, Category } from "@/types";
 import type { WsStatus } from "@/hooks/useWebSocket";
 
@@ -362,21 +369,40 @@ export function Sidebar({ onNavigate, wsStatus = "connecting" }: { onNavigate?: 
   return (
     <aside className="flex h-screen w-64 flex-col border-r glass-sidebar shrink-0" role="navigation" aria-label="Main navigation">
 
-      <div className="flex h-14 items-center gap-3 border-b border-border px-4">
-        <Link
-          to={`/${workspaceSlug}`}
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary text-sm font-black text-primary-foreground shadow-md ring-2 ring-primary/30 hover:brightness-110 transition-all"
-        >
-          ∞
-        </Link>
-        <div className="flex flex-col min-w-0">
-          <span className="truncate text-sm font-semibold text-sidebar-foreground leading-tight">
-            {workspaceSlug}
-          </span>
-          <span className="text-xs text-sidebar-foreground/60">{t("sidebar.workspace")}</span>
-        </div>
-        <ChevronDown className="ml-auto h-4 w-4 shrink-0 text-sidebar-foreground/60" />
-      </div>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button className="flex h-11 w-full items-center gap-3 border-b border-border px-4 hover:bg-accent/50 transition-colors">
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary text-xs font-black text-primary-foreground shadow-sm">
+              ∞
+            </span>
+            <div className="flex flex-col min-w-0 text-left">
+              <span className="truncate text-sm font-semibold text-sidebar-foreground leading-tight">
+                {workspaceSlug}
+              </span>
+            </div>
+            <ChevronDown className="ml-auto h-3.5 w-3.5 shrink-0 text-sidebar-foreground/50" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-56">
+          <DropdownMenuItem onClick={() => navigate(`/${workspaceSlug}/settings`)}>
+            <UserIcon className="h-3.5 w-3.5 mr-2" />
+            {t("sidebar.personalSettings")}
+          </DropdownMenuItem>
+          {canAccessWorkspaceSettings && (
+            <DropdownMenuItem onClick={() => navigate(`/${workspaceSlug}/settings/workspace-members`)}>
+              <Settings className="h-3.5 w-3.5 mr-2" />
+              {t("sidebar.settings")}
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => navigate("/workspaces")}>
+            <Layers className="h-3.5 w-3.5 mr-2" />
+            {t("sidebar.switchWorkspace")}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <AppSwitcher />
 
       {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events */}
       <nav className="flex flex-col flex-1 overflow-y-auto p-3 gap-1" onClick={(e) => {
@@ -464,24 +490,9 @@ export function Sidebar({ onNavigate, wsStatus = "connecting" }: { onNavigate?: 
         )}
       </nav>
 
-      <div className="border-t border-border p-3 space-y-1">
-        {canAccessWorkspaceSettings && (
-          <Link
-            to={`/${workspaceSlug}/settings/workspace-members`}
-            className={cn(
-              "flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-all duration-150",
-              location.pathname.startsWith(`/${workspaceSlug}/settings/workspace`)
-                ? "bg-primary/10 text-primary"
-                : "text-sidebar-foreground/75 hover:bg-sidebar-accent hover:text-sidebar-foreground"
-            )}
-          >
-            <Settings className="h-4 w-4 shrink-0" />
-            <span>{t("sidebar.settings")}</span>
-          </Link>
-        )}
-
+      <div className="border-t border-border px-4 py-2">
         <div
-          className="flex items-center gap-2 rounded-xl px-3 py-2"
+          className="flex items-center gap-2"
           title={t(`sidebar.connection.${wsStatus}Tooltip`)}
         >
           <span className="relative flex h-2 w-2">
@@ -495,7 +506,10 @@ export function Sidebar({ onNavigate, wsStatus = "connecting" }: { onNavigate?: 
               wsStatus === "disconnected" && "bg-rose-500",
             )} />
           </span>
-          <span className="text-xs text-sidebar-foreground/70">{t(`sidebar.connection.${wsStatus}`)}</span>
+          <span className="text-xs text-sidebar-foreground/60">
+            {t(`sidebar.connection.${wsStatus}`)}
+            <span className="text-sidebar-foreground/40"> — {t(`sidebar.connection.${wsStatus}Desc`)}</span>
+          </span>
         </div>
       </div>
     </aside>

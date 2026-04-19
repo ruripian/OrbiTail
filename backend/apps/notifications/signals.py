@@ -147,13 +147,20 @@ def notify_on_issue_activity(sender, instance, created, **kwargs):
 
 @receiver(post_save, sender=IssueComment)
 def notify_on_comment(sender, instance, created, **kwargs):
-    """댓글 작성 시 이슈 담당자 + 생성자에게 알림"""
+    """댓글 작성 시 이슈 담당자 + 생성자에게 알림 + 실시간 댓글 갱신"""
     if not created:
         return
 
     comment = instance
     issue = comment.issue
     actor = comment.actor
+
+    # 댓글 실시간 갱신 — 같은 이슈를 보고 있는 유저에게 즉시 반영
+    _broadcast_to_workspace(issue.workspace.slug, {
+        "type": "issue.commented",
+        "issue_id": str(issue.id),
+        "project_id": str(issue.project_id),
+    })
 
     # 알림 대상: 이슈 담당자 + 이슈 생성자 (중복 제거)
     recipients_ids = set(issue.assignees.values_list("id", flat=True))
@@ -179,11 +186,20 @@ def notify_on_comment(sender, instance, created, **kwargs):
 
 
 @receiver(post_save, sender=Issue)
-def notify_on_issue_created(sender, instance, created, **kwargs):
-    """프로젝트 새 이슈 — 해당 프로젝트의 `email_issue_created` 구독자에게 알림.
+def broadcast_issue_change(sender, instance, created, **kwargs):
+    """이슈 생성/수정 시 WebSocket 브로드캐스트 — 같은 페이지를 보는 유저에게 실시간 반영.
 
-    프로젝트별 opt-in 이라 기본 동작은 비활성. 일반 이슈 생성과 무관하게 동작.
+    IssueActivity 시그널과 별개로 동작 — bulk update, 날짜 드래그 등
+    Activity 없이 직접 save되는 경우도 커버.
     """
+    issue = instance
+    event_type = "issue.created" if created else "issue.updated"
+    _broadcast_to_workspace(issue.workspace.slug, {
+        "type": event_type,
+        "issue_id": str(issue.id),
+        "project_id": str(issue.project_id),
+    })
+
     if not created:
         return
     issue = instance

@@ -7,6 +7,9 @@ import { toast } from "sonner";
 import { issuesApi } from "@/api/issues";
 import { projectsApi } from "@/api/projects";
 import { useAuthStore } from "@/stores/authStore";
+import { useUndoStore } from "@/stores/undoStore";
+import { documentsApi } from "@/api/documents";
+import { useProjectPerms } from "@/hooks/useProjectPerms";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { RichTextEditor } from "@/components/editor/RichTextEditor";
@@ -64,6 +67,8 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
   }>();
   const issueId = issueIdOverride ?? paramIssueId;
   const user = useAuthStore((s) => s.user);
+  const { perms } = useProjectPerms();
+  const pushUndo = useUndoStore((s) => s.push);
   const qc = useQueryClient();
   const { refresh, refreshWithArchive, refreshIssue } = useIssueRefresh(workspaceSlug!, projectId!);
 
@@ -73,6 +78,10 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
   });
 
   const isArchived = !!issue?.archived_at;
+  const canEdit = perms.can_edit;
+  const canArchive = perms.can_archive;
+  const canDelete = perms.can_delete;
+  const readOnly = isArchived || !canEdit;
 
   const { data: states = [] } = useQuery({
     queryKey: ["states", projectId],
@@ -148,9 +157,29 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
   const updateMutation = useMutation({
     mutationFn: (data: Partial<Issue>) =>
       issuesApi.update(workspaceSlug!, projectId!, issueId!, data),
-    onSuccess: () => {
+    onMutate: (data) => {
+      if (!issue) return;
+      // 변경 전 값 캡처 (undo용)
+      const prev: Partial<Issue> = {};
+      for (const key of Object.keys(data) as (keyof Issue)[]) {
+        (prev as any)[key] = (issue as any)[key];
+      }
+      return { prev };
+    },
+    onSuccess: (_result, data, context) => {
       refreshIssue(issueId!);
       refresh(issue?.parent);
+      if (context?.prev) {
+        const fieldName = Object.keys(data).join(", ");
+        pushUndo({
+          label: t("issues.detail.toast.updated", { field: fieldName }),
+          undo: async () => {
+            await issuesApi.update(workspaceSlug!, projectId!, issueId!, context.prev);
+            refreshIssue(issueId!);
+            refresh(issue?.parent);
+          },
+        });
+      }
     },
     onError: () => toast.error(t("issues.detail.toast.updateFailed")),
   });
@@ -366,7 +395,7 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
           </div>
         )}
 
-        {!isArchived && editingTitle ? (
+        {!readOnly && editingTitle ? (
           <input
             className="w-full text-2xl font-semibold bg-transparent border-b-2 border-primary outline-none pb-1 mb-4"
             value={titleValue}
@@ -380,14 +409,14 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
           />
         ) : (
           <h1
-            className={cn("text-2xl font-semibold mb-4", !isArchived && "cursor-text hover:opacity-80 transition-opacity")}
-            onClick={() => !isArchived && setEditingTitle(true)}
+            className={cn("text-2xl font-semibold mb-4", !readOnly && "cursor-text hover:opacity-80 transition-opacity")}
+            onClick={() => !readOnly && setEditingTitle(true)}
           >
             {issue.title}
           </h1>
         )}
 
-        <div className={cn("mb-6", isArchived && "pointer-events-none opacity-70")}>
+        <div className={cn("mb-6", readOnly && "pointer-events-none opacity-70")}>
           <RichTextEditor
             content={descValue}
             onChange={setDescValue}
@@ -462,7 +491,7 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
               </div>
             ))}
 
-            {isArchived ? null : addingSubIssue ? (
+            {readOnly ? null : addingSubIssue ? (
               <div className="flex items-center gap-2 px-3 py-2.5 border rounded-md">
                 <input
                   className="flex-1 text-sm bg-transparent outline-none placeholder:text-muted-foreground"
@@ -548,7 +577,7 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
               </div>
             ))}
 
-            {isArchived ? null : addingLink ? (
+            {readOnly ? null : addingLink ? (
               <div className="border rounded-md p-3 space-y-2">
                 <input
                   className="w-full text-xs bg-transparent border-b border-border outline-none pb-1 placeholder:text-muted-foreground"
@@ -646,7 +675,7 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
               );
             })}
 
-            {!isArchived && (
+            {!readOnly && (
               <label className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors py-1.5 cursor-pointer">
                 <Upload className="h-3.5 w-3.5" />
                 {uploadAttachmentMutation.isPending ? t("issues.detail.attachments.uploading") : t("issues.detail.attachments.upload")}
@@ -691,7 +720,7 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
               </div>
             ))}
 
-            {!isArchived && (
+            {!readOnly && (
               <div className="flex gap-2 pt-1">
                 <textarea
                   className="flex-1 text-sm bg-muted/20 border border-border rounded-md px-3 py-2 outline-none resize-none focus:border-primary transition-colors min-h-[72px]"
@@ -752,7 +781,7 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
 
       <div className="w-[26rem] shrink-0 border-l border-border overflow-y-auto bg-muted/5">
         {/* pt-10: 패널 모드에서 닫기(X) 버튼과 겹침 방지 */}
-        <div className={cn("divide-y divide-border/60", inPanel && "pt-10", isArchived && "pointer-events-none opacity-70")}>
+        <div className={cn("divide-y divide-border/60", inPanel && "pt-10", readOnly && "pointer-events-none opacity-70")}>
 
           <div className="grid grid-cols-2 gap-3 px-4 py-3">
             <div>
@@ -868,6 +897,9 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
             </div>
           </div>
 
+          {/* 연결된 문서 */}
+          <LinkedDocumentsSection issueId={issue.id} workspaceSlug={workspaceSlug!} projectId={projectId!} />
+
           <div className={cn("px-4 py-3", isArchived && "pointer-events-auto opacity-100")}>
             {isArchived ? (
               <Button
@@ -896,39 +928,101 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
                   <Copy className="h-3 w-3" />
                   {t("issues.table.copy")}
                 </Button>
+                {canArchive && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 text-xs font-semibold h-7 gap-1.5"
+                    onClick={handleArchiveIssue}
+                  >
+                    <Archive className="h-3 w-3" />
+                    {t("issues.table.archive")}
+                  </Button>
+                )}
+              </div>
+            )}
+            {canDelete && (
+              <div className="p-2.5 border border-destructive/20 bg-destructive/5 rounded-lg">
+                <p className="text-2xs font-bold text-destructive mb-2 flex items-center gap-1.5">
+                  <AlertTriangle className="h-3 w-3" /> DANGER ZONE
+                </p>
                 <Button
-                  variant="outline"
+                  variant="destructive"
                   size="sm"
-                  className="flex-1 text-xs font-semibold h-7 gap-1.5"
-                  onClick={handleArchiveIssue}
+                  className="w-full text-xs font-semibold h-7"
+                  disabled={deleteMutation.isPending}
+                  onClick={() => {
+                    if (confirm(t("issues.detail.deleteConfirm"))) {
+                      deleteMutation.mutate();
+                    }
+                  }}
                 >
-                  <Archive className="h-3 w-3" />
-                  {t("issues.table.archive")}
+                  {deleteMutation.isPending ? t("issues.detail.deleting") : t("issues.detail.deleteIssue")}
                 </Button>
               </div>
             )}
-            <div className="p-2.5 border border-destructive/20 bg-destructive/5 rounded-lg">
-              <p className="text-2xs font-bold text-destructive mb-2 flex items-center gap-1.5">
-                <AlertTriangle className="h-3 w-3" /> DANGER ZONE
-              </p>
-              <Button
-                variant="destructive"
-                size="sm"
-                className="w-full text-xs font-semibold h-7"
-                disabled={deleteMutation.isPending}
-                onClick={() => {
-                  if (confirm(t("issues.detail.deleteConfirm"))) {
-                    deleteMutation.mutate();
-                  }
-                }}
-              >
-                {deleteMutation.isPending ? t("issues.detail.deleting") : t("issues.detail.deleteIssue")}
-              </Button>
-            </div>
           </div>
 
         </div>
       </div>
+    </div>
+  );
+}
+
+/* ── 연결된 문서 섹션 ── */
+
+function LinkedDocumentsSection({ issueId, workspaceSlug, projectId }: { issueId: string; workspaceSlug: string; projectId: string }) {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const navigate = useNavigate();
+
+  const { data: links = [] } = useQuery({
+    queryKey: ["issue-doc-links", issueId],
+    queryFn: () => issuesApi.documentLinks(workspaceSlug, projectId, issueId),
+    enabled: !!issueId,
+  });
+
+  return (
+    <div className="px-4 py-3">
+      <div className="flex items-center justify-between mb-1.5">
+        <p className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground/70">
+          {t("issues.detail.linkedDocs")}
+        </p>
+        <button
+          className="text-2xs text-primary hover:underline"
+          onClick={() => {
+            // 프로젝트 문서 스페이스로 이동하여 새 문서 생성
+            documentsApi.spaces.list(workspaceSlug).then((spaces) => {
+              const ps = spaces.find((s) => s.space_type === "project");
+              if (ps) {
+                documentsApi.create(workspaceSlug, ps.id, {
+                  title: `Issue #${issueId.slice(0, 8)}`,
+                }).then((doc) => {
+                  navigate(`/${workspaceSlug}/documents/space/${ps.id}/${doc.id}`);
+                });
+              }
+            });
+          }}
+        >
+          + {t("issues.detail.createDoc")}
+        </button>
+      </div>
+      {links.length === 0 ? (
+        <p className="text-2xs text-muted-foreground/50">{t("issues.detail.noDocs")}</p>
+      ) : (
+        <div className="space-y-1">
+          {links.map((link) => (
+            <button
+              key={link.id}
+              onClick={() => navigate(`/${workspaceSlug}/documents/space/${link.space_id}/${link.document_id}`)}
+              className="flex items-center gap-2 w-full text-left text-xs hover:text-primary transition-colors py-0.5"
+            >
+              <FileText className="h-3 w-3 shrink-0" />
+              <span className="truncate">{link.document_title}</span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

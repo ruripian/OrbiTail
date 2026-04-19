@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
@@ -31,11 +31,25 @@ export function AdminWorkspacesPage() {
     return <p className="text-sm text-muted-foreground">{t("admin.common.superOnly")}</p>;
   }
 
-  const queryKey = ["admin_workspaces", search];
-  const { data: workspaces = [], isLoading } = useQuery({
-    queryKey,
-    queryFn: () => adminApi.listWorkspaces(search || undefined),
+  const {
+    data,
+    isLoading,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+  } = useInfiniteQuery({
+    queryKey: ["admin_workspaces", search],
+    queryFn: ({ pageParam = 1 }) =>
+      adminApi.listWorkspaces({ search: search || undefined, page: pageParam }),
+    getNextPageParam: (lastPage) => {
+      if (!lastPage.next) return undefined;
+      const url = new URL(lastPage.next);
+      return Number(url.searchParams.get("page"));
+    },
+    initialPageParam: 1,
   });
+
+  const workspaces = data?.pages.flatMap((p) => p.results) ?? [];
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["admin_workspaces"] });
 
@@ -78,7 +92,8 @@ export function AdminWorkspacesPage() {
             {t("admin.workspaces.empty")}
           </div>
         ) : (
-          workspaces.map((ws) => (
+          <>
+          {workspaces.map((ws) => (
             <div
               key={ws.id}
               className="flex items-center justify-between rounded-lg border bg-card p-4 shadow-sm"
@@ -123,7 +138,23 @@ export function AdminWorkspacesPage() {
                 </Button>
               </div>
             </div>
-          ))
+          ))}
+          {hasNextPage && (
+            <div className="flex justify-center pt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fetchNextPage()}
+                disabled={isFetchingNextPage}
+              >
+                {isFetchingNextPage ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                ) : null}
+                {t("admin.pagination.loadMore")}
+              </Button>
+            </div>
+          )}
+          </>
         )}
       </div>
 

@@ -253,6 +253,9 @@
       },
       "deleteConfirm": "Are you sure you want to delete this issue?",
       "deleteIssue": "Delete issue",
+      "linkedDocs": "Linked Documents",
+      "createDoc": "New document",
+      "noDocs": "No linked documents",
       "deleting": "Deleting...",
       "activity": {
         "empty": "No activity yet",
@@ -556,7 +559,11 @@
       "completed": "{{count}} completed",
       "inProgress": "{{count}} in progress",
       "cancelled": "{{count}} cancelled",
-      "complete": "complete"
+      "complete": "complete",
+      "title": "Burndown Chart",
+      "ideal": "Ideal",
+      "actual": "Actual",
+      "noData": "No burndown data available (set sprint start/end dates)"
     },
     "status": {
       "draft": "Draft",
@@ -651,6 +658,7 @@
   "sidebar": {
     "workspace": "Workspace",
     "home": "Home",
+    "myIssues": "My Issues",
     "discover": "Discover",
     "archived": "Archived",
     "announcements": "Announcements",
@@ -660,12 +668,18 @@
     "issues": "Issues",
     "modules": "Categories",
     "cycles": "Sprints",
+    "documents": "Documents",
     "settings": "Workspace settings",
+    "personalSettings": "Personal settings",
+    "switchWorkspace": "Switch workspace",
     "connected": "Connected",
     "connection": {
-      "connected": "Realtime connected",
+      "connected": "Realtime",
       "connecting": "Connecting...",
-      "disconnected": "Disconnected",
+      "disconnected": "Offline",
+      "connectedDesc": "Changes sync instantly",
+      "connectingDesc": "Establishing connection",
+      "disconnectedDesc": "Reconnecting...",
       "connectedTooltip": "Realtime sync is active — other users' changes will appear instantly.",
       "connectingTooltip": "Connecting to the realtime sync server.",
       "disconnectedTooltip": "Realtime sync is down. Reconnecting automatically — refresh the page to see the latest data."
@@ -682,7 +696,9 @@
     "profileSettings": "Profile Settings",
     "preferences": "Preferences",
     "logout": "Logout",
-    "adminPanel": "Admin panel"
+    "adminPanel": "Admin panel",
+    "switchWorkspace": "Switch workspace",
+    "searchDocs": "Search documents..."
   },
   "dashboard": {
     "morning": "Good morning",
@@ -699,6 +715,14 @@
     "assignedCount": "{{count}} assigned issues",
     "allClear": "All clear!",
     "allClearHint": "You have no pending assigned issues",
+    "myIssuesTitle": "My Issues",
+    "myIssuesDesc": "Issues assigned to you across all projects",
+    "filterAll": "All",
+    "filterByPriority": "Priority",
+    "filterByProject": "Project",
+    "groupByState": "Group by State",
+    "groupByProject": "Group by Project",
+    "noMatchingIssues": "No issues match the current filters",
     "recentIssues": "Recent Updates",
     "viewAll": "View All",
     "noIssues": "No issues yet",
@@ -871,6 +895,7 @@
     "tabs": {
       "table": "Table",
       "board": "Board",
+      "backlog": "Backlog",
       "calendar": "Calendar",
       "timeline": "Timeline",
       "cycles": "Sprints",
@@ -879,6 +904,11 @@
       "archive": "Archive"
     },
     "addIssue": "Add Issue",
+    "backlog": {
+      "title": "Backlog",
+      "empty": "No backlog issues",
+      "emptyHint": "Issues in backlog states will appear here"
+    },
     "archive": {
       "empty": "No archived issues",
       "emptyDescription": "Archived issues will appear here",
@@ -895,7 +925,10 @@
       "restored": "Issue restored",
       "retentionNotice": "Deleted issues are automatically permanently deleted after {{days}} days.",
       "autoDelete": "Auto-delete",
-      "daysLeft": "{{count}}d left"
+      "daysLeft": "{{count}}d left",
+      "purge": "Delete permanently",
+      "purged": "Issue permanently deleted",
+      "purgeConfirm": "This action cannot be undone. Permanently delete this issue?"
     },
     "categoryFilter": {
       "all": "All Issues",
@@ -965,6 +998,7 @@
   },
   "search": {
     "placeholder": "Search issues... (by title)",
+    "placeholderDocs": "Search documents...",
     "hint": "Type at least 2 characters to search",
     "noResults": "No results found",
     "searching": "Searching...",
@@ -1065,6 +1099,10 @@
       "noUsersFound": "No users found.",
       "selected": "Selected",
       "you": "You"
+    },
+    "pagination": {
+      "loadMore": "Load more",
+      "showing": "Showing {{shown}} of {{total}}"
     },
     "nav": {
       "section": "Admin",
@@ -1193,5 +1231,68 @@
     "deleteFailed": "Failed to delete.",
     "created": "State added.",
     "createFailed": "Failed to add."
+  },
+  "documents": {
+    "title": "Documents",
+    "homeDesc": "Manage documents across all spaces",
+    "newSpace": "New Space",
+    "spaceName": "Space name",
+    "create": "Create",
+    "spaceCreated": "Space created",
+    "projectSpaces": "Project Spaces",
+    "sharedSpaces": "Shared Spaces",
+    "personalSpaces": "Personal Spaces",
+    "docCount": "documents",
+    "empty": "No document spaces yet",
+    "emptyHint": "Create a shared space or open a project to get started",
+    "newDocument": "New Document",
+    "newFolder": "New Folder",
+    "untitled": "Untitled",
+    "selectDoc": "Select a document to start editing",
+    "rename": "Rename",
+    "changeIcon": "Change icon",
+    "delete": "Delete",
+    "deleteConfirm": "Delete this document and all sub-documents?",
+    "deleted": "Document deleted",
+    "startTyping": "Start typing...",
+    "backToApp": "Back to app",
+    "edit": "Edit",
+    "read": "Read",
+    "share": "Share",
+    "linkCopied": "Link copied",
+    "comments": "Comments",
+    "toc": "TOC",
+    "copyMarkdown": "Copy as Markdown",
+    "copiedMarkdown": "Copied as Markdown",
+    "fullWidth": "Full width",
+    "pageHistory": "Page history",
+    "moveTo": "Move to...",
+    "export": "Export",
+    "print": "Print",
+    "printPdf": "Print as PDF",
+    "trash": "Move to trash",
+    "backToEditor": "Editor",
+    "emptyFolder": "This folder is empty",
+    "name": "Name",
+    "modified": "Modified",
+    "explorer": "Explorer",
+    "liveEditing": "Live",
+    "exportDocx": "Export as HTML",
+    "importDocx": "Import .docx",
+    "exported": "Document exported",
+    "exportFailed": "Export failed",
+    "imported": "Document imported",
+    "importFailed": "Import failed",
+    "saveVersion": "Save",
+    "versionSaved": "Version saved",
+    "noVersions": "No versions yet",
+    "restoreVersion": "Restore this version",
+    "versionRestored": "Version restored",
+    "commentPlaceholder": "Write a comment...",
+    "postComment": "Post",
+    "noComments": "No comments yet",
+    "moved": "Document moved",
+    "rootFolder": "Root (top level)",
+    "subPages": "Sub-pages"
   }
 }

@@ -10,7 +10,7 @@ import { useCallback, useState } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { List, LayoutGrid, Calendar, GanttChart, Zap, Layers, ChevronDown, CheckCircle2, Circle, BarChart3, Archive } from "lucide-react";
+import { List, LayoutGrid, Calendar, GanttChart, Zap, Layers, ChevronDown, CheckCircle2, Circle, BarChart3, Archive, Inbox } from "lucide-react";
 import { issuesApi } from "@/api/issues";
 import { projectsApi } from "@/api/projects";
 import { cn } from "@/lib/utils";
@@ -31,15 +31,17 @@ import { SprintView }      from "./views/SprintView";
 import { AnalyticsView }  from "./views/AnalyticsView";
 import { ArchiveView }    from "./views/ArchiveView";
 import { TrashView }      from "./views/TrashView";
+import { BacklogView }   from "./views/BacklogView";
 import { useViewSettings } from "@/hooks/useViewSettings";
 import { ViewTransition } from "@/components/motion";
 import type { Category, Sprint } from "@/types";
 
-type ViewId = "table" | "board" | "calendar" | "timeline" | "sprints" | "analytics" | "archive" | "trash";
+type ViewId = "table" | "board" | "backlog" | "calendar" | "timeline" | "sprints" | "analytics" | "archive" | "trash";
 
 const VIEW_IDS: { id: ViewId; key: string; Icon: React.ElementType }[] = [
   { id: "table",     key: "views.tabs.table",     Icon: List        },
   { id: "board",     key: "views.tabs.board",      Icon: LayoutGrid  },
+  { id: "backlog",   key: "views.tabs.backlog",    Icon: Inbox       },
   { id: "calendar",  key: "views.tabs.calendar",   Icon: Calendar    },
   { id: "timeline",  key: "views.tabs.timeline",   Icon: GanttChart  },
   { id: "sprints",    key: "views.tabs.cycles",     Icon: Zap   },
@@ -356,6 +358,16 @@ export function ProjectIssuePage() {
 
         {currentView === "board" && (
           <BoardView
+            workspaceSlug={workspaceSlug!}
+            projectId={projectId!}
+            onIssueClick={openIssue}
+            issueFilter={issueFilter}
+            readOnly={readOnly}
+          />
+        )}
+
+        {currentView === "backlog" && (
+          <BacklogView
             workspaceSlug={workspaceSlug!}
             projectId={projectId!}
             onIssueClick={openIssue}

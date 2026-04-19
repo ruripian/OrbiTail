@@ -8,6 +8,8 @@ from rest_framework.generics import get_object_or_404
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django_filters.rest_framework import DjangoFilterBackend
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
 from .models import Issue, IssueComment, IssueActivity, IssueAttachment, IssueLink, IssueTemplate, Label
 from .serializers import (
     IssueSerializer,
@@ -21,11 +23,50 @@ from .serializers import (
 )
 
 
+def _ws_broadcast(workspace_slug, event):
+    """이슈 변경 사항을 워크스페이스 WebSocket 그룹에 브로드캐스트.
+    queryset.update() 등 post_save 시그널을 타지 않는 작업에서 직접 호출."""
+    try:
+        layer = get_channel_layer()
+        if layer:
+            async_to_sync(layer.group_send)(f"workspace_{workspace_slug}", event)
+    except Exception:
+        pass
+
+
+def _get_effective_perms(user, project_id):
+    """유저의 프로젝트 멤버십을 조회하고 effective_perms를 반환.
+    멤버가 아니면 None, 멤버이면 {"can_edit":..., "can_archive":..., ...} dict."""
+    from apps.projects.models import ProjectMember
+    try:
+        pm = ProjectMember.objects.get(project_id=project_id, member=user)
+        return pm.effective_perms
+    except ProjectMember.DoesNotExist:
+        return None
+
+
+def _check_perm(user, project_id, perm_key):
+    """특정 권한 키(can_edit/can_archive/can_delete/can_purge)를 확인.
+    Returns: (has_perm: bool, error_response: Response | None)"""
+    perms = _get_effective_perms(user, project_id)
+    if perms is None:
+        return False, Response(
+            {"detail": "프로젝트 멤버만 접근할 수 있습니다."},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+    if not perms.get(perm_key, False):
+        return False, Response(
+            {"detail": f"이 작업에 대한 권한이 없습니다. ({perm_key})"},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+    return True, None
+
+
 class IssueListCreateView(generics.ListCreateAPIView):
     serializer_class = IssueSerializer
     pagination_class = None  # 캘린더/타임라인 등 전체 이슈 필요 — 페이지네이션 해제
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ["state", "priority", "assignees", "label", "category", "sprint"]
+    filterset_fields = ["state", "state__group", "priority", "assignees", "label", "category", "sprint"]
     search_fields = ["title"]
     ordering_fields = ["sort_order", "created_at", "updated_at", "priority", "sequence_id"]
 
@@ -61,15 +102,10 @@ class IssueListCreateView(generics.ListCreateAPIView):
         return qs
 
     def create(self, request, *args, **kwargs):
-        """이슈 생성은 프로젝트 멤버만 가능"""
-        from apps.projects.models import ProjectMember
-        if not ProjectMember.objects.filter(
-            project_id=self.kwargs["project_pk"], member=request.user,
-        ).exists():
-            return Response(
-                {"detail": "프로젝트 멤버만 이슈를 생성할 수 있습니다."},
-                status=status.HTTP_403_FORBIDDEN,
-            )
+        """이슈 생성은 can_edit 권한 필요"""
+        ok, err = _check_perm(request.user, self.kwargs["project_pk"], "can_edit")
+        if not ok:
+            return err
         return super().create(request, *args, **kwargs)
 
 
@@ -92,20 +128,16 @@ class IssueDetailView(generics.RetrieveUpdateDestroyAPIView):
             .select_related("state", "created_by")
         )
 
-    def _check_member(self, request):
-        from apps.projects.models import ProjectMember
-        return ProjectMember.objects.filter(
-            project_id=self.kwargs["project_pk"], member=request.user,
-        ).exists()
-
     def update(self, request, *args, **kwargs):
-        if not self._check_member(request):
-            return Response({"detail": "프로젝트 멤버만 이슈를 수정할 수 있습니다."}, status=status.HTTP_403_FORBIDDEN)
+        ok, err = _check_perm(request.user, self.kwargs["project_pk"], "can_edit")
+        if not ok:
+            return err
         return super().update(request, *args, **kwargs)
 
     def destroy(self, request, *args, **kwargs):
-        if not self._check_member(request):
-            return Response({"detail": "프로젝트 멤버만 이슈를 삭제할 수 있습니다."}, status=status.HTTP_403_FORBIDDEN)
+        ok, err = _check_perm(request.user, self.kwargs["project_pk"], "can_delete")
+        if not ok:
+            return err
         return super().destroy(request, *args, **kwargs)
 
     def perform_destroy(self, instance):
@@ -235,6 +267,20 @@ class WorkspaceIssueSearchView(generics.ListAPIView):
         search = self.request.query_params.get("search", "").strip()
         if search:
             qs = qs.filter(title__icontains=search)
+
+        # 고급 필터 — 프론트 Cmd+K에서 파싱된 구문 파라미터
+        priority = self.request.query_params.get("priority")
+        if priority:
+            qs = qs.filter(priority=priority)
+        state_group = self.request.query_params.get("state_group")
+        if state_group:
+            qs = qs.filter(state__group=state_group)
+        assignee = self.request.query_params.get("assignee")
+        if assignee == "me":
+            qs = qs.filter(assignees=self.request.user)
+        elif assignee:
+            qs = qs.filter(assignees__id=assignee)
+
         return qs[:20]
 
 
@@ -289,6 +335,12 @@ class IssueHardDeleteView(generics.DestroyAPIView):
             deleted_at__isnull=False,
         )
 
+    def destroy(self, request, *args, **kwargs):
+        ok, err = _check_perm(request.user, self.kwargs["project_pk"], "can_purge")
+        if not ok:
+            return err
+        return super().destroy(request, *args, **kwargs)
+
 
 class IssueArchiveListView(generics.ListAPIView):
     """프로젝트의 보관된 이슈 목록 — ?category=&sprint= 필터 지원"""
@@ -331,11 +383,13 @@ class IssueArchiveView(APIView):
 
     def post(self, request, workspace_slug, project_pk, pk):
         """이슈를 보관함으로 이동 (모든 하위 이슈 포함)"""
+        ok, err = _check_perm(request.user, project_pk, "can_archive")
+        if not ok:
+            return err
         issue = get_object_or_404(
             Issue,
             pk=pk,
             project_id=project_pk,
-            project__members__member=request.user,
             deleted_at__isnull=True,
         )
         if issue.archived_at:
@@ -347,25 +401,36 @@ class IssueArchiveView(APIView):
         descendant_ids = self._collect_descendant_ids(issue.id)
         if descendant_ids:
             Issue.objects.filter(id__in=descendant_ids, archived_at__isnull=True).update(archived_at=now)
+        _ws_broadcast(workspace_slug, {
+            "type": "issue.archived",
+            "issue_id": str(pk),
+            "project_id": str(project_pk),
+        })
         return Response(IssueSerializer(issue, context={"request": request}).data)
 
     def delete(self, request, workspace_slug, project_pk, pk):
         """보관된 이슈를 활성 상태로 복원 (모든 하위 이슈 포함)"""
+        ok, err = _check_perm(request.user, project_pk, "can_archive")
+        if not ok:
+            return err
         issue = get_object_or_404(
             Issue,
             pk=pk,
             project_id=project_pk,
-            project__members__member=request.user,
             archived_at__isnull=False,
             deleted_at__isnull=True,
         )
         saved_at = issue.archived_at
         issue.archived_at = None
         issue.save(update_fields=["archived_at"])
-        # 모든 깊이의 하위 이슈도 함께 복원 (같은 archived_at 시점 기준)
         descendant_ids = self._collect_descendant_ids(issue.id)
         if descendant_ids:
             Issue.objects.filter(id__in=descendant_ids, archived_at=saved_at).update(archived_at=None)
+        _ws_broadcast(workspace_slug, {
+            "type": "issue.archived",
+            "issue_id": str(pk),
+            "project_id": str(project_pk),
+        })
         return Response(IssueSerializer(issue, context={"request": request}).data)
 
 
@@ -520,6 +585,10 @@ class IssueBulkUpdateView(APIView):
     """
 
     def patch(self, request, workspace_slug, project_pk):
+        ok, err = _check_perm(request.user, project_pk, "can_edit")
+        if not ok:
+            return err
+
         issue_ids = request.data.get("issue_ids", [])
         updates = request.data.get("updates", {})
 
@@ -563,6 +632,10 @@ class IssueBulkUpdateView(APIView):
         if activities:
             IssueActivity.objects.bulk_create(activities)
 
+        _ws_broadcast(workspace_slug, {
+            "type": "issue.bulk_updated",
+            "project_id": str(project_pk),
+        })
         return Response({"detail": f"{issues.count()}개 이슈가 업데이트되었습니다."})
 
 
@@ -574,6 +647,10 @@ class IssueBulkDeleteView(APIView):
     """
 
     def post(self, request, workspace_slug, project_pk):
+        ok, err = _check_perm(request.user, project_pk, "can_delete")
+        if not ok:
+            return err
+
         issue_ids = request.data.get("issue_ids", [])
         if not issue_ids:
             return Response({"detail": "issue_ids가 필요합니다."}, status=status.HTTP_400_BAD_REQUEST)
@@ -592,6 +669,10 @@ class IssueBulkDeleteView(APIView):
             deleted_at__isnull=True,
         ).update(deleted_at=now)
 
+        _ws_broadcast(workspace_slug, {
+            "type": "issue.bulk_deleted",
+            "project_id": str(project_pk),
+        })
         return Response({"detail": f"{updated}개 이슈가 삭제되었습니다."})
 
 
@@ -751,3 +832,26 @@ class IssueTemplateDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
         return IssueTemplate.objects.filter(project_id=self.kwargs["project_pk"])
+
+
+class IssueDocumentLinksView(APIView):
+    """이슈에 연결된 문서 목록 (역방향 조회)"""
+
+    def get(self, request, workspace_slug, project_pk, pk):
+        from apps.documents.models import DocumentIssueLink
+        links = DocumentIssueLink.objects.filter(
+            issue_id=pk,
+            issue__project_id=project_pk,
+        ).select_related("document")
+        data = [
+            {
+                "id": str(link.id),
+                "document_id": str(link.document_id),
+                "document_title": link.document.title,
+                "document_icon_prop": link.document.icon_prop,
+                "space_id": str(link.document.space_id),
+                "created_at": link.created_at.isoformat(),
+            }
+            for link in links
+        ]
+        return Response(data)

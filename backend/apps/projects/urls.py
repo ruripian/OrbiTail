@@ -18,6 +18,8 @@ from .views import (
     StateDetailView,
     ProjectEventListCreateView,
     ProjectEventDetailView,
+    SavedFilterListCreateView,
+    SavedFilterDetailView,
 )
 
 urlpatterns = [
@@ -108,6 +110,17 @@ urlpatterns = [
         "workspaces/<slug:workspace_slug>/projects/<uuid:project_pk>/states/<uuid:pk>/",
         StateDetailView.as_view(),
         name="state-detail",
+    ),
+    # 저장된 필터
+    path(
+        "workspaces/<slug:workspace_slug>/projects/<uuid:project_pk>/saved-filters/",
+        SavedFilterListCreateView.as_view(),
+        name="saved-filter-list",
+    ),
+    path(
+        "workspaces/<slug:workspace_slug>/projects/<uuid:project_pk>/saved-filters/<uuid:pk>/",
+        SavedFilterDetailView.as_view(),
+        name="saved-filter-detail",
     ),
     # 프로젝트 캘린더 이벤트
     path(

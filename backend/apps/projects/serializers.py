@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from apps.accounts.serializers import UserSerializer
-from .models import Project, ProjectMember, Category, Sprint, State, ProjectEvent
+from .models import Project, ProjectMember, Category, Sprint, State, ProjectEvent, SavedFilter
 
 
 class ProjectEventSerializer(serializers.ModelSerializer):
@@ -241,3 +241,10 @@ class SprintSerializer(serializers.ModelSerializer):
 
     def get_issue_count(self, obj):
         return obj.issues.filter(deleted_at__isnull=True).count()
+
+
+class SavedFilterSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SavedFilter
+        fields = ["id", "name", "filters", "sort_order", "created_at"]
+        read_only_fields = ["id", "created_at"]

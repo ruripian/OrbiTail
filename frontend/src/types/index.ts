@@ -163,6 +163,79 @@ export interface ProjectEvent {
   updated_at: string;
 }
 
+export interface DocumentSpace {
+  id: string;
+  name: string;
+  icon: string;
+  description: string;
+  space_type: "project" | "personal" | "shared";
+  project: string | null;
+  project_name: string | null;
+  project_identifier: string | null;
+  owner: string | null;
+  owner_detail: User | null;
+  document_count: number;
+  created_at: string;
+}
+
+export interface Document {
+  id: string;
+  space: string;
+  parent: string | null;
+  title: string;
+  icon_prop: Record<string, unknown> | null;
+  content_html: string;
+  is_folder: boolean;
+  created_by: string | null;
+  created_by_detail: User | null;
+  sort_order: number;
+  children_count: number;
+  deleted_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DocumentIssueLink {
+  id: string;
+  document: string;
+  issue: string;
+  issue_title: string;
+  issue_sequence_id: number;
+  issue_state: string | null;
+  issue_priority: string;
+  project_identifier: string;
+  created_at: string;
+}
+
+export interface DocumentVersion {
+  id: string;
+  document: string;
+  version_number: number;
+  title: string;
+  content_html: string;
+  created_by: string | null;
+  created_by_detail: User | null;
+  created_at: string;
+}
+
+export interface DocumentComment {
+  id: string;
+  document: string;
+  author: string;
+  author_detail: User | null;
+  content: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SavedFilter {
+  id: string;
+  name: string;
+  filters: Record<string, string[]>;
+  sort_order: number;
+  created_at: string;
+}
+
 export interface Label {
   id: string;
   name: string;

@@ -23,6 +23,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DatePicker } from "@/components/ui/date-picker";
 import { PageTransition, StaggerList, StaggerItem, HoverLift } from "@/components/motion";
+import { SprintBurndown } from "@/components/charts/SprintBurndown";
 import type { Sprint, SprintStatus, Issue, State } from "@/types";
 
 const STATUS_STYLE: Record<SprintStatus, { bg: string; icon: React.ElementType }> = {
@@ -293,6 +294,11 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
                   <span className="text-muted-foreground ml-auto">{pct}% {t("cycles.burndown.complete")}</span>
                 </div>
               </div>
+            )}
+
+            {/* 번다운 차트 */}
+            {selectedSprint && selectedSprint.start_date && selectedSprint.end_date && total > 0 && (
+              <SprintBurndown sprint={selectedSprint} issues={sprintIssues} states={states} />
             )}
 
             <div>

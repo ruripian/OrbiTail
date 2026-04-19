@@ -223,3 +223,22 @@ class State(models.Model):
 
     def __str__(self):
         return f"{self.project.identifier} / {self.name}"
+
+
+class SavedFilter(models.Model):
+    """프로젝트별 저장된 필터 프리셋 — 사용자별로 관리"""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="saved_filters")
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="saved_filters",
+    )
+    name = models.CharField(max_length=100)
+    filters = models.JSONField(default=dict)  # { states: [], priorities: [], assignees: [], labels: [] }
+    sort_order = models.FloatField(default=65535)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "saved_filters"
+        ordering = ["sort_order", "created_at"]

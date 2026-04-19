@@ -35,6 +35,16 @@ import { DiscoverProjectsPage } from "@/pages/project/DiscoverProjectsPage";
 import { ArchivedProjectsPage } from "@/pages/project/ArchivedProjectsPage";
 import { InviteAcceptPage } from "@/pages/invite/InviteAcceptPage";
 import { AnnouncementsPage } from "@/pages/AnnouncementsPage";
+import { DocumentLayout } from "@/components/layout/DocumentLayout";
+import { lazy, Suspense } from "react";
+
+const DocumentsHomePage = lazy(() => import("@/pages/documents/DocumentsHomePage"));
+const DocumentSpacePage = lazy(() => import("@/pages/documents/DocumentSpacePage"));
+const DocumentExplorerPage = lazy(() => import("@/pages/documents/DocumentExplorerPage"));
+
+function LazyPage({ Component }: { Component: React.LazyExoticComponent<() => JSX.Element> }) {
+  return <Suspense fallback={<div className="flex items-center justify-center h-full"><div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>}><Component /></Suspense>;
+}
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   // accessToken 존재 여부로 인증 체크 (getter 대신 selector 사용)
@@ -150,6 +160,20 @@ export const router = createBrowserRouter([
           { path: "notifications", element: <ProjectNotificationsPage /> },
         ],
       },
+    ],
+  },
+  {
+    path: "/:workspaceSlug/documents",
+    element: (
+      <RequireAuth>
+        <DocumentLayout />
+      </RequireAuth>
+    ),
+    children: [
+      { index: true, element: <LazyPage Component={DocumentsHomePage} /> },
+      { path: "space/:spaceId", element: <LazyPage Component={DocumentSpacePage} /> },
+      { path: "space/:spaceId/explorer", element: <LazyPage Component={DocumentExplorerPage} /> },
+      { path: "space/:spaceId/:docId", element: <LazyPage Component={DocumentSpacePage} /> },
     ],
   },
 ]);

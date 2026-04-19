@@ -253,6 +253,9 @@
       },
       "deleteConfirm": "이 이슈를 삭제하시겠습니까?",
       "deleteIssue": "이슈 삭제",
+      "linkedDocs": "연결된 문서",
+      "createDoc": "새 문서",
+      "noDocs": "연결된 문서 없음",
       "deleting": "삭제 중...",
       "activity": {
         "empty": "아직 활동 기록이 없습니다",
@@ -556,7 +559,11 @@
       "completed": "완료 {{count}}",
       "inProgress": "진행 중 {{count}}",
       "cancelled": "취소 {{count}}",
-      "complete": "완료"
+      "complete": "완료",
+      "title": "번다운 차트",
+      "ideal": "이상",
+      "actual": "실제",
+      "noData": "번다운 데이터 없음 (스프린트 시작/종료일을 설정하세요)"
     },
     "status": {
       "draft": "초안",
@@ -651,6 +658,7 @@
   "sidebar": {
     "workspace": "워크스페이스",
     "home": "홈",
+    "myIssues": "내 이슈",
     "discover": "탐색",
     "archived": "보관함",
     "announcements": "공지 & 업데이트",
@@ -660,12 +668,18 @@
     "issues": "이슈",
     "modules": "카테고리",
     "cycles": "스프린트",
+    "documents": "문서",
     "settings": "워크스페이스 설정",
+    "personalSettings": "개인 설정",
+    "switchWorkspace": "워크스페이스 전환",
     "connected": "연결됨",
     "connection": {
-      "connected": "실시간 연결됨",
+      "connected": "실시간",
       "connecting": "연결 중...",
-      "disconnected": "연결 끊김",
+      "disconnected": "오프라인",
+      "connectedDesc": "변경사항 즉시 동기화",
+      "connectingDesc": "서버 연결 중",
+      "disconnectedDesc": "재연결 중...",
       "connectedTooltip": "워크스페이스 실시간 동기화가 활성화되어 있습니다 — 다른 사람의 변경이 즉시 반영됩니다.",
       "connectingTooltip": "실시간 동기화 서버에 연결하는 중입니다.",
       "disconnectedTooltip": "실시간 동기화가 끊겼습니다. 자동으로 재연결됩니다 — 페이지를 새로고침하면 최신 데이터를 볼 수 있습니다."
@@ -682,7 +696,9 @@
     "profileSettings": "프로필 설정",
     "preferences": "환경설정",
     "logout": "로그아웃",
-    "adminPanel": "관리자 페이지"
+    "adminPanel": "관리자 페이지",
+    "switchWorkspace": "워크스페이스 전환",
+    "searchDocs": "문서 검색..."
   },
   "dashboard": {
     "morning": "좋은 아침이에요",
@@ -697,6 +713,14 @@
     "browseIssues": "이슈 탐색",
     "noDeadlineHint": "지정된 마감일이 없는 이슈들은 여기에 표시되지 않습니다",
     "assignedCount": "배정된 이슈 {{count}}개",
+    "myIssuesTitle": "내 이슈",
+    "myIssuesDesc": "모든 프로젝트에서 나에게 배정된 이슈",
+    "filterAll": "전체",
+    "filterByPriority": "우선순위",
+    "filterByProject": "프로젝트",
+    "groupByState": "상태별 그룹",
+    "groupByProject": "프로젝트별 그룹",
+    "noMatchingIssues": "현재 필터에 맞는 이슈가 없습니다",
     "allClear": "모든 할 일을 완료했습니다!",
     "allClearHint": "배정된 미완료 이슈가 없습니다",
     "recentIssues": "최근 업데이트",
@@ -871,6 +895,7 @@
     "tabs": {
       "table": "테이블",
       "board": "보드",
+      "backlog": "백로그",
       "calendar": "캘린더",
       "timeline": "타임라인",
       "cycles": "스프린트",
@@ -879,6 +904,11 @@
       "archive": "보관함"
     },
     "addIssue": "이슈 추가",
+    "backlog": {
+      "title": "백로그",
+      "empty": "백로그 이슈가 없습니다",
+      "emptyHint": "백로그 상태의 이슈가 여기에 표시됩니다"
+    },
     "archive": {
       "empty": "보관된 이슈가 없습니다",
       "emptyDescription": "보관된 이슈가 여기에 표시됩니다",
@@ -895,7 +925,10 @@
       "restored": "이슈가 복구되었습니다",
       "retentionNotice": "삭제된 이슈는 {{days}}일 후 자동으로 영구 삭제됩니다.",
       "autoDelete": "자동 삭제",
-      "daysLeft": "{{count}}일 남음"
+      "daysLeft": "{{count}}일 남음",
+      "purge": "영구 삭제",
+      "purged": "이슈가 영구 삭제되었습니다",
+      "purgeConfirm": "이 작업은 되돌릴 수 없습니다. 이 이슈를 영구 삭제하시겠습니까?"
     },
     "categoryFilter": {
       "all": "전체 이슈",
@@ -965,6 +998,7 @@
   },
   "search": {
     "placeholder": "이슈 검색... (제목으로 검색)",
+    "placeholderDocs": "문서 검색...",
     "hint": "2글자 이상 입력하면 검색이 시작됩니다",
     "noResults": "검색 결과가 없습니다",
     "searching": "검색 중...",
@@ -1065,6 +1099,10 @@
       "noUsersFound": "검색 결과가 없습니다.",
       "selected": "선택됨",
       "you": "나"
+    },
+    "pagination": {
+      "loadMore": "더 보기",
+      "showing": "{{total}}개 중 {{shown}}개 표시"
     },
     "nav": {
       "section": "관리자",
@@ -1193,5 +1231,68 @@
     "deleteFailed": "삭제에 실패했습니다.",
     "created": "상태가 추가되었습니다.",
     "createFailed": "추가에 실패했습니다."
+  },
+  "documents": {
+    "title": "문서",
+    "homeDesc": "모든 스페이스의 문서를 관리합니다",
+    "newSpace": "새 스페이스",
+    "spaceName": "스페이스 이름",
+    "create": "생성",
+    "spaceCreated": "스페이스가 생성되었습니다",
+    "projectSpaces": "프로젝트 스페이스",
+    "sharedSpaces": "공용 스페이스",
+    "personalSpaces": "개인 스페이스",
+    "docCount": "개 문서",
+    "empty": "문서 스페이스가 없습니다",
+    "emptyHint": "공용 스페이스를 만들거나 프로젝트를 열어 시작하세요",
+    "newDocument": "새 문서",
+    "newFolder": "새 폴더",
+    "untitled": "제목 없음",
+    "selectDoc": "문서를 선택하여 편집을 시작하세요",
+    "rename": "이름 변경",
+    "changeIcon": "아이콘 변경",
+    "delete": "삭제",
+    "deleteConfirm": "이 문서와 모든 하위 문서를 삭제하시겠습니까?",
+    "deleted": "문서가 삭제되었습니다",
+    "startTyping": "내용을 입력하세요... (# 제목, ## 소제목, - 목록, ** 굵게 **)",
+    "backToApp": "앱으로 돌아가기",
+    "edit": "편집",
+    "read": "읽기",
+    "share": "공유",
+    "linkCopied": "링크가 복사되었습니다",
+    "comments": "댓글",
+    "toc": "목차",
+    "copyMarkdown": "마크다운 복사",
+    "copiedMarkdown": "마크다운이 복사되었습니다",
+    "fullWidth": "전체 너비",
+    "pageHistory": "페이지 기록",
+    "moveTo": "이동...",
+    "export": "내보내기",
+    "print": "인쇄",
+    "printPdf": "PDF 인쇄",
+    "trash": "휴지통으로 이동",
+    "backToEditor": "에디터",
+    "emptyFolder": "이 폴더는 비어 있습니다",
+    "name": "이름",
+    "modified": "수정일",
+    "explorer": "탐색기",
+    "liveEditing": "실시간",
+    "exportDocx": "HTML로 내보내기",
+    "importDocx": ".docx 가져오기",
+    "exported": "문서를 내보냈습니다",
+    "exportFailed": "내보내기 실패",
+    "imported": "문서를 가져왔습니다",
+    "importFailed": "가져오기 실패",
+    "saveVersion": "저장",
+    "versionSaved": "버전이 저장되었습니다",
+    "noVersions": "저장된 버전이 없습니다",
+    "restoreVersion": "이 버전으로 복원",
+    "versionRestored": "버전이 복원되었습니다",
+    "commentPlaceholder": "댓글을 입력하세요...",
+    "postComment": "등록",
+    "noComments": "댓글이 없습니다",
+    "moved": "문서가 이동되었습니다",
+    "rootFolder": "루트 (최상위)",
+    "subPages": "하위 페이지"
   }
 }

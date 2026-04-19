@@ -26,6 +26,7 @@ from .views import (
     ProjectIssueStatsView,
     WorkspaceRecentIssuesView,
     WorkspaceIssueSearchView,
+    IssueDocumentLinksView,
 )
 
 urlpatterns = [
@@ -168,5 +169,11 @@ urlpatterns = [
         "workspaces/<slug:workspace_slug>/issues/search/",
         WorkspaceIssueSearchView.as_view(),
         name="workspace-issue-search",
+    ),
+    # 이슈에 연결된 문서
+    path(
+        "workspaces/<slug:workspace_slug>/projects/<uuid:project_pk>/issues/<uuid:pk>/documents/",
+        IssueDocumentLinksView.as_view(),
+        name="issue-document-links",
     ),
 ]

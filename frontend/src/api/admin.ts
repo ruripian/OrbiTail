@@ -5,14 +5,13 @@ export type UserStatusFilter = "pending" | "approved" | "suspended" | "superuser
 
 /**
  * 관리자 API — 사용자 / 워크스페이스 / 감사 로그.
- * 응답이 `PaginatedResponse<T>`인 엔드포인트는 `.results`만 반환.
  */
 export const adminApi = {
   /* ─── 사용자 ─── */
-  listUsers: (params?: { status?: UserStatusFilter; search?: string }) =>
+  listUsers: (params?: { status?: UserStatusFilter; search?: string; page?: number }) =>
     api
       .get<PaginatedResponse<AdminUser>>("/auth/admin/users/", { params })
-      .then((r) => r.data.results),
+      .then((r) => r.data),
 
   approveUser: (userId: string) =>
     api.post<{ detail: string }>(`/auth/admin/users/${userId}/approve/`).then((r) => r.data),
@@ -33,12 +32,10 @@ export const adminApi = {
   deleteUser: (userId: string) => api.delete(`/auth/admin/users/${userId}/`),
 
   /* ─── 워크스페이스 ─── */
-  listWorkspaces: (search?: string) =>
+  listWorkspaces: (params?: { search?: string; page?: number }) =>
     api
-      .get<PaginatedResponse<Workspace>>("/workspaces/admin/all/", {
-        params: search ? { search } : undefined,
-      })
-      .then((r) => r.data.results),
+      .get<PaginatedResponse<Workspace>>("/workspaces/admin/all/", { params })
+      .then((r) => r.data),
 
   createWorkspace: (data: { name: string; slug: string; owner_id: string }) =>
     api.post<Workspace>("/workspaces/admin/create/", data).then((r) => r.data),
@@ -51,8 +48,8 @@ export const adminApi = {
       .then((r) => r.data),
 
   /* ─── 감사 로그 ─── */
-  listAudit: (params?: { action?: string; target_type?: string; actor?: string }) =>
+  listAudit: (params?: { action?: string; target_type?: string; actor?: string; page?: number }) =>
     api
       .get<PaginatedResponse<AuditLog>>("/admin/audit/", { params })
-      .then((r) => r.data.results),
+      .then((r) => r.data),
 };

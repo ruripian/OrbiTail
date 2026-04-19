@@ -14,6 +14,7 @@ import { useState, useMemo, useRef, useEffect, useCallback, Fragment } from "rea
 import { createPortal } from "react-dom";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useIssueRefresh } from "@/hooks/useIssueMutations";
+import { useUndoStore } from "@/stores/undoStore";
 import { useTranslation } from "react-i18next";
 import { Settings2, ChevronDown, Plus, ChevronRight } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
@@ -280,6 +281,7 @@ interface Props {
 export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilter, settings, onSettingsChange }: Props) {
   const { t } = useTranslation();
   const { refresh } = useIssueRefresh(workspaceSlug, projectId);
+  const pushUndo = useUndoStore((s) => s.push);
   const firstDow = useAuthStore((s) => s.user?.first_day_of_week ?? 0); // 0=일요일, 1=월요일
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsBtnRef = useRef<HTMLButtonElement>(null);
@@ -339,19 +341,33 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: Partial<Issue> }) =>
       issuesApi.update(workspaceSlug, projectId, id, data),
-    onMutate: () => {
+    onMutate: ({ id, data }) => {
       // 드래그 완료 순간의 스크롤 위치를 저장해둠
       if (scrollRef.current) savedScrollLeft.current = scrollRef.current.scrollLeft;
+      const issue = issues.find((i) => i.id === id);
+      if (!issue) return;
+      const prev: Partial<Issue> = {};
+      for (const key of Object.keys(data) as (keyof Issue)[]) {
+        (prev as any)[key] = (issue as any)[key];
+      }
+      return { id, prev };
     },
-    onSuccess: () => {
+    onSuccess: (_result, variables, context) => {
       refresh();
-      // refresh 후 rangeStart/rangeEnd가 재계산되어 DOM이 바뀌기 전까지
-      // 두 프레임을 기다린 뒤 스크롤 위치를 복원 (double rAF 패턴)
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           if (scrollRef.current) scrollRef.current.scrollLeft = savedScrollLeft.current;
         });
       });
+      if (context?.prev) {
+        pushUndo({
+          label: `Timeline: ${Object.keys(variables.data).join(", ")}`,
+          undo: async () => {
+            await issuesApi.update(workspaceSlug, projectId, context.id, context.prev);
+            refresh();
+          },
+        });
+      }
     },
   });
 

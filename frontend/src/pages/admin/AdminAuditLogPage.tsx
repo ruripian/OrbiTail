@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Loader2 } from "lucide-react";
 
@@ -39,11 +39,28 @@ export function AdminAuditLogPage() {
 
   const [actionFilter, setActionFilter] = useState<AuditAction | "all">("all");
 
-  const { data: logs = [], isLoading } = useQuery({
+  const {
+    data,
+    isLoading,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+  } = useInfiniteQuery({
     queryKey: ["admin_audit", actionFilter],
-    queryFn: () =>
-      adminApi.listAudit(actionFilter === "all" ? undefined : { action: actionFilter }),
+    queryFn: ({ pageParam = 1 }) =>
+      adminApi.listAudit({
+        ...(actionFilter !== "all" ? { action: actionFilter } : {}),
+        page: pageParam,
+      }),
+    getNextPageParam: (lastPage) => {
+      if (!lastPage.next) return undefined;
+      const url = new URL(lastPage.next);
+      return Number(url.searchParams.get("page"));
+    },
+    initialPageParam: 1,
   });
+
+  const logs = data?.pages.flatMap((p) => p.results) ?? [];
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -76,7 +93,8 @@ export function AdminAuditLogPage() {
             {t("admin.audit.empty")}
           </div>
         ) : (
-          logs.map((log) => (
+          <>
+          {logs.map((log) => (
             <div
               key={log.id}
               className="rounded-lg border bg-card p-3 shadow-sm flex items-start gap-3"
@@ -106,7 +124,23 @@ export function AdminAuditLogPage() {
                 <div>{formatTime(log.created_at)}</div>
               </div>
             </div>
-          ))
+          ))}
+          {hasNextPage && (
+            <div className="flex justify-center pt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fetchNextPage()}
+                disabled={isFetchingNextPage}
+              >
+                {isFetchingNextPage ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                ) : null}
+                {t("admin.pagination.loadMore")}
+              </Button>
+            </div>
+          )}
+          </>
         )}
       </div>
     </div>

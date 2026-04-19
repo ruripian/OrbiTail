@@ -54,6 +54,10 @@ export default defineConfig(({ mode }) => {
           target: "ws://backend:8000",
           ws: true,
         },
+        "/media": {
+          target: "http://backend:8000",
+          changeOrigin: true,
+        },
       },
     },
   };

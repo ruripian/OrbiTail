@@ -7,6 +7,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Trash2, RotateCcw } from "lucide-react";
 import { issuesApi } from "@/api/issues";
+import { useProjectPerms } from "@/hooks/useProjectPerms";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -25,6 +26,7 @@ interface Props {
 
 export function TrashView({ workspaceSlug, projectId }: Props) {
   const { t } = useTranslation();
+  const { perms } = useProjectPerms();
   const qc = useQueryClient();
 
   const { data: deletedIssues = [], isLoading } = useQuery({
@@ -40,6 +42,11 @@ export function TrashView({ workspaceSlug, projectId }: Props) {
   const restoreMutation = useMutation({
     mutationFn: (issueId: string) => issuesApi.restore(workspaceSlug, projectId, issueId),
     onSuccess: () => { invalidate(); toast.success(t("views.trash.restored")); },
+  });
+
+  const purgeMutation = useMutation({
+    mutationFn: (issueId: string) => issuesApi.hardDelete(workspaceSlug, projectId, issueId),
+    onSuccess: () => { invalidate(); toast.success(t("views.trash.purged")); },
   });
 
   /* 잔여 일수 계산 */
@@ -75,7 +82,7 @@ export function TrashView({ workspaceSlug, projectId }: Props) {
           <span className="flex-1">{t("issues.table.cols.title")}</span>
           <span className="w-20 text-center">{t("issues.table.cols.priority")}</span>
           <span className="w-28 text-center">{t("views.trash.autoDelete")}</span>
-          <span className="w-24" />
+          <span className="w-44" />
         </div>
 
         {/* 이슈 목록 */}
@@ -109,8 +116,8 @@ export function TrashView({ workspaceSlug, projectId }: Props) {
                 {t("views.trash.daysLeft", { count: remaining })}
               </span>
 
-              {/* 복구 버튼 */}
-              <div className="w-24 flex items-center justify-end">
+              {/* 복구/영구삭제 버튼 */}
+              <div className="w-44 flex items-center justify-end gap-1.5">
                 <Button
                   variant="outline"
                   size="sm"
@@ -121,6 +128,22 @@ export function TrashView({ workspaceSlug, projectId }: Props) {
                   <RotateCcw className="h-3 w-3 mr-1" />
                   {t("views.trash.restore")}
                 </Button>
+                {perms.can_purge && (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => {
+                      if (window.confirm(t("views.trash.purgeConfirm"))) {
+                        purgeMutation.mutate(issue.id);
+                      }
+                    }}
+                    disabled={purgeMutation.isPending}
+                  >
+                    <Trash2 className="h-3 w-3 mr-1" />
+                    {t("views.trash.purge")}
+                  </Button>
+                )}
               </div>
             </div>
           );

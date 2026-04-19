@@ -10,6 +10,7 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useIssueRefresh } from "@/hooks/useIssueMutations";
+import { useUndoStore } from "@/stores/undoStore";
 import { useTranslation } from "react-i18next";
 import { ChevronLeft, ChevronRight, Settings2, Maximize2, Minimize2, Plus, User as UserIcon, Users } from "lucide-react";
 import { issuesApi } from "@/api/issues";
@@ -285,6 +286,7 @@ export function CalendarView({ workspaceSlug, projectId, onIssueClick, issueFilt
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsBtnRef = useRef<HTMLButtonElement>(null);
   const qc = useQueryClient();
+  const pushUndo = useUndoStore((s) => s.push);
   const { refresh, refreshIssue } = useIssueRefresh(workspaceSlug, projectId);
 
   /* 확장된 이슈/이벤트 id 집합 — chip을 span bar로 확장 표시. 세션 동안만 유지 */
@@ -377,10 +379,28 @@ export function CalendarView({ workspaceSlug, projectId, onIssueClick, issueFilt
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: Partial<Issue> }) =>
       issuesApi.update(workspaceSlug, projectId, id, data),
-    onSuccess: (_, variables) => {
-      /* 드래그 변경이 모든 관련 뷰/패널에 즉시 반영되도록 넓게 invalidate */
+    onMutate: ({ id, data }) => {
+      const issue = issues.find((i) => i.id === id);
+      if (!issue) return;
+      const prev: Partial<Issue> = {};
+      for (const key of Object.keys(data) as (keyof Issue)[]) {
+        (prev as any)[key] = (issue as any)[key];
+      }
+      return { id, prev };
+    },
+    onSuccess: (_, variables, context) => {
       refresh();
       refreshIssue(variables.id);
+      if (context?.prev) {
+        pushUndo({
+          label: `Calendar: ${Object.keys(variables.data).join(", ")}`,
+          undo: async () => {
+            await issuesApi.update(workspaceSlug, projectId, context.id, context.prev);
+            refresh();
+            refreshIssue(context.id);
+          },
+        });
+      }
     },
   });
 

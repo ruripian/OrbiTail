@@ -33,6 +33,7 @@ import { SprintPicker } from "@/components/issues/sprint-picker";
 import { LabelPicker } from "@/components/issues/label-picker";
 import { useSavedFilters } from "@/hooks/useSavedFilters";
 import { useIssueRefresh } from "@/hooks/useIssueMutations";
+import { useProjectPerms } from "@/hooks/useProjectPerms";
 import { useUndoStore } from "@/stores/undoStore";
 import { projectsApi } from "@/api/projects";
 import { cn } from "@/lib/utils";
@@ -1055,6 +1056,7 @@ function BulkToolbar({
   allIssues: Issue[];
 }) {
   const { t } = useTranslation();
+  const { perms } = useProjectPerms();
   const qc = useQueryClient();
   const pushUndo = useUndoStore((s) => s.push);
 
@@ -1189,18 +1191,20 @@ function BulkToolbar({
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <Button
-        variant="ghost"
-        size="sm"
-        className="text-xs text-destructive hover:text-destructive"
-        onClick={() => {
-          if (window.confirm(t("issues.bulk.deleteConfirm", { count: selectedCount }))) {
-            bulkDeleteMutation.mutate();
-          }
-        }}
-      >
-        {t("issues.bulk.delete")}
-      </Button>
+      {perms.can_delete && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-xs text-destructive hover:text-destructive"
+          onClick={() => {
+            if (window.confirm(t("issues.bulk.deleteConfirm", { count: selectedCount }))) {
+              bulkDeleteMutation.mutate();
+            }
+          }}
+        >
+          {t("issues.bulk.delete")}
+        </Button>
+      )}
 
       <div className="h-5 w-px bg-border" />
 
@@ -1239,6 +1243,7 @@ function IssueCard({
   categories, sprints, hideCompleted, selected, onToggleSelect, selectedIds,
 }: IssueCardProps) {
   const { t } = useTranslation();
+  const { perms } = useProjectPerms();
   const { refresh, refreshWithArchive, refreshIssue } = useIssueRefresh(workspaceSlug, projectId);
 
   /* ── 컨텍스트에서 DnD 상태·핸들러 수신 ── */
@@ -1650,20 +1655,24 @@ function IssueCard({
                 <Copy className="h-3.5 w-3.5" />
                 {t("issues.table.copy")}
               </DropdownMenuItem>
-              <DropdownMenuItem
-                className="gap-2 rounded-lg text-xs cursor-pointer"
-                onClick={handleArchive}
-              >
-                <Archive className="h-3.5 w-3.5" />
-                {t("issues.table.archive")}
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                className="gap-2 rounded-lg text-xs cursor-pointer text-destructive focus:text-destructive focus:bg-destructive/10"
-                onClick={handleDelete}
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-                {t("issues.table.delete")}
-              </DropdownMenuItem>
+              {perms.can_archive && (
+                <DropdownMenuItem
+                  className="gap-2 rounded-lg text-xs cursor-pointer"
+                  onClick={handleArchive}
+                >
+                  <Archive className="h-3.5 w-3.5" />
+                  {t("issues.table.archive")}
+                </DropdownMenuItem>
+              )}
+              {perms.can_delete && (
+                <DropdownMenuItem
+                  className="gap-2 rounded-lg text-xs cursor-pointer text-destructive focus:text-destructive focus:bg-destructive/10"
+                  onClick={handleDelete}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  {t("issues.table.delete")}
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

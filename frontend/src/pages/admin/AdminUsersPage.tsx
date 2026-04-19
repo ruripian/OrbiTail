@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
@@ -27,15 +27,30 @@ export function AdminUsersPage() {
   const [tab, setTab] = useState<Tab>("pending");
   const [search, setSearch] = useState("");
 
-  const queryKey = ["admin_users", tab, search];
-  const { data: users = [], isLoading } = useQuery({
-    queryKey,
-    queryFn: () =>
+  const {
+    data,
+    isLoading,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+  } = useInfiniteQuery({
+    queryKey: ["admin_users", tab, search],
+    queryFn: ({ pageParam = 1 }) =>
       adminApi.listUsers({
         status: tab === "all" ? undefined : tab,
         search: search || undefined,
+        page: pageParam,
       }),
+    getNextPageParam: (lastPage) => {
+      if (!lastPage.next) return undefined;
+      const url = new URL(lastPage.next);
+      return Number(url.searchParams.get("page"));
+    },
+    initialPageParam: 1,
   });
+
+  const users = data?.pages.flatMap((p) => p.results) ?? [];
+  const totalCount = data?.pages[0]?.count ?? 0;
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["admin_users"] });
 
@@ -107,28 +122,48 @@ export function AdminUsersPage() {
             {t("admin.users.noUsers")}
           </div>
         ) : (
-          users.map((u) => (
-            <UserRow
-              key={u.id}
-              user={u}
-              isSuper={isSuper}
-              isSelf={u.id === currentUser?.id}
-              onApprove={() => approveMutation.mutate(u.id)}
-              onSuspend={(v) => suspendMutation.mutate({ id: u.id, value: v })}
-              onDelete={() => {
-                if (confirm(t("admin.users.deleteConfirm", { email: u.email }))) {
-                  deleteMutation.mutate(u.id);
+          <>
+            <p className="text-xs text-muted-foreground">
+              {t("admin.pagination.showing", { shown: users.length, total: totalCount })}
+            </p>
+            {users.map((u) => (
+              <UserRow
+                key={u.id}
+                user={u}
+                isSuper={isSuper}
+                isSelf={u.id === currentUser?.id}
+                onApprove={() => approveMutation.mutate(u.id)}
+                onSuspend={(v) => suspendMutation.mutate({ id: u.id, value: v })}
+                onDelete={() => {
+                  if (confirm(t("admin.users.deleteConfirm", { email: u.email }))) {
+                    deleteMutation.mutate(u.id);
+                  }
+                }}
+                onSuperuserToggle={(v) => superuserMutation.mutate({ id: u.id, value: v })}
+                busy={
+                  approveMutation.isPending ||
+                  suspendMutation.isPending ||
+                  deleteMutation.isPending ||
+                  superuserMutation.isPending
                 }
-              }}
-              onSuperuserToggle={(v) => superuserMutation.mutate({ id: u.id, value: v })}
-              busy={
-                approveMutation.isPending ||
-                suspendMutation.isPending ||
-                deleteMutation.isPending ||
-                superuserMutation.isPending
-              }
-            />
-          ))
+              />
+            ))}
+            {hasNextPage && (
+              <div className="flex justify-center pt-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fetchNextPage()}
+                  disabled={isFetchingNextPage}
+                >
+                  {isFetchingNextPage ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                  ) : null}
+                  {t("admin.pagination.loadMore")}
+                </Button>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

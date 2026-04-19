@@ -72,6 +72,34 @@ class WorkspaceConsumer(AsyncJsonWebsocketConsumer):
         """이슈 삭제 이벤트 → 클라이언트에 전달"""
         await self.send_json(event)
 
+    async def issue_archived(self, event):
+        """이슈 보관/복원 이벤트 → 클라이언트에 전달"""
+        await self.send_json(event)
+
+    async def issue_commented(self, event):
+        """댓글 작성 이벤트 → 클라이언트에 전달"""
+        await self.send_json(event)
+
+    async def issue_bulk_updated(self, event):
+        """이슈 일괄 수정 이벤트 → 클라이언트에 전달"""
+        await self.send_json(event)
+
+    async def issue_bulk_deleted(self, event):
+        """이슈 일괄 삭제 이벤트 → 클라이언트에 전달"""
+        await self.send_json(event)
+
+    async def event_updated(self, event):
+        """프로젝트 이벤트 변경 → 클라이언트에 전달"""
+        await self.send_json(event)
+
+    async def event_created(self, event):
+        """프로젝트 이벤트 생성 → 클라이언트에 전달"""
+        await self.send_json(event)
+
+    async def event_deleted(self, event):
+        """프로젝트 이벤트 삭제 → 클라이언트에 전달"""
+        await self.send_json(event)
+
     async def notification_new(self, event):
         """새 알림 이벤트 → 클라이언트에 전달"""
         await self.send_json(event)

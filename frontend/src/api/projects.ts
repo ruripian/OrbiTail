@@ -1,5 +1,5 @@
 import { api } from "@/lib/axios";
-import type { Project, ProjectMember, Category, Sprint, State, ProjectEvent, PaginatedResponse } from "@/types";
+import type { Project, ProjectMember, Category, Sprint, State, ProjectEvent, SavedFilter, PaginatedResponse } from "@/types";
 
 export const projectsApi = {
   list: (workspaceSlug: string, params?: Record<string, string>) =>
@@ -124,5 +124,19 @@ export const projectsApi = {
 
     delete: (workspaceSlug: string, projectId: string, eventId: string) =>
       api.delete(`/workspaces/${workspaceSlug}/projects/${projectId}/events/${eventId}/`),
+  },
+
+  savedFilters: {
+    list: (workspaceSlug: string, projectId: string) =>
+      api.get<SavedFilter[]>(`/workspaces/${workspaceSlug}/projects/${projectId}/saved-filters/`).then((r) => r.data),
+
+    create: (workspaceSlug: string, projectId: string, data: { name: string; filters: Record<string, string[]> }) =>
+      api.post<SavedFilter>(`/workspaces/${workspaceSlug}/projects/${projectId}/saved-filters/`, data).then((r) => r.data),
+
+    update: (workspaceSlug: string, projectId: string, filterId: string, data: Partial<SavedFilter>) =>
+      api.patch<SavedFilter>(`/workspaces/${workspaceSlug}/projects/${projectId}/saved-filters/${filterId}/`, data).then((r) => r.data),
+
+    delete: (workspaceSlug: string, projectId: string, filterId: string) =>
+      api.delete(`/workspaces/${workspaceSlug}/projects/${projectId}/saved-filters/${filterId}/`),
   },
 };

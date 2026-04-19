@@ -176,10 +176,11 @@ export const issuesApi = {
       .get<IssueStats>(`/workspaces/${workspaceSlug}/projects/${projectId}/issues/stats/`)
       .then((r) => r.data),
 
-  /** 워크스페이스 전체 이슈 검색 — Cmd+K 전역 검색용 */
-  searchByWorkspace: (workspaceSlug: string, search: string) =>
+  /** 워크스페이스 전체 이슈 검색 — Cmd+K 전역 검색용
+   *  고급 구문: priority, state_group, assignee 파라미터 지원 */
+  searchByWorkspace: (workspaceSlug: string, search: string, params?: Record<string, string>) =>
     api
-      .get<PaginatedResponse<IssueSearchResult>>(`/workspaces/${workspaceSlug}/issues/search/`, { params: { search } })
+      .get<PaginatedResponse<IssueSearchResult>>(`/workspaces/${workspaceSlug}/issues/search/`, { params: { search, ...params } })
       .then((r) => r.data.results),
 
   labels: {
@@ -215,4 +216,10 @@ export const issuesApi = {
     delete: (workspaceSlug: string, projectId: string, templateId: string) =>
       api.delete(`/workspaces/${workspaceSlug}/projects/${projectId}/templates/${templateId}/`),
   },
+
+  /** 이슈에 연결된 문서 조회 */
+  documentLinks: (workspaceSlug: string, projectId: string, issueId: string) =>
+    api.get<{ id: string; document_id: string; document_title: string; document_icon: string; space_id: string }[]>(
+      `/workspaces/${workspaceSlug}/projects/${projectId}/issues/${issueId}/documents/`,
+    ).then((r) => r.data),
 };

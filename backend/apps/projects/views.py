@@ -4,10 +4,12 @@ from rest_framework import generics, permissions, status
 from rest_framework.generics import get_object_or_404
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
 
 from apps.accounts.models import User
 from apps.workspaces.models import Workspace, WorkspaceMember
-from .models import Project, ProjectMember, Category, Sprint, State, ProjectEvent
+from .models import Project, ProjectMember, Category, Sprint, State, ProjectEvent, SavedFilter
 
 
 def _project_readable_q(user):
@@ -26,6 +28,7 @@ from .serializers import (
     SprintSerializer,
     StateSerializer,
     ProjectEventSerializer,
+    SavedFilterSerializer,
 )
 
 
@@ -430,6 +433,16 @@ class StateDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 # ── 프로젝트 캘린더 이벤트 ──
 
+def _ws_broadcast_event(workspace_slug, event):
+    """프로젝트 이벤트 변경을 WebSocket으로 브로드캐스트"""
+    try:
+        layer = get_channel_layer()
+        if layer:
+            async_to_sync(layer.group_send)(f"workspace_{workspace_slug}", event)
+    except Exception:
+        pass
+
+
 class ProjectEventListCreateView(generics.ListCreateAPIView):
     """프로젝트 멤버 전체가 공유하는 캘린더 이벤트.
     ?from=YYYY-MM-DD&to=YYYY-MM-DD 로 날짜 범위 필터 가능."""
@@ -450,10 +463,14 @@ class ProjectEventListCreateView(generics.ListCreateAPIView):
         return qs
 
     def perform_create(self, serializer):
-        serializer.save(
+        event = serializer.save(
             project_id=self.kwargs["project_pk"],
             created_by=self.request.user,
         )
+        _ws_broadcast_event(self.kwargs["workspace_slug"], {
+            "type": "event.created",
+            "project_id": str(self.kwargs["project_pk"]),
+        })
 
 
 class ProjectEventDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -466,3 +483,47 @@ class ProjectEventDetailView(generics.RetrieveUpdateDestroyAPIView):
         ).filter(
             _project_readable_via_project_q(self.request.user)
         ).distinct().select_related("created_by")
+
+    def perform_update(self, serializer):
+        serializer.save()
+        _ws_broadcast_event(self.kwargs["workspace_slug"], {
+            "type": "event.updated",
+            "project_id": str(self.kwargs["project_pk"]),
+        })
+
+    def perform_destroy(self, instance):
+        project_pk = str(instance.project_id)
+        instance.delete()
+        _ws_broadcast_event(self.kwargs["workspace_slug"], {
+            "type": "event.deleted",
+            "project_id": project_pk,
+        })
+
+
+class SavedFilterListCreateView(generics.ListCreateAPIView):
+    """저장된 필터 프리셋 — 현재 사용자 본인 것만 CRUD"""
+    serializer_class = SavedFilterSerializer
+    pagination_class = None
+
+    def get_queryset(self):
+        return SavedFilter.objects.filter(
+            project_id=self.kwargs["project_pk"],
+            user=self.request.user,
+        )
+
+    def perform_create(self, serializer):
+        serializer.save(
+            project_id=self.kwargs["project_pk"],
+            user=self.request.user,
+        )
+
+
+class SavedFilterDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """저장된 필터 프리셋 단건 수정/삭제"""
+    serializer_class = SavedFilterSerializer
+
+    def get_queryset(self):
+        return SavedFilter.objects.filter(
+            project_id=self.kwargs["project_pk"],
+            user=self.request.user,
+        )

@@ -12,11 +12,12 @@ import { createPortal } from "react-dom";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { Search, FileText, ArrowRight, X } from "lucide-react";
+import { Search, FileText, ArrowRight, X, StickyNote } from "lucide-react";
 import { issuesApi } from "@/api/issues";
+import { documentsApi } from "@/api/documents";
 import { cn } from "@/lib/utils";
 import { Z_SEARCH } from "@/constants/z-index";
-import type { IssueSearchResult, Priority } from "@/types";
+import type { IssueSearchResult, Priority, Document as DocType } from "@/types";
 
 /* 우선순위 색상 매핑 */
 const PRIORITY_COLORS: Record<Priority, string> = {
@@ -27,12 +28,37 @@ const PRIORITY_COLORS: Record<Priority, string> = {
   none: "text-muted-foreground",
 };
 
+/**
+ * 검색 쿼리 파서 — "priority:high some text assignee:me" 등을 파싱
+ * 지원 구문: priority:<value>, status:<group>, assignee:me
+ */
+function parseSearchQuery(raw: string): { text: string; params: Record<string, string> } {
+  const params: Record<string, string> = {};
+  const textParts: string[] = [];
+
+  for (const token of raw.split(/\s+/)) {
+    const match = token.match(/^(priority|status|assignee):(.+)$/i);
+    if (match) {
+      const [, key, value] = match;
+      const k = key.toLowerCase();
+      if (k === "priority") params.priority = value.toLowerCase();
+      else if (k === "status") params.state_group = value.toLowerCase();
+      else if (k === "assignee") params.assignee = value.toLowerCase();
+    } else if (token) {
+      textParts.push(token);
+    }
+  }
+
+  return { text: textParts.join(" "), params };
+}
+
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  documentMode?: boolean;
 }
 
-export function CommandSearchDialog({ open, onOpenChange }: Props) {
+export function CommandSearchDialog({ open, onOpenChange, documentMode = false }: Props) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { workspaceSlug } = useParams<{ workspaceSlug: string }>();
@@ -45,10 +71,20 @@ export function CommandSearchDialog({ open, onOpenChange }: Props) {
 
   // 검색 쿼리 — 300ms 디바운스
   const debouncedQuery = useDebounce(query, 300);
+  const parsed = parseSearchQuery(debouncedQuery);
+  const hasAdvancedFilters = Object.keys(parsed.params).length > 0;
 
   const { data: results = [], isFetching } = useQuery({
     queryKey: ["issue-search", workspaceSlug, debouncedQuery],
-    queryFn: () => issuesApi.searchByWorkspace(workspaceSlug!, debouncedQuery),
+    queryFn: () => issuesApi.searchByWorkspace(workspaceSlug!, parsed.text, parsed.params),
+    enabled: !documentMode && !!workspaceSlug && (debouncedQuery.length >= 2 || hasAdvancedFilters),
+    staleTime: 1000 * 30,
+  });
+
+  // 문서 검색
+  const { data: docResults = [] } = useQuery({
+    queryKey: ["doc-search", workspaceSlug, debouncedQuery],
+    queryFn: () => documentsApi.search(workspaceSlug!, parsed.text || debouncedQuery),
     enabled: !!workspaceSlug && debouncedQuery.length >= 2,
     staleTime: 1000 * 30,
   });
@@ -109,6 +145,13 @@ export function CommandSearchDialog({ open, onOpenChange }: Props) {
     navigate(`/${workspaceSlug}/projects/${issue.project}/issues?issue=${issue.id}`);
   };
 
+  const navigateToDoc = (doc: DocType) => {
+    onOpenChange(false);
+    navigate(`/${workspaceSlug}/documents/space/${doc.space}/${doc.id}`);
+  };
+
+  const totalResults = results.length + docResults.length;
+
   if (!open) return null;
 
   return createPortal(
@@ -138,7 +181,7 @@ export function CommandSearchDialog({ open, onOpenChange }: Props) {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={t("search.placeholder")}
+              placeholder={documentMode ? t("search.placeholderDocs") : t("search.placeholder")}
               className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground min-w-0"
             />
             {/* 닫기 버튼 */}
@@ -154,13 +197,13 @@ export function CommandSearchDialog({ open, onOpenChange }: Props) {
 
           {/* 결과 목록 */}
           <div ref={listRef} className="max-h-80 overflow-y-auto py-2">
-            {debouncedQuery.length < 2 && (
+            {debouncedQuery.length < 2 && !hasAdvancedFilters && (
               <p className="px-4 py-6 text-center text-sm text-muted-foreground">
                 {t("search.hint")}
               </p>
             )}
 
-            {debouncedQuery.length >= 2 && results.length === 0 && !isFetching && (
+            {(debouncedQuery.length >= 2 || hasAdvancedFilters) && totalResults === 0 && !isFetching && (
               <p className="px-4 py-6 text-center text-sm text-muted-foreground">
                 {t("search.noResults")}
               </p>
@@ -206,13 +249,36 @@ export function CommandSearchDialog({ open, onOpenChange }: Props) {
                 <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0 opacity-0 group-hover:opacity-100" />
               </button>
             ))}
+
+            {/* 문서 검색 결과 */}
+            {docResults.length > 0 && (
+              <>
+                <div className="px-4 py-1.5 text-2xs font-semibold text-muted-foreground uppercase tracking-wider border-t mt-1">
+                  {t("documents.title")}
+                </div>
+                {docResults.map((doc) => (
+                  <button
+                    key={doc.id}
+                    onClick={() => navigateToDoc(doc)}
+                    className="flex items-center gap-3 w-full px-4 py-2.5 text-left transition-colors hover:bg-accent/50"
+                  >
+                    <StickyNote className="h-4 w-4 shrink-0 text-amber-500" />
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm truncate block">{doc.title}</span>
+                    </div>
+                    <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0 opacity-0 group-hover:opacity-100" />
+                  </button>
+                ))}
+              </>
+            )}
           </div>
 
           {/* 하단 도움말 */}
-          <div className="flex items-center gap-4 border-t px-4 py-2 text-2xs text-muted-foreground">
+          <div className="flex items-center gap-4 border-t px-4 py-2 text-2xs text-muted-foreground flex-wrap">
             <span>↑↓ {t("search.navigate")}</span>
             <span>↵ {t("search.open")}</span>
             <span>esc {t("search.close")}</span>
+            <span className="opacity-60">priority:high · status:backlog · assignee:me</span>
           </div>
         </div>
       </div>
