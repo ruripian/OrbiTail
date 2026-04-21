@@ -17,7 +17,6 @@ import {
   Trash2,
   Lock,
   Megaphone,
-  FileText,
   User as UserIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -318,7 +317,6 @@ export function Sidebar({ onNavigate, wsStatus = "connecting" }: { onNavigate?: 
   const favoriteProjects = sortedProjects.filter((p) => favIds.has(p.id));
   const publicProjects = sortedProjects.filter((p) => !favIds.has(p.id) && p.network === 0);
   const privateProjects = sortedProjects.filter((p) => !favIds.has(p.id) && p.network === 2);
-  const otherProjects = [...publicProjects, ...privateProjects];
 
   /* DnD 상태 — ref로 최신값 유지 (stale closure 방지) */
   const [dragId, setDragId] = useState<string | null>(null);

@@ -256,7 +256,7 @@ export function ProjectIconPicker({ value, onChange, size = "lg" }: ProjectIconP
                     }`}
                     style={{
                       backgroundColor: c,
-                      ringColor: selected ? c : undefined,
+                      ...(selected ? { ["--tw-ring-color" as any]: c } : {}),
                     }}
                     aria-label={`${c}`}
                   >

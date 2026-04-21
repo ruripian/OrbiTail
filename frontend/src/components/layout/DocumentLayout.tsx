@@ -4,19 +4,18 @@
  */
 
 import { useState, useMemo, useEffect } from "react";
-import { Outlet, useParams, useNavigate, Link, useLocation } from "react-router-dom";
+import { Outlet, useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
-  FileText, FolderOpen, FilePlus, FolderPlus, Plus,
-  Layers, ChevronRight, ChevronDown,
+  FileText, FolderOpen, FilePlus, FolderPlus,
+  ChevronRight, ChevronDown,
   MoreHorizontal, Trash2, Pencil, Link as LinkIcon,
 } from "lucide-react";
 import { documentsApi } from "@/api/documents";
 import { TopBar } from "./TopBar";
 import { AppSwitcher } from "./AppSwitcher";
-import { useAuthStore } from "@/stores/authStore";
 import { useWorkspaceColors } from "@/hooks/useWorkspaceColors";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { useUndoStore } from "@/stores/undoStore";
@@ -26,7 +25,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import type { Document as DocType, DocumentSpace } from "@/types";
+import type { Document as DocType } from "@/types";
 
 export function DocumentLayout() {
   const { t } = useTranslation();
@@ -36,7 +35,6 @@ export function DocumentLayout() {
     docId?: string;
   }>();
   const navigate = useNavigate();
-  const location = useLocation();
   const qc = useQueryClient();
   useWorkspaceColors();
   useWebSocket(workspaceSlug);
@@ -359,7 +357,7 @@ export function DocumentLayout() {
 
 function TreeNode({
   doc, childrenMap, depth, activeId, spaceId, workspaceSlug,
-  onDelete, onRename, onCreate, onMove, onIconChange,
+  onDelete, onRename, onCreate, onMove, onIconChange: _onIconChange,
   onDragStartGlobal, onDragEndGlobal,
 }: {
   doc: DocType;

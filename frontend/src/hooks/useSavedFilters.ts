@@ -2,7 +2,6 @@ import { useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "react-router-dom";
 import { projectsApi } from "@/api/projects";
-import type { SavedFilter } from "@/types";
 
 /**
  * 저장된 필터 프리셋 — 백엔드 DB 기반 (디바이스 간 동기화)

@@ -223,7 +223,7 @@ export default function DocumentExplorerPage() {
   );
 }
 
-function ItemMenu({ doc, onDelete }: { doc: DocType; onDelete: () => void }) {
+function ItemMenu({ onDelete }: { doc: DocType; onDelete: () => void }) {
   const { t } = useTranslation();
   return (
     <DropdownMenu>

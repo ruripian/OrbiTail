@@ -4,6 +4,7 @@
 
 import { useState, useEffect, useCallback, useRef, createContext, useContext, useMemo } from "react";
 import { createPortal } from "react-dom";
+import katex from "katex";
 import "katex/dist/katex.min.css";
 import mermaid from "mermaid";
 import { MathExtension } from "@aarkue/tiptap-math-extension";
@@ -45,7 +46,7 @@ import {
   Search, X, ArrowUp, ArrowDown, Replace,
   Sigma, Workflow, Columns2, Columns3, Columns4, Tag, FolderTree,
   AtSign, User as UserIcon, Hash,
-  Rows3, Columns as ColumnsIcon, Merge, Split, Trash2, ChevronLeft,
+  Rows3, Columns as ColumnsIcon, Merge, Split, Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -871,7 +872,8 @@ function MathView({ node, updateAttributes, editor }: NodeViewProps) {
   );
 }
 
-const MathInline = Node.create({
+// @ts-expect-error unused — reserved for future math node registration
+const _MathInline = Node.create({
   name: "mathInline",
   group: "inline",
   inline: true,
@@ -884,7 +886,8 @@ const MathInline = Node.create({
   addNodeView() { return ReactNodeViewRenderer(MathView); },
 });
 
-const MathBlock = Node.create({
+// @ts-expect-error unused — reserved for future math node registration
+const _MathBlock = Node.create({
   name: "mathBlock",
   group: "block",
   atom: true,
@@ -1049,8 +1052,8 @@ function StatusView({ node, updateAttributes, editor }: NodeViewProps) {
   return (
     <NodeViewWrapper as="span" className="doc-status" contentEditable={false}
       style={{ background: `${hex}22`, color: hex, borderColor: `${hex}55` }}
-      onMouseDown={(e) => e.stopPropagation()}
-      onClick={(e) => { e.stopPropagation(); if (editor.isEditable) { setDraft(label); setEditing(true); } }}
+      onMouseDown={(e: any) => e.stopPropagation()}
+      onClick={(e: any) => { e.stopPropagation(); if (editor.isEditable) { setDraft(label); setEditing(true); } }}
     >
       <span className="doc-status-dot" style={{ background: hex }} />
       {label}
@@ -1194,7 +1197,7 @@ const EMOJIS: Array<{ name: string; char: string; kw?: string }> = [
   { name: "hundred", char: "💯" }, { name: "muscle", char: "💪" }, { name: "coffee", char: "☕" },
 ];
 
-export function DocumentEditor({ content, onChange, onBlur, placeholder, editable = true, onFileUpload, workspaceSlug, spaceId, docId, projectId }: Props) {
+export function DocumentEditor({ content, onChange, onBlur, placeholder: _placeholder, editable = true, onFileUpload, workspaceSlug, spaceId, docId, projectId }: Props) {
   const docCtx = useMemo(() => ({ workspaceSlug, spaceId, docId, projectId }), [workspaceSlug, spaceId, docId, projectId]);
   const { t } = useTranslation();
   const [slashOpen, setSlashOpen] = useState(false);
@@ -1888,9 +1891,8 @@ function EditorBubbleMenu({
       editor={editor}
       options={{
         placement: "top",
-        pluginKey: "textBubbleMenu",
         middleware: [offset(8), flip({ padding: 8 }), shift({ padding: 8 })],
-      }}
+      } as any}
       shouldShow={({ editor, from, to, state }) => {
         /* 코드블록/노드 내부에서는 bubble 숨김. 테이블 안은 table-menu가 처리 */
         if (!editor.isEditable) return false;
@@ -2069,9 +2071,8 @@ function TableBubbleMenu({ editor }: { editor: Editor }) {
       editor={editor}
       options={{
         placement: "top",
-        pluginKey: "tableBubbleMenu",
         middleware: [offset(8), flip({ padding: 8 }), shift({ padding: 8 })],
-      }}
+      } as any}
       shouldShow={({ editor }) => editor.isEditable && editor.isActive("table")}
     >
       <div className="flex items-center gap-0.5 rounded-xl border bg-popover shadow-xl px-1 py-1"

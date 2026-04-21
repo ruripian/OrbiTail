@@ -17,8 +17,7 @@ import { StatePicker } from "@/components/issues/state-picker";
 import { PriorityPicker } from "@/components/issues/priority-picker";
 import { AssigneePicker } from "@/components/issues/assignee-picker";
 import { SprintPicker } from "@/components/issues/sprint-picker";
-import { cn } from "@/lib/utils";
-import { PRIORITY_COLOR, PRIORITY_LABEL_KEY } from "@/constants/priority";
+import { PRIORITY_COLOR } from "@/constants/priority";
 import type { Issue, State } from "@/types";
 
 interface Props {
@@ -176,9 +175,8 @@ export function BacklogView({ workspaceSlug, projectId, onIssueClick, issueFilte
                         {!readOnly ? (
                           <div onClick={(e) => e.stopPropagation()} className="shrink-0">
                             <PriorityPicker
-                              value={issue.priority}
+                              currentPriority={issue.priority}
                               onChange={(p) => updateMutation.mutate({ id: issue.id, data: { priority: p } })}
-                              compact
                             />
                           </div>
                         ) : (
@@ -211,9 +209,8 @@ export function BacklogView({ workspaceSlug, projectId, onIssueClick, issueFilte
                           <div onClick={(e) => e.stopPropagation()} className="shrink-0">
                             <SprintPicker
                               sprints={sprints}
-                              value={issue.sprint}
+                              currentId={issue.sprint}
                               onChange={(id) => updateMutation.mutate({ id: issue.id, data: { sprint: id } })}
-                              compact
                             />
                           </div>
                         )}
@@ -223,9 +220,8 @@ export function BacklogView({ workspaceSlug, projectId, onIssueClick, issueFilte
                           <div onClick={(e) => e.stopPropagation()} className="shrink-0">
                             <StatePicker
                               states={states}
-                              value={issue.state}
+                              currentStateId={issue.state}
                               onChange={(id) => updateMutation.mutate({ id: issue.id, data: { state: id } })}
-                              compact
                             />
                           </div>
                         )}
@@ -234,10 +230,10 @@ export function BacklogView({ workspaceSlug, projectId, onIssueClick, issueFilte
                         {!readOnly && (
                           <div onClick={(e) => e.stopPropagation()} className="shrink-0">
                             <AssigneePicker
-                              members={members}
-                              value={issue.assignees?.map((a: any) => a.id ?? a) ?? []}
+                              members={members as any}
+                              currentIds={issue.assignees ?? []}
+                              currentDetails={issue.assignee_details}
                               onChange={(ids) => updateMutation.mutate({ id: issue.id, data: { assignees: ids } })}
-                              compact
                             />
                           </div>
                         )}

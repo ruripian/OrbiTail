@@ -22,7 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DatePicker } from "@/components/ui/date-picker";
-import { PageTransition, StaggerList, StaggerItem, HoverLift } from "@/components/motion";
+import { PageTransition, StaggerList, StaggerItem } from "@/components/motion";
 import { SprintBurndown } from "@/components/charts/SprintBurndown";
 import type { Sprint, SprintStatus, Issue, State } from "@/types";
 

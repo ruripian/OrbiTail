@@ -973,7 +973,6 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
 
 function LinkedDocumentsSection({ issueId, workspaceSlug, projectId }: { issueId: string; workspaceSlug: string; projectId: string }) {
   const { t } = useTranslation();
-  const qc = useQueryClient();
   const navigate = useNavigate();
 
   const { data: links = [] } = useQuery({

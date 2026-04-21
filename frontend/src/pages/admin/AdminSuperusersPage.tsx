@@ -25,7 +25,8 @@ export function AdminSuperusersPage() {
 
   const { data: superusers = [], isLoading } = useQuery({
     queryKey: ["admin_users", "superusers", search],
-    queryFn: () => adminApi.listUsers({ status: "superusers", search: search || undefined }),
+    queryFn: () =>
+      adminApi.listUsers({ status: "superusers", search: search || undefined }).then((r) => r.results),
   });
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["admin_users"] });

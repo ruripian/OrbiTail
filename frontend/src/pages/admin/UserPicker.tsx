@@ -34,7 +34,8 @@ export function UserPicker({
 
   const { data: users = [], isLoading } = useQuery({
     queryKey: ["admin_user_picker", debounced],
-    queryFn: () => adminApi.listUsers({ search: debounced || undefined }),
+    queryFn: () =>
+      adminApi.listUsers({ search: debounced || undefined }).then((r) => r.results),
   });
 
   const visible = excludeId ? users.filter((u) => u.id !== excludeId) : users;
