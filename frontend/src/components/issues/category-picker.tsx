@@ -28,19 +28,25 @@ interface Props {
   currentId: string | null | undefined;
   onChange:  (categoryId: string | null) => void;
   className?: string;
+  /** 하위 이슈는 상위의 모듈을 따라가므로 비활성화할 수 있음 */
+  disabled?: boolean;
+  disabledReason?: string;
 }
 
-export function CategoryPicker({ categories, currentId, onChange, className }: Props) {
+export function CategoryPicker({ categories, currentId, onChange, className, disabled, disabledReason }: Props) {
   const { t } = useTranslation();
   const cur = currentId ? categories.find((m) => m.id === currentId) : null;
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
+      <DropdownMenuTrigger asChild disabled={disabled}>
         <button
           onClick={(e) => e.stopPropagation()}
+          disabled={disabled}
+          title={disabled ? disabledReason : undefined}
           className={cn(
             "flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs hover:bg-muted/60 transition-colors w-full min-h-[28px]",
+            disabled && "opacity-60 cursor-not-allowed hover:bg-transparent",
             className,
           )}
         >

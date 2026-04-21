@@ -4,6 +4,7 @@ from django.conf import settings
 from django.core.mail import send_mail
 from django.utils import timezone
 from rest_framework import generics, permissions, status
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
@@ -127,9 +128,22 @@ class CustomTokenObtainPairView(TokenObtainPairView):
 
 class MeView(generics.RetrieveUpdateAPIView):
     serializer_class = MeSerializer
+    parser_classes = [JSONParser, FormParser, MultiPartParser]
 
     def get_object(self):
         return self.request.user
+
+    def perform_update(self, serializer):
+        # avatar 필드가 변경된 경우 기존 파일은 물리 삭제 (mediafiles 누적 방지)
+        SENTINEL = object()
+        old_avatar = serializer.instance.avatar if serializer.instance.avatar else None
+        new_avatar = serializer.validated_data.get("avatar", SENTINEL)
+        serializer.save()
+        if new_avatar is not SENTINEL and old_avatar and old_avatar != new_avatar:
+            try:
+                old_avatar.delete(save=False)
+            except Exception:
+                pass
 
 
 class DeleteAccountView(APIView):

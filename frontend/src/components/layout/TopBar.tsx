@@ -187,13 +187,13 @@ export function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
                       animate={{ scale: [0, 1.3, 1] }}
                       transition={{ type: "spring", stiffness: 500, damping: 20 }}
                     >
-                      <span className="text-3xs font-extrabold text-amber-950">
+                      <span className="text-3xs font-extrabold not-italic leading-none tabular-nums text-amber-950">
                         {unreadCount > 99 ? "99+" : unreadCount}
                       </span>
                     </motion.span>
                   ) : (
                     <span className="absolute -top-0.5 -right-0.5 flex h-[18px] min-w-[18px] px-1 items-center justify-center rounded-full bg-gradient-to-br from-amber-500 to-amber-600 shadow-[0_2px_8px_rgba(229,168,0,0.5)]">
-                      <span className="text-3xs font-extrabold text-amber-950">
+                      <span className="text-3xs font-extrabold not-italic leading-none tabular-nums text-amber-950">
                         {unreadCount > 99 ? "99+" : unreadCount}
                       </span>
                     </span>

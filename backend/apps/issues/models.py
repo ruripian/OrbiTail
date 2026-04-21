@@ -101,7 +101,37 @@ class Issue(models.Model):
         if not self.sequence_id or self.sequence_id == 1:
             last = Issue.objects.filter(project=self.project).order_by("-sequence_id").first()
             self.sequence_id = (last.sequence_id + 1) if last else 1
+
+        # ── 카테고리 상속 규칙 ────────────────────────────────
+        # 1) 부모가 있는 하위 이슈는 부모의 카테고리를 강제 상속 — 다른 카테고리로 편입 불가
+        # 2) 최상위 이슈의 카테고리가 변경되면 저장 후 자손 전체에 전파
+        old_category_id = None
+        if self.pk:
+            old_category_id = type(self).objects.filter(pk=self.pk).values_list(
+                "category_id", flat=True
+            ).first()
+        if self.parent_id:
+            parent_cat = type(self).objects.filter(pk=self.parent_id).values_list(
+                "category_id", flat=True
+            ).first()
+            self.category_id = parent_cat
+
         super().save(*args, **kwargs)
+
+        if self.parent_id is None and old_category_id != self.category_id:
+            self._propagate_category_to_descendants()
+
+    def _propagate_category_to_descendants(self):
+        """이 이슈의 모든 자손(재귀) 에 현재 category_id 를 일괄 전파."""
+        descendant_ids: list = []
+        frontier = list(type(self).objects.filter(parent_id=self.pk).values_list("id", flat=True))
+        while frontier:
+            descendant_ids.extend(frontier)
+            frontier = list(
+                type(self).objects.filter(parent_id__in=frontier).values_list("id", flat=True)
+            )
+        if descendant_ids:
+            type(self).objects.filter(pk__in=descendant_ids).update(category_id=self.category_id)
 
 
 class IssueComment(models.Model):
@@ -143,6 +173,50 @@ class IssueLink(models.Model):
 
     def __str__(self):
         return f"{self.issue} — {self.url}"
+
+
+class IssueNodeLink(models.Model):
+    """이슈 간 그래프 링크 — 트리 구조와 독립된 자유 연결(node 기능 기반).
+
+    사용처: 다른 트리/프로젝트의 이슈끼리 관련성 표시(블록/참조/중복 등).
+    그래프 뷰는 프론트엔드 추후 구현. 여기서는 데이터 모델과 CRUD 엔드포인트만.
+    """
+
+    class LinkType(models.TextChoices):
+        RELATES_TO = "relates_to", "Relates to"
+        BLOCKS = "blocks", "Blocks"
+        BLOCKED_BY = "blocked_by", "Blocked by"
+        DUPLICATES = "duplicates", "Duplicates"
+        REFERENCES = "references", "References"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    source = models.ForeignKey(
+        Issue, on_delete=models.CASCADE, related_name="outgoing_node_links",
+    )
+    target = models.ForeignKey(
+        Issue, on_delete=models.CASCADE, related_name="incoming_node_links",
+    )
+    link_type = models.CharField(
+        max_length=20,
+        choices=LinkType.choices,
+        default=LinkType.RELATES_TO,
+    )
+    note = models.CharField(max_length=500, blank=True, default="")
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="created_node_links",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "issue_node_links"
+        ordering = ["-created_at"]
+        unique_together = [["source", "target", "link_type"]]
+
+    def __str__(self):
+        return f"{self.source_id} -[{self.link_type}]-> {self.target_id}"
 
 
 class IssueAttachment(models.Model):

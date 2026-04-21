@@ -167,6 +167,8 @@ export interface DocumentSpace {
   id: string;
   name: string;
   icon: string;
+  icon_prop?: Record<string, unknown> | null;
+  identifier?: string;
   description: string;
   space_type: "project" | "personal" | "shared";
   project: string | null;
@@ -174,6 +176,9 @@ export interface DocumentSpace {
   project_identifier: string | null;
   owner: string | null;
   owner_detail: User | null;
+  members?: string[];
+  members_detail?: User[];
+  archived_at?: string | null;
   document_count: number;
   created_at: string;
 }
@@ -285,6 +290,22 @@ export interface IssueLink {
   url: string;
   created_by: string;
   created_at: string;
+}
+
+export interface IssueNodeLink {
+  id: string;
+  source: string;
+  target: string;
+  link_type: "relates_to" | "blocks" | "blocked_by" | "duplicates" | "references" | "shared_label";
+  note: string;
+  source_title?: string;
+  source_sequence_id?: number;
+  source_project_identifier?: string;
+  target_title?: string;
+  target_sequence_id?: number;
+  target_project_identifier?: string;
+  created_by?: string;
+  created_at?: string;
 }
 
 export interface IssueComment {

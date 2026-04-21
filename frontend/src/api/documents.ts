@@ -7,7 +7,16 @@ export const documentsApi = {
     list: (workspaceSlug: string) =>
       api.get<DocumentSpace[]>(`/workspaces/${workspaceSlug}/documents/spaces/`).then((r) => r.data),
 
-    create: (workspaceSlug: string, data: { name: string; icon?: string; description?: string }) =>
+    create: (
+      workspaceSlug: string,
+      data: {
+        name: string;
+        icon?: string;
+        identifier?: string;
+        description?: string;
+        members?: string[];
+      },
+    ) =>
       api.post<DocumentSpace>(`/workspaces/${workspaceSlug}/documents/spaces/`, data).then((r) => r.data),
 
     update: (workspaceSlug: string, spaceId: string, data: Partial<DocumentSpace>) =>

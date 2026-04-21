@@ -10,7 +10,7 @@ import { useCallback, useState } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { List, LayoutGrid, Calendar, GanttChart, Zap, Layers, ChevronDown, CheckCircle2, Circle, BarChart3, Archive, Inbox } from "lucide-react";
+import { List, LayoutGrid, Calendar, GanttChart, Zap, Layers, ChevronDown, CheckCircle2, Circle, BarChart3, Archive, Inbox, Share2 } from "lucide-react";
 import { issuesApi } from "@/api/issues";
 import { projectsApi } from "@/api/projects";
 import { cn } from "@/lib/utils";
@@ -27,6 +27,7 @@ import { TableView }    from "./views/TableView";
 import { BoardView }    from "./views/BoardView";
 import { CalendarView } from "./views/CalendarView";
 import { TimelineView } from "./views/TimelineView";
+import { GraphView }    from "./views/GraphView";
 import { SprintView }      from "./views/SprintView";
 import { AnalyticsView }  from "./views/AnalyticsView";
 import { ArchiveView }    from "./views/ArchiveView";
@@ -36,7 +37,7 @@ import { useViewSettings } from "@/hooks/useViewSettings";
 import { ViewTransition } from "@/components/motion";
 import type { Category, Sprint } from "@/types";
 
-type ViewId = "table" | "board" | "backlog" | "calendar" | "timeline" | "sprints" | "analytics" | "archive" | "trash";
+type ViewId = "table" | "board" | "backlog" | "calendar" | "timeline" | "graph" | "sprints" | "analytics" | "archive" | "trash";
 
 const VIEW_IDS: { id: ViewId; key: string; Icon: React.ElementType }[] = [
   { id: "table",     key: "views.tabs.table",     Icon: List        },
@@ -44,6 +45,7 @@ const VIEW_IDS: { id: ViewId; key: string; Icon: React.ElementType }[] = [
   { id: "backlog",   key: "views.tabs.backlog",    Icon: Inbox       },
   { id: "calendar",  key: "views.tabs.calendar",   Icon: Calendar    },
   { id: "timeline",  key: "views.tabs.timeline",   Icon: GanttChart  },
+  { id: "graph",     key: "views.tabs.graph",      Icon: Share2      },
   { id: "sprints",    key: "views.tabs.cycles",     Icon: Zap   },
   { id: "analytics", key: "views.tabs.analytics",  Icon: BarChart3   },
   { id: "archive",   key: "views.tabs.archive",    Icon: Archive     },
@@ -156,7 +158,7 @@ export function ProjectIssuePage() {
   return (
     <div className="flex flex-col h-full overflow-hidden relative">
       {currentView !== "trash" && (
-      <div className="flex items-center gap-2 px-3 sm:px-5 py-1.5 border-b border-border shrink-0 overflow-x-auto">
+      <div className="flex items-center gap-2 px-3 sm:px-5 h-10 border-b border-border shrink-0 overflow-x-auto">
         <div className="flex items-center gap-0.5 bg-muted/40 rounded-lg p-0.5 border border-border shrink-0">
           {VIEW_IDS.map(({ id, key, Icon }) => (
             <button
@@ -395,6 +397,14 @@ export function ProjectIssuePage() {
             issueFilter={issueFilter}
             settings={settings.timeline}
             onSettingsChange={updateTimeline}
+          />
+        )}
+
+        {currentView === "graph" && (
+          <GraphView
+            workspaceSlug={workspaceSlug!}
+            projectId={projectId!}
+            onIssueClick={openIssue}
           />
         )}
 

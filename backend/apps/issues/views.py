@@ -10,7 +10,7 @@ from rest_framework.views import APIView
 from django_filters.rest_framework import DjangoFilterBackend
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
-from .models import Issue, IssueComment, IssueActivity, IssueAttachment, IssueLink, IssueTemplate, Label
+from .models import Issue, IssueComment, IssueActivity, IssueAttachment, IssueLink, IssueNodeLink, IssueTemplate, Label
 from .serializers import (
     IssueSerializer,
     IssueSearchSerializer,
@@ -18,6 +18,7 @@ from .serializers import (
     IssueActivitySerializer,
     IssueAttachmentSerializer,
     IssueLinkSerializer,
+    IssueNodeLinkSerializer,
     IssueTemplateSerializer,
     LabelSerializer,
 )
@@ -527,6 +528,228 @@ class IssueLinkDetailView(generics.RetrieveUpdateDestroyAPIView):
             issue_id=self.kwargs["issue_pk"],
             created_by=self.request.user,
         )
+
+
+class IssueNodeLinkListCreateView(generics.ListCreateAPIView):
+    """이슈 간 그래프 링크 — 목록/생성.
+
+    이슈 트리 경계를 넘는 자유 연결 (node 기능). 프론트 UI 보류, 데이터는 지금부터 쌓임.
+    """
+    serializer_class = IssueNodeLinkSerializer
+
+    def get_queryset(self):
+        issue_id = self.kwargs["issue_pk"]
+        return IssueNodeLink.objects.filter(
+            Q(source_id=issue_id) | Q(target_id=issue_id)
+        ).select_related("source", "target", "source__project", "target__project")
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+
+
+class IssueNodeLinkDetailView(generics.RetrieveDestroyAPIView):
+    """노드 링크 단건 조회/삭제."""
+    serializer_class = IssueNodeLinkSerializer
+    queryset = IssueNodeLink.objects.all()
+
+
+class ProjectNodeGraphView(APIView):
+    """프로젝트 범위 노드 그래프 — 같은 프로젝트 꼭지 아래 이슈들 간 연결망.
+
+    범위:
+      - 노드: 해당 프로젝트에 속한 이슈
+      - 엣지: 해당 프로젝트 이슈가 source 인 수동 node-link (프로젝트 경계를 넘는 링크 포함)
+              + include_label_edges=true 인 경우 라벨 공유 자동 엣지(프로젝트 내부)
+    """
+    def get(self, request, workspace_slug, project_pk):
+        include_label_edges = request.query_params.get("include_label_edges", "true").lower() != "false"
+        manual_only = request.query_params.get("manual_only", "false").lower() == "true"
+
+        node_map = {}
+
+        def add_node(issue, labels=None):
+            nid = str(issue.id)
+            if nid in node_map:
+                if labels:
+                    node_map[nid]["labels"] = labels
+                return
+            state_group = getattr(issue.state, "group", None) if issue.state_id and issue.state else None
+            node_map[nid] = {
+                "id": nid,
+                "title": issue.title,
+                "sequence_id": issue.sequence_id,
+                "project_id": str(issue.project_id) if issue.project_id else None,
+                "project_identifier": issue.project.identifier if issue.project_id else None,
+                "state_group": state_group,
+                "labels": labels or [],
+                "external": str(issue.project_id) != str(project_pk),
+            }
+
+        edges = IssueNodeLink.objects.filter(
+            source__project_id=project_pk,
+        ).select_related(
+            "source", "target", "source__project", "target__project",
+            "source__state", "target__state",
+        )
+
+        edge_data = []
+        for e in edges:
+            add_node(e.source)
+            add_node(e.target)
+            edge_data.append({
+                "id": str(e.id),
+                "source": str(e.source_id),
+                "target": str(e.target_id),
+                "link_type": e.link_type,
+                "note": e.note,
+            })
+
+        if not manual_only:
+            from .models import Issue
+            project_issues = (
+                Issue.objects
+                .filter(project_id=project_pk, deleted_at__isnull=True, archived_at__isnull=True)
+                .prefetch_related("label")
+                .select_related("project", "state")
+            )
+            label_to_issues = {}
+            for iss in project_issues:
+                labels = list(iss.label.all())
+                add_node(iss, labels=[{"id": str(l.id), "name": l.name, "color": l.color} for l in labels])
+                for lbl in labels:
+                    label_to_issues.setdefault(str(lbl.id), []).append((str(iss.id), lbl))
+
+            if include_label_edges:
+                seen = set()
+                for lbl_id, entries in label_to_issues.items():
+                    if len(entries) < 2:
+                        continue
+                    for (a_id, a_lbl), (b_id, _b_lbl) in zip(entries, entries[1:]):
+                        key = tuple(sorted([a_id, b_id, lbl_id]))
+                        if key in seen:
+                            continue
+                        seen.add(key)
+                        edge_data.append({
+                            "id": f"label:{lbl_id}:{a_id}:{b_id}",
+                            "source": a_id,
+                            "target": b_id,
+                            "link_type": "shared_label",
+                            "note": a_lbl.name,
+                            "label_id": lbl_id,
+                            "label_color": a_lbl.color,
+                        })
+
+        return Response({
+            "nodes": list(node_map.values()),
+            "edges": edge_data,
+        })
+
+
+class WorkspaceNodeGraphView(APIView):
+    """워크스페이스 전체 노드 링크 + 관련 이슈 요약 — 그래프 뷰 전용.
+
+    응답:
+    {
+      "nodes": [{ id, title, sequence_id, project_id, project_identifier, state_group }, ...],
+      "edges": [{ id, source, target, link_type, note }, ...]
+    }
+    """
+    def get(self, request, workspace_slug):
+        """그래프 데이터 + 라벨 기반 자동 클러스터 edge 포함.
+
+        query params:
+          include_label_edges=true|false (default true) — 같은 라벨을 공유하는 이슈들 사이에
+            link_type='shared_label' 로 간주 edge 를 추가해 라벨 기반 클러스터 시각화 지원.
+          manual_only=true — 수동 node-link 만 반환 (auto cluster 제외).
+        """
+        include_label_edges = request.query_params.get("include_label_edges", "true").lower() != "false"
+        manual_only = request.query_params.get("manual_only", "false").lower() == "true"
+
+        node_map = {}
+
+        def add_node(issue, labels=None):
+            nid = str(issue.id)
+            if nid in node_map:
+                return
+            state_group = None
+            if issue.state_id and issue.state:
+                state_group = getattr(issue.state, "group", None)
+            node_map[nid] = {
+                "id": nid,
+                "title": issue.title,
+                "sequence_id": issue.sequence_id,
+                "project_id": str(issue.project_id) if issue.project_id else None,
+                "project_identifier": issue.project.identifier if issue.project_id else None,
+                "state_group": state_group,
+                "labels": labels or [],
+            }
+
+        # 수동 node-links
+        edges = IssueNodeLink.objects.filter(
+            source__workspace__slug=workspace_slug,
+        ).select_related(
+            "source", "target", "source__project", "target__project",
+            "source__state", "target__state",
+        )
+
+        edge_data = []
+        for e in edges:
+            add_node(e.source)
+            add_node(e.target)
+            edge_data.append({
+                "id": str(e.id),
+                "source": str(e.source_id),
+                "target": str(e.target_id),
+                "link_type": e.link_type,
+                "note": e.note,
+            })
+
+        if not manual_only:
+            # 그래프에 보일 수 있도록 워크스페이스 내 라벨이 있는 이슈를 모두 포함
+            from .models import Issue, Label
+            issues_with_labels = (
+                Issue.objects
+                .filter(workspace__slug=workspace_slug, deleted_at__isnull=True, archived_at__isnull=True)
+                .prefetch_related("label")
+                .select_related("project", "state")
+            )
+            label_to_issues = {}
+            issue_labels = {}
+            for iss in issues_with_labels:
+                labels = list(iss.label.all())
+                if not labels:
+                    continue
+                add_node(iss, labels=[{"id": str(l.id), "name": l.name, "color": l.color} for l in labels])
+                issue_labels[str(iss.id)] = labels
+                for lbl in labels:
+                    label_to_issues.setdefault(str(lbl.id), []).append((str(iss.id), lbl))
+
+            if include_label_edges:
+                # 같은 라벨을 공유하는 이슈들 사이에 가벼운 자동 edge 생성 (중복 제거)
+                seen = set()
+                for lbl_id, entries in label_to_issues.items():
+                    if len(entries) < 2:
+                        continue
+                    # 완전 그래프를 피하기 위해 연쇄만 연결 (i ↔ i+1)
+                    for (a_id, a_lbl), (b_id, _b_lbl) in zip(entries, entries[1:]):
+                        key = tuple(sorted([a_id, b_id, lbl_id]))
+                        if key in seen:
+                            continue
+                        seen.add(key)
+                        edge_data.append({
+                            "id": f"label:{lbl_id}:{a_id}:{b_id}",
+                            "source": a_id,
+                            "target": b_id,
+                            "link_type": "shared_label",
+                            "note": a_lbl.name,
+                            "label_id": lbl_id,
+                            "label_color": a_lbl.color,
+                        })
+
+        return Response({
+            "nodes": list(node_map.values()),
+            "edges": edge_data,
+        })
 
 
 class IssueAttachmentListCreateView(generics.ListCreateAPIView):

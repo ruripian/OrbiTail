@@ -4,7 +4,7 @@
  */
 
 import { useState, useMemo, useEffect } from "react";
-import { Outlet, useParams, useNavigate, Link } from "react-router-dom";
+import { Outlet, useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -16,9 +16,12 @@ import {
 import { documentsApi } from "@/api/documents";
 import { TopBar } from "./TopBar";
 import { AppSwitcher } from "./AppSwitcher";
+import { WorkspaceHeader } from "./WorkspaceHeader";
 import { useWorkspaceColors } from "@/hooks/useWorkspaceColors";
 import { useWebSocket } from "@/hooks/useWebSocket";
+import { useIsDesktop } from "@/hooks/useMediaQuery";
 import { useUndoStore } from "@/stores/undoStore";
+import { Z_SIDEBAR_OVERLAY, Z_SIDEBAR } from "@/constants/z-index";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -36,6 +39,10 @@ export function DocumentLayout() {
   }>();
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const isDesktop = useIsDesktop();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const closeSidebar = () => setSidebarOpen(false);
+  const toggleSidebar = () => setSidebarOpen((v) => !v);
   useWorkspaceColors();
   useWebSocket(workspaceSlug);
 
@@ -153,24 +160,9 @@ export function DocumentLayout() {
     },
   });
 
-  return (
-    <div className="flex h-screen overflow-hidden">
-      {/* 문서 사이드바 — 단일 사이드바에 모든 것 통합 */}
-      <aside className="w-64 border-r glass-sidebar flex flex-col shrink-0">
-        {/* 워크스페이스 헤더 */}
-        <div className="flex h-11 items-center gap-3 border-b px-4">
-          <Link
-            to={`/${workspaceSlug}`}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary text-sm font-black text-primary-foreground shadow-md ring-2 ring-primary/30 hover:brightness-110 transition-all"
-          >
-            ∞
-          </Link>
-          <div className="flex flex-col min-w-0">
-            <span className="truncate text-sm font-semibold leading-tight">{workspaceSlug}</span>
-            <span className="text-xs text-muted-foreground">{t("sidebar.workspace")}</span>
-          </div>
-        </div>
-
+  const sidebarContent = (
+    <aside className="w-64 border-r glass-sidebar flex flex-col shrink-0 h-full">
+        <WorkspaceHeader />
         <AppSwitcher />
 
         {/* 스페이스 + 생성 버튼 */}
@@ -341,10 +333,36 @@ export function DocumentLayout() {
         </div>
 
       </aside>
+  );
+
+  return (
+    <div className="flex h-screen overflow-hidden relative">
+      {isDesktop ? (
+        sidebarContent
+      ) : (
+        <>
+          {sidebarOpen && (
+            <div
+              className="fixed inset-0 bg-black/50"
+              style={{ zIndex: Z_SIDEBAR_OVERLAY }}
+              onClick={closeSidebar}
+            />
+          )}
+          <div
+            className={`fixed inset-y-0 left-0 transform transition-transform duration-200 ease-out ${
+              sidebarOpen ? "translate-x-0" : "-translate-x-full"
+            }`}
+            style={{ zIndex: Z_SIDEBAR }}
+            onClick={closeSidebar}
+          >
+            {sidebarContent}
+          </div>
+        </>
+      )}
 
       {/* 메인 영역 */}
-      <div className="flex flex-col flex-1 overflow-hidden">
-        <TopBar />
+      <div className="flex flex-col flex-1 overflow-hidden min-w-0">
+        <TopBar onMenuClick={!isDesktop ? toggleSidebar : undefined} />
         <main className="flex-1 overflow-hidden bg-background">
           <Outlet context={{ activeSpaceId, invalidate }} />
         </main>
@@ -437,15 +455,22 @@ function TreeNode({
           : navigate(`/${workspaceSlug}/documents/space/${spaceId}/${doc.id}`)
         }
       >
-        {/* 드롭 위치 표시 라인 — 굵게 + 양끝 마커 + glow */}
+        {/* 드롭 위치 표시 라인 — 트리 깊이에 맞춰 왼쪽 시작점이 이동하므로
+             어느 부모 아래로 편입될지 시각적으로 즉시 구분됨. */}
         {dragPos === "before" && (
-          <div className="absolute left-2 right-2 -top-[3px] h-1.5 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary)/0.6)] pointer-events-none z-20">
+          <div
+            className="absolute right-2 -top-[3px] h-1.5 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary)/0.6)] pointer-events-none z-20"
+            style={{ left: `${depth * 14 + 6}px` }}
+          >
             <span className="absolute -left-1 top-1/2 -translate-y-1/2 h-3 w-3 rounded-full bg-primary ring-2 ring-background" />
             <span className="absolute -right-1 top-1/2 -translate-y-1/2 h-3 w-3 rounded-full bg-primary ring-2 ring-background" />
           </div>
         )}
         {dragPos === "after" && (
-          <div className="absolute left-2 right-2 -bottom-[3px] h-1.5 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary)/0.6)] pointer-events-none z-20">
+          <div
+            className="absolute right-2 -bottom-[3px] h-1.5 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary)/0.6)] pointer-events-none z-20"
+            style={{ left: `${depth * 14 + 6}px` }}
+          >
             <span className="absolute -left-1 top-1/2 -translate-y-1/2 h-3 w-3 rounded-full bg-primary ring-2 ring-background" />
             <span className="absolute -right-1 top-1/2 -translate-y-1/2 h-3 w-3 rounded-full bg-primary ring-2 ring-background" />
           </div>

@@ -697,11 +697,18 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
   useEffect(() => {
     if (!dragState) return;
     let rafId: number | null = null;
+    let lastX = dragState.currentX;
+    let lastTick = 0;
+    const MIN_INTERVAL = 33; // ~30fps — 드래그 중 과도한 리렌더 방지
     const handleMove = (e: MouseEvent) => {
+      lastX = e.clientX;
       if (rafId !== null) return;
       rafId = requestAnimationFrame(() => {
-        setDragState(prev => prev ? { ...prev, currentX: e.clientX } : null);
         rafId = null;
+        const now = performance.now();
+        if (now - lastTick < MIN_INTERVAL) return;
+        lastTick = now;
+        setDragState(prev => prev ? { ...prev, currentX: lastX } : null);
       });
     };
     const handleUp = (e: MouseEvent) => {
@@ -805,18 +812,31 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
   }, [settings.scale]);
 
   /* 초기 마운트 + 스케일 변경 시 오늘 날짜를 화면 중앙에 오도록 1회만 스크롤
-   * - issues.length === 0 이면 아직 데이터 없는 상태이므로 건너뜀
-   *   (데이터 로드 후 todayLeft가 다시 계산되면 그때 한 번 실행)
-   * - didScrollToday가 true이면 이미 스크롤한 것이므로 skip (리패치 시 재스크롤 방지)
+   * - clientWidth 가 0 이면 레이아웃이 아직 안정되지 않은 상태이므로 rAF 로 재시도
+   * - didScrollToday 가 true 이면 이미 스크롤한 것이므로 skip (리패치 시 재스크롤 방지)
    */
   useEffect(() => {
-    if (!scrollRef.current || issues.length === 0) return;
+    if (!scrollRef.current) return;
     if (didScrollToday.current) return;
+    if (columns.length === 0) return;
     const container = scrollRef.current;
-    const viewW = container.clientWidth - LEFT_W;
-    container.scrollLeft = Math.max(0, todayLeft - viewW / 2);
-    didScrollToday.current = true;
-  }, [todayLeft, issues.length]); // issues 로드 완료 후 + todayLeft 확정 시 실행
+    const apply = () => {
+      if (!scrollRef.current) return;
+      const viewW = scrollRef.current.clientWidth - LEFT_W;
+      if (viewW <= 0) {
+        // 레이아웃이 아직 안정되지 않음 — 다음 프레임에 재시도
+        requestAnimationFrame(apply);
+        return;
+      }
+      scrollRef.current.scrollLeft = Math.max(0, todayLeft - viewW / 2);
+      didScrollToday.current = true;
+    };
+    if (container.clientWidth === 0) {
+      requestAnimationFrame(apply);
+    } else {
+      apply();
+    }
+  }, [todayLeft, columns.length]);
 
   /* 오늘로 이동 핸들러 (툴바 버튼) */
   const scrollToToday = () => {
@@ -1191,8 +1211,8 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
                       </span>
                     ) : settings.scale === "day" ? (
                       <>
-                        <span className="text-xs leading-tight">{col.label}</span>
-                        <span className="text-3xs font-medium opacity-70 leading-tight">{weekdayLabel}</span>
+                        <span className="text-sm font-semibold leading-tight tabular-nums">{col.label}</span>
+                        <span className="text-3xs font-semibold leading-tight tracking-wide uppercase">{weekdayLabel}</span>
                       </>
                     ) : col.label}
                   </div>

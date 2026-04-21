@@ -8,16 +8,22 @@ class DocumentSpaceSerializer(serializers.ModelSerializer):
     project_name = serializers.CharField(source="project.name", read_only=True, default=None)
     project_identifier = serializers.CharField(source="project.identifier", read_only=True, default=None)
     owner_detail = UserSerializer(source="owner", read_only=True)
+    members_detail = UserSerializer(source="members", many=True, read_only=True)
 
     class Meta:
         model = DocumentSpace
         fields = [
-            "id", "name", "icon", "description", "space_type",
+            "id", "name", "icon", "icon_prop", "identifier", "description", "space_type",
             "project", "project_name", "project_identifier",
             "owner", "owner_detail",
+            "members", "members_detail",
+            "archived_at",
             "document_count", "created_at",
         ]
-        read_only_fields = ["id", "project", "owner", "space_type", "created_at"]
+        read_only_fields = [
+            "id", "project", "owner", "space_type", "archived_at", "created_at",
+            "members_detail",
+        ]
 
     def get_document_count(self, obj):
         return obj.documents.filter(deleted_at__isnull=True, is_folder=False).count()

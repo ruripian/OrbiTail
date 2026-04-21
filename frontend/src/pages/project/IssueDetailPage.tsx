@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ChevronLeft, Plus, Trash2, GitBranch, MessageSquare, Activity, Send, Link2, ExternalLink, X, AlertTriangle, Paperclip, Upload, FileText, Image as ImageIcon, Copy, Archive, RotateCcw } from "lucide-react";
+import { ChevronLeft, Plus, Trash2, GitBranch, MessageSquare, Activity, Send, Link2, ExternalLink, X, AlertTriangle, Paperclip, Upload, FileText, Image as ImageIcon, Copy, Archive, RotateCcw, Share2 } from "lucide-react";
 import { toast } from "sonner";
 import { issuesApi } from "@/api/issues";
 import { projectsApi } from "@/api/projects";
@@ -45,7 +45,7 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-type TabId = "sub-issues" | "links" | "attachments" | "comments" | "activity";
+type TabId = "sub-issues" | "links" | "nodes" | "attachments" | "comments" | "activity";
 
 interface Props {
   /** 패널 모드에서 URL params 대신 직접 issueId를 주입할 때 사용 */
@@ -134,6 +134,13 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
   const { data: links = [] } = useQuery({
     queryKey: ["links", issueId],
     queryFn: () => issuesApi.links.list(workspaceSlug!, projectId!, issueId!),
+    enabled: !!issue,
+  });
+
+  /* 관련 이슈(node link) — 트리 경계 넘는 자유 연결 */
+  const { data: nodeLinks = [] } = useQuery({
+    queryKey: ["node-links", issueId],
+    queryFn: () => issuesApi.nodeLinks.list(workspaceSlug!, projectId!, issueId!),
     enabled: !!issue,
   });
 
@@ -289,6 +296,27 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
     onError: () => toast.error(t("issues.detail.toast.linkDeleteFailed")),
   });
 
+  /* ── Node link 추가/삭제 ── */
+  const [nodeLinkSearch, setNodeLinkSearch] = useState("");
+  const [nodeLinkType, setNodeLinkType] = useState<NodeLinkType>("relates_to");
+  const createNodeLinkMutation = useMutation({
+    mutationFn: (targetId: string) =>
+      issuesApi.nodeLinks.create(workspaceSlug!, projectId!, issueId!, {
+        source: issueId!,
+        target: targetId,
+        link_type: nodeLinkType,
+      }),
+    onSuccess: () => {
+      setNodeLinkSearch("");
+      qc.invalidateQueries({ queryKey: ["node-links", issueId] });
+    },
+    onError: () => toast.error(t("issues.detail.toast.nodeLinkCreateFailed", "관련 이슈 연결에 실패했습니다")),
+  });
+  const deleteNodeLinkMutation = useMutation({
+    mutationFn: (linkId: string) => issuesApi.nodeLinks.delete(workspaceSlug!, linkId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["node-links", issueId] }),
+  });
+
   const uploadAttachmentMutation = useMutation({
     mutationFn: (file: File) =>
       issuesApi.attachments.upload(workspaceSlug!, projectId!, issueId!, file),
@@ -432,6 +460,7 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
               [
                 { id: "sub-issues" as TabId, label: `${t("issues.detail.tabs.subIssues")} (${subIssues.length})`, icon: GitBranch },
                 { id: "links"      as TabId, label: `${t("issues.detail.tabs.links")} (${links.length})`,          icon: Link2 },
+                { id: "nodes"      as TabId, label: `${t("issues.detail.tabs.nodes", "관련 이슈")} (${nodeLinks.length})`, icon: Share2 },
                 { id: "attachments" as TabId, label: `${t("issues.detail.tabs.attachments")} (${attachments.length})`, icon: Paperclip },
                 { id: "comments"   as TabId, label: `${t("issues.detail.tabs.comments")} (${comments.length})`,      icon: MessageSquare },
                 { id: "activity"   as TabId, label: t("issues.detail.tabs.activity"),   icon: Activity },
@@ -622,6 +651,21 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
               </button>
             )}
           </div>
+        )}
+
+        {activeTab === "nodes" && (
+          <NodeLinksPane
+            workspaceSlug={workspaceSlug!}
+            issueId={issueId!}
+            nodeLinks={nodeLinks}
+            nodeLinkType={nodeLinkType}
+            setNodeLinkType={setNodeLinkType}
+            nodeLinkSearch={nodeLinkSearch}
+            setNodeLinkSearch={setNodeLinkSearch}
+            createNodeLinkMutation={createNodeLinkMutation}
+            deleteNodeLinkMutation={deleteNodeLinkMutation}
+            readOnly={readOnly}
+          />
         )}
 
         {activeTab === "attachments" && (
@@ -835,6 +879,8 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
                 currentId={issue.category}
                 onChange={(id) => updateMutation.mutate({ category: id })}
                 className="border border-border rounded-md bg-input/60 hover:bg-primary/10"
+                disabled={!!issue.parent}
+                disabledReason={issue.parent ? t("issues.categoryInheritsFromParent", "하위 이슈는 상위 이슈의 모듈을 따라갑니다") : undefined}
               />
             </div>
             <div className="min-w-0">
@@ -1020,6 +1066,159 @@ function LinkedDocumentsSection({ issueId, workspaceSlug, projectId }: { issueId
               <span className="truncate">{link.document_title}</span>
             </button>
           ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── 관련 이슈(node link) 패널 ───────────────────────────────
+ *  트리 경계를 넘는 자유 연결. 검색 → 선택 → 연결 타입 지정.
+ */
+const LINK_TYPE_LABEL: Record<string, string> = {
+  relates_to: "관련됨",
+  blocks: "블록함",
+  blocked_by: "블록됨",
+  duplicates: "중복",
+  references: "참조",
+  shared_label: "같은 라벨",
+};
+
+type NodeLinkType = "relates_to" | "blocks" | "blocked_by" | "duplicates" | "references";
+
+function NodeLinksPane({
+  workspaceSlug,
+  issueId,
+  nodeLinks,
+  nodeLinkType,
+  setNodeLinkType,
+  nodeLinkSearch,
+  setNodeLinkSearch,
+  createNodeLinkMutation,
+  deleteNodeLinkMutation,
+  readOnly,
+}: {
+  workspaceSlug: string;
+  issueId: string;
+  nodeLinks: import("@/types").IssueNodeLink[];
+  nodeLinkType: NodeLinkType;
+  setNodeLinkType: (v: NodeLinkType) => void;
+  nodeLinkSearch: string;
+  setNodeLinkSearch: (v: string) => void;
+  createNodeLinkMutation: { mutate: (id: string) => void; isPending: boolean };
+  deleteNodeLinkMutation: { mutate: (id: string) => void };
+  readOnly: boolean;
+}) {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+
+  const { data: searchResults = [] } = useQuery({
+    queryKey: ["issue-search", workspaceSlug, nodeLinkSearch],
+    queryFn: () => issuesApi.searchByWorkspace(workspaceSlug, nodeLinkSearch),
+    enabled: nodeLinkSearch.trim().length >= 2,
+  });
+
+  return (
+    <div className="space-y-3">
+      {nodeLinks.length === 0 && !readOnly && (
+        <p className="text-xs text-muted-foreground py-1">
+          {t("issues.detail.nodes.empty", "아직 연결된 이슈가 없습니다. 다른 프로젝트나 트리의 이슈도 자유롭게 연결할 수 있습니다.")}
+        </p>
+      )}
+
+      {nodeLinks.map((nl: import("@/types").IssueNodeLink) => {
+        const isOutgoing = nl.source === issueId;
+        const targetLabel = isOutgoing ? nl.target_title : nl.source_title;
+        const seq = isOutgoing ? nl.target_sequence_id : nl.source_sequence_id;
+        const pid = isOutgoing ? nl.target_project_identifier : nl.source_project_identifier;
+        const typeLabel = LINK_TYPE_LABEL[nl.link_type] ?? nl.link_type;
+        return (
+          <div
+            key={nl.id}
+            className="flex items-center gap-3 px-3 py-2 rounded-md border hover:bg-muted/20 transition-colors group"
+          >
+            <span className="inline-flex items-center rounded-full bg-primary/10 text-primary px-2 py-0.5 text-2xs font-semibold shrink-0">
+              {typeLabel}
+            </span>
+            <button
+              className="flex-1 text-left min-w-0"
+              onClick={() => {
+                const otherId = isOutgoing ? nl.target : nl.source;
+                navigate(`/${workspaceSlug}/issues/search?issue=${otherId}`);
+              }}
+              title={targetLabel ?? ""}
+            >
+              <div className="text-xs font-medium truncate">
+                {pid ? `${pid}-${seq}` : ""} {targetLabel}
+              </div>
+              {nl.note && <div className="text-2xs text-muted-foreground truncate">{nl.note}</div>}
+            </button>
+            {!readOnly && (
+              <button
+                onClick={() => deleteNodeLinkMutation.mutate(nl.id)}
+                className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity"
+                title={t("issues.detail.nodes.remove", "연결 해제")}
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+        );
+      })}
+
+      {!readOnly && (
+        <div className="border rounded-md p-3 space-y-2">
+          <div className="flex items-center gap-2">
+            <span className="text-2xs text-muted-foreground shrink-0">
+              {t("issues.detail.nodes.type", "타입")}
+            </span>
+            <select
+              className="text-xs bg-transparent border border-border rounded px-2 py-1"
+              value={nodeLinkType}
+              onChange={(e) => setNodeLinkType(e.target.value as NodeLinkType)}
+            >
+              <option value="relates_to">관련됨</option>
+              <option value="blocks">블록함</option>
+              <option value="blocked_by">블록됨</option>
+              <option value="duplicates">중복</option>
+              <option value="references">참조</option>
+            </select>
+          </div>
+          <input
+            className="w-full text-xs bg-transparent border-b border-border outline-none pb-1 placeholder:text-muted-foreground"
+            placeholder={t("issues.detail.nodes.searchPlaceholder", "이슈 제목으로 검색 (2자 이상)")}
+            value={nodeLinkSearch}
+            onChange={(e) => setNodeLinkSearch(e.target.value)}
+          />
+          {nodeLinkSearch.trim().length >= 2 && (
+            <div className="max-h-48 overflow-y-auto border rounded">
+              {searchResults.length === 0 ? (
+                <p className="text-2xs text-muted-foreground px-2 py-1.5">
+                  {t("issues.detail.nodes.searchEmpty", "검색 결과 없음")}
+                </p>
+              ) : (
+                searchResults.slice(0, 20).map((r: import("@/types").IssueSearchResult) => {
+                  const alreadyLinked =
+                    r.id === issueId ||
+                    nodeLinks.some((nl: import("@/types").IssueNodeLink) => nl.source === r.id || nl.target === r.id);
+                  return (
+                    <button
+                      key={r.id}
+                      disabled={alreadyLinked || createNodeLinkMutation.isPending}
+                      onClick={() => createNodeLinkMutation.mutate(r.id)}
+                      className="w-full flex items-center gap-2 px-2 py-1.5 text-left text-xs hover:bg-accent/50 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <span className="text-muted-foreground shrink-0">
+                        {r.project_identifier}-{r.sequence_id}
+                      </span>
+                      <span className="flex-1 truncate">{r.title}</span>
+                      {alreadyLinked && <span className="text-2xs text-muted-foreground">연결됨</span>}
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>

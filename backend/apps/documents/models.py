@@ -41,13 +41,23 @@ class DocumentSpace(models.Model):
 
     name = models.CharField(max_length=200)
     icon = models.CharField(max_length=10, blank=True, default="")
+    icon_prop = models.JSONField(null=True, blank=True, default=None)  # 프로젝트 아이콘 동기화용
     description = models.TextField(blank=True, default="")
     space_type = models.CharField(
         max_length=10,
         choices=SpaceType.choices,
         default=SpaceType.SHARED,
     )
+    # 추가 필드: 참여자 (personal/shared 용), 구분자 (프로젝트 identifier 와 동일 역할)
+    identifier = models.CharField(max_length=24, blank=True, default="")
+    members = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        blank=True,
+        related_name="document_space_memberships",
+    )
 
+    # 프로젝트 보관과 연동되는 스페이스 보관 — project-linked 스페이스의 경우 자동 동기화
+    archived_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

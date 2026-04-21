@@ -14,6 +14,10 @@ from .views import (
     IssueActivityListView,
     IssueLinkListCreateView,
     IssueLinkDetailView,
+    IssueNodeLinkListCreateView,
+    IssueNodeLinkDetailView,
+    ProjectNodeGraphView,
+    WorkspaceNodeGraphView,
     IssueAttachmentListCreateView,
     IssueAttachmentDetailView,
     LabelListCreateView,
@@ -104,6 +108,29 @@ urlpatterns = [
         "workspaces/<slug:workspace_slug>/projects/<uuid:project_pk>/issues/<uuid:issue_pk>/links/<uuid:pk>/",
         IssueLinkDetailView.as_view(),
         name="issue-link-detail",
+    ),
+    # 이슈 간 그래프 링크(node) — 트리 경계 넘는 자유 연결. 프론트 UI 보류, 데이터/API 먼저.
+    path(
+        "workspaces/<slug:workspace_slug>/projects/<uuid:project_pk>/issues/<uuid:issue_pk>/node-links/",
+        IssueNodeLinkListCreateView.as_view(),
+        name="issue-node-link-list",
+    ),
+    path(
+        "workspaces/<slug:workspace_slug>/node-links/<uuid:pk>/",
+        IssueNodeLinkDetailView.as_view(),
+        name="issue-node-link-detail",
+    ),
+    # 그래프 뷰 — 프로젝트 범위 노드 그래프 (프로젝트가 하나의 꼭지)
+    path(
+        "workspaces/<slug:workspace_slug>/projects/<uuid:project_pk>/node-graph/",
+        ProjectNodeGraphView.as_view(),
+        name="project-node-graph",
+    ),
+    # 그래프 뷰 — 워크스페이스 전체 (선택적, 내부 디버그/오버뷰용)
+    path(
+        "workspaces/<slug:workspace_slug>/node-graph/",
+        WorkspaceNodeGraphView.as_view(),
+        name="workspace-node-graph",
     ),
     path(
         "workspaces/<slug:workspace_slug>/projects/<uuid:project_pk>/issues/<uuid:issue_pk>/attachments/",

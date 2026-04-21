@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from apps.accounts.serializers import UserSerializer
 from apps.projects.serializers import StateSerializer
-from .models import Issue, IssueComment, IssueActivity, IssueAttachment, IssueLink, IssueTemplate, Label
+from .models import Issue, IssueComment, IssueActivity, IssueAttachment, IssueLink, IssueNodeLink, IssueTemplate, Label
 
 
 class LabelSerializer(serializers.ModelSerializer):
@@ -139,6 +139,31 @@ class IssueLinkSerializer(serializers.ModelSerializer):
             issue_id=self.context["issue_id"],
             **validated_data,
         )
+
+
+class IssueNodeLinkSerializer(serializers.ModelSerializer):
+    """트리 경계를 넘는 이슈 간 자유 링크(그래프 노드)."""
+    source_title = serializers.CharField(source="source.title", read_only=True)
+    source_sequence_id = serializers.IntegerField(source="source.sequence_id", read_only=True)
+    source_project_identifier = serializers.CharField(source="source.project.identifier", read_only=True)
+    target_title = serializers.CharField(source="target.title", read_only=True)
+    target_sequence_id = serializers.IntegerField(source="target.sequence_id", read_only=True)
+    target_project_identifier = serializers.CharField(source="target.project.identifier", read_only=True)
+
+    class Meta:
+        model = IssueNodeLink
+        fields = [
+            "id", "source", "target", "link_type", "note",
+            "source_title", "source_sequence_id", "source_project_identifier",
+            "target_title", "target_sequence_id", "target_project_identifier",
+            "created_by", "created_at",
+        ]
+        read_only_fields = ["id", "created_by", "created_at"]
+
+    def validate(self, attrs):
+        if attrs.get("source") == attrs.get("target"):
+            raise serializers.ValidationError("자기 자신과는 연결할 수 없습니다.")
+        return attrs
 
 
 class IssueAttachmentSerializer(serializers.ModelSerializer):

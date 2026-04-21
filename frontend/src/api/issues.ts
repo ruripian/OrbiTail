@@ -1,5 +1,27 @@
 import { api } from "@/lib/axios";
-import type { Issue, IssueSearchResult, IssueComment, IssueActivity, IssueAttachment, IssueLink, IssueTemplate, Label, IssueStats, PaginatedResponse } from "@/types";
+import type { Issue, IssueSearchResult, IssueComment, IssueActivity, IssueAttachment, IssueLink, IssueNodeLink, IssueTemplate, Label, IssueStats, PaginatedResponse } from "@/types";
+
+export interface NodeGraphResponse {
+  nodes: Array<{
+    id: string;
+    title: string;
+    sequence_id: number;
+    project_id: string | null;
+    project_identifier: string | null;
+    state_group: string | null;
+    labels: Array<{ id: string; name: string; color: string }>;
+    external?: boolean;
+  }>;
+  edges: Array<{
+    id: string;
+    source: string;
+    target: string;
+    link_type: string;
+    note: string;
+    label_id?: string;
+    label_color?: string;
+  }>;
+}
 
 interface IssueFilters {
   state?: string;
@@ -123,6 +145,64 @@ export const issuesApi = {
     delete: (workspaceSlug: string, projectId: string, issueId: string, linkId: string) =>
       api.delete(`/workspaces/${workspaceSlug}/projects/${projectId}/issues/${issueId}/links/${linkId}/`),
   },
+
+  /* 이슈 간 자유 링크(node) — 트리 경계 넘는 연결 */
+  nodeLinks: {
+    list: (workspaceSlug: string, projectId: string, issueId: string) =>
+      api
+        .get<PaginatedResponse<IssueNodeLink> | IssueNodeLink[]>(
+          `/workspaces/${workspaceSlug}/projects/${projectId}/issues/${issueId}/node-links/`,
+        )
+        .then((r) => (Array.isArray(r.data) ? r.data : r.data.results)),
+
+    create: (
+      workspaceSlug: string,
+      projectId: string,
+      issueId: string,
+      data: { source: string; target: string; link_type?: string; note?: string },
+    ) =>
+      api
+        .post<IssueNodeLink>(
+          `/workspaces/${workspaceSlug}/projects/${projectId}/issues/${issueId}/node-links/`,
+          data,
+        )
+        .then((r) => r.data),
+
+    delete: (workspaceSlug: string, linkId: string) =>
+      api.delete(`/workspaces/${workspaceSlug}/node-links/${linkId}/`),
+  },
+
+  /* 프로젝트 범위 그래프 — 기본. 같은 꼭지(프로젝트) 아래 이슈 관계망. */
+  nodeGraph: (
+    workspaceSlug: string,
+    projectId: string,
+    opts?: { includeLabelEdges?: boolean; manualOnly?: boolean },
+  ) =>
+    api
+      .get<NodeGraphResponse>(
+        `/workspaces/${workspaceSlug}/projects/${projectId}/node-graph/`,
+        {
+          params: {
+            include_label_edges: opts?.includeLabelEdges === false ? "false" : "true",
+            manual_only: opts?.manualOnly ? "true" : "false",
+          },
+        },
+      )
+      .then((r) => r.data),
+
+  /* 워크스페이스 전체 그래프 — 선택적, 전체 오버뷰용. */
+  nodeGraphAllWorkspace: (
+    workspaceSlug: string,
+    opts?: { includeLabelEdges?: boolean; manualOnly?: boolean },
+  ) =>
+    api
+      .get<NodeGraphResponse>(`/workspaces/${workspaceSlug}/node-graph/`, {
+        params: {
+          include_label_edges: opts?.includeLabelEdges === false ? "false" : "true",
+          manual_only: opts?.manualOnly ? "true" : "false",
+        },
+      })
+      .then((r) => r.data),
 
   attachments: {
     list: (workspaceSlug: string, projectId: string, issueId: string) =>

@@ -38,4 +38,16 @@ export const settingsApi = {
   /** 계정 탈퇴 — 비밀번호 재확인 후 소프트 삭제 (DELETE /api/auth/me/delete/) */
   deleteAccount: (password: string) =>
     api.delete<{ detail: string }>("/auth/me/delete/", { data: { password } }).then((r) => r.data),
+
+  /** 프로필 사진 업로드 (PATCH multipart /api/auth/me/) */
+  uploadAvatar: (file: File) => {
+    const fd = new FormData();
+    fd.append("avatar", file);
+    // Content-Type 헤더는 브라우저가 FormData boundary 와 함께 자동 설정하도록 맡김
+    return api.patch<User>("/auth/me/", fd).then((r) => r.data);
+  },
+
+  /** 프로필 사진 삭제 */
+  removeAvatar: () =>
+    api.patch<User>("/auth/me/", { avatar: null }).then((r) => r.data),
 };

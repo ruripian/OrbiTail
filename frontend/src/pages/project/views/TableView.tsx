@@ -354,6 +354,27 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [lastClickedId, setLastClickedId] = useState<string | null>(null);
 
+  /** 메인 이슈 리스트 캐시에서 특정 이슈의 sub_issues_count 를 즉시 증감.
+   *  드래그-네스트 후 부모 행의 확장 화살표가 서버 refetch 전에 표시되도록 하기 위한 낙관적 업데이트. */
+  const bumpSubIssuesCount = (issueId: string, delta: number) => {
+    const patch = (iss: Issue): Issue =>
+      iss.id === issueId
+        ? { ...iss, sub_issues_count: Math.max(0, (iss.sub_issues_count ?? 0) + delta) }
+        : iss;
+    // 최상위 리스트 캐시
+    qc.setQueryData<Issue[]>(
+      ["issues", workspaceSlug, projectId, issueFilter],
+      (old) => (old ? old.map(patch) : old),
+    );
+    // 해당 이슈가 다른 부모의 하위로 존재하는 경우 — 모든 sub-issues 캐시 탐색
+    qc.getQueriesData<Issue[]>({ queryKey: ["sub-issues"] }).forEach(([key, data]) => {
+      if (!data) return;
+      if (data.some((iss) => iss.id === issueId)) {
+        qc.setQueryData<Issue[]>(key, (old) => (old ? old.map(patch) : old));
+      }
+    });
+  };
+
   /** 이슈 id의 모든 하위 이슈 id를 재귀 수집 (React Query 캐시에서 읽기) */
   const collectDescendants = (parentId: string): string[] => {
     const cached = qc.getQueryData<Issue[]>(["sub-issues", parentId]) ?? [];
@@ -572,6 +593,9 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
         toast.error(t("issues.table.cyclicNestError"));
         return;
       }
+      // 낙관적: 새 부모의 sub_issues_count 즉시 +1 → 확장 화살표 즉시 표시
+      bumpSubIssuesCount(effectiveTarget.id, +1);
+      if (oldParentId) bumpSubIssuesCount(oldParentId, -1);
       issuesApi.update(workspaceSlug, projectId, id, { parent: effectiveTarget.id }).then(() => {
         qc.invalidateQueries({ queryKey: ["issues", workspaceSlug, projectId, issueFilter] });
         qc.invalidateQueries({ queryKey: ["sub-issues", effectiveTarget.id] });
@@ -629,6 +653,9 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
     const newSortOrder = zone === "before"
       ? Math.max(1, effectiveTarget.sort_order - 5000)
       : effectiveTarget.sort_order + 5000;
+    // 낙관적 카운트 업데이트 (부모 변경) → 확장 화살표 즉시 반영
+    if (newParentId) bumpSubIssuesCount(newParentId, +1);
+    if (oldParentId) bumpSubIssuesCount(oldParentId, -1);
     issuesApi.update(workspaceSlug, projectId, id, {
       parent:     newParentId,
       sort_order: newSortOrder,

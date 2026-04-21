@@ -10,27 +10,20 @@ import {
   Layers,
   Plus,
   ChevronDown,
-  Settings,
   SlidersHorizontal,
   Star,
   GripVertical,
   Trash2,
   Lock,
   Megaphone,
-  User as UserIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
-  DropdownMenuSeparator, DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { projectsApi } from "@/api/projects";
-import { workspacesApi } from "@/api/workspaces";
 import { announcementsApi } from "@/api/announcements";
-import { useAuthStore } from "@/stores/authStore";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
 import { ProjectIcon } from "@/components/ui/project-icon-picker";
 import { AppSwitcher } from "./AppSwitcher";
+import { WorkspaceHeader } from "./WorkspaceHeader";
 import type { Project, Category } from "@/types";
 import type { WsStatus } from "@/hooks/useWebSocket";
 
@@ -269,7 +262,7 @@ function AnnouncementsNavItem({ workspaceSlug, active }: { workspaceSlug: string
       <Megaphone className="h-4 w-4 shrink-0" />
       <span className="truncate flex-1">{t("sidebar.announcements")}</span>
       {unread > 0 && (
-        <span className="ml-auto inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-primary text-primary-foreground text-2xs font-bold">
+        <span className="ml-auto inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-primary text-primary-foreground text-2xs font-bold not-italic leading-none tabular-nums">
           {unread > 99 ? "99+" : unread}
         </span>
       )}
@@ -283,22 +276,11 @@ export function Sidebar({ onNavigate, wsStatus = "connecting" }: { onNavigate?: 
   const location = useLocation();
   const navigate = useNavigate();
   const { currentProject, setCurrentProject, favorites, projectOrder, toggleFavorite, setProjectOrder } = useWorkspaceStore();
-  const userId = useAuthStore((s) => s.user?.id);
-
   const { data: projects = [] } = useQuery({
     queryKey: ["projects", workspaceSlug],
     queryFn: () => projectsApi.list(workspaceSlug!),
     enabled: !!workspaceSlug,
   });
-
-  /* 워크스페이스 설정 접근 권한 — Admin(20)+ 만 노출 */
-  const { data: wsMembers = [] } = useQuery({
-    queryKey: ["workspace-members", workspaceSlug],
-    queryFn: () => workspacesApi.members(workspaceSlug!),
-    enabled: !!workspaceSlug,
-  });
-  const myRole = wsMembers.find((m) => m.member.id === userId)?.role ?? 0;
-  const canAccessWorkspaceSettings = myRole >= 20;
 
   const slug = workspaceSlug ?? "";
   const favIds = new Set(favorites[slug] ?? []);
@@ -367,38 +349,7 @@ export function Sidebar({ onNavigate, wsStatus = "connecting" }: { onNavigate?: 
   return (
     <aside className="flex h-screen w-64 flex-col border-r glass-sidebar shrink-0" role="navigation" aria-label="Main navigation">
 
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button className="flex h-11 w-full items-center gap-3 border-b border-border px-4 hover:bg-accent/50 transition-colors">
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary text-xs font-black text-primary-foreground shadow-sm">
-              ∞
-            </span>
-            <div className="flex flex-col min-w-0 text-left">
-              <span className="truncate text-sm font-semibold text-sidebar-foreground leading-tight">
-                {workspaceSlug}
-              </span>
-            </div>
-            <ChevronDown className="ml-auto h-3.5 w-3.5 shrink-0 text-sidebar-foreground/50" />
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-56">
-          <DropdownMenuItem onClick={() => navigate(`/${workspaceSlug}/settings`)}>
-            <UserIcon className="h-3.5 w-3.5 mr-2" />
-            {t("sidebar.personalSettings")}
-          </DropdownMenuItem>
-          {canAccessWorkspaceSettings && (
-            <DropdownMenuItem onClick={() => navigate(`/${workspaceSlug}/settings/workspace-members`)}>
-              <Settings className="h-3.5 w-3.5 mr-2" />
-              {t("sidebar.settings")}
-            </DropdownMenuItem>
-          )}
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={() => navigate("/workspaces")}>
-            <Layers className="h-3.5 w-3.5 mr-2" />
-            {t("sidebar.switchWorkspace")}
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <WorkspaceHeader />
 
       <AppSwitcher />
 

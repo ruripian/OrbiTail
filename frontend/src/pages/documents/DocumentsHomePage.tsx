@@ -28,6 +28,9 @@ export default function DocumentsHomePage() {
   const qc = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
   const [newName, setNewName] = useState("");
+  const [newIdentifier, setNewIdentifier] = useState("");
+  const [newDescription, setNewDescription] = useState("");
+  const [newMembers, setNewMembers] = useState<string>("");  // 쉼표 구분 이메일
 
   const { data: spaces = [], isLoading } = useQuery({
     queryKey: ["document-spaces", workspaceSlug],
@@ -36,11 +39,24 @@ export default function DocumentsHomePage() {
   });
 
   const createMutation = useMutation({
-    mutationFn: () => documentsApi.spaces.create(workspaceSlug!, { name: newName.trim(), icon: "📚" }),
+    mutationFn: () => {
+      const payload: {
+        name: string;
+        icon: string;
+        identifier?: string;
+        description?: string;
+      } = { name: newName.trim(), icon: "📚" };
+      if (newIdentifier.trim()) payload.identifier = newIdentifier.trim().toUpperCase();
+      if (newDescription.trim()) payload.description = newDescription.trim();
+      return documentsApi.spaces.create(workspaceSlug!, payload);
+    },
     onSuccess: (space) => {
       qc.invalidateQueries({ queryKey: ["document-spaces", workspaceSlug] });
       setCreateOpen(false);
       setNewName("");
+      setNewIdentifier("");
+      setNewDescription("");
+      setNewMembers("");
       toast.success(t("documents.spaceCreated"));
       navigate(`/${workspaceSlug}/documents/space/${space.id}`);
     },
@@ -133,16 +149,59 @@ export default function DocumentsHomePage() {
           <DialogHeader>
             <DialogTitle>{t("documents.newSpace")}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 pt-2">
-            <Input
-              placeholder={t("documents.spaceName")}
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && newName.trim()) createMutation.mutate();
-              }}
-            />
-            <div className="flex justify-end gap-2">
+          <div className="space-y-3 pt-2">
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">
+                {t("documents.spaceName", "스페이스 이름")}
+                <span className="text-rose-500 ml-0.5">*</span>
+              </label>
+              <Input
+                placeholder={t("documents.spaceNamePlaceholder", "예: 기술 문서")}
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                autoFocus
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">
+                {t("documents.spaceIdentifier", "구분자 (선택)")}
+              </label>
+              <Input
+                placeholder="TECH"
+                maxLength={12}
+                value={newIdentifier}
+                onChange={(e) => setNewIdentifier(e.target.value.toUpperCase())}
+              />
+              <p className="text-2xs text-muted-foreground/70">
+                {t("documents.spaceIdentifierHint", "영문 대문자/숫자, 최대 12자. 문서 URL 및 참조에 사용됩니다.")}
+              </p>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">
+                {t("documents.spaceDescription", "설명 (선택)")}
+              </label>
+              <textarea
+                className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                placeholder={t("documents.spaceDescriptionPlaceholder", "이 스페이스의 목적을 간단히 설명하세요")}
+                rows={2}
+                value={newDescription}
+                onChange={(e) => setNewDescription(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">
+                {t("documents.spaceMembers", "참여자 (선택)")}
+              </label>
+              <Input
+                placeholder={t("documents.spaceMembersPlaceholder", "쉼표로 구분된 이메일")}
+                value={newMembers}
+                onChange={(e) => setNewMembers(e.target.value)}
+              />
+              <p className="text-2xs text-muted-foreground/70">
+                {t("documents.spaceMembersHint", "스페이스 생성 후 멤버 관리에서도 추가할 수 있습니다.")}
+              </p>
+            </div>
+            <div className="flex justify-end gap-2 pt-1">
               <Button variant="outline" onClick={() => setCreateOpen(false)}>
                 {t("admin.common.cancel")}
               </Button>
