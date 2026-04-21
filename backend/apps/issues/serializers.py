@@ -107,7 +107,7 @@ class IssueSearchSerializer(serializers.ModelSerializer):
         fields = [
             "id", "title", "priority", "state", "state_detail",
             "project", "project_identifier", "project_name",
-            "sequence_id", "updated_at",
+            "sequence_id", "parent", "updated_at",
         ]
 
 

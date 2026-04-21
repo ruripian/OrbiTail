@@ -313,9 +313,10 @@ class DocumentCommentListCreateView(generics.ListCreateAPIView):
         )
 
 
-class DocumentCommentDeleteView(generics.DestroyAPIView):
-    """댓글 삭제 — 본인만"""
+class DocumentCommentDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """댓글 수정/삭제 — 본인만 (queryset에서 필터링되므로 타인 건은 404)"""
     serializer_class = DocumentCommentSerializer
+    http_method_names = ["get", "patch", "delete"]
 
     def get_queryset(self):
         return DocumentComment.objects.filter(

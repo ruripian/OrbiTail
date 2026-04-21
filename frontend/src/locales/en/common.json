@@ -1204,8 +1204,15 @@
     "issueDeleteError": "An error occurred while deleting the issue.",
     "delete": "Delete",
     "cancel": "Cancel",
+    "confirm": "Confirm",
     "close": "Close (Esc)",
     "clickToEdit": "Click to edit"
+  },
+  "time": {
+    "justNow": "just now",
+    "minutesAgo": "{{count}}m ago",
+    "hoursAgo": "{{count}}h ago",
+    "daysAgo": "{{count}}d ago"
   },
   "labels": {
     "title": "Label Management",
@@ -1260,6 +1267,10 @@
     "read": "Read",
     "share": "Share",
     "linkCopied": "Link copied",
+    "copyLink": "Copy link",
+    "mentionUser": "Mention user",
+    "mentionDoc": "Reference document",
+    "mentionIssue": "Reference issue",
     "comments": "Comments",
     "toc": "TOC",
     "copyMarkdown": "Copy as Markdown",
@@ -1291,8 +1302,18 @@
     "commentPlaceholder": "Write a comment...",
     "postComment": "Post",
     "noComments": "No comments yet",
+    "editComment": "Edit",
+    "deleteComment": "Delete",
+    "deleteCommentTitle": "Delete this comment?",
+    "deleteCommentDesc": "Deleted comments cannot be recovered.",
+    "commentUpdated": "Comment updated",
+    "commentDeleted": "Comment deleted",
+    "saveChanges": "Save",
     "moved": "Document moved",
     "rootFolder": "Root (top level)",
-    "subPages": "Sub-pages"
+    "subPages": "Sub-pages",
+    "previewVersion": "Preview",
+    "versionPreview": "Version preview",
+    "closePreview": "Close"
   }
 }

@@ -77,6 +77,9 @@ export const documentsApi = {
     create: (workspaceSlug: string, spaceId: string, docId: string, content: string) =>
       api.post<DocumentComment>(`/workspaces/${workspaceSlug}/documents/spaces/${spaceId}/docs/${docId}/comments/`, { content }).then((r) => r.data),
 
+    update: (workspaceSlug: string, spaceId: string, docId: string, commentId: string, content: string) =>
+      api.patch<DocumentComment>(`/workspaces/${workspaceSlug}/documents/spaces/${spaceId}/docs/${docId}/comments/${commentId}/`, { content }).then((r) => r.data),
+
     delete: (workspaceSlug: string, spaceId: string, docId: string, commentId: string) =>
       api.delete(`/workspaces/${workspaceSlug}/documents/spaces/${spaceId}/docs/${docId}/comments/${commentId}/`),
   },

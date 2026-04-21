@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import {
   FileText, FolderOpen, FilePlus, FolderPlus, Plus,
   Layers, ChevronRight, ChevronDown,
-  MoreHorizontal, Trash2, Pencil,
+  MoreHorizontal, Trash2, Pencil, Link as LinkIcon,
 } from "lucide-react";
 import { documentsApi } from "@/api/documents";
 import { TopBar } from "./TopBar";
@@ -92,6 +92,39 @@ export function DocumentLayout() {
     qc.invalidateQueries({ queryKey: ["documents", workspaceSlug, activeSpaceId] });
     qc.invalidateQueries({ queryKey: ["document-spaces", workspaceSlug] });
   };
+
+  /* 순환 참조 감지 — targetId가 draggedId의 자손이면 true (순환 생김) */
+  const wouldCreateCycle = (draggedId: string, targetId: string): boolean => {
+    if (draggedId === targetId) return true;
+    const queue = [draggedId];
+    const visited = new Set<string>();
+    while (queue.length > 0) {
+      const cur = queue.shift()!;
+      if (visited.has(cur)) continue;
+      visited.add(cur);
+      const kids = childrenMap.get(cur) ?? [];
+      for (const k of kids) {
+        if (k.id === targetId) return true;
+        queue.push(k.id);
+      }
+    }
+    return false;
+  };
+
+  /* root drop zone (사이드바 하단) 상태 */
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [rootDropHover, setRootDropHover] = useState(false);
+
+  /* 전역 dragend 안전망 — 어떤 경로로든 드래그가 끝나면 상태 초기화 */
+  useEffect(() => {
+    const onEnd = () => { setDraggingId(null); setRootDropHover(false); };
+    window.addEventListener("dragend", onEnd);
+    window.addEventListener("drop", onEnd);
+    return () => {
+      window.removeEventListener("dragend", onEnd);
+      window.removeEventListener("drop", onEnd);
+    };
+  }, []);
 
   // 문서 생성
   const createMutation = useMutation({
@@ -232,14 +265,82 @@ export function DocumentLayout() {
                       is_folder: isFolder,
                     })
                   }
-                  onMove={(docId, newParent) => {
-                    documentsApi.move(workspaceSlug!, activeSpaceId!, docId, { parent: newParent }).then(() => invalidate());
+                  onDragStartGlobal={(id) => setDraggingId(id)}
+                  onDragEndGlobal={() => setDraggingId(null)}
+                  onMove={(docId, targetId, position) => {
+                    const target = allDocs.find((d) => d.id === targetId);
+                    if (!target) return;
+                    if (position === "inside") {
+                      /* 자기 자신/자손에 넣으면 순환 발생 — 차단 */
+                      if (wouldCreateCycle(docId, targetId)) {
+                        toast.error(t("documents.cyclicNestError", "자신 또는 하위 문서로는 이동할 수 없습니다"));
+                        return;
+                      }
+                      documentsApi.move(workspaceSlug!, activeSpaceId!, docId, { parent: targetId })
+                        .then(() => invalidate());
+                      return;
+                    }
+                    /* 같은 parent로 옮기되 target의 앞/뒤 sort_order에 끼워 넣음 */
+                    const parent = target.parent ?? null;
+                    const siblings = allDocs
+                      .filter((d) => (d.parent ?? null) === parent && d.id !== docId)
+                      .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+                    const idx = siblings.findIndex((d) => d.id === targetId);
+                    const targetOrder = target.sort_order ?? 0;
+                    let newOrder: number;
+                    if (position === "before") {
+                      const prev = idx > 0 ? siblings[idx - 1] : null;
+                      newOrder = prev ? ((prev.sort_order ?? 0) + targetOrder) / 2 : targetOrder - 1;
+                    } else {
+                      const next = idx >= 0 && idx < siblings.length - 1 ? siblings[idx + 1] : null;
+                      newOrder = next ? ((next.sort_order ?? 0) + targetOrder) / 2 : targetOrder + 1;
+                    }
+                    documentsApi.move(workspaceSlug!, activeSpaceId!, docId, { parent, sort_order: newOrder })
+                      .then(() => invalidate());
                   }}
                 />
               ))}
             </div>
           )}
         </nav>
+
+        {/* 최상위로 빼기 드롭 존 — 항상 DOM + pointer-events 유지(상시 drop 수용).
+            시각만 드래그 중에 표시. 이미 최상위 문서 드롭은 onDrop에서 no-op. */}
+        <div
+          className={cn(
+            "mx-2 mb-2 border-2 border-dashed rounded-lg py-4 text-center text-xs font-medium transition-all shrink-0",
+            draggingId
+              ? (rootDropHover
+                  ? "border-primary bg-primary/15 text-primary opacity-100 scale-[1.02]"
+                  : "border-border/60 text-muted-foreground/80 opacity-90")
+              : "opacity-0",
+          )}
+          onDragOver={(e) => {
+            if (!e.dataTransfer.types.includes("doc-id")) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "move";
+            setRootDropHover(true);
+          }}
+          onDragLeave={() => setRootDropHover(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setRootDropHover(false);
+            const id = e.dataTransfer.getData("doc-id");
+            setDraggingId(null);
+            if (!id) return;
+            const dragged = allDocs.find((d) => d.id === id);
+            if (!dragged || !dragged.parent) return; /* 이미 최상위면 무시 */
+            const rootSiblings = allDocs
+              .filter((d) => !d.parent && d.id !== id)
+              .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+            const last = rootSiblings[rootSiblings.length - 1];
+            const newOrder = last ? (last.sort_order ?? 0) + 1 : 0;
+            documentsApi.move(workspaceSlug!, activeSpaceId!, id, { parent: null, sort_order: newOrder })
+              .then(() => invalidate());
+          }}
+        >
+          {t("documents.dropToRoot", "여기에 끌어 놓으면 최상위로")}
+        </div>
 
       </aside>
 
@@ -259,6 +360,7 @@ export function DocumentLayout() {
 function TreeNode({
   doc, childrenMap, depth, activeId, spaceId, workspaceSlug,
   onDelete, onRename, onCreate, onMove, onIconChange,
+  onDragStartGlobal, onDragEndGlobal,
 }: {
   doc: DocType;
   childrenMap: Map<string, DocType[]>;
@@ -269,14 +371,17 @@ function TreeNode({
   onDelete: (id: string) => void;
   onRename: (id: string, title: string) => void;
   onCreate: (parentId: string | null, isFolder: boolean) => void;
-  onMove: (docId: string, newParent: string | null) => void;
+  onIconChange?: (id: string, icon: any) => void;
+  onMove: (docId: string, targetId: string, position: "before" | "after" | "inside") => void;
+  onDragStartGlobal?: (id: string) => void;
+  onDragEndGlobal?: () => void;
 }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [expanded, setExpanded] = useState(depth < 1);
   const [editing, setEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(doc.title);
-  const [dragOver, setDragOver] = useState(false);
+  const [dragPos, setDragPos] = useState<"before" | "after" | "inside" | null>(null);
   const children = childrenMap.get(doc.id) ?? [];
   const hasChildren = children.length > 0 || doc.is_folder;
   const isActive = doc.id === activeId;
@@ -285,37 +390,68 @@ function TreeNode({
     <div>
       <div
         className={cn(
-          "flex items-center gap-1 rounded-md px-1.5 py-1.5 text-sm cursor-pointer group transition-colors",
+          "relative flex items-center gap-1 rounded-md px-1.5 py-1.5 text-sm cursor-pointer group transition-colors",
           isActive ? "bg-primary/10 text-primary font-medium" : "hover:bg-accent/50",
-          dragOver && doc.is_folder && "ring-2 ring-primary/50 bg-primary/5",
+          dragPos === "inside" && "ring-2 ring-primary/60 bg-primary/5",
         )}
         style={{ paddingLeft: `${depth * 14 + 6}px` }}
         draggable
         onDragStart={(e) => {
           e.dataTransfer.setData("doc-id", doc.id);
           e.dataTransfer.effectAllowed = "move";
+          onDragStartGlobal?.(doc.id);
+        }}
+        onDragEnd={() => {
+          setDragPos(null);
+          onDragEndGlobal?.();
         }}
         onDragOver={(e) => {
-          if (!doc.is_folder) return;
+          const draggedId = e.dataTransfer.types.includes("doc-id") ? null : "";  /* dataTransfer.getData는 drop에서만. 여기선 체크 불가 → 본인 판정은 drop에서 */
+          void draggedId;
           e.preventDefault();
           e.dataTransfer.dropEffect = "move";
-          setDragOver(true);
+          const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+          const y = e.clientY - rect.top;
+          const h = rect.height;
+          let pos: "before" | "after" | "inside";
+          if (y < h * 0.28) pos = "before";
+          else if (y > h * 0.72) pos = "after";
+          else pos = "inside";
+          setDragPos(pos);
         }}
-        onDragLeave={() => setDragOver(false)}
+        onDragLeave={(e) => {
+          /* 자식으로 이동한 경우는 leave로 처리하지 않음 */
+          const related = e.relatedTarget as Node | null;
+          if (related && (e.currentTarget as HTMLElement).contains(related)) return;
+          setDragPos(null);
+        }}
         onDrop={(e) => {
           e.preventDefault();
-          setDragOver(false);
+          const pos = dragPos;
+          setDragPos(null);
           const draggedId = e.dataTransfer.getData("doc-id");
-          if (draggedId && draggedId !== doc.id && doc.is_folder) {
-            onMove(draggedId, doc.id);
-            setExpanded(true);
-          }
+          if (!pos || !draggedId || draggedId === doc.id) return;
+          onMove(draggedId, doc.id, pos);
+          if (pos === "inside") setExpanded(true);
         }}
         onClick={() => doc.is_folder
           ? setExpanded(!expanded)
           : navigate(`/${workspaceSlug}/documents/space/${spaceId}/${doc.id}`)
         }
       >
+        {/* 드롭 위치 표시 라인 — 굵게 + 양끝 마커 + glow */}
+        {dragPos === "before" && (
+          <div className="absolute left-2 right-2 -top-[3px] h-1.5 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary)/0.6)] pointer-events-none z-20">
+            <span className="absolute -left-1 top-1/2 -translate-y-1/2 h-3 w-3 rounded-full bg-primary ring-2 ring-background" />
+            <span className="absolute -right-1 top-1/2 -translate-y-1/2 h-3 w-3 rounded-full bg-primary ring-2 ring-background" />
+          </div>
+        )}
+        {dragPos === "after" && (
+          <div className="absolute left-2 right-2 -bottom-[3px] h-1.5 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary)/0.6)] pointer-events-none z-20">
+            <span className="absolute -left-1 top-1/2 -translate-y-1/2 h-3 w-3 rounded-full bg-primary ring-2 ring-background" />
+            <span className="absolute -right-1 top-1/2 -translate-y-1/2 h-3 w-3 rounded-full bg-primary ring-2 ring-background" />
+          </div>
+        )}
         {hasChildren ? (
           <button
             onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}
@@ -373,9 +509,16 @@ function TreeNode({
                 <MoreHorizontal className="h-4 w-4" />
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-40">
+            <DropdownMenuContent align="end" className="w-44">
               <DropdownMenuItem onClick={() => { setEditing(true); setEditTitle(doc.title); }}>
                 <Pencil className="h-3.5 w-3.5 mr-2" /> {t("documents.rename")}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => {
+                const url = `${window.location.origin}/${workspaceSlug}/documents/space/${spaceId}/${doc.id}`;
+                navigator.clipboard.writeText(url);
+                toast.success(t("documents.linkCopied"));
+              }}>
+                <LinkIcon className="h-3.5 w-3.5 mr-2" /> {t("documents.copyLink", "링크 복사")}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => onCreate(doc.id, false)}>
                 <FilePlus className="h-3.5 w-3.5 mr-2" /> {t("documents.newDocument")}
@@ -407,6 +550,8 @@ function TreeNode({
           onRename={onRename}
           onCreate={onCreate}
           onMove={onMove}
+          onDragStartGlobal={onDragStartGlobal}
+          onDragEndGlobal={onDragEndGlobal}
         />
       ))}
     </div>

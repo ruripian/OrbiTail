@@ -199,7 +199,7 @@ function snapToWeekday(d: Date): Date {
 
 const MONTH_KEYS = ["calendar.jan","calendar.feb","calendar.mar","calendar.apr","calendar.may","calendar.jun","calendar.jul","calendar.aug","calendar.sep","calendar.oct","calendar.nov","calendar.dec"] as const;
 const DAY_KEYS   = ["calendar.sun","calendar.mon","calendar.tue","calendar.wed","calendar.thu","calendar.fri","calendar.sat"] as const;
-const BAR_HEIGHT   = 26; // px
+const BAR_HEIGHT   = 30; // px — 폰트 18px 기준 line-height 고려
 const BAR_GAP      = 3;  // px
 /** 한 주 행에 표시할 최대 이벤트 레인 수 (초과분은 "+N개 더"로 표시) */
 
@@ -786,25 +786,27 @@ export function CalendarView({ workspaceSlug, projectId, onIssueClick, issueFilt
               }
             }
 
-            /* 셀별 칩 개수를 미리 계산 → 행 minHeight에 반영 (콘텐츠가 많을수록 행이 자람) */
-            const CHIP_H = 26; // 칩 높이 + 간격
+            /* 셀별 칩 개수를 미리 계산 → 행 minHeight에 반영 (콘텐츠가 많을수록 행이 자람)
+               CHIP_H는 폰트 스케일(18px base) + line-height + padding 고려해 넉넉히 */
+            const CHIP_H = 34;
             const cellTotalH: number[] = new Array(totalCols).fill(0);
             for (let i = 0; i < week.length; i++) {
               const day = week[i];
               if (settings.hideWeekends && (i === 0 || i === 6)) continue;
               const colIdx = settings.hideWeekends ? i - 1 : i;
               const chipsCount = getChipsForDay(renderIssues, day, effectiveExpanded).length;
-              cellTotalH[colIdx] = 36 + (colBarH[colIdx] || 0) + chipsCount * CHIP_H + 8;
+              /* +호버 시 나타나는 "이슈/이벤트 추가" 버튼 영역 24px 여유까지 포함 */
+              cellTotalH[colIdx] = 36 + (colBarH[colIdx] || 0) + chipsCount * CHIP_H + 24;
             }
-            const dynamicMinH = Math.max(96, ...cellTotalH);
+            const dynamicMinH = Math.max(120, ...cellTotalH);
 
             return (
               <div
                 key={wi}
-                className="relative min-h-[96px] xl:min-h-[120px] flex-1"
+                className="relative min-h-[96px] xl:min-h-[120px]"
                 data-week-row
                 style={{
-                  /* 콘텐츠(바 + 칩)에 따라 행이 자란다. flex-1은 남는 공간 균등 분배 담당 */
+                  /* 콘텐츠(바 + 칩)에 따라 행이 자란다. flex-1 제거 — 내용이 넘치면 컨테이너가 세로 스크롤 */
                   minHeight: dynamicMinH,
                 }}
               >
@@ -1052,10 +1054,12 @@ export function CalendarView({ workspaceSlug, projectId, onIssueClick, issueFilt
                   </div>
                 )}
 
-                {/* ── 일(day) 셀 그리드 — 주말 숨김 시 5일만 ── */}
+                {/* ── 일(day) 셀 그리드 — 주말 숨김 시 5일만.
+                    h-full 제거: 부모 row는 minHeight만 가짐 → grid가 content 기반으로 자라고
+                    row가 grid 높이에 맞춰 늘어남(순환 참조 없음) */}
                 <div
                   className={cn(
-                    "grid h-full divide-x divide-border",
+                    "grid divide-x divide-border min-h-full",
                     settings.hideWeekends ? "grid-cols-5" : "grid-cols-7",
                   )}
                 >
@@ -1070,7 +1074,7 @@ export function CalendarView({ workspaceSlug, projectId, onIssueClick, issueFilt
                       <div
                         key={di}
                         className={cn(
-                          "relative flex flex-col group transition-colors hover:bg-accent/40 overflow-hidden",
+                          "relative flex flex-col group transition-colors hover:bg-accent/40",
                           // 이전/다음 달 날짜: 흐린 배경
                           !isCurrentMonth && "bg-muted/[0.08]",
                           // 오늘: primary tint + ring-inset으로 강조

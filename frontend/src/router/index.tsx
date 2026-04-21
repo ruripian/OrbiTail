@@ -36,6 +36,7 @@ import { ArchivedProjectsPage } from "@/pages/project/ArchivedProjectsPage";
 import { InviteAcceptPage } from "@/pages/invite/InviteAcceptPage";
 import { AnnouncementsPage } from "@/pages/AnnouncementsPage";
 import { DocumentLayout } from "@/components/layout/DocumentLayout";
+import { RequestSubmitPage } from "@/pages/request/RequestSubmitPage";
 import { lazy, Suspense } from "react";
 
 const DocumentsHomePage = lazy(() => import("@/pages/documents/DocumentsHomePage"));
@@ -105,6 +106,7 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <WorkspaceDashboard /> },
       { path: "announcements", element: <AnnouncementsPage /> },
+      { path: "request", element: <RequestSubmitPage /> },
       { path: "projects/create", element: <CreateProjectPage /> },
       { path: "projects/discover", element: <DiscoverProjectsPage /> },
       { path: "projects/archived", element: <ArchivedProjectsPage /> },

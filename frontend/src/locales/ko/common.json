@@ -1204,8 +1204,15 @@
     "issueDeleteError": "이슈 삭제 중 오류가 발생했습니다.",
     "delete": "삭제",
     "cancel": "취소",
+    "confirm": "확인",
     "close": "닫기 (Esc)",
     "clickToEdit": "클릭하여 편집"
+  },
+  "time": {
+    "justNow": "방금 전",
+    "minutesAgo": "{{count}}분 전",
+    "hoursAgo": "{{count}}시간 전",
+    "daysAgo": "{{count}}일 전"
   },
   "labels": {
     "title": "라벨 관리",
@@ -1260,6 +1267,10 @@
     "read": "읽기",
     "share": "공유",
     "linkCopied": "링크가 복사되었습니다",
+    "copyLink": "링크 복사",
+    "mentionUser": "사용자 멘션",
+    "mentionDoc": "문서 참조",
+    "mentionIssue": "이슈 참조",
     "comments": "댓글",
     "toc": "목차",
     "copyMarkdown": "마크다운 복사",
@@ -1290,9 +1301,19 @@
     "versionRestored": "버전이 복원되었습니다",
     "commentPlaceholder": "댓글을 입력하세요...",
     "postComment": "등록",
-    "noComments": "댓글이 없습니다",
+    "noComments": "아직 댓글이 없습니다",
+    "editComment": "수정",
+    "deleteComment": "삭제",
+    "deleteCommentTitle": "댓글을 삭제할까요?",
+    "deleteCommentDesc": "삭제된 댓글은 복구할 수 없습니다.",
+    "commentUpdated": "댓글이 수정되었습니다",
+    "commentDeleted": "댓글이 삭제되었습니다",
+    "saveChanges": "저장",
     "moved": "문서가 이동되었습니다",
     "rootFolder": "루트 (최상위)",
-    "subPages": "하위 페이지"
+    "subPages": "하위 페이지",
+    "previewVersion": "미리보기",
+    "versionPreview": "버전 미리보기",
+    "closePreview": "닫기"
   }
 }

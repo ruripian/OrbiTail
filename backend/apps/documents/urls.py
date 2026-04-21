@@ -11,7 +11,7 @@ from .views import (
     DocumentVersionListCreateView,
     DocumentVersionDetailView,
     DocumentCommentListCreateView,
-    DocumentCommentDeleteView,
+    DocumentCommentDetailView,
     DocumentAttachmentListCreateView,
     DocumentAttachmentDeleteView,
 )
@@ -87,8 +87,8 @@ urlpatterns = [
     ),
     path(
         "workspaces/<slug:workspace_slug>/documents/spaces/<uuid:space_pk>/docs/<uuid:doc_pk>/comments/<uuid:pk>/",
-        DocumentCommentDeleteView.as_view(),
-        name="document-comment-delete",
+        DocumentCommentDetailView.as_view(),
+        name="document-comment-detail",
     ),
 
     # 첨부파일

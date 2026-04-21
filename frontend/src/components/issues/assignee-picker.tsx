@@ -38,9 +38,10 @@ interface Props {
 export function AssigneePicker({
   members, currentIds, currentDetails, onChange, className, showChevron = true,
 }: Props) {
-  /* 담당자 이름을 표시용으로 조회 */
+  /* 담당자 이름을 표시용으로 조회 — currentIds가 undefined면 빈 배열로 방어 */
+  const ids = currentIds ?? [];
   const details: User[] = currentDetails ?? members
-    .filter((m) => currentIds.includes(m.member.id))
+    .filter((m) => ids.includes(m.member.id))
     .map((m) => m.member);
 
   return (
@@ -78,15 +79,15 @@ export function AssigneePicker({
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-48 rounded-xl p-1.5" onClick={(e) => e.stopPropagation()}>
         {members.map((m) => {
-          const selected = currentIds.includes(m.member.id);
+          const selected = ids.includes(m.member.id);
           return (
             <DropdownMenuItem
               key={m.member.id}
               className="gap-2 rounded-lg text-xs cursor-pointer"
               onClick={() => {
                 const next = selected
-                  ? currentIds.filter((id) => id !== m.member.id)
-                  : [...currentIds, m.member.id];
+                  ? ids.filter((x) => x !== m.member.id)
+                  : [...ids, m.member.id];
                 onChange(next);
               }}
             >
