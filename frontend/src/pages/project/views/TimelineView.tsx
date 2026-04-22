@@ -522,7 +522,8 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
     };
 
     return issues.filter((issue) => {
-      if (issue.is_field) return false; // 필드(Field) 는 진척/상태가 없어 타임라인에서 제외
+      // 필드(Field) 는 상태가 없지만 하위 작업의 부모 행으로 보여야 하므로 유지.
+      // 바(bar) 자체는 날짜가 없으면 어차피 렌더되지 않음.
       if (!settings.showCompleted && completedIds.has(issue.state)) return false;
       /* showNoDate=false: 날짜 없는 root 이슈는 숨김.
          단, dated 자손이 있으면 계층 표시를 위해 부모를 보존 */

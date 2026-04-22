@@ -10,6 +10,7 @@ export interface CalendarSettings {
   hideWeekends:   boolean; // 토/일 컬럼 숨기기
   showEvents:     boolean; // 프로젝트 캘린더 이벤트 표시
   alwaysExpand:   boolean; // 기간이 있는 이슈를 항상 bar로 확장 표시
+  showFields:     boolean; // 필드(Field) 이슈 표시 — 기본 꺼짐
 }
 
 export interface TimelineSettings {
@@ -27,7 +28,7 @@ interface AllSettings {
 }
 
 const DEFAULTS: AllSettings = {
-  calendar: { showCompleted: true, hideWeekends: false, showEvents: true, alwaysExpand: false },
+  calendar: { showCompleted: true, hideWeekends: false, showEvents: true, alwaysExpand: false, showFields: false },
   timeline: { scale: "day", showCompleted: false, showNoDate: false, hideWeekends: false, showEvents: true, groupBy: "none" },
 };
 

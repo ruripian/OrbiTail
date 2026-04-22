@@ -236,6 +236,7 @@ function SettingsPanel({ settings, onChange, onClose, triggerRef }: SettingsPane
           { key: "hideWeekends"  as const, label: t("calendar.settings.hideWeekends") },
           { key: "showEvents"    as const, label: t("calendar.settings.showEvents") },
           { key: "alwaysExpand"  as const, label: t("calendar.settings.alwaysExpand") },
+          { key: "showFields"    as const, label: t("calendar.settings.showFields", "필드 표시") },
         ] as const).map(({ key, label }) => (
           <label key={key} className="flex items-center gap-3 cursor-pointer group">
             {/* 토글 트랙 */}
@@ -425,7 +426,7 @@ export function CalendarView({ workspaceSlug, projectId, onIssueClick, issueFilt
   /* 설정 필터 + 드래그 중 가상 날짜 반영 */
   const renderIssues = useMemo(() => {
     const arr = issues.filter((issue) => {
-      if (issue.is_field) return false; // 필드(Field) 는 일정/상태 개념이 없어 캘린더에서 제외
+      if (!settings.showFields && issue.is_field) return false; // 필드(Field) 표시 옵션이 꺼져 있으면 제외
       if (!settings.showCompleted && completedStateIds.has(issue.state)) return false;
       // 캘린더는 날짜가 있는 이슈만 의미가 있음 — 둘 다 없으면 항상 제외
       if (!issue.start_date && !issue.due_date) return false;
