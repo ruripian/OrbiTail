@@ -11,6 +11,7 @@ export interface NodeGraphResponse {
     state_group: string | null;
     labels: Array<{ id: string; name: string; color: string }>;
     external?: boolean;
+    category_id?: string | null;
   }>;
   edges: Array<{
     id: string;

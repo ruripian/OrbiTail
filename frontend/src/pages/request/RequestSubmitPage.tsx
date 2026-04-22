@@ -21,7 +21,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
   Send, CheckCircle2, Bug, Sparkles, Eye, EyeOff, Check, X,
-  Clock, ChevronDown, Trash2,
+  Clock, ChevronDown, Trash2, Plus,
 } from "lucide-react";
 import { projectsApi } from "@/api/projects";
 import { requestsApi } from "@/api/requests";
@@ -31,14 +31,14 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { PRIORITY_LIST, PRIORITY_LABEL_KEY } from "@/constants/priority";
 import { AvatarInitials } from "@/components/ui/avatar-initials";
+import { RichTextEditor } from "@/components/editor/RichTextEditor";
 import { StatePicker } from "@/components/issues/state-picker";
 import { AssigneePicker } from "@/components/issues/assignee-picker";
 import { CategoryPicker } from "@/components/issues/category-picker";
 import { SprintPicker } from "@/components/issues/sprint-picker";
 import { cn } from "@/lib/utils";
-import type { IssueRequest, Priority } from "@/types";
+import type { IssueRequest } from "@/types";
 
 type RequestKind = "bug" | "feature";
 type Severity = "blocker" | "critical" | "major" | "minor";
@@ -60,10 +60,11 @@ function nl2br(s: string): string {
 function buildDescriptionHtml(kind: RequestKind, v: {
   description: string;
   steps: string; expected: string; actual: string; environment: string; severity: Severity | "";
-  motivation: string; proposal: string; alternatives: string;
 }): string {
   const sections: string[] = [];
-  if (v.description.trim()) sections.push(`<p>${nl2br(v.description)}</p>`);
+  // description 은 RichTextEditor 에서 오는 완성된 HTML — 그대로 사용 (escape 금지)
+  const descTrim = v.description.replace(/<p><\/p>/g, "").trim();
+  if (descTrim && descTrim !== "<p></p>") sections.push(descTrim);
   if (kind === "bug") {
     if (v.steps.trim()) {
       const items = v.steps.split("\n").map((s) => s.replace(/^\d+\.\s*/, "").trim()).filter(Boolean);
@@ -75,10 +76,6 @@ function buildDescriptionHtml(kind: RequestKind, v: {
     if (v.actual.trim()) sections.push(`<h3>실제 동작</h3><p>${nl2br(v.actual)}</p>`);
     if (v.environment.trim()) sections.push(`<h3>환경</h3><p>${nl2br(v.environment)}</p>`);
     if (v.severity) sections.push(`<p><strong>심각도:</strong> ${esc(SEVERITY_LABEL[v.severity])}</p>`);
-  } else {
-    if (v.motivation.trim()) sections.push(`<h3>동기·배경</h3><p>${nl2br(v.motivation)}</p>`);
-    if (v.proposal.trim()) sections.push(`<h3>제안 내용</h3><p>${nl2br(v.proposal)}</p>`);
-    if (v.alternatives.trim()) sections.push(`<h3>대안</h3><p>${nl2br(v.alternatives)}</p>`);
   }
   return sections.join("\n");
 }
@@ -107,6 +104,11 @@ export function RequestSubmitPage() {
   /* 요청 목록 — 탭별로 페치 */
   const [activeTab, setActiveTab] = useState<"pending" | "history">("pending");
   const [historyFilter, setHistoryFilter] = useState<"approved" | "rejected" | "mine">("rejected");
+  const [kindFilter, setKindFilter] = useState<"all" | "bug" | "feature">("all");
+  const [createOpen, setCreateOpen] = useState(false);
+
+  const filterByKind = <T extends { kind: "bug" | "feature" }>(list: T[]): T[] =>
+    kindFilter === "all" ? list : list.filter((r) => r.kind === kindFilter);
 
   const pendingQ = useQuery({
     queryKey: ["requests", workspaceSlug, projectId, "pending"],
@@ -129,20 +131,15 @@ export function RequestSubmitPage() {
   const [visibility, setVisibility] = useState<"public" | "private">("public");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [priority, setPriority] = useState<Priority>("medium");
   const [steps, setSteps] = useState("");
   const [expected, setExpected] = useState("");
   const [actual, setActual] = useState("");
   const [environment, setEnvironment] = useState("");
   const [severity, setSeverity] = useState<Severity | "">("");
-  const [motivation, setMotivation] = useState("");
-  const [proposal, setProposal] = useState("");
-  const [alternatives, setAlternatives] = useState("");
 
   const resetForm = () => {
-    setTitle(""); setDescription(""); setPriority("medium");
+    setTitle(""); setDescription("");
     setSteps(""); setExpected(""); setActual(""); setEnvironment(""); setSeverity("");
-    setMotivation(""); setProposal(""); setAlternatives("");
   };
 
   const submitMutation = useMutation({
@@ -153,9 +150,7 @@ export function RequestSubmitPage() {
         title: title.trim(),
         description_html: buildDescriptionHtml(kind, {
           description, steps, expected, actual, environment, severity,
-          motivation, proposal, alternatives,
         }),
-        priority,
         meta: kind === "bug"
           ? { severity: severity || undefined, environment: environment || undefined }
           : {},
@@ -163,6 +158,7 @@ export function RequestSubmitPage() {
     onSuccess: () => {
       toast.success(t("request.submitted", "요청이 접수되었습니다"));
       resetForm();
+      setCreateOpen(false);
       qc.invalidateQueries({ queryKey: ["requests", workspaceSlug, projectId] });
     },
     onError: () => toast.error(t("request.submitFailed", "요청 접수 실패")),
@@ -174,26 +170,35 @@ export function RequestSubmitPage() {
 
   return (
     <div className="h-full overflow-y-auto bg-background">
-      <div className="max-w-[880px] mx-auto px-6 py-10 space-y-10">
+      <div className="max-w-[880px] mx-auto px-6 py-10 space-y-6">
         {/* 헤더 */}
-        <header>
-          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-1">
-            {t("request.title", "요청 큐")}
-            {project && (
-              <span className="ml-2 font-mono normal-case text-primary">
-                [{project.identifier}] {project.name}
-              </span>
-            )}
-          </p>
-          <h1 className="text-3xl font-bold">{t("request.queueHeadline", "요청 제출 · 처리")}</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {t("request.queueSubtitle", "버그/기능 요청을 제출하고 프로젝트에 반영할지 결정합니다.")}
-          </p>
+        <header className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-1">
+              {t("request.title", "요청")}
+              {project && (
+                <span className="ml-2 font-mono normal-case text-primary">
+                  [{project.identifier}] {project.name}
+                </span>
+              )}
+            </p>
+            <h1 className="text-3xl font-bold">{t("request.queueHeadline", "요청")}</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              {t("request.queueSubtitle", "버그/기능 요청을 접수하고 프로젝트에 반영할지 결정합니다.")}
+            </p>
+          </div>
+          <Button className="gap-2 shrink-0" onClick={() => setCreateOpen(true)}>
+            <Plus className="h-4 w-4" />
+            {t("request.create", "요청 생성")}
+          </Button>
         </header>
 
-        {/* ── 1) 제출 폼 ── */}
-        <section className="rounded-2xl border bg-card shadow-sm p-6">
-          <h2 className="text-base font-semibold mb-4">{t("request.section.submit", "요청 제출")}</h2>
+        {/* ── 제출 다이얼로그 ── */}
+        <Dialog open={createOpen} onOpenChange={(o) => { if (!o) setCreateOpen(false); }}>
+          <DialogContent className="max-w-3xl w-[calc(100vw-2rem)] max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>{t("request.section.submit", "요청 생성")}</DialogTitle>
+            </DialogHeader>
 
           {/* 타입 탭 */}
           <div className="grid grid-cols-2 gap-2 mb-4">
@@ -280,112 +285,82 @@ export function RequestSubmitPage() {
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder={
-                  kind === "bug"
-                    ? t("request.bug.titlePlaceholder", "예: 로그인 시 빈 화면이 뜹니다")
-                    : t("request.feature.titlePlaceholder", "예: 대시보드에 차트 필터 추가")
-                }
+                placeholder={t("request.titlePlaceholder", "제목")}
                 required
                 maxLength={200}
                 className="w-full text-sm bg-background border rounded-lg px-3 py-2 outline-none focus:border-primary/60"
               />
             </div>
 
-            {/* 설명 */}
+            {/* 설명 — 리치 에디터(스타일·이미지 삽입) */}
             <div>
               <label className="block text-sm font-medium mb-1">{t("request.description", "설명")}</label>
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder={t("request.descriptionPlaceholder", "배경/참고자료 등 (선택)")}
-                rows={3}
-                className="w-full text-sm bg-background border rounded-lg px-3 py-2 outline-none focus:border-primary/60 resize-y"
+              <RichTextEditor
+                content={description}
+                onChange={setDescription}
+                placeholder={t("request.descriptionPlaceholder", "내용을 입력하거나 이미지를 드래그/붙여넣기 하세요")}
+                minHeight="120px"
+                showToolbar
               />
+              <p className="mt-1 text-2xs text-muted-foreground/70">
+                이미지: 드래그·붙여넣기 또는 툴바의 이미지 버튼 (5MB 이하)
+              </p>
             </div>
 
-            {/* 타입별 선택 필드 — 접힌 상태로 시작 */}
+            {/* 타입별 선택 필드 — 버그만 노출 */}
+            {kind === "bug" && (
             <details className="group">
               <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground list-none flex items-center gap-1">
                 <ChevronDown className="h-3 w-3 -rotate-90 group-open:rotate-0 transition-transform" />
-                {kind === "bug"
-                  ? t("request.bug.details", "재현 단계 · 환경 · 심각도 (선택)")
-                  : t("request.feature.details", "동기 · 제안 · 대안 (선택)")}
+                {t("request.bug.details", "재현 단계 · 환경 · 심각도 (선택)")}
               </summary>
               <div className="pt-3 space-y-3">
-                {kind === "bug" ? (
-                  <>
-                    <LabeledTextarea label={t("request.bug.steps", "재현 단계")}
-                      value={steps} onChange={setSteps}
-                      placeholder="1. ...\n2. ...\n3. ..." rows={3} mono />
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <LabeledTextarea label={t("request.bug.expected", "예상 동작")}
-                        value={expected} onChange={setExpected} rows={2} />
-                      <LabeledTextarea label={t("request.bug.actual", "실제 동작")}
-                        value={actual} onChange={setActual} rows={2} />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium mb-1">{t("request.bug.environment", "환경")}</label>
-                      <input type="text" value={environment} onChange={(e) => setEnvironment(e.target.value)}
-                        placeholder="예: Chrome 120 / Windows 11"
-                        className="w-full text-sm bg-background border rounded-lg px-3 py-2 outline-none focus:border-primary/60" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium mb-1">{t("request.bug.severity", "심각도")}</label>
-                      <div className="flex gap-1.5 flex-wrap">
-                        <SeverityChip active={severity === ""} onClick={() => setSeverity("")}>{t("request.bug.severityUnset", "미지정")}</SeverityChip>
-                        {SEVERITIES.map((s) => (
-                          <SeverityChip key={s} active={severity === s} onClick={() => setSeverity(s)} variant="danger">
-                            {SEVERITY_LABEL[s]}
-                          </SeverityChip>
-                        ))}
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <LabeledTextarea label={t("request.feature.motivation", "동기 · 배경")}
-                      value={motivation} onChange={setMotivation} rows={2} />
-                    <LabeledTextarea label={t("request.feature.proposal", "제안 내용")}
-                      value={proposal} onChange={setProposal} rows={2} />
-                    <LabeledTextarea label={t("request.feature.alternatives", "대안")}
-                      value={alternatives} onChange={setAlternatives} rows={2} />
-                  </>
-                )}
+                <LabeledTextarea label={t("request.bug.steps", "재현 단계")}
+                  value={steps} onChange={setSteps}
+                  rows={3} mono />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <LabeledTextarea label={t("request.bug.expected", "예상 동작")}
+                    value={expected} onChange={setExpected} rows={2} />
+                  <LabeledTextarea label={t("request.bug.actual", "실제 동작")}
+                    value={actual} onChange={setActual} rows={2} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">{t("request.bug.environment", "환경")}</label>
+                  <input type="text" value={environment} onChange={(e) => setEnvironment(e.target.value)}
+                    className="w-full text-sm bg-background border rounded-lg px-3 py-2 outline-none focus:border-primary/60" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">{t("request.bug.severity", "심각도")}</label>
+                  <div className="flex gap-1.5 flex-wrap">
+                    <SeverityChip active={severity === ""} onClick={() => setSeverity("")}>{t("request.bug.severityUnset", "미지정")}</SeverityChip>
+                    {SEVERITIES.map((s) => (
+                      <SeverityChip key={s} active={severity === s} onClick={() => setSeverity(s)} variant="danger">
+                        {SEVERITY_LABEL[s]}
+                      </SeverityChip>
+                    ))}
+                  </div>
+                </div>
               </div>
             </details>
+            )}
 
-            {/* 우선순위 */}
-            <div>
-              <label className="block text-sm font-medium mb-1">{t("request.priority", "우선순위")}</label>
-              <div className="flex gap-1.5 flex-wrap">
-                {PRIORITY_LIST.map((p) => (
-                  <button
-                    key={p}
-                    type="button"
-                    onClick={() => setPriority(p as Priority)}
-                    className={cn(
-                      "text-xs px-3 py-1.5 rounded-md border transition-colors",
-                      priority === p
-                        ? "bg-primary/10 border-primary/40 text-primary font-medium"
-                        : "border-border text-muted-foreground hover:bg-muted/50"
-                    )}
-                  >
-                    {t(PRIORITY_LABEL_KEY[p])}
-                  </button>
-                ))}
-              </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>
+                {t("common.cancel", "취소")}
+              </Button>
+              <Button type="submit" className="gap-2" disabled={!title.trim() || submitMutation.isPending}>
+                <Send className="h-4 w-4" />
+                {submitMutation.isPending ? t("request.submitting", "제출 중...") : t("request.submit", "요청 보내기")}
+              </Button>
             </div>
-
-            <Button type="submit" className="w-full gap-2" disabled={!title.trim() || submitMutation.isPending}>
-              <Send className="h-4 w-4" />
-              {submitMutation.isPending ? t("request.submitting", "제출 중...") : t("request.submit", "요청 보내기")}
-            </Button>
           </form>
-        </section>
+          </DialogContent>
+        </Dialog>
 
-        {/* ── 2)/3) 목록 섹션 — 탭 ── */}
+        {/* ── 목록 섹션 — 탭 ── */}
         <section className="rounded-2xl border bg-card shadow-sm overflow-hidden">
-          <div className="flex items-center border-b border-border">
+          <div className="flex items-center border-b border-border gap-1 pr-3">
+            <div className="flex items-center flex-1">
             <TabButton active={activeTab === "pending"} onClick={() => setActiveTab("pending")}>
               <Clock className="h-3.5 w-3.5" />
               {t("request.tab.pending", "대기")}
@@ -399,34 +374,52 @@ export function RequestSubmitPage() {
               <CheckCircle2 className="h-3.5 w-3.5" />
               {t("request.tab.history", "처리됨")}
             </TabButton>
+            </div>
+            {/* 타입 필터 — 전체/버그/기능 */}
+            <div className="flex items-center gap-1 shrink-0">
+              <KindFilterChip active={kindFilter === "all"} onClick={() => setKindFilter("all")}>
+                {t("request.filter.all", "전체")}
+              </KindFilterChip>
+              <KindFilterChip active={kindFilter === "bug"} onClick={() => setKindFilter("bug")} variant="danger">
+                <Bug className="h-3 w-3" />
+                {t("request.filter.bug", "버그")}
+              </KindFilterChip>
+              <KindFilterChip active={kindFilter === "feature"} onClick={() => setKindFilter("feature")} variant="primary">
+                <Sparkles className="h-3 w-3" />
+                {t("request.filter.feature", "기능")}
+              </KindFilterChip>
+            </div>
           </div>
 
-          {activeTab === "pending" && (
-            <div>
-              {pendingQ.isLoading ? (
-                <p className="p-6 text-sm text-muted-foreground text-center">{t("common.loading", "로딩 중...")}</p>
-              ) : (pendingQ.data?.length ?? 0) === 0 ? (
-                <p className="p-8 text-sm text-muted-foreground text-center">
-                  {t("request.emptyPending", "대기 중인 요청이 없습니다")}
-                </p>
-              ) : (
-                <ul className="divide-y divide-border">
-                  {pendingQ.data!.map((r) => (
-                    <RequestRow
-                      key={r.id}
-                      req={r}
-                      currentUserId={currentUser?.id ?? null}
-                      canReview={canReview}
-                      onApprove={() => setApproveTarget(r)}
-                      onReject={() => setRejectTarget(r)}
-                      workspaceSlug={workspaceSlug!}
-                      projectId={projectId}
-                    />
-                  ))}
-                </ul>
-              )}
-            </div>
-          )}
+          {activeTab === "pending" && (() => {
+            const rows = filterByKind(pendingQ.data ?? []);
+            return (
+              <div>
+                {pendingQ.isLoading ? (
+                  <p className="p-6 text-sm text-muted-foreground text-center">{t("common.loading", "로딩 중...")}</p>
+                ) : rows.length === 0 ? (
+                  <p className="p-8 text-sm text-muted-foreground text-center">
+                    {t("request.emptyPending", "대기 중인 요청이 없습니다")}
+                  </p>
+                ) : (
+                  <ul className="divide-y divide-border">
+                    {rows.map((r) => (
+                      <RequestRow
+                        key={r.id}
+                        req={r}
+                        currentUserId={currentUser?.id ?? null}
+                        canReview={canReview}
+                        onApprove={() => setApproveTarget(r)}
+                        onReject={() => setRejectTarget(r)}
+                        workspaceSlug={workspaceSlug!}
+                        projectId={projectId}
+                      />
+                    ))}
+                  </ul>
+                )}
+              </div>
+            );
+          })()}
 
           {activeTab === "history" && (
             <div>
@@ -444,13 +437,13 @@ export function RequestSubmitPage() {
               </div>
               {historyQ.isLoading ? (
                 <p className="p-6 text-sm text-muted-foreground text-center">{t("common.loading", "로딩 중...")}</p>
-              ) : historyList.length === 0 ? (
+              ) : filterByKind(historyList).length === 0 ? (
                 <p className="p-8 text-sm text-muted-foreground text-center">
                   {t("request.emptyHistory", "해당 항목이 없습니다")}
                 </p>
               ) : (
                 <ul className="divide-y divide-border">
-                  {historyList.map((r) => (
+                  {filterByKind(historyList).map((r) => (
                     <RequestRow
                       key={r.id}
                       req={r}
@@ -575,6 +568,29 @@ function FilterChip({ active, onClick, children }: { active: boolean; onClick: (
         active
           ? "bg-primary/10 border-primary/40 text-primary font-medium"
           : "border-border text-muted-foreground hover:bg-muted/50",
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+function KindFilterChip({
+  active, onClick, variant, children,
+}: { active: boolean; onClick: () => void; variant?: "danger" | "primary"; children: React.ReactNode }) {
+  const activeCls =
+    variant === "danger"
+      ? "bg-destructive/10 border-destructive/40 text-destructive"
+      : variant === "primary"
+      ? "bg-primary/10 border-primary/40 text-primary"
+      : "bg-muted border-border";
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "inline-flex items-center gap-1 text-2xs px-2 py-1 rounded-md border transition-colors",
+        active ? `${activeCls} font-medium` : "border-border text-muted-foreground hover:bg-muted/50",
       )}
     >
       {children}

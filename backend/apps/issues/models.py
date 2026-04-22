@@ -83,6 +83,10 @@ class Issue(models.Model):
     start_date = models.DateField(null=True, blank=True)
     estimate_point = models.IntegerField(null=True, blank=True)
     sort_order = models.FloatField(default=65535)
+    # 필드(Field) 플래그 — True 면 상태가 없는 "폴더" 성격의 상위 분류.
+    # 주로 장기·비정형 작업 그룹(예: "리서치", "인프라") 을 묶을 때 사용.
+    # BoardView/번다운에서 제외, 상태 셀 "—" 로 표시.
+    is_field = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     archived_at = models.DateTimeField(null=True, blank=True)  # 보관 — null이면 활성, 값이 있으면 보관함

@@ -309,12 +309,16 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
     onSuccess: () => {
       setNodeLinkSearch("");
       qc.invalidateQueries({ queryKey: ["node-links", issueId] });
+      qc.invalidateQueries({ queryKey: ["node-graph", workspaceSlug, projectId] });
     },
     onError: () => toast.error(t("issues.detail.toast.nodeLinkCreateFailed", "관련 이슈 연결에 실패했습니다")),
   });
   const deleteNodeLinkMutation = useMutation({
     mutationFn: (linkId: string) => issuesApi.nodeLinks.delete(workspaceSlug!, linkId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["node-links", issueId] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["node-links", issueId] });
+      qc.invalidateQueries({ queryKey: ["node-graph", workspaceSlug, projectId] });
+    },
   });
 
   const uploadAttachmentMutation = useMutation({
@@ -423,26 +427,52 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
           </div>
         )}
 
-        {!readOnly && editingTitle ? (
-          <input
-            className="w-full text-2xl font-semibold bg-transparent border-b-2 border-primary outline-none pb-1 mb-4"
-            value={titleValue}
-            onChange={(e) => setTitleValue(e.target.value)}
-            onBlur={saveTitle}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") saveTitle();
-              if (e.key === "Escape") setEditingTitle(false);
-            }}
-            autoFocus
-          />
-        ) : (
-          <h1
-            className={cn("text-2xl font-semibold mb-4", !readOnly && "cursor-text hover:opacity-80 transition-opacity")}
-            onClick={() => !readOnly && setEditingTitle(true)}
-          >
-            {issue.title}
-          </h1>
-        )}
+        <div className="flex items-start gap-3 mb-4">
+          {!readOnly && editingTitle ? (
+            <input
+              className="flex-1 text-2xl font-semibold bg-transparent border-b-2 border-primary outline-none pb-1"
+              value={titleValue}
+              onChange={(e) => setTitleValue(e.target.value)}
+              onBlur={saveTitle}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") saveTitle();
+                if (e.key === "Escape") setEditingTitle(false);
+              }}
+              autoFocus
+            />
+          ) : (
+            <h1
+              className={cn("flex-1 text-2xl font-semibold", !readOnly && "cursor-text hover:opacity-80 transition-opacity")}
+              onClick={() => !readOnly && setEditingTitle(true)}
+            >
+              {issue.title}
+            </h1>
+          )}
+          {/* 작업 ↔ 필드 토글 — 필드는 상태 없는 상위 분류(폴더 성격) */}
+          {!readOnly && (
+            <div
+              className="inline-flex shrink-0 rounded-md border border-border overflow-hidden text-xs mt-1"
+              title="필드로 전환하면 상태가 없어지고 보드/번다운에서 제외됩니다"
+            >
+              <button
+                type="button"
+                onClick={() => updateMutation.mutate({ is_field: false } as any)}
+                className={cn("px-2.5 py-1 transition-colors",
+                  !issue.is_field ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-muted/40")}
+              >
+                작업
+              </button>
+              <button
+                type="button"
+                onClick={() => updateMutation.mutate({ is_field: true } as any)}
+                className={cn("px-2.5 py-1 border-l border-border transition-colors",
+                  issue.is_field ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-muted/40")}
+              >
+                필드
+              </button>
+            </div>
+          )}
+        </div>
 
         <div className={cn("mb-6", readOnly && "pointer-events-none opacity-70")}>
           <RichTextEditor
@@ -831,13 +861,17 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
           <div className="grid grid-cols-2 gap-3 px-4 py-3">
             <div>
               <p className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground/70 mb-1.5">{t("issues.detail.meta.state")}</p>
-              <StatePicker
-                states={states}
-                currentStateId={issue.state}
-                currentState={issue.state_detail}
-                onChange={(id) => updateMutation.mutate({ state: id })}
-                className="border border-border rounded-md bg-input/60 hover:bg-primary/10"
-              />
+              {issue.is_field ? (
+                <div className="border border-border/60 rounded-md px-2.5 py-1.5 text-sm text-muted-foreground bg-muted/30">—</div>
+              ) : (
+                <StatePicker
+                  states={states}
+                  currentStateId={issue.state}
+                  currentState={issue.state_detail}
+                  onChange={(id) => updateMutation.mutate({ state: id })}
+                  className="border border-border rounded-md bg-input/60 hover:bg-primary/10"
+                />
+              )}
             </div>
             <div>
               <p className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground/70 mb-1.5">{t("issues.detail.meta.priority")}</p>

@@ -133,10 +133,12 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
     });
   };
 
-  const total = sprintIssues.length;
-  const completed = sprintIssues.filter((i: Issue) => i.state_detail?.group === "completed").length;
-  const inProgress = sprintIssues.filter((i: Issue) => i.state_detail?.group === "started").length;
-  const cancelled = sprintIssues.filter((i: Issue) => i.state_detail?.group === "cancelled").length;
+  // 번다운/카운트는 작업(Task) 만 집계. 필드(Field) 는 상태 없는 컨테이너이므로 제외.
+  const countableIssues = sprintIssues.filter((i: Issue) => !i.is_field);
+  const total = countableIssues.length;
+  const completed = countableIssues.filter((i: Issue) => i.state_detail?.group === "completed").length;
+  const inProgress = countableIssues.filter((i: Issue) => i.state_detail?.group === "started").length;
+  const cancelled = countableIssues.filter((i: Issue) => i.state_detail?.group === "cancelled").length;
   const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
   const daysLeft = selectedSprint ? Math.max(0, Math.ceil((new Date(selectedSprint.end_date).getTime() - Date.now()) / 86400000)) : 0;
 

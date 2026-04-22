@@ -318,6 +318,8 @@ export interface Issue {
   start_date: string | null;
   estimate_point: number | null;
   sort_order: number;
+  /** true 면 "필드(Field)" — 상태 없는 폴더 성격 컨테이너. 보드/번다운 제외, 테이블 상태 셀 "—". */
+  is_field?: boolean;
   created_at: string;
   updated_at: string;
   archived_at: string | null;

@@ -232,9 +232,10 @@ export function WorkspaceDashboard() {
     return Array.from(m.entries()).map(([id, name]) => ({ id, name }));
   }, [myIssues]);
 
-  // 필터 적용
+  // 필터 적용 — 필드(Field) 이슈는 "내 할 일" 성격이 아니므로 대시보드에서 제외.
   const filtered = useMemo(() => {
     return myIssues.filter((issue) => {
+      if (issue.is_field) return false;
       if (projectFilter.size > 0 && !projectFilter.has(issue.project)) return false;
       if (priorityFilter.size > 0 && !priorityFilter.has(issue.priority)) return false;
       if (stateGroupFilter.size > 0) {

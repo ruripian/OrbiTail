@@ -425,6 +425,7 @@ export function CalendarView({ workspaceSlug, projectId, onIssueClick, issueFilt
   /* 설정 필터 + 드래그 중 가상 날짜 반영 */
   const renderIssues = useMemo(() => {
     const arr = issues.filter((issue) => {
+      if (issue.is_field) return false; // 필드(Field) 는 일정/상태 개념이 없어 캘린더에서 제외
       if (!settings.showCompleted && completedStateIds.has(issue.state)) return false;
       // 캘린더는 날짜가 있는 이슈만 의미가 있음 — 둘 다 없으면 항상 제외
       if (!issue.start_date && !issue.due_date) return false;
@@ -803,10 +804,12 @@ export function CalendarView({ workspaceSlug, projectId, onIssueClick, issueFilt
             return (
               <div
                 key={wi}
-                className="relative min-h-[96px] xl:min-h-[120px]"
+                className="relative flex-1"
                 data-week-row
                 style={{
-                  /* 콘텐츠(바 + 칩)에 따라 행이 자란다. flex-1 제거 — 내용이 넘치면 컨테이너가 세로 스크롤 */
+                  /* 기본은 flex-1 로 컨테이너 높이를 균등 분할 → 화면 꽉 차게.
+                     콘텐츠(바 + 칩)가 많아지면 minHeight 가 꽉 차고 컨테이너가 세로 스크롤. */
+                  flexBasis: dynamicMinH,
                   minHeight: dynamicMinH,
                 }}
               >

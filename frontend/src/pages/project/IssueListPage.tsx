@@ -72,8 +72,10 @@ export function IssueListPage() {
     enabled: !!workspaceSlug && !!projectId,
   });
 
+  // 필드(Field) 이슈는 상태 없는 컨테이너 → 상태별 컬럼에서 제외.
+  const taskIssues = issues.filter((i) => !i.is_field);
   const issuesByState = states.reduce<Record<string, Issue[]>>((acc, state) => {
-    acc[state.id] = issues.filter((i) => i.state === state.id);
+    acc[state.id] = taskIssues.filter((i) => i.state === state.id);
     return acc;
   }, {});
 

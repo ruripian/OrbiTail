@@ -31,6 +31,14 @@ services:
       - db
       - redis
     restart: always
+    # 헬스체크 — 포트 수신만 확인 (/api/setup/status/ 는 AllowAny 라 인증 없이 200)
+    # nginx depends_on: service_healthy 와 결합해 리빌드 시 502 최소화
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import socket,sys; s=socket.socket(); s.settimeout(2); s.connect((\"127.0.0.1\",8000)); s.close()' || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
 
   celery:
     build:
@@ -65,6 +73,12 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/ || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
 
   nginx:
     build:
@@ -86,10 +100,10 @@ services:
     # (upstream 컨테이너 IP 변경으로 발생하는 502 Bad Gateway 방지)
     depends_on:
       backend:
-        condition: service_started
+        condition: service_healthy
         restart: true
       frontend:
-        condition: service_started
+        condition: service_healthy
         restart: true
     restart: always
 

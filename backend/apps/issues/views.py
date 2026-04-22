@@ -599,6 +599,8 @@ class ProjectNodeGraphView(APIView):
     def get(self, request, workspace_slug, project_pk):
         include_label_edges = request.query_params.get("include_label_edges", "true").lower() != "false"
         manual_only = request.query_params.get("manual_only", "false").lower() == "true"
+        # 부모-자식(sub-issue) 트리 엣지 — 기본 포함. Obsidian 스타일 기본 그래프에서 트리 구조 시각화.
+        include_parent_edges = request.query_params.get("include_parent_edges", "true").lower() != "false"
 
         node_map = {}
 
@@ -618,17 +620,44 @@ class ProjectNodeGraphView(APIView):
                 "state_group": state_group,
                 "labels": labels or [],
                 "external": str(issue.project_id) != str(project_pk),
+                "category_id": str(issue.category_id) if issue.category_id else None,
             }
 
-        edges = IssueNodeLink.objects.filter(
+        edge_data = []
+
+        # 1) 프로젝트 내부 이슈 전체 — 노드로 추가. 고립된 이슈도 그래프에 표시.
+        from .models import Issue
+        project_issues = (
+            Issue.objects
+            .filter(project_id=project_pk, deleted_at__isnull=True, archived_at__isnull=True)
+            .prefetch_related("label")
+            .select_related("project", "state")
+        )
+        label_to_issues = {}
+        for iss in project_issues:
+            labels = list(iss.label.all())
+            add_node(iss, labels=[{"id": str(l.id), "name": l.name, "color": l.color} for l in labels])
+            for lbl in labels:
+                label_to_issues.setdefault(str(lbl.id), []).append((str(iss.id), lbl))
+
+            # 2) 부모-자식 트리 엣지
+            if include_parent_edges and iss.parent_id:
+                edge_data.append({
+                    "id": f"parent:{iss.id}",
+                    "source": str(iss.parent_id),
+                    "target": str(iss.id),
+                    "link_type": "parent",
+                    "note": "",
+                })
+
+        # 3) 수동 node-link 엣지 (프로젝트 경계 넘는 링크 포함 → 외부 이슈 노드 추가)
+        manual_edges = IssueNodeLink.objects.filter(
             source__project_id=project_pk,
         ).select_related(
             "source", "target", "source__project", "target__project",
             "source__state", "target__state",
         )
-
-        edge_data = []
-        for e in edges:
+        for e in manual_edges:
             add_node(e.source)
             add_node(e.target)
             edge_data.append({
@@ -639,40 +668,26 @@ class ProjectNodeGraphView(APIView):
                 "note": e.note,
             })
 
-        if not manual_only:
-            from .models import Issue
-            project_issues = (
-                Issue.objects
-                .filter(project_id=project_pk, deleted_at__isnull=True, archived_at__isnull=True)
-                .prefetch_related("label")
-                .select_related("project", "state")
-            )
-            label_to_issues = {}
-            for iss in project_issues:
-                labels = list(iss.label.all())
-                add_node(iss, labels=[{"id": str(l.id), "name": l.name, "color": l.color} for l in labels])
-                for lbl in labels:
-                    label_to_issues.setdefault(str(lbl.id), []).append((str(iss.id), lbl))
-
-            if include_label_edges:
-                seen = set()
-                for lbl_id, entries in label_to_issues.items():
-                    if len(entries) < 2:
+        # 4) 라벨 공유 자동 엣지 — manual_only 면 제외
+        if include_label_edges and not manual_only:
+            seen = set()
+            for lbl_id, entries in label_to_issues.items():
+                if len(entries) < 2:
+                    continue
+                for (a_id, a_lbl), (b_id, _b_lbl) in zip(entries, entries[1:]):
+                    key = tuple(sorted([a_id, b_id, lbl_id]))
+                    if key in seen:
                         continue
-                    for (a_id, a_lbl), (b_id, _b_lbl) in zip(entries, entries[1:]):
-                        key = tuple(sorted([a_id, b_id, lbl_id]))
-                        if key in seen:
-                            continue
-                        seen.add(key)
-                        edge_data.append({
-                            "id": f"label:{lbl_id}:{a_id}:{b_id}",
-                            "source": a_id,
-                            "target": b_id,
-                            "link_type": "shared_label",
-                            "note": a_lbl.name,
-                            "label_id": lbl_id,
-                            "label_color": a_lbl.color,
-                        })
+                    seen.add(key)
+                    edge_data.append({
+                        "id": f"label:{lbl_id}:{a_id}:{b_id}",
+                        "source": a_id,
+                        "target": b_id,
+                        "link_type": "shared_label",
+                        "note": a_lbl.name,
+                        "label_id": lbl_id,
+                        "label_color": a_lbl.color,
+                    })
 
         return Response({
             "nodes": list(node_map.values()),
@@ -946,9 +961,11 @@ class ProjectIssueStatsView(APIView):
 
     def get(self, request, workspace_slug, project_pk):
         from apps.projects.models import Project
+        # 필드(Field) 이슈는 상태/진척 개념이 없어 통계에서 제외.
         base_qs = Issue.objects.filter(
             project_id=project_pk,
             deleted_at__isnull=True,
+            is_field=False,
         ).filter(
             Q(project__members__member=request.user) |
             Q(project__network=Project.Network.PUBLIC)

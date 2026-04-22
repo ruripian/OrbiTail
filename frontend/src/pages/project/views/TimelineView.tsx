@@ -74,7 +74,7 @@ interface Column {
 
 // 업데이트된 컬럼 너비 — 더 넓게
 const COL_WIDTH: Record<TimelineSettings["scale"], number> = {
-  day:   52,   // 이전: 44
+  day:   72,   // 날짜 + 요일 라벨 가독성 확보
   week:  110,  // 이전: 88
   month: 150,  // 이전: 132
 };
@@ -152,7 +152,7 @@ const DEFAULT_COL_WIDTHS = { issue: 260, state: 100, assignee: 100 };
 const COL_MIN = { issue: 140, state: 60, assignee: 60 };
 const COL_MAX = { issue: 500, state: 220, assignee: 220 };
 const ROW_H  = 48;  // px — 행 높이
-const HDR_H  = 60;  // px — 날짜 헤더 (상단 28px 월 / 하단 32px 날짜)
+const HDR_H  = 76;  // px — 날짜 헤더 (상단 월 병합 / 하단 일+요일)
 
 const PRIORITY_COLORS: Record<string, string> = {
   urgent: "#ef4444", high: "#f97316", medium: "#eab308", low: "#60a5fa", none: "#9ca3af",
@@ -522,6 +522,7 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
     };
 
     return issues.filter((issue) => {
+      if (issue.is_field) return false; // 필드(Field) 는 진척/상태가 없어 타임라인에서 제외
       if (!settings.showCompleted && completedIds.has(issue.state)) return false;
       /* showNoDate=false: 날짜 없는 root 이슈는 숨김.
          단, dated 자손이 있으면 계층 표시를 위해 부모를 보존 */
@@ -1170,7 +1171,7 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
                     borderRight: "2px solid hsl(var(--border))",
                   }}
                 >
-                  <span className="text-xs font-bold text-primary/80 truncate">{h.label}</span>
+                  <span className="text-[13px] font-bold text-primary/80 truncate">{h.label}</span>
                 </div>
               ))}
 
@@ -1211,8 +1212,8 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
                       </span>
                     ) : settings.scale === "day" ? (
                       <>
-                        <span className="text-sm font-semibold leading-tight tabular-nums">{col.label}</span>
-                        <span className="text-3xs font-semibold leading-tight tracking-wide uppercase">{weekdayLabel}</span>
+                        <span className="text-[18px] font-bold leading-none tabular-nums">{col.label}</span>
+                        <span className="text-[12px] font-semibold leading-tight tracking-wide mt-1">{weekdayLabel}</span>
                       </>
                     ) : col.label}
                   </div>

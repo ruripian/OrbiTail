@@ -229,7 +229,7 @@ function ProjectItem({
             <SubLink
               to={`${base}/request`}
               icon={MessageSquarePlus}
-              label={t("sidebar.sendRequest", "요청 보내기")}
+              label={t("sidebar.sendRequest", "요청")}
               active={location.pathname === `${base}/request`}
             />
           )}

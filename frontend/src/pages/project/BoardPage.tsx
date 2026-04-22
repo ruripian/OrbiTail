@@ -35,8 +35,9 @@ export function BoardPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["issues", workspaceSlug, projectId] }),
   });
 
+  const taskIssues = issues.filter((i) => !i.is_field);
   const issuesByState = states.reduce<Record<string, Issue[]>>((acc, state) => {
-    acc[state.id] = issues.filter((i) => i.state === state.id);
+    acc[state.id] = taskIssues.filter((i) => i.state === state.id);
     return acc;
   }, {});
 

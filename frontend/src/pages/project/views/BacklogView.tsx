@@ -69,9 +69,9 @@ export function BacklogView({ workspaceSlug, projectId, onIssueClick, issueFilte
     [states],
   );
 
-  // 백로그 이슈만 필터 + state가 null인 이슈도 포함
+  // 백로그 이슈만 필터 + state가 null인 이슈도 포함. 필드(Field) 는 상태 없는 컨테이너이므로 제외.
   const backlogIssues = useMemo(
-    () => allIssues.filter((i) => !i.state || backlogStateIds.has(i.state)),
+    () => allIssues.filter((i) => !i.is_field && (!i.state || backlogStateIds.has(i.state))),
     [allIssues, backlogStateIds],
   );
 

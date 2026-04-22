@@ -295,16 +295,12 @@ export function ProjectIssuePage() {
       )}
 
       {activeSprint && sprintIssues.length > 0 && (() => {
-        const total = sprintIssues.length;
-        const completed = sprintIssues.filter((i: { state_detail?: { group?: string } }) =>
-          i.state_detail?.group === "completed"
-        ).length;
-        const cancelled = sprintIssues.filter((i: { state_detail?: { group?: string } }) =>
-          i.state_detail?.group === "cancelled"
-        ).length;
-        const inProgress = sprintIssues.filter((i: { state_detail?: { group?: string } }) =>
-          i.state_detail?.group === "started"
-        ).length;
+        // 필드(Field) 는 상태 없는 컨테이너 → 스프린트 집계에서 제외.
+        const countable = (sprintIssues as Array<{ is_field?: boolean; state_detail?: { group?: string } }>).filter((i) => !i.is_field);
+        const total = countable.length;
+        const completed = countable.filter((i) => i.state_detail?.group === "completed").length;
+        const cancelled = countable.filter((i) => i.state_detail?.group === "cancelled").length;
+        const inProgress = countable.filter((i) => i.state_detail?.group === "started").length;
         const pct = Math.round((completed / total) * 100);
 
         /* 스프린트 기간 계산 */
@@ -412,6 +408,7 @@ export function ProjectIssuePage() {
           <GraphView
             workspaceSlug={workspaceSlug!}
             projectId={projectId!}
+            categoryId={categoryId ?? null}
             onIssueClick={openIssue}
           />
         )}

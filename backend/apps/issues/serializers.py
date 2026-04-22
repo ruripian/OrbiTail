@@ -33,7 +33,7 @@ class IssueSerializer(serializers.ModelSerializer):
             "parent", "sub_issues_count", "link_count", "attachment_count",
             "sequence_id", "created_by", "created_by_detail",
             "due_date", "start_date", "estimate_point",
-            "sort_order", "created_at", "updated_at", "archived_at", "deleted_at",
+            "sort_order", "is_field", "created_at", "updated_at", "archived_at", "deleted_at",
         ]
         read_only_fields = ["id", "sequence_id", "created_by", "workspace", "created_at", "updated_at", "archived_at", "deleted_at"]
         # unique_together (project, sequence_id)는 Model.save()에서 자동으로 안전하게 할당되므로
@@ -163,8 +163,19 @@ class IssueNodeLinkSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "created_by", "created_at"]
 
     def validate(self, attrs):
-        if attrs.get("source") == attrs.get("target"):
+        source = attrs.get("source")
+        target = attrs.get("target")
+        if source == target:
             raise serializers.ValidationError("자기 자신과는 연결할 수 없습니다.")
+        # 한 쌍은 하나의 연결만 — 방향/타입 무관 중복 차단
+        from django.db.models import Q
+        qs = IssueNodeLink.objects.filter(
+            Q(source=source, target=target) | Q(source=target, target=source)
+        )
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError("이미 연결된 이슈 쌍입니다. 기존 연결을 해제 후 다시 시도하세요.")
         return attrs
 
 
@@ -284,7 +295,7 @@ class IssueRequestSerializer(serializers.ModelSerializer):
             "created_at", "updated_at",
         ]
         read_only_fields = [
-            "id", "status", "workspace", "submitted_by", "reviewer",
+            "id", "status", "project", "workspace", "submitted_by", "reviewer",
             "reviewed_at", "approved_issue", "rejected_reason",
             "created_at", "updated_at",
         ]

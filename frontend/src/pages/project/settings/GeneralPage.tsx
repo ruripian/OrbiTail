@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useForm, Controller } from "react-hook-form";
+import { useForm, Controller, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -83,10 +83,36 @@ export function GeneralPage() {
       projectsApi.update(workspaceSlug!, projectId!, data),
     onSuccess: () => {
       invalidateProject();
-      toast.success(t("project.settings.general.saved"));
     },
     onError: () => toast.error(t("project.settings.general.saveFailed")),
   });
+
+  /* 자동 저장 — 폼 값 변경 후 700ms 디바운스로 PATCH. 수동 저장 버튼 없음. */
+  const watched = useWatch({ control });
+  const lastPushedRef = useRef<string>("");
+  useEffect(() => {
+    if (!project) return;
+    const name = watched.name?.trim();
+    if (!name) return; // 이름 비어있으면 저장하지 않음 (zod 가드)
+    const next: FormValues = {
+      name,
+      description: watched.description ?? "",
+      network: typeof watched.network === "number" ? watched.network : 2,
+    };
+    // 서버 값과 동일하면 스킵
+    if (
+      next.name === project.name &&
+      next.description === (project.description ?? "") &&
+      next.network === project.network
+    ) return;
+    const key = JSON.stringify(next);
+    if (key === lastPushedRef.current) return;
+    const h = setTimeout(() => {
+      lastPushedRef.current = key;
+      updateMutation.mutate(next);
+    }, 700);
+    return () => clearTimeout(h);
+  }, [watched.name, watched.description, watched.network, project]);
 
   /* 아이콘은 폼 바깥에서 별도 PATCH — 즉시 저장 */
   const iconMutation = useMutation({
@@ -237,9 +263,11 @@ export function GeneralPage() {
           </div>
         )}
 
-        <Button type="submit" size="sm" disabled={updateMutation.isPending}>
-          {updateMutation.isPending ? t("project.settings.general.saving") : t("project.settings.general.save")}
-        </Button>
+        <p className="text-xs text-muted-foreground">
+          {updateMutation.isPending
+            ? t("project.settings.general.saving", "저장 중...")
+            : t("project.settings.general.autoSaved", "변경 사항은 자동으로 저장됩니다.")}
+        </p>
       </form>
 
       {/* ── 기능 on/off — 관리자만 ── */}
@@ -449,18 +477,28 @@ function IdentifierField({ workspaceSlug, projectId, currentValue }: {
   };
 
   const saveMutation = useMutation({
-    mutationFn: () => projectsApi.update(workspaceSlug, projectId, { identifier: value }),
+    mutationFn: (identifier: string) => projectsApi.update(workspaceSlug, projectId, { identifier }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["project", workspaceSlug, projectId] });
       qc.invalidateQueries({ queryKey: ["projects", workspaceSlug] });
       qc.invalidateQueries({ queryKey: ["issues", workspaceSlug, projectId] });
-      toast.success(t("project.settings.general.identifierUpdated"));
     },
     onError: () => toast.error(t("project.settings.general.identifierUpdateFailed")),
   });
 
   const changed = value !== currentValue;
   const canSave = changed && value.length >= 2 && available === true;
+
+  /* 사용 가능 확인되면 자동 저장 (추가 1초 지연 — 식별자는 URL 영향 있으니 보수적으로) */
+  const autoSaveRef = useRef<ReturnType<typeof setTimeout>>();
+  useEffect(() => {
+    if (autoSaveRef.current) clearTimeout(autoSaveRef.current);
+    if (!canSave) return;
+    autoSaveRef.current = setTimeout(() => {
+      saveMutation.mutate(value);
+    }, 1000);
+    return () => { if (autoSaveRef.current) clearTimeout(autoSaveRef.current); };
+  }, [canSave, value]);
 
   return (
     <div className="space-y-1.5">
@@ -472,15 +510,8 @@ function IdentifierField({ workspaceSlug, projectId, currentValue }: {
           className="font-mono uppercase w-48"
           maxLength={12}
         />
-        {changed && (
-          <Button
-            type="button"
-            size="sm"
-            disabled={!canSave || saveMutation.isPending}
-            onClick={() => saveMutation.mutate()}
-          >
-            {saveMutation.isPending ? t("project.settings.general.saving") : t("project.settings.general.changeIdentifier")}
-          </Button>
+        {saveMutation.isPending && (
+          <span className="text-xs text-muted-foreground">{t("project.settings.general.saving", "저장 중...")}</span>
         )}
       </div>
       {/* 상태 메시지 */}
@@ -519,7 +550,7 @@ const DEFAULT_LABELS: Record<ProjectFeatureKey, [string, string]> = {
   graph:     ["그래프 뷰",     "이슈 연결 관계망 시각화"],
   sprints:   ["스프린트",      "스프린트 생성·운영 (번다운 포함)"],
   analytics: ["통계",          "상태·우선순위·담당자별 차트"],
-  request:   ["요청 보내기",    "버그/기능 요청 접수 페이지"],
+  request:   ["요청",          "버그/기능 요청 접수 페이지"],
 };
 
 function FeatureToggleList({
@@ -541,7 +572,7 @@ function FeatureToggleList({
           <label
             key={key}
             className={
-              "flex items-start gap-3 rounded-lg border glass p-3 cursor-pointer select-none transition-colors " +
+              "flex items-center gap-3 rounded-lg border glass p-3 cursor-pointer select-none transition-colors " +
               (pending ? "opacity-70 cursor-wait " : "hover:bg-muted/20 ")
             }
           >
@@ -550,7 +581,7 @@ function FeatureToggleList({
               checked={isOn}
               onChange={() => !pending && onToggle(key)}
               disabled={pending}
-              className="mt-0.5 h-4 w-4 accent-primary cursor-pointer"
+              className="h-4 w-4 accent-primary cursor-pointer shrink-0"
             />
             <div className="flex-1 min-w-0">
               <div className="text-sm font-medium">{t(labelKey, defaultLabel)}</div>

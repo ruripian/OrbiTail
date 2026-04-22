@@ -19,7 +19,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Plus, SlidersHorizontal, Check, X,
   GitBranch, Link2, LayoutGrid, ChevronDown, ChevronRight,
-  GripVertical, MoreHorizontal, Trash2, CheckCircle2, Copy, Archive, Share2,
+  GripVertical, MoreHorizontal, Trash2, CheckCircle2, Copy, Archive, Share2, Folder, FileText,
 } from "lucide-react";
 import { toast } from "sonner";
 import { AvatarInitials } from "@/components/ui/avatar-initials";
@@ -158,12 +158,13 @@ const RowDragContext = createContext<RowDragCtx>({
 });
 
 /* 관계 강조 컨텍스트 — connectedSet 이 있으면 이 set 에 없는 이슈는 dim 처리.
-   focusIssueId 는 현재 포커스 이슈(ring highlight 용). */
+   depthMap 으로 직접(1) / 간접(2) 구분, focusIssueId 는 현재 포커스 이슈. */
 interface RelCtx {
   connectedSet: Set<string> | null;
+  depthMap: Map<string, number> | null;
   focusIssueId: string | null;
 }
-const RelHighlightContext = createContext<RelCtx>({ connectedSet: null, focusIssueId: null });
+const RelHighlightContext = createContext<RelCtx>({ connectedSet: null, depthMap: null, focusIssueId: null });
 
 /** 순환 참조 검증 — dragId를 targetId의 하위로 넣으면 순환이 생기는지 확인.
  *  - dragId === targetId: 자기 자신을 자기 자신에 넣는 경우 → 즉시 차단
@@ -228,10 +229,10 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
     staleTime: 30_000,
   });
 
-  /* adjacency: issue_id -> 연결된 issue_id Set (양방향). 2-hop 까지 포함.
-     focus 이슈 자신도 Set 에 포함시켜 "나 + 연결된 것" 을 highlight 대상으로 처리 */
-  const connectedSet = useMemo<Set<string> | null>(() => {
-    if (!relHighlight || !focusIssueId || !nodeGraphData) return null;
+  /* adjacency: issue_id -> 연결된 issue_id Set. 수동 node-link + 부모-자식 양쪽 모두 포함.
+     2-hop 까지 BFS, depthMap 으로 직접/간접 구분 */
+  const { connectedSet, connectedDepthMap } = useMemo<{ connectedSet: Set<string> | null; connectedDepthMap: Map<string, number> | null }>(() => {
+    if (!relHighlight || !focusIssueId || !nodeGraphData) return { connectedSet: null, connectedDepthMap: null };
     const adj = new Map<string, Set<string>>();
     for (const e of nodeGraphData.edges) {
       if (!adj.has(e.source)) adj.set(e.source, new Set());
@@ -239,8 +240,7 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
       adj.get(e.source)!.add(e.target);
       adj.get(e.target)!.add(e.source);
     }
-    // BFS 2-hop
-    const visited = new Set<string>([focusIssueId]);
+    const dmap = new Map<string, number>([[focusIssueId, 0]]);
     const queue: Array<[string, number]> = [[focusIssueId, 0]];
     while (queue.length > 0) {
       const [id, depth] = queue.shift()!;
@@ -248,13 +248,13 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
       const neighbors = adj.get(id);
       if (!neighbors) continue;
       for (const n of neighbors) {
-        if (!visited.has(n)) {
-          visited.add(n);
+        if (!dmap.has(n)) {
+          dmap.set(n, depth + 1);
           queue.push([n, depth + 1]);
         }
       }
     }
-    return visited;
+    return { connectedSet: new Set(dmap.keys()), connectedDepthMap: dmap };
   }, [relHighlight, focusIssueId, nodeGraphData]);
 
   const { data: project } = useQuery({
@@ -752,7 +752,7 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
 
   return (
     <RowDragContext.Provider value={dragCtx}>
-    <RelHighlightContext.Provider value={{ connectedSet, focusIssueId }}>
+    <RelHighlightContext.Provider value={{ connectedSet, depthMap: connectedDepthMap, focusIssueId }}>
     <div ref={containerRef} className="flex flex-col h-full overflow-hidden" style={colStyles}>
 
       <div className="flex items-center gap-2 px-3 sm:px-5 py-2 sm:py-3 border-b border-border shrink-0 flex-wrap">
@@ -828,7 +828,11 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
           }
         >
           <Share2 className="h-3.5 w-3.5" />
-          {relHighlight ? "관계 강조 켜짐" : "관계 강조"}
+          {relHighlight
+            ? (connectedDepthMap && focusIssueId
+                ? `관계 강조 · 직접 ${Array.from(connectedDepthMap.values()).filter((d) => d === 1).length} · 간접 ${Array.from(connectedDepthMap.values()).filter((d) => d === 2).length}`
+                : "관계 강조 켜짐 (이슈 선택 필요)")
+            : "관계 강조"}
         </button>
 
         {hasFilter && (
@@ -1368,11 +1372,13 @@ function IssueCard({
   const isNestTarget = nestTargetId === issue.id;
 
   /* ── 관계 강조 모드: 포커스 이슈와 연결되지 않은 이슈는 dim, 연결된 이슈는 ring ── */
-  const { connectedSet, focusIssueId } = useContext(RelHighlightContext);
+  const { connectedSet, depthMap, focusIssueId } = useContext(RelHighlightContext);
   const isRelHighlightActive = connectedSet != null;
   const isDimmed = isRelHighlightActive && !connectedSet!.has(issue.id);
   const isFocused = isRelHighlightActive && focusIssueId === issue.id;
-  const isConnected = isRelHighlightActive && !isFocused && connectedSet!.has(issue.id);
+  const connectedDepth = depthMap?.get(issue.id);
+  const isDirectConnected = isRelHighlightActive && !isFocused && connectedDepth === 1;
+  const isIndirectConnected = isRelHighlightActive && !isFocused && connectedDepth === 2;
 
   /* ── 확장/접기 ── */
   const [expanded,      setExpanded]      = useState(false);
@@ -1529,6 +1535,10 @@ function IssueCard({
     switch (col.id) {
 
       case "state":
+        // 필드(Field) 이슈는 상태 개념 없음 → "—"
+        if (issue.is_field) {
+          return <span className="text-xs text-muted-foreground px-2">—</span>;
+        }
         return (
           <StatePicker
             states={states}
@@ -1678,7 +1688,8 @@ function IssueCard({
           // 관계 강조 모드 — 비연결 이슈 dim, 포커스 이슈 primary ring, 연결 이슈 amber ring
           isDimmed && "opacity-30 saturate-50",
           isFocused && "ring-2 ring-primary shadow-[0_0_0_4px_hsl(var(--primary)/0.12)]",
-          isConnected && "ring-1 ring-amber-400/70 shadow-[0_0_0_3px_rgba(251,191,36,0.12)]",
+          isDirectConnected && "ring-1 ring-amber-400/80 shadow-[0_0_0_3px_rgba(251,191,36,0.15)]",
+          isIndirectConnected && "ring-1 ring-amber-400/40 shadow-[0_0_0_2px_rgba(251,191,36,0.06)]",
         )}
       >
         {/* 드롭 인디케이터 — 트리 깊이 시각화. 좌측 offset 이 depth 를 반영해 어느 계층에 편입되는지 한눈에.
@@ -1789,7 +1800,25 @@ function IssueCard({
           </Fragment>
         ))}
 
-        <div className="shrink-0 ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
+        {/* 작업 ↔ 필드 토글 — 3-dot 메뉴 바로 왼쪽. 테마 토글처럼 현재 상태 아이콘만 보여줌.
+            연타 방지: 뮤테이션 진행 중엔 비활성화. */}
+        <button
+          type="button"
+          disabled={updateMutation.isPending}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (updateMutation.isPending) return;
+            updateMutation.mutate({ is_field: !issue.is_field } as any);
+          }}
+          title={issue.is_field ? "필드 → 작업으로 전환" : "작업 → 필드로 전환"}
+          className="shrink-0 ml-auto opacity-0 group-hover:opacity-100 h-6 w-6 rounded-md flex items-center justify-center hover:bg-muted/60 transition-all disabled:opacity-40 disabled:cursor-wait"
+        >
+          {issue.is_field
+            ? <Folder className="h-3.5 w-3.5 text-amber-500" />
+            : <FileText className="h-3.5 w-3.5 text-muted-foreground" />}
+        </button>
+
+        <div className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button

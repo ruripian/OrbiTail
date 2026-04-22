@@ -121,9 +121,9 @@ REST_FRAMEWORK = {
         "rest_framework.throttling.UserRateThrottle",
     ],
     "DEFAULT_THROTTLE_RATES": {
-        "anon": "30/minute",     # 비인증 사용자: 분당 30회
-        "user": "120/minute",    # 인증 사용자: 분당 120회
-        "auth": "5/minute",      # 로그인/회원가입 등 인증 엔드포인트 전용
+        "anon": "60/minute",      # 비인증 사용자
+        "user": "1200/minute",    # 인증 사용자 — 상호작용 UI(테이블 토글, 리치 쿼리 invalidate) 감안해 여유 확보
+        "auth": "10/minute",      # 로그인/회원가입 엔드포인트
     },
 }
 
