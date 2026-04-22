@@ -8,6 +8,10 @@ class Project(models.Model):
         PUBLIC = 0, "Public"
         SECRET = 2, "Secret"
 
+    class RequestReviewPolicy(models.TextChoices):
+        ALL = "all", "All members"  # 기본 — 프로젝트 멤버 누구나 승인/거절 가능
+        ADMIN = "admin", "Admin only"  # can_edit(관리자급) 만 승인/거절
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=255)
     identifier = models.CharField(max_length=12)  # e.g. "OUR"
@@ -35,6 +39,15 @@ class Project(models.Model):
     archived_at = models.DateTimeField(null=True, blank=True)
     # 완료/취소 상태 이슈 자동 보관 일수 — null이면 비활성
     auto_archive_days = models.PositiveIntegerField(null=True, blank=True)
+    # 기능 on/off — 프로젝트별로 어떤 뷰/탭을 쓸지 관리자가 선택.
+    # 키가 없거나 True 면 활성, False 면 비활성. 기본은 모두 활성(누락 키 = True).
+    # 대상 키: board, backlog, calendar, timeline, graph, sprints, analytics, request
+    # (table/archive/trash 는 핵심이라 항상 활성)
+    features = models.JSONField(default=dict, blank=True)
+    # 요청 승인 정책 — "all" 이면 모든 멤버가 승인 가능, "admin" 이면 관리자만
+    request_review_policy = models.CharField(
+        max_length=10, choices=RequestReviewPolicy.choices, default=RequestReviewPolicy.ALL,
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

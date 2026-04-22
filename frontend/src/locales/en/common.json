@@ -670,6 +670,7 @@
     "cycles": "Sprints",
     "documents": "Documents",
     "settings": "Workspace settings",
+    "projectSettings": "Project settings",
     "personalSettings": "Personal settings",
     "switchWorkspace": "Switch workspace",
     "connected": "Connected",

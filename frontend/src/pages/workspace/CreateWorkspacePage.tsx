@@ -37,7 +37,7 @@ export function CreateWorkspacePage() {
   /* 비슈퍼어드민은 워크스페이스 생성 불가 → 선택 페이지로 리다이렉트 */
   useEffect(() => {
     if (user && !user.is_staff) {
-      navigate("/workspaces", { replace: true });
+      navigate("/", { replace: true });
     }
   }, [user, navigate]);
   const {

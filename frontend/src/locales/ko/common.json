@@ -670,6 +670,7 @@
     "cycles": "스프린트",
     "documents": "문서",
     "settings": "워크스페이스 설정",
+    "projectSettings": "프로젝트 설정",
     "personalSettings": "개인 설정",
     "switchWorkspace": "워크스페이스 전환",
     "connected": "연결됨",

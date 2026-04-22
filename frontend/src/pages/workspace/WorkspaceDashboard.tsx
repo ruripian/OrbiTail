@@ -5,13 +5,13 @@
  * 완료/취소 상태는 백엔드에서 제외하여 "해야 할 일"만 표시.
  * 필터: 프로젝트, 우선순위. 그룹: 상태별/프로젝트별 토글.
  */
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { issuesApi } from "@/api/issues";
 import { useAuthStore } from "@/stores/authStore";
-import { Circle, ArrowRight, Calendar, SlidersHorizontal } from "lucide-react";
+import { Circle, ArrowRight, Calendar, SlidersHorizontal, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -24,6 +24,43 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { OrbiTailOrbit } from "@/components/auth/OrbiTailOrbit";
 import { PRIORITY_COLOR, PRIORITY_LIST, PRIORITY_LABEL_KEY } from "@/constants/priority";
 import type { Issue, State } from "@/types";
+
+/* ──────────────── 대시보드 필터 영속화 ──────────────── */
+type StateGroup = "backlog" | "unstarted" | "started";
+const STATE_GROUPS: StateGroup[] = ["backlog", "unstarted", "started"];
+const STATE_GROUP_LABEL: Record<StateGroup, string> = {
+  backlog: "Backlog",
+  unstarted: "To do",
+  started: "In progress",
+};
+const STATE_GROUP_COLOR: Record<StateGroup, string> = {
+  backlog: "#94a3b8",
+  unstarted: "#64748b",
+  started: "#3b82f6",
+};
+
+const LS_KEY = "orbitail_dashboard_filters";
+interface PersistedFilters {
+  priority: string[];
+  project: string[];
+  stateGroup: StateGroup[];
+  groupBy: "state" | "project";
+}
+function loadFilters(): Partial<PersistedFilters> {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+function saveFilters(v: PersistedFilters) {
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify(v));
+  } catch {
+    /* 저장 실패 무시 */
+  }
+}
 
 /* ──────────────── 유틸 ──────────────── */
 
@@ -97,7 +134,8 @@ function IssueRow({ issue, workspaceSlug }: { issue: Issue; workspaceSlug: strin
 
 function GroupSection({ g, workspaceSlug }: { g: IssueGroup; workspaceSlug: string }) {
   return (
-    <div className="rounded-2xl border border-border glass overflow-hidden">
+    // 반투명(30% 투과) — 뒤의 궤도 dot 이 비쳐 보이되 blur 없음(blur 걸면 dot 이 흐려져 "뒤로 밀린 느낌" 을 줌)
+    <div className="rounded-2xl border border-border bg-card/70 overflow-hidden shadow-sm">
       <div className="flex items-center gap-3 px-5 py-4 border-b border-border">
         <Circle className="h-4 w-4 shrink-0" style={{ color: g.color, fill: g.color }} />
         <h2 className="text-base font-semibold flex-1">{g.label}</h2>
@@ -142,9 +180,33 @@ export function WorkspaceDashboard() {
   const { workspaceSlug } = useParams<{ workspaceSlug: string }>();
   const user = useAuthStore((s) => s.user);
 
-  const [projectFilter, setProjectFilter] = useState<Set<string>>(new Set());
-  const [priorityFilter, setPriorityFilter] = useState<Set<string>>(new Set());
-  const [groupBy, setGroupBy] = useState<GroupBy>("state");
+  // 세션 간 영속되는 필터 — localStorage
+  const [projectFilter, setProjectFilter] = useState<Set<string>>(() => {
+    const f = loadFilters();
+    return new Set(Array.isArray(f.project) ? f.project : []);
+  });
+  const [priorityFilter, setPriorityFilter] = useState<Set<string>>(() => {
+    const f = loadFilters();
+    return new Set(Array.isArray(f.priority) ? f.priority : []);
+  });
+  const [stateGroupFilter, setStateGroupFilter] = useState<Set<StateGroup>>(() => {
+    const f = loadFilters();
+    return new Set(Array.isArray(f.stateGroup) ? f.stateGroup : []);
+  });
+  const [groupBy, setGroupBy] = useState<GroupBy>(() => {
+    const f = loadFilters();
+    return f.groupBy === "project" ? "project" : "state";
+  });
+
+  // 필터 변경 시 즉시 저장
+  useEffect(() => {
+    saveFilters({
+      priority: Array.from(priorityFilter),
+      project: Array.from(projectFilter),
+      stateGroup: Array.from(stateGroupFilter),
+      groupBy,
+    });
+  }, [priorityFilter, projectFilter, stateGroupFilter, groupBy]);
 
   /* 내 할 일 (완료/취소 제외, 상태 순서대로) */
   const { data: myIssues = [], isLoading } = useQuery({
@@ -175,9 +237,13 @@ export function WorkspaceDashboard() {
     return myIssues.filter((issue) => {
       if (projectFilter.size > 0 && !projectFilter.has(issue.project)) return false;
       if (priorityFilter.size > 0 && !priorityFilter.has(issue.priority)) return false;
+      if (stateGroupFilter.size > 0) {
+        const g = issue.state_detail?.group as StateGroup | undefined;
+        if (!g || !stateGroupFilter.has(g)) return false;
+      }
       return true;
     });
-  }, [myIssues, projectFilter, priorityFilter]);
+  }, [myIssues, projectFilter, priorityFilter, stateGroupFilter]);
 
   // 그룹핑
   const groups = useMemo((): IssueGroup[] => {
@@ -201,7 +267,7 @@ export function WorkspaceDashboard() {
   }, [filtered, groupBy]);
 
   const totalCount = myIssues.length;
-  const hasFilters = projectFilter.size > 0 || priorityFilter.size > 0;
+  const hasFilters = projectFilter.size > 0 || priorityFilter.size > 0 || stateGroupFilter.size > 0;
 
   const toggleSet = (set: Set<string>, value: string): Set<string> => {
     const next = new Set(set);
@@ -211,8 +277,11 @@ export function WorkspaceDashboard() {
 
   return (
     <PageTransition className="p-5 sm:p-8 overflow-y-auto h-full relative">
-      <div className="absolute inset-0 overflow-hidden" style={{ zIndex: 0 }}>
-        <OrbiTailOrbit size={1000} strokeW={4} offsetY={-60} position="absolute" idPrefix="home-orb" />
+      {/* 궤도 배경 — 모든 콘텐츠 아래.
+          size 는 로고 본체 크기(원래 1000). canvasMultiplier 로 SVG 캔버스만 2 배 키워서
+          사각형 경계가 viewport 바깥으로 밀려나도록 — 로고 크기는 그대로 유지됨. */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none" style={{ zIndex: 0 }}>
+        <OrbiTailOrbit size={1000} strokeW={4} offsetY={-60} position="absolute" idPrefix="home-orb" canvasMultiplier={2.2} />
       </div>
 
       {/* 인사 섹션 */}
@@ -233,6 +302,55 @@ export function WorkspaceDashboard() {
       {/* 필터 바 */}
       {!isLoading && totalCount > 0 && (
         <div className="flex flex-wrap items-center gap-2 mb-5 relative z-10">
+          {/* 상태 그룹 필터 (backlog/unstarted/started) */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant={stateGroupFilter.size > 0 ? "default" : "outline"} size="sm" className="h-7 text-xs gap-1.5">
+                <SlidersHorizontal className="h-3 w-3" />
+                {t("dashboard.filterByState", "상태")}
+                {stateGroupFilter.size > 0 && (
+                  <span className="ml-0.5 bg-primary-foreground/20 text-primary-foreground px-1.5 py-0.5 rounded-full text-[10px]">
+                    {stateGroupFilter.size}
+                  </span>
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-48">
+              {STATE_GROUPS.map((g) => (
+                <DropdownMenuCheckboxItem
+                  key={g}
+                  checked={stateGroupFilter.has(g)}
+                  // 선택 시 드롭다운 유지 — 여러 개 빠르게 토글할 수 있도록
+                  onSelect={(e) => e.preventDefault()}
+                  onCheckedChange={() => setStateGroupFilter((prev) => {
+                    const next = new Set(prev);
+                    if (next.has(g)) next.delete(g); else next.add(g);
+                    return next;
+                  })}
+                >
+                  <span className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: STATE_GROUP_COLOR[g] }} />
+                    {STATE_GROUP_LABEL[g]}
+                  </span>
+                </DropdownMenuCheckboxItem>
+              ))}
+              {/* 선택 해제 — 드롭다운 맨 아래에 배치해 아이템 위치가 바뀌지 않도록 */}
+              {stateGroupFilter.size > 0 && (
+                <>
+                  <div className="h-px bg-border/50 my-1" />
+                  <button
+                    type="button"
+                    onClick={(e) => { e.preventDefault(); setStateGroupFilter(new Set()); }}
+                    className="w-full flex items-center gap-1.5 px-2 py-1 text-2xs text-muted-foreground hover:text-destructive hover:bg-destructive/5 rounded-md transition-colors"
+                  >
+                    <X className="h-3 w-3" />
+                    <span>선택 해제 ({stateGroupFilter.size})</span>
+                  </button>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
           {/* 우선순위 필터 */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -251,6 +369,7 @@ export function WorkspaceDashboard() {
                 <DropdownMenuCheckboxItem
                   key={p}
                   checked={priorityFilter.has(p)}
+                  onSelect={(e) => e.preventDefault()}
                   onCheckedChange={() => setPriorityFilter(toggleSet(priorityFilter, p))}
                 >
                   <span className="flex items-center gap-2">
@@ -259,6 +378,19 @@ export function WorkspaceDashboard() {
                   </span>
                 </DropdownMenuCheckboxItem>
               ))}
+              {priorityFilter.size > 0 && (
+                <>
+                  <div className="h-px bg-border/50 my-1" />
+                  <button
+                    type="button"
+                    onClick={(e) => { e.preventDefault(); setPriorityFilter(new Set()); }}
+                    className="w-full flex items-center gap-1.5 px-2 py-1 text-2xs text-muted-foreground hover:text-destructive hover:bg-destructive/5 rounded-md transition-colors"
+                  >
+                    <X className="h-3 w-3" />
+                    <span>선택 해제 ({priorityFilter.size})</span>
+                  </button>
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
 
@@ -280,18 +412,32 @@ export function WorkspaceDashboard() {
                   <DropdownMenuCheckboxItem
                     key={p.id}
                     checked={projectFilter.has(p.id)}
+                    onSelect={(e) => e.preventDefault()}
                     onCheckedChange={() => setProjectFilter(toggleSet(projectFilter, p.id))}
                   >
                     {p.name}
                   </DropdownMenuCheckboxItem>
                 ))}
+                {projectFilter.size > 0 && (
+                  <>
+                    <div className="h-px bg-border/50 my-1" />
+                    <button
+                      type="button"
+                      onClick={(e) => { e.preventDefault(); setProjectFilter(new Set()); }}
+                      className="w-full flex items-center gap-1.5 px-2 py-1 text-2xs text-muted-foreground hover:text-destructive hover:bg-destructive/5 rounded-md transition-colors"
+                    >
+                      <X className="h-3 w-3" />
+                      <span>선택 해제 ({projectFilter.size})</span>
+                    </button>
+                  </>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           )}
 
           {/* 필터 초기화 */}
           {hasFilters && (
-            <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={() => { setProjectFilter(new Set()); setPriorityFilter(new Set()); }}>
+            <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={() => { setProjectFilter(new Set()); setPriorityFilter(new Set()); setStateGroupFilter(new Set()); }}>
               {t("dashboard.filterAll")}
             </Button>
           )}
@@ -325,7 +471,7 @@ export function WorkspaceDashboard() {
           {/* 좌측: 내 할 일 */}
           <div className="space-y-5 min-w-0">
             {groups.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-border p-12 text-center">
+              <div className="rounded-2xl border border-dashed border-border bg-card/70 p-12 text-center">
                 <p className="text-lg text-muted-foreground">
                   {hasFilters ? t("dashboard.noMatchingIssues") : t("dashboard.allClear")}
                 </p>
@@ -342,7 +488,7 @@ export function WorkspaceDashboard() {
 
           {/* 우측: 최근 이슈 */}
           {recentIssues.length > 0 && (
-            <aside className="rounded-2xl border border-border glass overflow-hidden xl:sticky xl:top-4">
+            <aside className="rounded-2xl border border-border bg-card/70 shadow-sm overflow-hidden xl:sticky xl:top-4">
               <div className="flex items-center justify-between px-5 py-4 border-b border-border">
                 <h2 className="text-base font-semibold">{t("dashboard.recentIssues")}</h2>
               </div>

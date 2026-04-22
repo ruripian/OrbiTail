@@ -61,7 +61,7 @@ export function AssigneePicker({
             <div className="flex items-center gap-1.5 overflow-hidden w-full">
               <div className="flex -space-x-1 shrink-0">
                 {details.slice(0, 3).map((u) => (
-                  <AvatarInitials key={u.id} name={u.display_name} size="xs" ring title={u.display_name} />
+                  <AvatarInitials key={u.id} name={u.display_name} avatar={u.avatar} size="xs" ring title={u.display_name} />
                 ))}
                 {details.length > 3 && (
                   <span className="h-5 w-5 rounded-full bg-muted text-3xs flex items-center justify-center border-2 border-background text-muted-foreground shrink-0">
@@ -91,7 +91,7 @@ export function AssigneePicker({
                 onChange(next);
               }}
             >
-              <AvatarInitials name={m.member.display_name} size="xs" />
+              <AvatarInitials name={m.member.display_name} avatar={m.member.avatar} size="xs" />
               <span className="flex-1 truncate">{m.member.display_name}</span>
               {selected && <Check className="h-3 w-3 text-primary shrink-0" />}
             </DropdownMenuItem>

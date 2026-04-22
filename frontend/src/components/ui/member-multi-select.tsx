@@ -18,6 +18,7 @@ export interface MemberOption {
   id: string;
   name: string;
   email?: string;
+  avatar?: string | null;
 }
 
 interface Props {
@@ -207,7 +208,7 @@ export function MemberMultiSelect({
                     </span>
 
                     {/* 아바타 */}
-                    <AvatarInitials name={o.name} size="sm" />
+                    <AvatarInitials name={o.name} avatar={o.avatar} size="sm" />
 
                     {/* 이름/이메일 */}
                     <div className="flex-1 min-w-0 text-left">

@@ -106,7 +106,6 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <WorkspaceDashboard /> },
       { path: "announcements", element: <AnnouncementsPage /> },
-      { path: "request", element: <RequestSubmitPage /> },
       { path: "projects/create", element: <CreateProjectPage /> },
       { path: "projects/discover", element: <DiscoverProjectsPage /> },
       { path: "projects/archived", element: <ArchivedProjectsPage /> },
@@ -117,6 +116,8 @@ export const router = createBrowserRouter([
       { path: "projects/:projectId/categories", element: <CategoriesPage /> },
       /* 카테고리별 이슈 뷰 — ProjectIssuePage가 categoryId URL 파라미터로 필터 */
       { path: "projects/:projectId/categories/:categoryId/issues", element: <ProjectIssuePage /> },
+      /* 프로젝트별 요청(버그/기능) 제출 페이지 */
+      { path: "projects/:projectId/request", element: <RequestSubmitPage /> },
       { path: "projects/:projectId/sprints", element: <SprintsPage /> },
       /* 스프린트별 이슈 뷰 — ProjectIssuePage가 sprintId URL 파라미터로 필터 */
       { path: "projects/:projectId/sprints/:sprintId/issues", element: <ProjectIssuePage /> },

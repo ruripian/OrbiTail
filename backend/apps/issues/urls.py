@@ -31,6 +31,10 @@ from .views import (
     WorkspaceRecentIssuesView,
     WorkspaceIssueSearchView,
     IssueDocumentLinksView,
+    IssueRequestListCreateView,
+    IssueRequestApproveView,
+    IssueRequestRejectView,
+    IssueRequestDeleteView,
 )
 
 urlpatterns = [
@@ -202,5 +206,27 @@ urlpatterns = [
         "workspaces/<slug:workspace_slug>/projects/<uuid:project_pk>/issues/<uuid:pk>/documents/",
         IssueDocumentLinksView.as_view(),
         name="issue-document-links",
+    ),
+
+    # 요청 큐 (버그/기능 제출 → 승인/거절)
+    path(
+        "workspaces/<slug:workspace_slug>/projects/<uuid:project_pk>/requests/",
+        IssueRequestListCreateView.as_view(),
+        name="issue-request-list",
+    ),
+    path(
+        "workspaces/<slug:workspace_slug>/projects/<uuid:project_pk>/requests/<uuid:pk>/approve/",
+        IssueRequestApproveView.as_view(),
+        name="issue-request-approve",
+    ),
+    path(
+        "workspaces/<slug:workspace_slug>/projects/<uuid:project_pk>/requests/<uuid:pk>/reject/",
+        IssueRequestRejectView.as_view(),
+        name="issue-request-reject",
+    ),
+    path(
+        "workspaces/<slug:workspace_slug>/projects/<uuid:project_pk>/requests/<uuid:pk>/",
+        IssueRequestDeleteView.as_view(),
+        name="issue-request-delete",
     ),
 ]

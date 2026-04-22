@@ -37,7 +37,7 @@ const ORBITERS = [
 ];
 
 interface OrbiTailOrbitProps {
-  /** SVG max-width (px). 기본 1200 */
+  /** 로고의 CSS 너비 기준 (px). 로고 본체 크기를 결정함. 기본 1200 */
   size?: number;
   /** path stroke 두께. 기본 5 */
   strokeW?: number;
@@ -47,7 +47,24 @@ interface OrbiTailOrbitProps {
   position?: "fixed" | "absolute";
   /** SVG filter id 접두사 — 같은 페이지에 여러 인스턴스 있을 때 충돌 방지 */
   idPrefix?: string;
+  /**
+   * 렌더 레이어 선택. 기본 `all`.
+   *  - `paths`: 배경 로고 외곽선만 (카드에 가려도 무방)
+   *  - `dots`: 공전 행성만 (콘텐츠 위에 띄워 가려지지 않게)
+   *  - `all`:  둘 다
+   */
+  layer?: "paths" | "dots" | "all";
+  /**
+   * SVG 캔버스 여유 배수 (로고 대비). 1 이면 여유 없음(원래 동작), 2 면 캔버스가 로고의 2 배 크기.
+   * 로고 크기는 그대로 유지되고 주변 여백(+보이지 않는 rectangle 경계)이 viewport 밖으로 밀려남.
+   * 기본 2 — 사각형 경계가 화면 밖으로 나가 "사각형 영역에 갇힌 느낌" 제거.
+   */
+  canvasMultiplier?: number;
 }
+
+// 원본 로고 viewBox 치수
+const LOGO_W = 1945.78;
+const LOGO_H = 1127.57;
 
 export function OrbiTailOrbit({
   size = 1200,
@@ -55,10 +72,20 @@ export function OrbiTailOrbit({
   offsetY = 0,
   position = "fixed",
   idPrefix = "orb",
+  layer = "all",
+  canvasMultiplier = 2,
 }: OrbiTailOrbitProps) {
   const { isRich } = useMotion();
-  const filterId = `${idPrefix}-glow`;
   const translateY = offsetY ? `translateY(${offsetY}px)` : undefined;
+  const showPaths = layer === "paths" || layer === "all";
+  const showDots = layer === "dots" || layer === "all";
+
+  // viewBox 를 로고 크기보다 canvasMultiplier 배 만큼 확장 — 로고는 중앙에 위치
+  const padX = (LOGO_W * (canvasMultiplier - 1)) / 2;
+  const padY = (LOGO_H * (canvasMultiplier - 1)) / 2;
+  const viewBox = `${-padX} ${-padY} ${LOGO_W * canvasMultiplier} ${LOGO_H * canvasMultiplier}`;
+  // CSS 너비도 비례 확대 → 단위당 스케일은 원래와 동일 → 로고 자체 크기는 유지
+  const cssWidth = size * canvasMultiplier;
 
   return (
     <div
@@ -66,49 +93,59 @@ export function OrbiTailOrbit({
       aria-hidden="true"
     >
       <svg
-        viewBox="0 0 1945.78 1127.57"
+        viewBox={viewBox}
         style={{
           position: "absolute",
           left: "50%",
           top: "50%",
-          width: `min(90vw, ${size}px)`,
+          width: `min(95vw, ${cssWidth}px)`,
           height: "auto",
           transform: `translate(-50%, -50%)${translateY ? ` ${translateY}` : ""}`,
         }}
         fill="none"
       >
         <defs>
-          <filter id={filterId} x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur in="SourceGraphic" stdDeviation="6" />
-          </filter>
-
           {Object.entries(PATHS).map(([key, d]) => (
             <path key={key} id={`${idPrefix}-path-${key}`} d={d} />
           ))}
         </defs>
 
         {/* 배경 — 로고 엣지를 반투명 stroke로 렌더링 */}
-        <g className="opacity-[0.08] dark:opacity-[0.15]" stroke="currentColor" strokeWidth={strokeW}>
-          {Object.values(PATHS).map((d, i) => (
-            <path key={i} d={d} />
-          ))}
-        </g>
+        {showPaths && (
+          <g className="opacity-[0.08] dark:opacity-[0.15]" stroke="currentColor" strokeWidth={strokeW}>
+            {Object.values(PATHS).map((d, i) => (
+              <path key={i} d={d} />
+            ))}
+          </g>
+        )}
 
-        {/* 공전 행성들 — minimal 모드에서는 숨김 */}
-        {isRich && ORBITERS.map(({ pathKey, dur, r, delay }, i) => (
+        {/* 공전 행성들 — minimal 모드에서는 숨김.
+            feGaussianBlur 필터 제거: 브라우저에 따라 필터 영역 클리핑으로 dot 주위 halo 가
+            특정 회전 각도에서 잘리는 "뒤로 밀린 듯" 한 착시가 생겼음.
+            이제는 반투명 큰 원 + 메인 원 + 흰 중심점 3겹 으로 halo 효과를 정적으로 재현. */}
+        {showDots && isRich && ORBITERS.map(({ pathKey, dur, r, delay }, i) => (
           <g key={i}>
-            <circle r={r * 2.5} fill="currentColor" opacity={0.3} filter={`url(#${filterId})`}>
-              <animateMotion dur={dur} begin={delay} repeatCount="indefinite" rotate="auto">
+            {/* 외곽 halo — 크고 매우 옅게 */}
+            <circle r={r * 3} fill="currentColor" opacity={0.12}>
+              <animateMotion dur={dur} begin={delay} repeatCount="indefinite">
                 <mpath href={`#${idPrefix}-path-${pathKey}`} />
               </animateMotion>
             </circle>
-            <circle r={r} fill="currentColor" opacity={0.8}>
-              <animateMotion dur={dur} begin={delay} repeatCount="indefinite" rotate="auto">
+            {/* 중간 halo */}
+            <circle r={r * 1.8} fill="currentColor" opacity={0.25}>
+              <animateMotion dur={dur} begin={delay} repeatCount="indefinite">
                 <mpath href={`#${idPrefix}-path-${pathKey}`} />
               </animateMotion>
             </circle>
+            {/* 메인 dot */}
+            <circle r={r} fill="currentColor" opacity={0.9}>
+              <animateMotion dur={dur} begin={delay} repeatCount="indefinite">
+                <mpath href={`#${idPrefix}-path-${pathKey}`} />
+              </animateMotion>
+            </circle>
+            {/* 중심 하이라이트 */}
             <circle r={r * 0.4} fill="white" opacity={0.9}>
-              <animateMotion dur={dur} begin={delay} repeatCount="indefinite" rotate="auto">
+              <animateMotion dur={dur} begin={delay} repeatCount="indefinite">
                 <mpath href={`#${idPrefix}-path-${pathKey}`} />
               </animateMotion>
             </circle>

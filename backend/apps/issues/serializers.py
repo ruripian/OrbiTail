@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from apps.accounts.serializers import UserSerializer
 from apps.projects.serializers import StateSerializer
-from .models import Issue, IssueComment, IssueActivity, IssueAttachment, IssueLink, IssueNodeLink, IssueTemplate, Label
+from .models import Issue, IssueComment, IssueActivity, IssueAttachment, IssueLink, IssueNodeLink, IssueRequest, IssueTemplate, Label
 
 
 class LabelSerializer(serializers.ModelSerializer):
@@ -145,17 +145,19 @@ class IssueNodeLinkSerializer(serializers.ModelSerializer):
     """트리 경계를 넘는 이슈 간 자유 링크(그래프 노드)."""
     source_title = serializers.CharField(source="source.title", read_only=True)
     source_sequence_id = serializers.IntegerField(source="source.sequence_id", read_only=True)
+    source_project_id = serializers.UUIDField(source="source.project_id", read_only=True)
     source_project_identifier = serializers.CharField(source="source.project.identifier", read_only=True)
     target_title = serializers.CharField(source="target.title", read_only=True)
     target_sequence_id = serializers.IntegerField(source="target.sequence_id", read_only=True)
+    target_project_id = serializers.UUIDField(source="target.project_id", read_only=True)
     target_project_identifier = serializers.CharField(source="target.project.identifier", read_only=True)
 
     class Meta:
         model = IssueNodeLink
         fields = [
             "id", "source", "target", "link_type", "note",
-            "source_title", "source_sequence_id", "source_project_identifier",
-            "target_title", "target_sequence_id", "target_project_identifier",
+            "source_title", "source_sequence_id", "source_project_id", "source_project_identifier",
+            "target_title", "target_sequence_id", "target_project_id", "target_project_identifier",
             "created_by", "created_at",
         ]
         read_only_fields = ["id", "created_by", "created_at"]
@@ -260,3 +262,29 @@ class IssueActivitySerializer(serializers.ModelSerializer):
     class Meta:
         model = IssueActivity
         fields = ["id", "verb", "field", "old_value", "new_value", "actor_detail", "created_at"]
+
+
+class IssueRequestSerializer(serializers.ModelSerializer):
+    """제출된 버그/기능 요청 — 승인 전까지 이슈와 별개로 관리."""
+    submitted_by_detail = UserSerializer(source="submitted_by", read_only=True)
+    reviewer_detail = UserSerializer(source="reviewer", read_only=True)
+    project_identifier = serializers.CharField(source="project.identifier", read_only=True)
+    approved_issue_sequence_id = serializers.IntegerField(source="approved_issue.sequence_id", read_only=True)
+
+    class Meta:
+        model = IssueRequest
+        fields = [
+            "id", "project", "project_identifier", "workspace",
+            "kind", "status", "visibility",
+            "title", "description_html", "priority", "meta",
+            "submitted_by", "submitted_by_detail",
+            "reviewer", "reviewer_detail", "reviewed_at",
+            "approved_issue", "approved_issue_sequence_id",
+            "rejected_reason",
+            "created_at", "updated_at",
+        ]
+        read_only_fields = [
+            "id", "status", "workspace", "submitted_by", "reviewer",
+            "reviewed_at", "approved_issue", "rejected_reason",
+            "created_at", "updated_at",
+        ]

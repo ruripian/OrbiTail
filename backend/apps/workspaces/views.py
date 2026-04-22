@@ -24,6 +24,15 @@ class WorkspaceListCreateView(generics.ListCreateAPIView):
     def get_queryset(self):
         return Workspace.objects.filter(members__member=self.request.user)
 
+    def create(self, request, *args, **kwargs):
+        """워크스페이스 생성은 슈퍼어드민(is_staff 또는 is_superuser) 전용."""
+        if not (request.user.is_staff or request.user.is_superuser):
+            return Response(
+                {"detail": "워크스페이스 생성은 슈퍼어드민만 할 수 있습니다."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        return super().create(request, *args, **kwargs)
+
 
 class WorkspaceDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = WorkspaceSerializer

@@ -447,7 +447,7 @@ function AssigneeSelector({
                     : "bg-muted text-muted-foreground hover:bg-muted/80 border border-transparent"
                 }`}
               >
-                <AvatarInitials name={m.member.display_name} size="xs" />
+                <AvatarInitials name={m.member.display_name} avatar={m.member.avatar} size="xs" />
                 {m.member.display_name}
               </button>
             );

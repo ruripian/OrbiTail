@@ -13,12 +13,13 @@
  */
 
 import { useState, useMemo, useRef, Fragment, useEffect, createContext, useContext } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  Plus, SlidersHorizontal, Check,
+  Plus, SlidersHorizontal, Check, X,
   GitBranch, Link2, LayoutGrid, ChevronDown, ChevronRight,
-  GripVertical, MoreHorizontal, Trash2, CheckCircle2, Copy, Archive,
+  GripVertical, MoreHorizontal, Trash2, CheckCircle2, Copy, Archive, Share2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { AvatarInitials } from "@/components/ui/avatar-initials";
@@ -156,6 +157,14 @@ const RowDragContext = createContext<RowDragCtx>({
   onDragStart: () => {}, onDragOver: () => {}, onDragEnd: () => {}, onDrop: () => {},
 });
 
+/* 관계 강조 컨텍스트 — connectedSet 이 있으면 이 set 에 없는 이슈는 dim 처리.
+   focusIssueId 는 현재 포커스 이슈(ring highlight 용). */
+interface RelCtx {
+  connectedSet: Set<string> | null;
+  focusIssueId: string | null;
+}
+const RelHighlightContext = createContext<RelCtx>({ connectedSet: null, focusIssueId: null });
+
 /** 순환 참조 검증 — dragId를 targetId의 하위로 넣으면 순환이 생기는지 확인.
  *  - dragId === targetId: 자기 자신을 자기 자신에 넣는 경우 → 즉시 차단
  *  - 그 외: targetId가 dragId의 자손이면 순환 */
@@ -192,10 +201,61 @@ interface Props {
   readOnly?:    boolean;
 }
 
+/* 관계 강조 모드 — localStorage 영속 */
+const REL_MODE_KEY = "orbitail_table_rel_highlight";
+
 export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter, readOnly }: Props) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const { refresh } = useIssueRefresh(workspaceSlug, projectId);
+  const [searchParams] = useSearchParams();
+  const focusIssueId = searchParams.get("issue");
+
+  /* ── 관계 강조 모드 ── */
+  const [relHighlight, setRelHighlight] = useState<boolean>(() => {
+    try { return localStorage.getItem(REL_MODE_KEY) === "1"; } catch { return false; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem(REL_MODE_KEY, relHighlight ? "1" : "0"); } catch { /* ignore */ }
+  }, [relHighlight]);
+
+  /* 프로젝트 범위의 수동 node link 만 가져와 adjacency 구성.
+     관계 강조 모드가 ON 이고 focus 가 있을 때만 실제로 활용 — 다른 시점엔 조용히 캐시 */
+  const { data: nodeGraphData } = useQuery({
+    queryKey: ["node-graph", workspaceSlug, projectId, "manual"],
+    queryFn: () => issuesApi.nodeGraph(workspaceSlug, projectId, { manualOnly: true, includeLabelEdges: false }),
+    enabled: !!workspaceSlug && !!projectId && relHighlight,
+    staleTime: 30_000,
+  });
+
+  /* adjacency: issue_id -> 연결된 issue_id Set (양방향). 2-hop 까지 포함.
+     focus 이슈 자신도 Set 에 포함시켜 "나 + 연결된 것" 을 highlight 대상으로 처리 */
+  const connectedSet = useMemo<Set<string> | null>(() => {
+    if (!relHighlight || !focusIssueId || !nodeGraphData) return null;
+    const adj = new Map<string, Set<string>>();
+    for (const e of nodeGraphData.edges) {
+      if (!adj.has(e.source)) adj.set(e.source, new Set());
+      if (!adj.has(e.target)) adj.set(e.target, new Set());
+      adj.get(e.source)!.add(e.target);
+      adj.get(e.target)!.add(e.source);
+    }
+    // BFS 2-hop
+    const visited = new Set<string>([focusIssueId]);
+    const queue: Array<[string, number]> = [[focusIssueId, 0]];
+    while (queue.length > 0) {
+      const [id, depth] = queue.shift()!;
+      if (depth >= 2) continue;
+      const neighbors = adj.get(id);
+      if (!neighbors) continue;
+      for (const n of neighbors) {
+        if (!visited.has(n)) {
+          visited.add(n);
+          queue.push([n, depth + 1]);
+        }
+      }
+    }
+    return visited;
+  }, [relHighlight, focusIssueId, nodeGraphData]);
 
   const { data: project } = useQuery({
     queryKey: ["project", workspaceSlug, projectId],
@@ -444,6 +504,9 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
       return { ...prev, [key]: next };
     });
   };
+  const clearFilter = (key: keyof Filters) => {
+    setFilters((prev) => ({ ...prev, [key]: new Set<string>() }));
+  };
 
   /* ── 행 DnD 상태 (전체 트리 통합 — 최상위 ↔ 하위 이슈 간 자유 이동) ──
      state: 리렌더 유발(시각 피드백) / ref: 이벤트 핸들러에서 stale closure 없이 즉시 읽기 */
@@ -689,6 +752,7 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
 
   return (
     <RowDragContext.Provider value={dragCtx}>
+    <RelHighlightContext.Provider value={{ connectedSet, focusIssueId }}>
     <div ref={containerRef} className="flex flex-col h-full overflow-hidden" style={colStyles}>
 
       <div className="flex items-center gap-2 px-3 sm:px-5 py-2 sm:py-3 border-b border-border shrink-0 flex-wrap">
@@ -701,6 +765,7 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
           items={states.map((s) => ({ id: s.id, label: s.name, color: s.color }))}
           selected={filters.states}
           onToggle={(id) => toggleFilter("states", id)}
+          onClear={() => clearFilter("states")}
         />
         <FilterDropdown
           variant="grid"
@@ -711,6 +776,7 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
           }))}
           selected={filters.priorities}
           onToggle={(id) => toggleFilter("priorities", id)}
+          onClear={() => clearFilter("priorities")}
         />
         <FilterDropdown
           variant="checkbox"
@@ -719,6 +785,7 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
           items={members.map((m) => ({ id: m.member.id, label: m.member.display_name }))}
           selected={filters.assignees}
           onToggle={(id) => toggleFilter("assignees", id)}
+          onClear={() => clearFilter("assignees")}
         />
         <FilterDropdown
           variant="grid"
@@ -727,6 +794,7 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
           items={labels.map((l) => ({ id: l.id, label: l.name, color: l.color }))}
           selected={filters.labels}
           onToggle={(id) => toggleFilter("labels", id)}
+          onClear={() => clearFilter("labels")}
         />
 
         <button
@@ -742,6 +810,25 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
         >
           <CheckCircle2 className="h-3.5 w-3.5" />
           {hideCompleted ? t("issues.filter.hideCompleted") : t("issues.filter.showCompleted")}
+        </button>
+
+        {/* 관계 강조 토글 — 선택된 이슈의 노드 링크만 하이라이트, 나머지 dim */}
+        <button
+          type="button"
+          onClick={() => setRelHighlight((v) => !v)}
+          className={cn(
+            "inline-flex items-center gap-1.5 text-xs rounded-lg px-2.5 py-1.5 border transition-all duration-150",
+            relHighlight
+              ? "bg-amber-400/15 border-amber-400/40 text-amber-600 dark:text-amber-400"
+              : "border-border text-muted-foreground hover:text-foreground hover:bg-muted/40"
+          )}
+          title={relHighlight
+            ? "관계 강조 끄기"
+            : "관계 강조 — 이슈 선택 시 연결된 이슈만 하이라이트, 나머지는 반투명 처리"
+          }
+        >
+          <Share2 className="h-3.5 w-3.5" />
+          {relHighlight ? "관계 강조 켜짐" : "관계 강조"}
         </button>
 
         {hasFilter && (
@@ -1066,6 +1153,7 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
         onDone={() => setSelectedIds(new Set())}
       />
     )}
+    </RelHighlightContext.Provider>
     </RowDragContext.Provider>
   );
 }
@@ -1211,7 +1299,7 @@ function BulkToolbar({
               onClick={() => bulkUpdateMutation.mutate({ assignees: [m.member.id] })}
               className="text-xs gap-2"
             >
-              <AvatarInitials name={m.member.display_name} size="xs" />
+              <AvatarInitials name={m.member.display_name} avatar={m.member.avatar} size="xs" />
               {m.member.display_name}
             </DropdownMenuItem>
           ))}
@@ -1278,6 +1366,13 @@ function IssueCard({
     useContext(RowDragContext);
   const isDragging   = dragId      === issue.id;
   const isNestTarget = nestTargetId === issue.id;
+
+  /* ── 관계 강조 모드: 포커스 이슈와 연결되지 않은 이슈는 dim, 연결된 이슈는 ring ── */
+  const { connectedSet, focusIssueId } = useContext(RelHighlightContext);
+  const isRelHighlightActive = connectedSet != null;
+  const isDimmed = isRelHighlightActive && !connectedSet!.has(issue.id);
+  const isFocused = isRelHighlightActive && focusIssueId === issue.id;
+  const isConnected = isRelHighlightActive && !isFocused && connectedSet!.has(issue.id);
 
   /* ── 확장/접기 ── */
   const [expanded,      setExpanded]      = useState(false);
@@ -1568,31 +1663,61 @@ function IssueCard({
         onDrop={(e) => { e.stopPropagation(); onDrop(issue); }}
         className={cn(
           // transition: 드래그 중 liveDisplayOrder로 카드 순서가 바뀔 때 부드럽게 이동
-          "relative flex items-center gap-3 bg-card rounded-xl border border-border shadow-sm px-4 py-3 group mb-1.5 transition-[opacity,transform,box-shadow] duration-150",
+          "relative flex items-center gap-3 bg-card rounded-xl border border-border shadow-sm px-4 py-3 group mb-1.5 transition-[opacity,transform,box-shadow,filter] duration-200",
           // 하위 이슈 시각 구분 — depth별 좌측 보더 색상 차별화
           depth === 1 && "border-l-[3px] border-l-primary/40 bg-card/90",
           depth === 2 && "border-l-[3px] border-l-blue-400/40 bg-card/80",
           depth >= 3 && "border-l-[3px] border-l-violet-400/40 bg-card/70",
           isDragging
             ? "opacity-30 border-dashed border-primary/60 bg-primary/[0.03] shadow-none scale-[0.99]"
-            : isNestTarget
+            : (isNestTarget && hasChildren && expanded)
+              // 자식이 있고 펼쳐진 상태면 "부모와 첫 자식 사이에 삽입" — ring 으로 맥락 강조
               ? "ring-2 ring-primary border-primary/50 bg-primary/[0.03] shadow-[0_0_0_4px_hsl(var(--primary)/0.08)]"
               : "hover:ring-1 hover:ring-border/40 hover:shadow-md hover:border-border",
           !isDragging && "cursor-grab active:cursor-grabbing",
+          // 관계 강조 모드 — 비연결 이슈 dim, 포커스 이슈 primary ring, 연결 이슈 amber ring
+          isDimmed && "opacity-30 saturate-50",
+          isFocused && "ring-2 ring-primary shadow-[0_0_0_4px_hsl(var(--primary)/0.12)]",
+          isConnected && "ring-1 ring-amber-400/70 shadow-[0_0_0_3px_rgba(251,191,36,0.12)]",
         )}
       >
+        {/* 드롭 인디케이터 — 트리 깊이 시각화. 좌측 offset 이 depth 를 반영해 어느 계층에 편입되는지 한눈에.
+            depth 0(최상위) = left 16px, depth 1 = 38px, depth 2 = 60px...  (22px per level)
+            시작점에 작은 노드 점을 달아 "여기로 분기" 를 더 명확히 표현 */}
         {dropTarget === issue.id && dropZone === "before" && !isDragging && (
-          <div className="absolute -top-1 left-4 right-4 h-0.5 bg-primary rounded-full pointer-events-none z-20" />
+          <div
+            className="absolute -top-1 right-4 pointer-events-none z-20"
+            style={{ left: 16 + depth * 22 }}
+          >
+            <div className="h-0.5 bg-primary rounded-full" />
+            <div className="absolute -left-1 top-1/2 -translate-y-1/2 h-2 w-2 rounded-full bg-primary ring-2 ring-background" />
+          </div>
         )}
         {dropTarget === issue.id && dropZone === "after" && !isDragging && (
-          <div className="absolute -bottom-1 left-4 right-4 h-0.5 bg-primary rounded-full pointer-events-none z-20" />
+          <div
+            className="absolute -bottom-1 right-4 pointer-events-none z-20"
+            style={{ left: 16 + depth * 22 }}
+          >
+            <div className="h-0.5 bg-primary rounded-full" />
+            <div className="absolute -left-1 top-1/2 -translate-y-1/2 h-2 w-2 rounded-full bg-primary ring-2 ring-background" />
+          </div>
         )}
         {isNestTarget && (
-          <div className="absolute inset-0 rounded-xl flex items-center justify-center pointer-events-none z-20">
-            <span className="text-2xs font-semibold text-primary bg-background px-3 py-1 rounded-full border border-primary/30 shadow-sm">
-              ↳ {t("issues.table.nestHere")}
-            </span>
-          </div>
+          <>
+            <div className="absolute inset-0 rounded-xl flex items-center justify-center pointer-events-none z-20">
+              <span className="text-2xs font-semibold text-primary bg-background px-3 py-1 rounded-full border border-primary/30 shadow-sm">
+                ↳ {t("issues.table.nestHere")}
+              </span>
+            </div>
+            {/* 하위 편입 위치 미리보기 — target 의 bottom 에 depth+1 들여쓰기된 라인 */}
+            <div
+              className="absolute -bottom-1 right-4 pointer-events-none z-20"
+              style={{ left: 16 + (depth + 1) * 22 }}
+            >
+              <div className="h-0.5 bg-primary/60 rounded-full border-dashed" />
+              <div className="absolute -left-1 top-1/2 -translate-y-1/2 h-2 w-2 rounded-full bg-primary/60 ring-2 ring-background" />
+            </div>
+          </>
         )}
         {onToggleSelect && (
           <span
@@ -1834,13 +1959,15 @@ function ColDropIndicator({
 ══════════════════════════════════════════════════ */
 
 function FilterDropdown({
-  label, emptyLabel, items, selected, onToggle, variant = "grid",
+  label, emptyLabel, items, selected, onToggle, onClear, variant = "grid",
 }: {
   label:      string;
   emptyLabel: string;
   items:      { id: string; label: string; color?: string }[];
   selected:   Set<string>;
   onToggle:   (id: string) => void;
+  /** 선택 전체 해제 — 드롭다운 안의 X 버튼에서 호출 */
+  onClear?:   () => void;
   /** grid: 토글 버튼 2열 그리드 (클릭해도 팝오버 유지) / checkbox: 체크박스 리스트 (담당자처럼 많을 때) */
   variant?:   "grid" | "checkbox";
 }) {
@@ -1903,6 +2030,7 @@ function FilterDropdown({
             <DropdownMenuCheckboxItem
               key={item.id}
               checked={selected.has(item.id)}
+              onSelect={(e) => e.preventDefault()}
               onCheckedChange={() => onToggle(item.id)}
               className="text-xs gap-2 rounded-lg"
             >
@@ -1912,6 +2040,20 @@ function FilterDropdown({
               {item.label}
             </DropdownMenuCheckboxItem>
           ))
+        )}
+        {/* 선택 해제 — 드롭다운 맨 아래. 아이템 위치가 바뀌지 않도록 하단 고정 */}
+        {count > 0 && onClear && (
+          <>
+            <div className="h-px bg-border/50 my-1.5" />
+            <button
+              type="button"
+              onClick={(e) => { e.preventDefault(); onClear(); }}
+              className="w-full flex items-center gap-1.5 px-2 py-1 text-2xs text-muted-foreground hover:text-destructive hover:bg-destructive/5 rounded-md transition-colors"
+            >
+              <X className="h-3 w-3" />
+              <span>선택 해제 ({count})</span>
+            </button>
+          </>
         )}
       </DropdownMenuContent>
     </DropdownMenu>

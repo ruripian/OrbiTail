@@ -279,6 +279,77 @@ class IssueTemplate(models.Model):
         return f"{self.project.identifier} — {self.name}"
 
 
+class IssueRequest(models.Model):
+    """제출된 요청(버그/기능) — 이슈로 편입 전 승인 대기 상태를 별도 관리.
+
+    흐름:
+      1) 멤버/외부가 /request 페이지에서 제출 → IssueRequest pending 생성
+      2) 프로젝트 관리자가 승인 → Issue 로 변환 (카테고리/스프린트/담당자/상태 지정)
+      3) 거절 → 사유 기록, 이력 페이지에 남음
+
+    가시성:
+      - PUBLIC: 프로젝트 멤버 누구나 조회
+      - PRIVATE: 제출자 + 관리자만
+    """
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        APPROVED = "approved", "Approved"
+        REJECTED = "rejected", "Rejected"
+
+    class Kind(models.TextChoices):
+        BUG = "bug", "Bug"
+        FEATURE = "feature", "Feature"
+
+    class Visibility(models.TextChoices):
+        PUBLIC = "public", "Public"
+        PRIVATE = "private", "Private"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    project = models.ForeignKey("projects.Project", on_delete=models.CASCADE, related_name="requests")
+    workspace = models.ForeignKey("workspaces.Workspace", on_delete=models.CASCADE, related_name="requests")
+
+    kind = models.CharField(max_length=10, choices=Kind.choices, default=Kind.FEATURE)
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING)
+    visibility = models.CharField(max_length=10, choices=Visibility.choices, default=Visibility.PUBLIC)
+
+    title = models.CharField(max_length=255)
+    description_html = models.TextField(blank=True, default="")
+    priority = models.CharField(max_length=10, choices=Issue.Priority.choices, default=Issue.Priority.MEDIUM)
+    # kind 별 추가 필드(재현단계/환경/심각도 등)는 meta JSON 으로 유연 저장
+    meta = models.JSONField(default=dict, blank=True)
+
+    submitted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True,
+        related_name="submitted_requests",
+    )
+    reviewer = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="reviewed_requests",
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    # 승인 시 생성된 이슈 연결 — 추적 가능
+    approved_issue = models.ForeignKey(
+        Issue, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="source_request",
+    )
+    rejected_reason = models.TextField(blank=True, default="")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "issue_requests"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["project", "status"]),
+            models.Index(fields=["submitted_by", "status"]),
+        ]
+
+    def __str__(self):
+        return f"[{self.status}] {self.title}"
+
+
 class IssueActivity(models.Model):
     """Audit log for issue changes"""
 

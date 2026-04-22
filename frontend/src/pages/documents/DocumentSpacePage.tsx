@@ -638,6 +638,7 @@ function VersionHistoryPanel({
               </div>
               <UserLine
                 name={v.created_by_detail?.display_name ?? "System"}
+                avatar={v.created_by_detail?.avatar}
                 timestamp={v.created_at}
                 size="xs"
               />
@@ -826,6 +827,7 @@ function CommentCard({
       <div className="flex items-start justify-between gap-2">
         <UserLine
           name={comment.author_detail?.display_name}
+          avatar={comment.author_detail?.avatar}
           timestamp={comment.created_at}
           editedAt={comment.updated_at}
         />

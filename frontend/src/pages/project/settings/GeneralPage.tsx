@@ -18,6 +18,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { ProjectIconPicker, parseIconProp, type IconProp } from "@/components/ui/project-icon-picker";
+import { cn } from "@/lib/utils";
+import type { ProjectFeatureKey } from "@/types";
 
 const schema = z.object({
   name: z.string().min(1),
@@ -85,6 +88,42 @@ export function GeneralPage() {
     onError: () => toast.error(t("project.settings.general.saveFailed")),
   });
 
+  /* 아이콘은 폼 바깥에서 별도 PATCH — 즉시 저장 */
+  const iconMutation = useMutation({
+    mutationFn: (next: IconProp) =>
+      projectsApi.update(workspaceSlug!, projectId!, {
+        icon_prop: next as unknown as Record<string, unknown>,
+      }),
+    onSuccess: () => {
+      invalidateProject();
+      qc.invalidateQueries({ queryKey: ["document-spaces", workspaceSlug] });
+    },
+    onError: () => toast.error(t("project.settings.general.saveFailed")),
+  });
+
+  /* 기능 on/off 토글 — 즉시 저장 */
+  const featureMutation = useMutation({
+    mutationFn: (next: Partial<Record<ProjectFeatureKey, boolean>>) =>
+      projectsApi.update(workspaceSlug!, projectId!, {
+        features: next as unknown as Record<string, unknown>,
+      }),
+    onSuccess: () => invalidateProject(),
+    onError: () => toast.error(t("project.settings.general.saveFailed")),
+  });
+  const toggleFeature = (key: ProjectFeatureKey) => {
+    const current = (project?.features ?? {}) as Partial<Record<ProjectFeatureKey, boolean>>;
+    const isOn = current[key] !== false; // 기본값 true
+    featureMutation.mutate({ ...current, [key]: !isOn });
+  };
+
+  /* 요청 승인 정책 — "all" 멤버 누구나, "admin" 관리자만 */
+  const reviewPolicyMutation = useMutation({
+    mutationFn: (next: "all" | "admin") =>
+      projectsApi.update(workspaceSlug!, projectId!, { request_review_policy: next } as any),
+    onSuccess: () => invalidateProject(),
+    onError: () => toast.error(t("project.settings.general.saveFailed")),
+  });
+
   const archiveMutation = useMutation({
     mutationFn: () => projectsApi.archive(workspaceSlug!, projectId!),
     onSuccess: () => {
@@ -130,6 +169,24 @@ export function GeneralPage() {
         onSubmit={handleSubmit((d) => updateMutation.mutate(d))}
         className="space-y-5 max-w-sm"
       >
+        {/* 프로젝트 아이콘 — 기본 아이콘/색상 또는 사용자 지정 이미지 */}
+        <div className="space-y-1.5">
+          <Label>{t("project.settings.general.icon", "프로젝트 아이콘")}</Label>
+          <div className="flex items-center gap-3">
+            <ProjectIconPicker
+              value={(project?.icon_prop ?? parseIconProp(null)) as Record<string, unknown>}
+              onChange={(next) => iconMutation.mutate(next)}
+              size="lg"
+            />
+            <p className="text-xs text-muted-foreground">
+              {t(
+                "project.settings.general.iconHint",
+                "클릭하여 아이콘/색상 변경 또는 사용자 지정 이미지 업로드",
+              )}
+            </p>
+          </div>
+        </div>
+
         <div className="space-y-1.5">
           <Label htmlFor="name">{t("project.settings.general.name")}</Label>
           <Input id="name" {...register("name")} />
@@ -184,6 +241,67 @@ export function GeneralPage() {
           {updateMutation.isPending ? t("project.settings.general.saving") : t("project.settings.general.save")}
         </Button>
       </form>
+
+      {/* ── 기능 on/off — 관리자만 ── */}
+      {isProjectAdmin && (
+        <div className="border-t pt-8 space-y-3">
+          <div>
+            <h2 className="text-sm font-semibold">
+              {t("project.settings.general.featuresTitle", "사용할 기능")}
+            </h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {t(
+                "project.settings.general.featuresHint",
+                "프로젝트에서 쓸 뷰/탭을 선택하세요. 꺼진 기능은 사이드바·뷰 탭에서 숨겨집니다. 표/아카이브/휴지통은 항상 켜져 있습니다.",
+              )}
+            </p>
+          </div>
+          <FeatureToggleList
+            features={(project?.features ?? {}) as Partial<Record<ProjectFeatureKey, boolean>>}
+            onToggle={toggleFeature}
+            pending={featureMutation.isPending}
+          />
+
+          {/* 요청 승인 정책 — 누가 승인/거절 가능한지 */}
+          <div className="mt-6 rounded-lg border bg-card/40 p-4 space-y-2">
+            <p className="text-sm font-medium">{t("project.settings.general.reviewPolicyTitle", "요청 승인 권한")}</p>
+            <p className="text-xs text-muted-foreground">
+              {t(
+                "project.settings.general.reviewPolicyHint",
+                "들어온 요청을 누가 승인/거절할 수 있는지 결정합니다.",
+              )}
+            </p>
+            <div className="inline-flex rounded-md border border-border overflow-hidden mt-2">
+              <button
+                type="button"
+                onClick={() => reviewPolicyMutation.mutate("all")}
+                disabled={reviewPolicyMutation.isPending}
+                className={cn(
+                  "px-3 py-1.5 text-xs transition-colors",
+                  (project?.request_review_policy ?? "all") === "all"
+                    ? "bg-primary/10 text-primary font-medium"
+                    : "text-muted-foreground hover:bg-muted/40"
+                )}
+              >
+                {t("project.settings.general.reviewPolicy.all", "모든 멤버 가능")}
+              </button>
+              <button
+                type="button"
+                onClick={() => reviewPolicyMutation.mutate("admin")}
+                disabled={reviewPolicyMutation.isPending}
+                className={cn(
+                  "px-3 py-1.5 text-xs border-l border-border transition-colors",
+                  project?.request_review_policy === "admin"
+                    ? "bg-primary/10 text-primary font-medium"
+                    : "text-muted-foreground hover:bg-muted/40"
+                )}
+              >
+                {t("project.settings.general.reviewPolicy.admin", "관리자만")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── 위험 구역 — 프로젝트 나가기는 모두, 보관/삭제는 관리자만 ── */}
       <div className="border-t pt-8 space-y-4">
@@ -374,6 +492,73 @@ function IdentifierField({ workspaceSlug, projectId, currentValue }: {
         <p className="text-xs text-destructive">{t("project.settings.general.identifierTaken")}</p>
       )}
       {!changed && <p className="text-xs text-muted-foreground">{t("project.settings.general.identifierHint")}</p>}
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════
+   FeatureToggleList — 프로젝트 기능 on/off 체크박스 리스트
+══════════════════════════════════════════════════ */
+
+const FEATURE_DEFS: { key: ProjectFeatureKey; labelKey: string; descKey: string }[] = [
+  { key: "board",     labelKey: "project.settings.features.board.label",     descKey: "project.settings.features.board.desc" },
+  { key: "backlog",   labelKey: "project.settings.features.backlog.label",   descKey: "project.settings.features.backlog.desc" },
+  { key: "calendar",  labelKey: "project.settings.features.calendar.label",  descKey: "project.settings.features.calendar.desc" },
+  { key: "timeline",  labelKey: "project.settings.features.timeline.label",  descKey: "project.settings.features.timeline.desc" },
+  { key: "graph",     labelKey: "project.settings.features.graph.label",     descKey: "project.settings.features.graph.desc" },
+  { key: "sprints",   labelKey: "project.settings.features.sprints.label",   descKey: "project.settings.features.sprints.desc" },
+  { key: "analytics", labelKey: "project.settings.features.analytics.label", descKey: "project.settings.features.analytics.desc" },
+  { key: "request",   labelKey: "project.settings.features.request.label",   descKey: "project.settings.features.request.desc" },
+];
+
+const DEFAULT_LABELS: Record<ProjectFeatureKey, [string, string]> = {
+  board:     ["보드 뷰",       "칸반 스타일로 상태별 카드 배치"],
+  backlog:   ["백로그 뷰",     "backlog 상태 이슈 모아보기"],
+  calendar:  ["캘린더 뷰",     "기간/이벤트 월/주 단위 표시"],
+  timeline:  ["타임라인 뷰",   "이슈를 간트 차트로 보기"],
+  graph:     ["그래프 뷰",     "이슈 연결 관계망 시각화"],
+  sprints:   ["스프린트",      "스프린트 생성·운영 (번다운 포함)"],
+  analytics: ["통계",          "상태·우선순위·담당자별 차트"],
+  request:   ["요청 보내기",    "버그/기능 요청 접수 페이지"],
+};
+
+function FeatureToggleList({
+  features,
+  onToggle,
+  pending,
+}: {
+  features: Partial<Record<ProjectFeatureKey, boolean>>;
+  onToggle: (key: ProjectFeatureKey) => void;
+  pending: boolean;
+}) {
+  const { t } = useTranslation();
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+      {FEATURE_DEFS.map(({ key, labelKey, descKey }) => {
+        const isOn = features[key] !== false;
+        const [defaultLabel, defaultDesc] = DEFAULT_LABELS[key];
+        return (
+          <label
+            key={key}
+            className={
+              "flex items-start gap-3 rounded-lg border glass p-3 cursor-pointer select-none transition-colors " +
+              (pending ? "opacity-70 cursor-wait " : "hover:bg-muted/20 ")
+            }
+          >
+            <input
+              type="checkbox"
+              checked={isOn}
+              onChange={() => !pending && onToggle(key)}
+              disabled={pending}
+              className="mt-0.5 h-4 w-4 accent-primary cursor-pointer"
+            />
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-medium">{t(labelKey, defaultLabel)}</div>
+              <div className="text-2xs text-muted-foreground mt-0.5">{t(descKey, defaultDesc)}</div>
+            </div>
+          </label>
+        );
+      })}
     </div>
   );
 }

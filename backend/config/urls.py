@@ -4,6 +4,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from apps.accounts.setup_views import SetupStatusView, SetupView
+from apps.accounts.views import IconUploadView
 from apps.workspaces.views import InvitationDetailView, InvitationAcceptView
 from config.version import VersionView
 
@@ -25,4 +26,6 @@ urlpatterns = [
     # 초기 설정 엔드포인트 (인증 불필요)
     path("api/setup/status/", SetupStatusView.as_view(), name="setup-status"),
     path("api/setup/", SetupView.as_view(), name="setup"),
+    # 아이콘 이미지 업로드 — 프로젝트/카테고리/스페이스 공용 사용자 지정 아이콘
+    path("api/icons/upload/", IconUploadView.as_view(), name="icon-upload"),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

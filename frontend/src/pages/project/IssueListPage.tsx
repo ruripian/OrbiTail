@@ -164,7 +164,7 @@ export function IssueListPage() {
                       {issue.assignee_details.length > 0 && (
                         <div className="flex -space-x-1 shrink-0">
                           {issue.assignee_details.slice(0, 3).map((a) => (
-                            <AvatarInitials key={a.id} name={a.display_name} size="xs" ring title={a.display_name} />
+                            <AvatarInitials key={a.id} name={a.display_name} avatar={a.avatar} size="xs" ring title={a.display_name} />
                           ))}
                         </div>
                       )}

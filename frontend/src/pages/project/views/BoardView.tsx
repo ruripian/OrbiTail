@@ -186,7 +186,7 @@ export function BoardView({ workspaceSlug, projectId, onIssueClick, issueFilter,
                       {issue.assignee_details.length > 0 ? (
                         <div className="flex -space-x-1">
                           {issue.assignee_details.slice(0, 3).map((a) => (
-                            <AvatarInitials key={a.id} name={a.display_name} size="xs" ring title={a.display_name} />
+                            <AvatarInitials key={a.id} name={a.display_name} avatar={a.avatar} size="xs" ring title={a.display_name} />
                           ))}
                           {issue.assignee_details.length > 3 && (
                             <span className="h-5 w-5 rounded-full bg-muted text-3xs flex items-center justify-center border-2 border-background text-muted-foreground">

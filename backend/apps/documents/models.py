@@ -106,7 +106,9 @@ class Document(models.Model):
 
     class Meta:
         db_table = "documents"
-        ordering = ["-is_folder", "sort_order", "created_at"]
+        # 사용자 드래그 순서만 존중 — 폴더/문서 구분 없이 sort_order 순.
+        # 동점일 때만 생성 시각으로 안정 정렬.
+        ordering = ["sort_order", "created_at"]
         indexes = [
             models.Index(fields=["space", "parent", "sort_order"]),
             models.Index(fields=["space", "deleted_at"]),

@@ -1,8 +1,11 @@
+import logging
 from datetime import timedelta
 
 from django.conf import settings
 from django.core.mail import send_mail
 from django.utils import timezone
+
+logger = logging.getLogger(__name__)
 from rest_framework import generics, permissions, status
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
@@ -135,15 +138,73 @@ class MeView(generics.RetrieveUpdateAPIView):
 
     def perform_update(self, serializer):
         # avatar 필드가 변경된 경우 기존 파일은 물리 삭제 (mediafiles 누적 방지)
+        import os
+        import uuid
+
         SENTINEL = object()
         old_avatar = serializer.instance.avatar if serializer.instance.avatar else None
         new_avatar = serializer.validated_data.get("avatar", SENTINEL)
+
+        # 업로드 직전 파일명을 UUID 로 교체 — 같은 원본명(avatar.jpg) 이 여러 유저에서
+        # 충돌하거나 덮어쓰이지 않도록 보장
+        if new_avatar is not SENTINEL and new_avatar is not None and hasattr(new_avatar, "name"):
+            ext = os.path.splitext(new_avatar.name)[1].lower() or ".jpg"
+            new_avatar.name = f"{uuid.uuid4().hex}{ext}"
+
         serializer.save()
         if new_avatar is not SENTINEL and old_avatar and old_avatar != new_avatar:
             try:
                 old_avatar.delete(save=False)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("avatar 구파일 삭제 실패 user=%s: %s", serializer.instance.pk, exc)
+
+
+
+class IconUploadView(APIView):
+    """사용자 지정 아이콘 업로드 — 프로젝트/카테고리/스페이스 등 아이콘 선택기에서 공용으로 사용.
+
+    요청: multipart/form-data, field=file (이미지 파일, 5MB 이하)
+    응답: { "url": "/media/icons/<uuid>.jpg" }
+
+    저장 파일은 업로더 ID 메타 없이 media 에 놓이고, icon_prop JSON({type:"image", url}) 으로 참조됨.
+    화이트리스트 확장자만 허용하고 MIME 시작 패턴만 가볍게 검증 (실제 유효 이미지 검증은 Pillow).
+    """
+    parser_classes = [MultiPartParser]
+
+    MAX_SIZE = 5 * 1024 * 1024  # 5MB
+    ALLOWED_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".svg"}
+
+    def post(self, request):
+        import os
+        import uuid
+        from django.core.files.storage import default_storage
+        from django.core.files.base import ContentFile
+
+        file_obj = request.FILES.get("file")
+        if file_obj is None:
+            return Response({"detail": "file 필드가 필요합니다."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if file_obj.size > self.MAX_SIZE:
+            return Response(
+                {"detail": f"이미지는 {self.MAX_SIZE // (1024 * 1024)}MB 이하만 업로드할 수 있습니다."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        ext = os.path.splitext(file_obj.name)[1].lower()
+        if ext not in self.ALLOWED_EXTS:
+            return Response({"detail": "허용되지 않는 이미지 형식입니다."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # MIME 은 환경 따라 들쭉날쭉하므로 image/ 로 시작하거나 비어 있으면 통과
+        ct = getattr(file_obj, "content_type", "") or ""
+        if ct and not ct.startswith("image/"):
+            return Response({"detail": "이미지 파일만 업로드할 수 있습니다."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 랜덤 파일명으로 저장 — 원본명은 보존하지 않음 (추후 추적 필요 없음)
+        name = f"icons/{uuid.uuid4().hex}{ext}"
+        saved_path = default_storage.save(name, ContentFile(file_obj.read()))
+        url = settings.MEDIA_URL + saved_path
+
+        return Response({"url": url}, status=status.HTTP_201_CREATED)
 
 
 class DeleteAccountView(APIView):

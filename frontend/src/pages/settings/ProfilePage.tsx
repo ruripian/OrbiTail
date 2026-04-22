@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useRef, useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -11,6 +11,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { AvatarCropDialog } from "@/components/ui/avatar-crop-dialog";
 
 export function ProfilePage() {
   const { t } = useTranslation();
@@ -48,10 +49,24 @@ export function ProfilePage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const MAX_AVATAR_SIZE = 5 * 1024 * 1024;
 
+  // 크롭 다이얼로그 — 파일 선택 시 objectURL 을 만들어 넘기고, 닫힐 때 해제.
+  const [cropSrc, setCropSrc] = useState<string | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (cropSrc) URL.revokeObjectURL(cropSrc);
+    };
+  }, [cropSrc]);
+
   const avatarUploadMutation = useMutation({
-    mutationFn: (file: File) => settingsApi.uploadAvatar(file),
+    mutationFn: (file: File | Blob) => {
+      // Blob 인 경우 File 로 래핑 (파일명/확장자 보존)
+      const f = file instanceof File ? file : new File([file], "avatar.jpg", { type: "image/jpeg" });
+      return settingsApi.uploadAvatar(f);
+    },
     onSuccess: (updated) => {
       updateUser(updated);
+      setCropSrc(null);
       toast.success(t("settings.profile.avatarUpdated", "프로필 사진이 변경되었습니다."));
     },
     onError: () =>
@@ -80,7 +95,8 @@ export function ProfilePage() {
       toast.error(t("settings.profile.avatarTooLarge", "5MB 이하 이미지만 업로드할 수 있습니다."));
       return;
     }
-    avatarUploadMutation.mutate(file);
+    // 크롭 다이얼로그로 이미지 넘김 — 확정 시 blob 업로드
+    setCropSrc(URL.createObjectURL(file));
   };
 
   return (
@@ -192,6 +208,19 @@ export function ProfilePage() {
         />
         <p className="text-xs text-muted-foreground">{t("settings.profile.emailReadOnly")}</p>
       </div>
+
+      {/* ── 프로필 사진 크롭 다이얼로그 ── */}
+      {cropSrc && (
+        <AvatarCropDialog
+          open={!!cropSrc}
+          onOpenChange={(o) => {
+            if (!o) setCropSrc(null);
+          }}
+          imageSrc={cropSrc}
+          isPending={avatarUploadMutation.isPending}
+          onConfirm={(blob) => avatarUploadMutation.mutate(blob)}
+        />
+      )}
     </div>
   );
 }

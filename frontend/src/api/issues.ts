@@ -299,7 +299,7 @@ export const issuesApi = {
 
   /** 이슈에 연결된 문서 조회 */
   documentLinks: (workspaceSlug: string, projectId: string, issueId: string) =>
-    api.get<{ id: string; document_id: string; document_title: string; document_icon: string; space_id: string }[]>(
+    api.get<{ id: string; document_id: string; document_title: string; document_icon_prop: unknown; space_id: string; created_at: string }[]>(
       `/workspaces/${workspaceSlug}/projects/${projectId}/issues/${issueId}/documents/`,
     ).then((r) => r.data),
 };

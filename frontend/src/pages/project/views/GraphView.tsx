@@ -9,7 +9,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { issuesApi } from "@/api/issues";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
@@ -47,9 +47,9 @@ interface Props {
 
 export function GraphView({ workspaceSlug, projectId, onIssueClick }: Props) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [, setSearchParams] = useSearchParams();
 
-  const [showLabelEdges, setShowLabelEdges] = useState(true);
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -57,9 +57,10 @@ export function GraphView({ workspaceSlug, projectId, onIssueClick }: Props) {
   const [, forceTick] = useState(0);
   const rafRef = useRef<number | null>(null);
 
+  // 라벨 기반 자동 엣지 제외 — 수동 node-link 만 표시. 라벨은 카테고리화 용도라 관계망과 역할 분리.
   const { data, isLoading } = useQuery({
-    queryKey: ["node-graph", workspaceSlug, projectId, showLabelEdges],
-    queryFn: () => issuesApi.nodeGraph(workspaceSlug, projectId, { includeLabelEdges: showLabelEdges }),
+    queryKey: ["node-graph", workspaceSlug, projectId, "manual"],
+    queryFn: () => issuesApi.nodeGraph(workspaceSlug, projectId, { manualOnly: true, includeLabelEdges: false }),
     enabled: !!workspaceSlug && !!projectId,
   });
 
@@ -84,16 +85,21 @@ export function GraphView({ workspaceSlug, projectId, onIssueClick }: Props) {
     forceTick((x) => x + 1);
   }, [data]);
 
+  // 드래그/줌 조작 시 시뮬레이션 재기동 신호
+  const [simKick, setSimKick] = useState(0);
+
   useEffect(() => {
     if (!data) return;
     let running = true;
+    // 초기 온도는 1에서 시작해 서서히 식지만, 최소 온도를 유지해 Obsidian 처럼 끊임없이 미세 진동.
     let temperature = 1;
     const REPULSION = 8000;
     const IDEAL_LEN = 140;
     const SPRING = 0.04;
-    const LABEL_SPRING = 0.012;
     const CENTER_PULL = 0.002;
-    const DAMPING = 0.82;
+    const DAMPING = 0.86;
+    // 최소 온도 — 0 이면 완전히 정지. 작지만 0 이 아니어서 영구적으로 살짝 떠다님.
+    const MIN_TEMP = 0.08;
 
     const step = () => {
       if (!running) return;
@@ -120,7 +126,7 @@ export function GraphView({ workspaceSlug, projectId, onIssueClick }: Props) {
         const dx = tgt.x - s.x;
         const dy = tgt.y - s.y;
         const d = Math.sqrt(dx * dx + dy * dy) + 0.01;
-        const f = (d - IDEAL_LEN) * (e.link_type === "shared_label" ? LABEL_SPRING : SPRING);
+        const f = (d - IDEAL_LEN) * SPRING;
         const fx = (dx / d) * f;
         const fy = (dy / d) * f;
         s.vx += fx;
@@ -145,7 +151,8 @@ export function GraphView({ workspaceSlug, projectId, onIssueClick }: Props) {
         n.x += Math.max(-30, Math.min(30, n.vx));
         n.y += Math.max(-30, Math.min(30, n.vy));
       }
-      temperature = Math.max(0.02, temperature * 0.995);
+      // Obsidian 스타일 — 완전 정지하지 않고 MIN_TEMP 에서 계속 미세 요동
+      temperature = Math.max(MIN_TEMP, temperature * 0.996);
       forceTick((x) => (x + 1) % 1000);
       rafRef.current = requestAnimationFrame(step);
     };
@@ -154,7 +161,7 @@ export function GraphView({ workspaceSlug, projectId, onIssueClick }: Props) {
       running = false;
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [data]);
+  }, [data, simKick]);
 
   const [drag, setDrag] = useState<{ nodeId: string } | null>(null);
   const [panStart, setPanStart] = useState<{ x: number; y: number; origX: number; origY: number } | null>(null);
@@ -180,6 +187,7 @@ export function GraphView({ workspaceSlug, projectId, onIssueClick }: Props) {
       }
     };
     const onUp = () => {
+      if (drag) setSimKick((k) => k + 1);
       setDrag(null);
       setPanStart(null);
     };
@@ -206,26 +214,23 @@ export function GraphView({ workspaceSlug, projectId, onIssueClick }: Props) {
   const edges = data?.edges ?? [];
 
   const openIssue = (id: string) => {
-    if (onIssueClick) onIssueClick(id);
-    else setSearchParams((sp) => { sp.set("issue", id); return sp; });
+    if (onIssueClick) return onIssueClick(id);
+    const node = nodesRef.current.get(id);
+    // 다른 프로젝트 이슈면 해당 프로젝트 URL 로 이동해야 패널이 열림
+    if (node && node.project_id && node.project_id !== projectId) {
+      navigate(`/${workspaceSlug}/projects/${node.project_id}/issues?issue=${id}`);
+    } else {
+      setSearchParams((sp) => { sp.set("issue", id); return sp; });
+    }
   };
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <div className="flex items-center gap-3 px-5 h-10 border-b border-border shrink-0 shrink-0">
+      <div className="flex items-center gap-3 px-5 h-10 border-b border-border shrink-0">
         <span className="text-xs text-muted-foreground">
           {nodes.length}개 노드 · {edges.length}개 연결
         </span>
         <div className="flex-1" />
-        <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
-          <input
-            type="checkbox"
-            className="h-3.5 w-3.5 accent-primary"
-            checked={showLabelEdges}
-            onChange={(e) => setShowLabelEdges(e.target.checked)}
-          />
-          {t("graph.showLabelEdges", "라벨 기반 자동 연결 보기")}
-        </label>
         <Button variant="ghost" size="sm" onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }}>
           {t("graph.resetView", "리셋")}
         </Button>
@@ -261,8 +266,6 @@ export function GraphView({ workspaceSlug, projectId, onIssueClick }: Props) {
               const s = nodesRef.current.get(e.source);
               const tgt = nodesRef.current.get(e.target);
               if (!s || !tgt) return null;
-              const isLabel = e.link_type === "shared_label";
-              const stroke = isLabel ? (e.label_color || "#a3a3a3") : "#64748b";
               return (
                 <line
                   key={e.id}
@@ -270,10 +273,9 @@ export function GraphView({ workspaceSlug, projectId, onIssueClick }: Props) {
                   y1={s.y}
                   x2={tgt.x}
                   y2={tgt.y}
-                  stroke={stroke}
-                  strokeWidth={isLabel ? 1.2 : 2}
-                  strokeDasharray={isLabel ? "3 3" : undefined}
-                  opacity={isLabel ? 0.45 : 0.8}
+                  stroke="#64748b"
+                  strokeWidth={2}
+                  opacity={0.8}
                 />
               );
             })}
@@ -293,6 +295,8 @@ export function GraphView({ workspaceSlug, projectId, onIssueClick }: Props) {
                   onDoubleClick={() => {
                     n.fx = null;
                     n.fy = null;
+                    // unpin 이후 레이아웃 재배치를 위해 시뮬 재개
+                    setSimKick((k) => k + 1);
                   }}
                   onClick={() => openIssue(n.id)}
                   className="cursor-pointer"

@@ -59,6 +59,7 @@ class ProjectSerializer(serializers.ModelSerializer):
             "is_member", "user_role",
             "member_ids",
             "archived_at", "auto_archive_days",
+            "features", "request_review_policy",
             "created_at",
         ]
         # workspace와 created_by는 view의 perform_create에서 URL/인증 정보로 주입

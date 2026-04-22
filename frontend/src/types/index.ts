@@ -95,8 +95,48 @@ export interface Project {
   user_role: 10 | 15 | 20 | null;
   archived_at: string | null;
   auto_archive_days: number | null;
+  /** 기능 on/off — 키 누락 또는 true 면 활성, false 면 비활성. core 뷰(table/archive/trash)는 항상 활성 */
+  features?: Partial<Record<ProjectFeatureKey, boolean>> | null;
+  /** 요청 승인 정책 — "all" 이면 멤버 누구나, "admin" 이면 관리자만 */
+  request_review_policy?: "all" | "admin";
   created_at: string;
 }
+
+/** 제출된 버그/기능 요청 — 승인 전까지 이슈와 별도 관리 */
+export interface IssueRequest {
+  id: string;
+  project: string;
+  project_identifier?: string;
+  workspace: string;
+  kind: "bug" | "feature";
+  status: "pending" | "approved" | "rejected";
+  visibility: "public" | "private";
+  title: string;
+  description_html: string;
+  priority: Priority;
+  meta: Record<string, unknown>;
+  submitted_by: string | null;
+  submitted_by_detail?: User | null;
+  reviewer: string | null;
+  reviewer_detail?: User | null;
+  reviewed_at: string | null;
+  approved_issue: string | null;
+  approved_issue_sequence_id?: number | null;
+  rejected_reason: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/** 프로젝트별 toggle 가능한 기능/뷰 키 — core(table/archive/trash)는 항상 활성이라 여기 포함 안 됨 */
+export type ProjectFeatureKey =
+  | "board"
+  | "backlog"
+  | "calendar"
+  | "timeline"
+  | "graph"
+  | "sprints"
+  | "analytics"
+  | "request";
 
 export interface ProjectMember {
   id: string;
@@ -300,9 +340,11 @@ export interface IssueNodeLink {
   note: string;
   source_title?: string;
   source_sequence_id?: number;
+  source_project_id?: string;
   source_project_identifier?: string;
   target_title?: string;
   target_sequence_id?: number;
+  target_project_id?: string;
   target_project_identifier?: string;
   created_by?: string;
   created_at?: string;

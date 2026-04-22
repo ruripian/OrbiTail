@@ -280,9 +280,13 @@ export function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="flex items-center gap-2.5 rounded-xl px-3 py-1.5 hover:bg-accent transition-all duration-150 outline-none group">
-                {/* 아바타 */}
-                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/20 text-sm font-bold text-primary ring-2 ring-primary/20 group-hover:ring-primary/40 transition-all">
-                  {user.display_name[0].toUpperCase()}
+                {/* 아바타 — 이미지 있으면 표시, 없으면 이니셜 */}
+                <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-xl bg-primary/20 text-sm font-bold text-primary ring-2 ring-primary/20 group-hover:ring-primary/40 transition-all">
+                  {user.avatar ? (
+                    <img src={user.avatar} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    user.display_name[0].toUpperCase()
+                  )}
                 </div>
                 {/* 표시 이름 */}
                 <div className="hidden sm:flex flex-col items-start">
@@ -301,8 +305,12 @@ export function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
               {/* 유저 정보 헤더 */}
               <DropdownMenuLabel className="font-normal px-3 py-2">
                 <div className="flex items-center gap-2.5">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/20 text-sm font-bold text-primary ring-2 ring-primary/20 shrink-0">
-                    {user.display_name[0].toUpperCase()}
+                  <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl bg-primary/20 text-sm font-bold text-primary ring-2 ring-primary/20 shrink-0">
+                    {user.avatar ? (
+                      <img src={user.avatar} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      user.display_name[0].toUpperCase()
+                    )}
                   </div>
                   <div className="flex flex-col min-w-0">
                     <span className="text-sm font-semibold text-foreground truncate">{user.display_name}</span>

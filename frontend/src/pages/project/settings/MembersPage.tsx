@@ -259,7 +259,7 @@ export function MembersPage() {
 function SearchableMemberAdd({
   available, addUserId, setAddUserId, onAdd, isPending, t,
 }: {
-  available: { member: { id: string; display_name: string; email: string } }[];
+  available: { member: { id: string; display_name: string; email: string; avatar?: string | null } }[];
   addUserId: string;
   setAddUserId: (id: string) => void;
   onAdd: (id: string) => void;
@@ -309,7 +309,7 @@ function SearchableMemberAdd({
         >
           {selected ? (
             <span className="flex items-center gap-2 truncate">
-              <AvatarInitials name={selected.member.display_name} size="xs" />
+              <AvatarInitials name={selected.member.display_name} avatar={selected.member.avatar} size="xs" />
               {selected.member.display_name}
             </span>
           ) : (
@@ -349,7 +349,7 @@ function SearchableMemberAdd({
                     }}
                     className="flex w-full items-center gap-2.5 px-3 py-1.5 text-sm hover:bg-muted/50 cursor-pointer transition-colors"
                   >
-                    <AvatarInitials name={wm.member.display_name} size="sm" />
+                    <AvatarInitials name={wm.member.display_name} avatar={wm.member.avatar} size="sm" />
                     <div className="flex-1 min-w-0 text-left">
                       <div className="text-xs font-medium truncate">{wm.member.display_name}</div>
                       <div className="text-2xs text-muted-foreground truncate">{wm.member.email}</div>

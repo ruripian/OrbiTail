@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -15,6 +15,9 @@ export function WorkspaceSelectPage() {
   const qc = useQueryClient();
   const { setCurrentWorkspace } = useWorkspaceStore();
   const user = useAuthStore((s) => s.user);
+  // ?switch=1 쿼리가 있으면 "명시적 전환" 의도 — 워크스페이스가 1개뿐이어도 자동 진입 안 함
+  const [searchParams] = useSearchParams();
+  const explicitSwitch = searchParams.get("switch") === "1";
 
   const { data: workspaces = [], isLoading } = useQuery({
     queryKey: ["workspaces"],
@@ -45,12 +48,14 @@ export function WorkspaceSelectPage() {
 
   useEffect(() => {
     if (isLoading) return;
-    // 워크스페이스가 정확히 1개만 있을 때만 자동 진입 (슈퍼어드민이어도 생성 페이지 자동 이동 안 함 — flicker 방지)
+    // 명시적 전환 의도(?switch=1)면 자동 진입 생략 — 전환 페이지로 왔는데 바로 되돌아가는 flicker 방지
+    if (explicitSwitch) return;
+    // 워크스페이스가 정확히 1개만 있을 때만 자동 진입
     if (workspaces.length === 1) {
       setCurrentWorkspace(workspaces[0]);
       navigate(`/${workspaces[0].slug}`, { replace: true });
     }
-  }, [workspaces, isLoading]);
+  }, [workspaces, isLoading, explicitSwitch]);
 
   if (isLoading) return <div className="flex items-center justify-center h-screen">{t("workspaceSelect.loading")}</div>;
 

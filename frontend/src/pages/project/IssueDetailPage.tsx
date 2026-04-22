@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ChevronLeft, Plus, Trash2, GitBranch, MessageSquare, Activity, Send, Link2, ExternalLink, X, AlertTriangle, Paperclip, Upload, FileText, Image as ImageIcon, Copy, Archive, RotateCcw, Share2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Trash2, GitBranch, MessageSquare, Activity, Send, Link2, ExternalLink, X, AlertTriangle, Paperclip, Upload, FileText, Image as ImageIcon, Copy, Archive, RotateCcw, Share2 } from "lucide-react";
 import { toast } from "sonner";
 import { issuesApi } from "@/api/issues";
 import { projectsApi } from "@/api/projects";
@@ -656,6 +656,7 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
         {activeTab === "nodes" && (
           <NodeLinksPane
             workspaceSlug={workspaceSlug!}
+            projectId={projectId!}
             issueId={issueId!}
             nodeLinks={nodeLinks}
             nodeLinkType={nodeLinkType}
@@ -743,7 +744,7 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
 
             {comments.map((comment) => (
               <div key={comment.id} className="flex gap-3">
-                <AvatarInitials name={comment.actor_detail?.display_name} size="md" />
+                <AvatarInitials name={comment.actor_detail?.display_name} avatar={comment.actor_detail?.avatar} size="md" />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-xs font-medium">{comment.actor_detail?.display_name}</span>
@@ -1076,7 +1077,7 @@ function LinkedDocumentsSection({ issueId, workspaceSlug, projectId }: { issueId
  *  트리 경계를 넘는 자유 연결. 검색 → 선택 → 연결 타입 지정.
  */
 const LINK_TYPE_LABEL: Record<string, string> = {
-  relates_to: "관련됨",
+  relates_to: "연결",     // 기본 — 단순 "관련" 관계
   blocks: "블록함",
   blocked_by: "블록됨",
   duplicates: "중복",
@@ -1088,6 +1089,7 @@ type NodeLinkType = "relates_to" | "blocks" | "blocked_by" | "duplicates" | "ref
 
 function NodeLinksPane({
   workspaceSlug,
+  projectId,
   issueId,
   nodeLinks,
   nodeLinkType,
@@ -1099,6 +1101,7 @@ function NodeLinksPane({
   readOnly,
 }: {
   workspaceSlug: string;
+  projectId: string;
   issueId: string;
   nodeLinks: import("@/types").IssueNodeLink[];
   nodeLinkType: NodeLinkType;
@@ -1111,6 +1114,7 @@ function NodeLinksPane({
 }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const [, setSearchParams] = useSearchParams();
 
   const { data: searchResults = [] } = useQuery({
     queryKey: ["issue-search", workspaceSlug, nodeLinkSearch],
@@ -1144,7 +1148,13 @@ function NodeLinksPane({
               className="flex-1 text-left min-w-0"
               onClick={() => {
                 const otherId = isOutgoing ? nl.target : nl.source;
-                navigate(`/${workspaceSlug}/issues/search?issue=${otherId}`);
+                const otherProjectId = isOutgoing ? nl.target_project_id : nl.source_project_id;
+                // 같은 프로젝트면 현재 패널 내에서 이슈 전환, 다른 프로젝트면 해당 프로젝트로 이동
+                if (otherProjectId && otherProjectId !== projectId) {
+                  navigate(`/${workspaceSlug}/projects/${otherProjectId}/issues?issue=${otherId}`);
+                } else {
+                  setSearchParams((sp) => { sp.set("issue", otherId); return sp; });
+                }
               }}
               title={targetLabel ?? ""}
             >
@@ -1168,28 +1178,38 @@ function NodeLinksPane({
 
       {!readOnly && (
         <div className="border rounded-md p-3 space-y-2">
-          <div className="flex items-center gap-2">
-            <span className="text-2xs text-muted-foreground shrink-0">
-              {t("issues.detail.nodes.type", "타입")}
-            </span>
-            <select
-              className="text-xs bg-transparent border border-border rounded px-2 py-1"
-              value={nodeLinkType}
-              onChange={(e) => setNodeLinkType(e.target.value as NodeLinkType)}
-            >
-              <option value="relates_to">관련됨</option>
-              <option value="blocks">블록함</option>
-              <option value="blocked_by">블록됨</option>
-              <option value="duplicates">중복</option>
-              <option value="references">참조</option>
-            </select>
-          </div>
           <input
             className="w-full text-xs bg-transparent border-b border-border outline-none pb-1 placeholder:text-muted-foreground"
             placeholder={t("issues.detail.nodes.searchPlaceholder", "이슈 제목으로 검색 (2자 이상)")}
             value={nodeLinkSearch}
             onChange={(e) => setNodeLinkSearch(e.target.value)}
           />
+          {/* 타입은 고급 옵션 — 기본 "연결" 로 단순화. 필요한 경우에만 펼쳐서 블록/중복/참조 선택 */}
+          <details className="group">
+            <summary className="text-2xs text-muted-foreground/70 cursor-pointer hover:text-muted-foreground list-none flex items-center gap-1">
+              <ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90" />
+              {nodeLinkType === "relates_to"
+                ? t("issues.detail.nodes.typeAdvanced", "타입 변경 (현재: 연결)")
+                : `현재 타입: ${LINK_TYPE_LABEL[nodeLinkType] ?? nodeLinkType}`}
+            </summary>
+            <div className="flex flex-wrap gap-1 mt-1.5">
+              {(["relates_to", "blocks", "blocked_by", "duplicates", "references"] as NodeLinkType[]).map((k) => (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => setNodeLinkType(k)}
+                  className={cn(
+                    "text-2xs px-2 py-0.5 rounded border transition-colors",
+                    nodeLinkType === k
+                      ? "bg-primary/10 border-primary/40 text-primary font-medium"
+                      : "border-border text-muted-foreground hover:bg-muted/50"
+                  )}
+                >
+                  {k === "relates_to" ? "연결" : LINK_TYPE_LABEL[k] ?? k}
+                </button>
+              ))}
+            </div>
+          </details>
           {nodeLinkSearch.trim().length >= 2 && (
             <div className="max-h-48 overflow-y-auto border rounded">
               {searchResults.length === 0 ? (
@@ -1198,9 +1218,13 @@ function NodeLinksPane({
                 </p>
               ) : (
                 searchResults.slice(0, 20).map((r: import("@/types").IssueSearchResult) => {
+                  // 자기 자신 또는 같은 link_type 으로 이미 연결된 경우만 비활성 — DB unique = (source, target, link_type)
+                  // 같은 쌍에 다른 타입은 허용하므로 타입까지 비교해서 중복 판정
                   const alreadyLinked =
                     r.id === issueId ||
-                    nodeLinks.some((nl: import("@/types").IssueNodeLink) => nl.source === r.id || nl.target === r.id);
+                    nodeLinks.some((nl: import("@/types").IssueNodeLink) =>
+                      (nl.source === r.id || nl.target === r.id) && nl.link_type === nodeLinkType
+                    );
                   return (
                     <button
                       key={r.id}

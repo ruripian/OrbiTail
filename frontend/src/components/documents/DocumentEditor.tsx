@@ -10,6 +10,7 @@ import mermaid from "mermaid";
 import { MathExtension } from "@aarkue/tiptap-math-extension";
 import { useAuthStore } from "@/stores/authStore";
 import { useTranslation } from "react-i18next";
+import { useQuery } from "@tanstack/react-query";
 import { useEditor, EditorContent, NodeViewWrapper, NodeViewContent, ReactNodeViewRenderer, type NodeViewProps, type Editor } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import { computePosition, autoUpdate, offset, flip, shift } from "@floating-ui/dom";
@@ -46,7 +47,9 @@ import {
   Search, X, ArrowUp, ArrowDown, Replace,
   Sigma, Workflow, Columns2, Columns3, Columns4, Tag, FolderTree,
   AtSign, User as UserIcon, Hash,
-  Rows3, Columns as ColumnsIcon, Merge, Split, Trash2,
+  Merge, Split, Trash2,
+  ArrowLeftToLine, ArrowRightToLine, ArrowUpToLine, ArrowDownToLine,
+  PanelTop, PanelLeft,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -574,9 +577,24 @@ function MentionView({ node }: NodeViewProps) {
     });
   }, [subExpanded, subIssues.length, ctx?.workspaceSlug, ctx?.projectId, id]);
 
+  // 유저 멘션은 워크스페이스 멤버 캐시에서 현재 아바타를 조회해 최신 상태로 표시
+  const { data: wsMembers } = useQuery({
+    queryKey: ["workspace-members", ctx?.workspaceSlug],
+    queryFn: () => import("@/api/workspaces").then(({ workspacesApi }) => workspacesApi.members(ctx!.workspaceSlug!)),
+    enabled: kind === "user" && !!ctx?.workspaceSlug,
+    staleTime: 60_000,
+  });
+  const mentionedUser = kind === "user" && wsMembers
+    ? wsMembers.find((m) => m.member.id === id)?.member
+    : undefined;
+
   const Body = (
     <span className={cn("doc-mention", `doc-mention-${kind}`)}>
-      {kind === "user" && <AtSign className="h-3 w-3" />}
+      {kind === "user" && (
+        mentionedUser?.avatar
+          ? <img src={mentionedUser.avatar} alt="" className="doc-mention-avatar" />
+          : <AtSign className="h-3 w-3" />
+      )}
       {kind === "doc"  && <FileText className="h-3 w-3" />}
       {kind === "issue" && <span className="doc-mention-id">{identifier}</span>}
       <span className="doc-mention-label">{label}</span>
@@ -2065,6 +2083,26 @@ function ColorPalette({ colors, onPick, onClear, onClose }: {
 }
 
 /* ── 테이블 전용 BubbleMenu ── */
+/* 삭제 전용 아이콘 — 얇은 사각형(열/행 모양) 안에 × 표기. 삽입 아이콘(arrow-to-line)과 구분됨 */
+function IconColDelete() {
+  return (
+    <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={1.4} strokeLinecap="round">
+      <rect x="6" y="2" width="4" height="12" rx="0.5" />
+      <line x1="6.75" y1="6.5" x2="9.25" y2="9.5" />
+      <line x1="9.25" y1="6.5" x2="6.75" y2="9.5" />
+    </svg>
+  );
+}
+function IconRowDelete() {
+  return (
+    <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={1.4} strokeLinecap="round">
+      <rect x="2" y="6" width="12" height="4" rx="0.5" />
+      <line x1="6.5" y1="6.75" x2="9.5" y2="9.25" />
+      <line x1="9.5" y1="6.75" x2="6.5" y2="9.25" />
+    </svg>
+  );
+}
+
 function TableBubbleMenu({ editor }: { editor: Editor }) {
   return (
     <BubbleMenu
@@ -2077,44 +2115,47 @@ function TableBubbleMenu({ editor }: { editor: Editor }) {
     >
       <div className="flex items-center gap-0.5 rounded-xl border bg-popover shadow-xl px-1 py-1"
         onMouseDown={(e) => e.preventDefault()}>
-        <BMBtn onClick={() => editor.chain().focus().addColumnBefore().run()} title="Column before">
-          <span className="text-xs font-semibold">+◀</span>
+        {/* 열 조작 — arrow-to-line 으로 "이쪽 방향에 삽입" 명시 */}
+        <BMBtn onClick={() => editor.chain().focus().addColumnBefore().run()} title="왼쪽에 열 추가">
+          <ArrowLeftToLine className="h-3.5 w-3.5" />
         </BMBtn>
-        <BMBtn onClick={() => editor.chain().focus().addColumnAfter().run()} title="Column after">
-          <span className="text-xs font-semibold">▶+</span>
+        <BMBtn onClick={() => editor.chain().focus().addColumnAfter().run()} title="오른쪽에 열 추가">
+          <ArrowRightToLine className="h-3.5 w-3.5" />
         </BMBtn>
-        <BMBtn onClick={() => editor.chain().focus().deleteColumn().run()} title="Delete column">
-          <ColumnsIcon className="h-3.5 w-3.5" />
-        </BMBtn>
-        <BMSep />
-        <BMBtn onClick={() => editor.chain().focus().addRowBefore().run()} title="Row before">
-          <span className="text-xs font-semibold">+▲</span>
-        </BMBtn>
-        <BMBtn onClick={() => editor.chain().focus().addRowAfter().run()} title="Row after">
-          <span className="text-xs font-semibold">▼+</span>
-        </BMBtn>
-        <BMBtn onClick={() => editor.chain().focus().deleteRow().run()} title="Delete row">
-          <Rows3 className="h-3.5 w-3.5" />
+        <BMBtn onClick={() => editor.chain().focus().deleteColumn().run()} title="열 삭제">
+          <IconColDelete />
         </BMBtn>
         <BMSep />
-        <BMBtn onClick={() => editor.chain().focus().toggleHeaderRow().run()} title="Toggle header row">
-          <span className="text-xs font-bold">H↔</span>
+        {/* 행 조작 */}
+        <BMBtn onClick={() => editor.chain().focus().addRowBefore().run()} title="위에 행 추가">
+          <ArrowUpToLine className="h-3.5 w-3.5" />
         </BMBtn>
-        <BMBtn onClick={() => editor.chain().focus().toggleHeaderColumn().run()} title="Toggle header column">
-          <span className="text-xs font-bold">H↕</span>
+        <BMBtn onClick={() => editor.chain().focus().addRowAfter().run()} title="아래에 행 추가">
+          <ArrowDownToLine className="h-3.5 w-3.5" />
+        </BMBtn>
+        <BMBtn onClick={() => editor.chain().focus().deleteRow().run()} title="행 삭제">
+          <IconRowDelete />
         </BMBtn>
         <BMSep />
-        <BMBtn onClick={() => editor.chain().focus().mergeCells().run()} title="Merge cells">
+        {/* 헤더 — PanelTop/PanelLeft 로 "윗 행/왼쪽 열 하이라이트" 비주얼 */}
+        <BMBtn onClick={() => editor.chain().focus().toggleHeaderRow().run()} title="헤더 행 토글">
+          <PanelTop className="h-3.5 w-3.5" />
+        </BMBtn>
+        <BMBtn onClick={() => editor.chain().focus().toggleHeaderColumn().run()} title="헤더 열 토글">
+          <PanelLeft className="h-3.5 w-3.5" />
+        </BMBtn>
+        <BMSep />
+        <BMBtn onClick={() => editor.chain().focus().mergeCells().run()} title="셀 병합">
           <Merge className="h-3.5 w-3.5" />
         </BMBtn>
-        <BMBtn onClick={() => editor.chain().focus().splitCell().run()} title="Split cell">
+        <BMBtn onClick={() => editor.chain().focus().splitCell().run()} title="셀 분할">
           <Split className="h-3.5 w-3.5" />
         </BMBtn>
         <BMSep />
         <button type="button"
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => editor.chain().focus().deleteTable().run()}
-          title="Delete table"
+          title="표 삭제"
           className="h-7 w-7 flex items-center justify-center rounded-md text-destructive hover:bg-destructive/15 transition-colors">
           <Trash2 className="h-3.5 w-3.5" />
         </button>

@@ -309,6 +309,7 @@ export function CreateProjectPage() {
                   id: wm.member.id,
                   name: wm.member.display_name,
                   email: wm.member.email,
+                  avatar: wm.member.avatar,
                 }));
 
                 const getBadge = (id: string): string | null => {

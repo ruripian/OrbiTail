@@ -34,6 +34,7 @@ import { ArchiveView }    from "./views/ArchiveView";
 import { TrashView }      from "./views/TrashView";
 import { BacklogView }   from "./views/BacklogView";
 import { useViewSettings } from "@/hooks/useViewSettings";
+import { useProjectFeatures } from "@/hooks/useProjectFeatures";
 import { ViewTransition } from "@/components/motion";
 import type { Category, Sprint } from "@/types";
 
@@ -68,6 +69,13 @@ export function ProjectIssuePage() {
   };
   const [searchParams, setSearchParams] = useSearchParams();
   const { settings, updateCalendar, updateTimeline } = useViewSettings();
+  const { isEnabled } = useProjectFeatures();
+
+  /* 기능 on/off 에 따른 뷰 탭 필터 — core(table/archive) 항상 표시 */
+  const visibleViews = VIEW_IDS.filter((v) => {
+    if (v.id === "table" || v.id === "archive") return true;
+    return isEnabled(v.id as Parameters<typeof isEnabled>[0]);
+  });
 
   const currentView   = (searchParams.get("view") as ViewId | null) ?? "table";
   const selectedIssue = searchParams.get("issue");
@@ -160,7 +168,7 @@ export function ProjectIssuePage() {
       {currentView !== "trash" && (
       <div className="flex items-center gap-2 px-3 sm:px-5 h-10 border-b border-border shrink-0 overflow-x-auto">
         <div className="flex items-center gap-0.5 bg-muted/40 rounded-lg p-0.5 border border-border shrink-0">
-          {VIEW_IDS.map(({ id, key, Icon }) => (
+          {visibleViews.map(({ id, key, Icon }) => (
             <button
               key={id}
               onClick={() => setView(id)}

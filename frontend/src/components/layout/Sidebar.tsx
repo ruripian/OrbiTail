@@ -16,6 +16,7 @@ import {
   Trash2,
   Lock,
   Megaphone,
+  MessageSquarePlus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { projectsApi } from "@/api/projects";
@@ -224,6 +225,14 @@ function ProjectItem({
               <span className="truncate">{cat.name}</span>
             </Link>
           ))}
+          {(project.features?.request !== false) && (
+            <SubLink
+              to={`${base}/request`}
+              icon={MessageSquarePlus}
+              label={t("sidebar.sendRequest", "요청 보내기")}
+              active={location.pathname === `${base}/request`}
+            />
+          )}
           <SubLink
             to={`${base}/issues?view=trash`}
             icon={Trash2}
@@ -233,7 +242,7 @@ function ProjectItem({
           <SubLink
             to={`${base}/settings`}
             icon={SlidersHorizontal}
-            label={t("sidebar.settings")}
+            label={t("sidebar.projectSettings", "프로젝트 설정")}
             active={location.pathname.startsWith(`${base}/settings`)}
           />
         </div>

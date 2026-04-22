@@ -675,7 +675,7 @@ export function CalendarView({ workspaceSlug, projectId, onIssueClick, issueFilt
                   {userFilter && userFilter !== "me" ? (
                     (() => {
                       const m = members.find((x) => x.member.id === userFilter);
-                      return m ? <><AvatarInitials name={m.member.display_name} size="xs" />{m.member.display_name}</> : t("calendar.filter.user");
+                      return m ? <><AvatarInitials name={m.member.display_name} avatar={m.member.avatar} size="xs" />{m.member.display_name}</> : t("calendar.filter.user");
                     })()
                   ) : (
                     t("calendar.filter.user")
@@ -689,7 +689,7 @@ export function CalendarView({ workspaceSlug, projectId, onIssueClick, issueFilt
                     onClick={() => setUserFilter(m.member.id)}
                     className="text-xs gap-2"
                   >
-                    <AvatarInitials name={m.member.display_name} size="xs" />
+                    <AvatarInitials name={m.member.display_name} avatar={m.member.avatar} size="xs" />
                     {m.member.display_name}
                   </DropdownMenuItem>
                 ))}

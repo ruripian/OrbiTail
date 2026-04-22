@@ -12,6 +12,19 @@ export const api = axios.create({
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem("access_token");
   if (token) config.headers.Authorization = `Bearer ${token}`;
+  // FormData 를 전송할 때는 Content-Type 을 명시적으로 제거해 브라우저가
+  // multipart/form-data; boundary=... 를 자동으로 채우도록 둠.
+  // (인스턴스 기본 Content-Type: application/json 이 FormData 까지 덮어씌우는 문제 방지)
+  if (typeof FormData !== "undefined" && config.data instanceof FormData) {
+    if (config.headers) {
+      // axios v1 의 AxiosHeaders 는 delete 지원
+      if (typeof (config.headers as { delete?: (k: string) => void }).delete === "function") {
+        (config.headers as { delete: (k: string) => void }).delete("Content-Type");
+      } else {
+        delete (config.headers as Record<string, unknown>)["Content-Type"];
+      }
+    }
+  }
   return config;
 });
 

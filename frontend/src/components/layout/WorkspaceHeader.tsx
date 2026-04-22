@@ -50,7 +50,8 @@ export function WorkspaceHeader() {
           </DropdownMenuItem>
         )}
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => navigate("/workspaces")}>
+        {/* ?switch=1 쿼리 — 워크스페이스 1개여도 WorkspaceSelectPage 가 자동진입 안 하도록 신호 */}
+        <DropdownMenuItem onClick={() => navigate("/?switch=1")}>
           <Layers className="h-3.5 w-3.5 mr-2" />
           {t("sidebar.switchWorkspace")}
         </DropdownMenuItem>

@@ -984,6 +984,13 @@ html { font-size: 18px; }
   color: hsl(217, 91%, 55%);
 }
 .doc-mention-user:hover { background: hsla(217, 91%, 60%, 0.22); }
+.doc-mention-avatar {
+  width: 14px;
+  height: 14px;
+  border-radius: 9999px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
 .doc-mention-doc {
   background: hsla(199, 89%, 60%, 0.12);
   color: hsl(199, 89%, 50%);

@@ -4,8 +4,27 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from .models import User, Announcement
 
 
+class RelativeImageField(serializers.ImageField):
+    """항상 상대 URL(/media/...)을 반환하는 ImageField.
+
+    Django 기본 동작은 DRF 가 request.build_absolute_uri 로 절대 URL 을 만들지만,
+    Docker 환경에서는 요청이 내부 hostname(backend:8000) 기준이라 클라이언트가 접근 불가.
+    프록시(vite dev / nginx prod) 가 /media 를 백엔드로 연결하므로 상대 경로만 리턴.
+    """
+
+    def to_representation(self, value):
+        if not value:
+            return None
+        try:
+            return value.url
+        except Exception:
+            return None
+
+
 class UserSerializer(serializers.ModelSerializer):
     """공용 사용자 직렬화기 — 리스트 응답에도 쓰이므로 N+1 유발 필드는 금지."""
+
+    avatar = RelativeImageField(required=False, allow_null=True)
 
     class Meta:
         model = User
@@ -28,6 +47,8 @@ class MeSerializer(UserSerializer):
 
     is_workspace_admin = serializers.SerializerMethodField()
 
+    AVATAR_MAX_SIZE = 5 * 1024 * 1024  # 5MB — 프론트 제한과 동일
+
     class Meta(UserSerializer.Meta):
         fields = UserSerializer.Meta.fields + ["is_workspace_admin"]
         read_only_fields = UserSerializer.Meta.read_only_fields + ["is_workspace_admin"]
@@ -37,6 +58,21 @@ class MeSerializer(UserSerializer):
         return WorkspaceMember.objects.filter(
             member=obj, role__gte=WorkspaceMember.Role.ADMIN,
         ).exists()
+
+    def validate_avatar(self, file_obj):
+        """avatar 업로드 검증. null/빈 값(삭제)은 통과.
+
+        실제 이미지 검증은 ImageField(Pillow) 가 담당하므로 여기서는 크기만 체크.
+        content-type 화이트리스트는 브라우저마다 다른 값을 보내는 문제가 있어 사용하지 않음.
+        """
+        if not file_obj:
+            return file_obj
+        size = getattr(file_obj, "size", None)
+        if size is not None and size > self.AVATAR_MAX_SIZE:
+            raise serializers.ValidationError(
+                f"프로필 사진은 {self.AVATAR_MAX_SIZE // (1024 * 1024)}MB 이하만 가능합니다."
+            )
+        return file_obj
 
 
 class AdminUserSerializer(UserSerializer):

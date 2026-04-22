@@ -10,7 +10,7 @@ from rest_framework.views import APIView
 from django_filters.rest_framework import DjangoFilterBackend
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
-from .models import Issue, IssueComment, IssueActivity, IssueAttachment, IssueLink, IssueNodeLink, IssueTemplate, Label
+from .models import Issue, IssueComment, IssueActivity, IssueAttachment, IssueLink, IssueNodeLink, IssueRequest, IssueTemplate, Label
 from .serializers import (
     IssueSerializer,
     IssueSearchSerializer,
@@ -19,6 +19,7 @@ from .serializers import (
     IssueAttachmentSerializer,
     IssueLinkSerializer,
     IssueNodeLinkSerializer,
+    IssueRequestSerializer,
     IssueTemplateSerializer,
     LabelSerializer,
 )
@@ -533,24 +534,58 @@ class IssueLinkDetailView(generics.RetrieveUpdateDestroyAPIView):
 class IssueNodeLinkListCreateView(generics.ListCreateAPIView):
     """이슈 간 그래프 링크 — 목록/생성.
 
-    이슈 트리 경계를 넘는 자유 연결 (node 기능). 프론트 UI 보류, 데이터는 지금부터 쌓임.
+    이슈 트리 경계를 넘는 자유 연결 (node 기능).
+    조회: 이 이슈가 source/target 인 링크. 본인이 멤버인 프로젝트의 이슈만.
+    생성: 이 URL 의 project_pk 에 대해 can_edit 권한 필요.
     """
     serializer_class = IssueNodeLinkSerializer
 
     def get_queryset(self):
         issue_id = self.kwargs["issue_pk"]
-        return IssueNodeLink.objects.filter(
-            Q(source_id=issue_id) | Q(target_id=issue_id)
-        ).select_related("source", "target", "source__project", "target__project")
+        # source 또는 target 어느 한쪽이라도 본인 멤버 프로젝트면 조회 가능
+        return (
+            IssueNodeLink.objects.filter(
+                Q(source_id=issue_id) | Q(target_id=issue_id)
+            )
+            .filter(
+                Q(source__project__members__member=self.request.user) |
+                Q(target__project__members__member=self.request.user)
+            )
+            .distinct()
+            .select_related("source", "target", "source__project", "target__project")
+        )
+
+    def create(self, request, *args, **kwargs):
+        ok, err = _check_perm(request.user, self.kwargs["project_pk"], "can_edit")
+        if not ok:
+            return err
+        return super().create(request, *args, **kwargs)
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
 
 
 class IssueNodeLinkDetailView(generics.RetrieveDestroyAPIView):
-    """노드 링크 단건 조회/삭제."""
+    """노드 링크 단건 조회/삭제. source 프로젝트의 멤버여야 접근 가능."""
     serializer_class = IssueNodeLinkSerializer
-    queryset = IssueNodeLink.objects.all()
+    lookup_field = "pk"
+
+    def get_queryset(self):
+        slug = self.kwargs["workspace_slug"]
+        # 워크스페이스 스코프 + source 프로젝트 멤버 체크
+        return (
+            IssueNodeLink.objects.filter(source__workspace__slug=slug)
+            .filter(source__project__members__member=self.request.user)
+            .distinct()
+            .select_related("source", "target", "source__project", "target__project")
+        )
+
+    def destroy(self, request, *args, **kwargs):
+        link = self.get_object()
+        ok, err = _check_perm(request.user, link.source.project_id, "can_edit")
+        if not ok:
+            return err
+        return super().destroy(request, *args, **kwargs)
 
 
 class ProjectNodeGraphView(APIView):
@@ -1078,3 +1113,181 @@ class IssueDocumentLinksView(APIView):
             for link in links
         ]
         return Response(data)
+
+
+# ══════════════════════════════════════════════════════════════════
+#  IssueRequest — 제출된 버그/기능 요청 큐
+# ══════════════════════════════════════════════════════════════════
+
+def _can_review_request(user, project) -> bool:
+    """요청 승인/거절 가능 여부. 프로젝트의 request_review_policy 에 따라 결정.
+       - all: 프로젝트 멤버 누구나 가능
+       - admin: can_edit 권한이 있는 멤버만
+    """
+    from apps.projects.models import ProjectMember, Project
+    try:
+        pm = ProjectMember.objects.get(project=project, member=user)
+    except ProjectMember.DoesNotExist:
+        return False
+    if project.request_review_policy == Project.RequestReviewPolicy.ADMIN:
+        return bool(pm.effective_perms.get("can_edit", False))
+    return True
+
+
+class IssueRequestListCreateView(generics.ListCreateAPIView):
+    """요청 목록 조회 + 신규 제출.
+
+    가시성:
+      - public: 프로젝트 멤버 누구나 조회
+      - private: 제출자 본인 + can_edit 멤버만 조회
+    필터: ?status=pending|approved|rejected
+    """
+    serializer_class = IssueRequestSerializer
+    pagination_class = None
+
+    def get_queryset(self):
+        from apps.projects.models import Project
+        project_pk = self.kwargs["project_pk"]
+        user = self.request.user
+
+        try:
+            project = Project.objects.get(pk=project_pk, members__member=user)
+        except Project.DoesNotExist:
+            return IssueRequest.objects.none()
+
+        perms = _get_effective_perms(user, project_pk) or {}
+        can_edit = bool(perms.get("can_edit", False))
+
+        qs = IssueRequest.objects.filter(project_id=project_pk).select_related(
+            "submitted_by", "reviewer", "project", "approved_issue"
+        )
+        # 비공개 요청은 제출자 or can_edit 만
+        if not can_edit:
+            qs = qs.filter(Q(visibility="public") | Q(submitted_by=user))
+
+        status_filter = self.request.query_params.get("status")
+        if status_filter in {"pending", "approved", "rejected"}:
+            qs = qs.filter(status=status_filter)
+        return qs
+
+    def perform_create(self, serializer):
+        from apps.projects.models import Project
+        project = Project.objects.get(pk=self.kwargs["project_pk"])
+        serializer.save(
+            project=project,
+            workspace=project.workspace,
+            submitted_by=self.request.user,
+        )
+
+
+class IssueRequestApproveView(APIView):
+    """요청 승인 → Issue 로 변환.
+
+    Body: { state, category?, sprint?, assignees?[], label?[], start_date?, due_date?, estimate_point? }
+    """
+    def post(self, request, workspace_slug, project_pk, pk):
+        from apps.projects.models import Project
+        try:
+            project = Project.objects.select_related("workspace").get(pk=project_pk)
+        except Project.DoesNotExist:
+            return Response({"detail": "프로젝트를 찾을 수 없습니다."}, status=status.HTTP_404_NOT_FOUND)
+
+        if not _can_review_request(request.user, project):
+            return Response(
+                {"detail": "요청 승인 권한이 없습니다."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        req = get_object_or_404(IssueRequest, pk=pk, project_id=project_pk)
+        if req.status != IssueRequest.Status.PENDING:
+            return Response({"detail": "이미 처리된 요청입니다."}, status=status.HTTP_400_BAD_REQUEST)
+
+        state_id = request.data.get("state")
+        if not state_id:
+            # 명시하지 않으면 프로젝트 기본 상태(unstarted) 사용
+            from apps.projects.models import State
+            default_state = (
+                State.objects.filter(project=project, group="unstarted").order_by("sequence").first()
+                or State.objects.filter(project=project).order_by("sequence").first()
+            )
+            if default_state is None:
+                return Response({"detail": "프로젝트에 상태가 없어 이슈를 생성할 수 없습니다."}, status=400)
+            state_id = default_state.id
+
+        issue = Issue.objects.create(
+            title=req.title,
+            description_html=req.description_html,
+            priority=req.priority,
+            state_id=state_id,
+            project=project,
+            workspace=project.workspace,
+            category_id=request.data.get("category") or None,
+            sprint_id=request.data.get("sprint") or None,
+            start_date=request.data.get("start_date") or None,
+            due_date=request.data.get("due_date") or None,
+            estimate_point=request.data.get("estimate_point") or None,
+            created_by=req.submitted_by,  # 제출자를 생성자로 기록
+        )
+        assignee_ids = request.data.get("assignees") or []
+        if assignee_ids:
+            issue.assignees.set(assignee_ids)
+        label_ids = request.data.get("label") or []
+        # 자동 라벨 — 프로젝트에 bug/enhancement 라벨 있으면 kind 기준 첨부
+        auto_name = "bug" if req.kind == IssueRequest.Kind.BUG else "enhancement"
+        auto_label = Label.objects.filter(project=project, name__iexact=auto_name).first()
+        if auto_label:
+            label_ids = list({*label_ids, str(auto_label.id)})
+        if label_ids:
+            issue.label.set(label_ids)
+
+        # 요청 상태 업데이트
+        req.status = IssueRequest.Status.APPROVED
+        req.reviewer = request.user
+        req.reviewed_at = timezone.now()
+        req.approved_issue = issue
+        req.save(update_fields=["status", "reviewer", "reviewed_at", "approved_issue", "updated_at"])
+
+        return Response({
+            "request": IssueRequestSerializer(req, context={"request": request}).data,
+            "issue": IssueSerializer(issue, context={"request": request}).data,
+        })
+
+
+class IssueRequestRejectView(APIView):
+    """요청 거절 — 사유(선택) 저장하고 상태를 rejected 로."""
+    def post(self, request, workspace_slug, project_pk, pk):
+        from apps.projects.models import Project
+        try:
+            project = Project.objects.get(pk=project_pk)
+        except Project.DoesNotExist:
+            return Response({"detail": "프로젝트를 찾을 수 없습니다."}, status=status.HTTP_404_NOT_FOUND)
+
+        if not _can_review_request(request.user, project):
+            return Response({"detail": "요청 거절 권한이 없습니다."}, status=status.HTTP_403_FORBIDDEN)
+
+        req = get_object_or_404(IssueRequest, pk=pk, project_id=project_pk)
+        if req.status != IssueRequest.Status.PENDING:
+            return Response({"detail": "이미 처리된 요청입니다."}, status=status.HTTP_400_BAD_REQUEST)
+
+        req.status = IssueRequest.Status.REJECTED
+        req.reviewer = request.user
+        req.reviewed_at = timezone.now()
+        req.rejected_reason = (request.data.get("reason") or "").strip()
+        req.save(update_fields=["status", "reviewer", "reviewed_at", "rejected_reason", "updated_at"])
+
+        return Response(IssueRequestSerializer(req, context={"request": request}).data)
+
+
+class IssueRequestDeleteView(APIView):
+    """요청 삭제 — 제출자 본인(pending 상태만) 또는 관리자"""
+    def delete(self, request, workspace_slug, project_pk, pk):
+        req = get_object_or_404(IssueRequest, pk=pk, project_id=project_pk)
+        from apps.projects.models import Project
+        project = Project.objects.get(pk=project_pk)
+
+        is_owner = req.submitted_by_id == request.user.id
+        is_admin = _can_review_request(request.user, project)
+        if not (is_admin or (is_owner and req.status == IssueRequest.Status.PENDING)):
+            return Response({"detail": "이 요청을 삭제할 권한이 없습니다."}, status=status.HTTP_403_FORBIDDEN)
+        req.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
