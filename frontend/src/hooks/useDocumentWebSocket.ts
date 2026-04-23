@@ -94,31 +94,34 @@ export function useDocumentWebSocket(docId: string | undefined): DocCollab {
       const states = Array.from(p.awareness.getStates().entries()) as Array<[number, any]>;
       const self = p.awareness.clientID;
       const myUserId = me.id;
-      /* 1) 자기 자신 clientID 제외
-         2) user 데이터가 있는 entry만 (null state tombstone 필터)
-         3) 같은 user.id (내 다른 탭 or 서버 잔여 유령) 중복 제거 — 가장 최근 clientID 하나만
-         4) 내 user.id는 완전히 제외 (토스트바에 '내 아바타' 보이는 의미 없음) */
-      const seen = new Map<string, PresencePeer>();
+      /* 자기 자신 clientID + 내 다른 탭(user.id===my) 제외.
+         user 데이터 없는 tombstone 스킵. 동일 user.id 여럿이면 커서 활성 우선,
+         없으면 clientID 큰 쪽 — 에디터 커서 필터와 같은 규칙. */
+      const groups = new Map<string, Array<{ cid: number; st: any; u: any }>>();
       for (const [cid, st] of states) {
         if (cid === self) continue;
         if (!st?.user) continue;
         const u = st.user as { id?: string; name?: string; color?: string; avatar?: string };
         if (!u.name) continue;
-        if (myUserId && u.id === myUserId) continue; // 내 다른 탭
+        if (myUserId && u.id === myUserId) continue;
         const key = u.id || `cid:${cid}`;
-        const prev = seen.get(key);
-        // 같은 user.id가 여럿이면 가장 최근(=더 큰 clientID) 하나만
-        if (!prev || cid > prev.clientID) {
-          seen.set(key, {
-            clientID: cid,
-            userId: u.id,
-            name: u.name,
-            color: u.color || "#888",
-            avatar: u.avatar,
-          });
-        }
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key)!.push({ cid, st, u });
       }
-      setPeers(Array.from(seen.values()));
+      const next: PresencePeer[] = [];
+      for (const group of groups.values()) {
+        const withCursor = group.filter((g) => !!g.st?.cursor);
+        const pool = withCursor.length ? withCursor : group;
+        const winner = pool.reduce((best, c) => (c.cid > best.cid ? c : best), pool[0]);
+        next.push({
+          clientID: winner.cid,
+          userId: winner.u.id,
+          name: winner.u.name,
+          color: winner.u.color || "#888",
+          avatar: winner.u.avatar,
+        });
+      }
+      setPeers(next);
     };
 
     p.on("status", onStatus);

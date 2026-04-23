@@ -61,16 +61,25 @@ const CollaborationCaret = Extension.create<CollabCaretOptions>({
   addProseMirrorPlugins() {
     const aw = this.options.provider?.awareness;
     if (!aw) return [];
-    /* 같은 user.id에 대해 가장 최근(=더 큰 clientID) 커서 1개만 표시.
-       새로고침 유령/다른 탭 커서가 화면에 누적되는 현상 차단. */
+    const myUserId = this.options.user?.id;
+    /* 커서 렌더링 규칙:
+       1) user.id가 내 것과 같으면 무조건 숨김 — 내가 다른 탭을 열어도 내 화면에
+          '내 또 다른 커서'가 보이지 않게. 다른 탭에서 쓰는 건 내가 아는 나다.
+       2) 같은 user.id 여럿(다른 사용자의 다중 탭) 중에는 커서 활성인 것 우선,
+          없으면 clientID 큰 쪽을 winner로 — 하나만 렌더. */
     const awarenessStateFilter = (clientId: number, state: any) => {
       const uid: string | undefined = state?.user?.id;
       if (!uid) return true;
-      let maxCid = clientId;
+      if (myUserId && uid === myUserId) return false;
+      const candidates: Array<{ cid: number; hasCursor: boolean }> = [];
       aw.getStates().forEach((s: any, cid: number) => {
-        if (s?.user?.id === uid && cid > maxCid) maxCid = cid;
+        if (s?.user?.id === uid) candidates.push({ cid, hasCursor: !!s?.cursor });
       });
-      return clientId === maxCid;
+      if (candidates.length <= 1) return true;
+      const withCursor = candidates.filter((c) => c.hasCursor);
+      const pool = withCursor.length > 0 ? withCursor : candidates;
+      const winner = pool.reduce((best, c) => (c.cid > best.cid ? c : best), pool[0]);
+      return clientId === winner.cid;
     };
     return [
       yCursorPlugin(aw, {

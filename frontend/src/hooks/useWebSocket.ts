@@ -23,6 +23,7 @@ interface WebSocketEvent {
   type: string;
   issue_id?: string;
   project_id?: string;
+  doc_id?: string;
   [key: string]: unknown;
 }
 
@@ -134,6 +135,14 @@ export function useWebSocket(workspaceSlug: string | undefined): WsStatus {
         case "notification.new":
           qc.invalidateQueries({ queryKey: ["notifications", workspaceSlug] });
           qc.invalidateQueries({ queryKey: ["notifications-unread", workspaceSlug] });
+          break;
+
+        case "doc.thread.changed":
+          // 문서 댓글 스레드 변경 — 해당 문서의 스레드 리스트 + 전체 스레드(해결여부) 무효화
+          if (event.doc_id) {
+            qc.invalidateQueries({ queryKey: ["doc-threads", event.doc_id] });
+            qc.invalidateQueries({ queryKey: ["doc-threads-all", event.doc_id] });
+          }
           break;
 
         case "pong":

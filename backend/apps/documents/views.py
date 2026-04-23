@@ -1,3 +1,5 @@
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
 from django.db.models import Q
 from django.utils import timezone
 from rest_framework import generics, status
@@ -7,6 +9,27 @@ from rest_framework.views import APIView
 
 from apps.projects.models import ProjectMember
 from apps.workspaces.models import WorkspaceMember
+
+
+def _broadcast_thread_event(workspace_slug: str, doc_id: str, action: str, thread_id: str = "") -> None:
+    """댓글 스레드 이벤트를 워크스페이스 그룹에 브로드캐스트.
+    action: created | replied | resolved | deleted
+    프론트는 같은 문서 사이드바의 react-query를 무효화해 즉시 반영."""
+    try:
+        layer = get_channel_layer()
+        if not layer:
+            return
+        async_to_sync(layer.group_send)(
+            f"workspace_{workspace_slug}",
+            {
+                "type": "doc.thread.changed",
+                "action": action,
+                "doc_id": str(doc_id),
+                "thread_id": str(thread_id),
+            },
+        )
+    except Exception:
+        pass
 from .models import DocumentSpace, Document, DocumentIssueLink, DocumentAttachment, DocumentComment, DocumentVersion, CommentThread, DocumentTemplate
 from .serializers import (
     DocumentSpaceSerializer,
@@ -367,6 +390,7 @@ class CommentThreadListCreateView(generics.ListCreateAPIView):
             author=self.request.user,
             content=initial,
         )
+        _broadcast_thread_event(self.kwargs["workspace_slug"], self.kwargs["doc_pk"], "created", thread.id)
 
 
 class CommentThreadDetailView(generics.RetrieveDestroyAPIView):
@@ -386,7 +410,10 @@ class CommentThreadDetailView(generics.RetrieveDestroyAPIView):
         if instance.created_by_id and instance.created_by_id != self.request.user.id:
             from rest_framework.exceptions import PermissionDenied
             raise PermissionDenied("자신이 생성한 스레드만 삭제할 수 있습니다.")
+        tid = str(instance.id)
+        doc_id = str(instance.document_id)
         instance.delete()
+        _broadcast_thread_event(self.kwargs["workspace_slug"], doc_id, "deleted", tid)
 
 
 class CommentThreadReplyView(generics.CreateAPIView):
@@ -413,6 +440,9 @@ class CommentThreadReplyView(generics.CreateAPIView):
             thread=thread,
             author=self.request.user,
         )
+        _broadcast_thread_event(
+            self.kwargs["workspace_slug"], self.kwargs["doc_pk"], "replied", thread.id,
+        )
 
 
 class CommentThreadResolveView(APIView):
@@ -435,6 +465,7 @@ class CommentThreadResolveView(APIView):
             thread.resolved_at = timezone.now()
             thread.resolved_by = request.user
         thread.save(update_fields=["resolved", "resolved_at", "resolved_by"])
+        _broadcast_thread_event(workspace_slug, doc_pk, "resolved", thread_pk)
         return Response(CommentThreadSerializer(thread).data)
 
 

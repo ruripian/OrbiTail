@@ -103,3 +103,7 @@ class WorkspaceConsumer(AsyncJsonWebsocketConsumer):
     async def notification_new(self, event):
         """새 알림 이벤트 → 클라이언트에 전달"""
         await self.send_json(event)
+
+    async def doc_thread_changed(self, event):
+        """문서 댓글 스레드 생성/답글/resolve/삭제 → 클라이언트에 전달"""
+        await self.send_json(event)
