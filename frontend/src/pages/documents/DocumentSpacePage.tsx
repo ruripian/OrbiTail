@@ -12,7 +12,7 @@ import {
   FileText, Loader2, Pencil, Eye, Share2, MessageSquare,
   List, MoreHorizontal, Copy, Maximize2, Minimize2,
   History, FolderInput, Download, Printer, FileDown, Trash2, LayoutGrid,
-  FolderOpen, FilePlus,
+  FolderOpen, FilePlus, Image as ImageIcon, X,
 } from "lucide-react";
 import { documentsApi } from "@/api/documents";
 import { DocumentEditor } from "@/components/documents/DocumentEditor";
@@ -168,6 +168,26 @@ function DocumentEditorView({
     qc.invalidateQueries({ queryKey: ["doc-threads", doc.id] });
     qc.invalidateQueries({ queryKey: ["doc-threads-all", doc.id] });
   }, [workspaceSlug, spaceId, doc.id, qc]);
+
+  /* 커버 이미지 업로드/제거 */
+  const coverMutation = useMutation({
+    mutationFn: (file: File | null) =>
+      documentsApi.uploadCover(workspaceSlug!, spaceId!, doc.id, file),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["document", workspaceSlug, spaceId, doc.id] });
+    },
+    onError: () => toast.error("커버 이미지 처리 실패"),
+  });
+  const pickCover = () => {
+    const input = window.document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*";
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (file) coverMutation.mutate(file);
+    };
+    input.click();
+  };
 
   /* 활성 스레드 바뀌면 에디터에서 해당 마크로 스크롤 + data-active 하이라이트 */
   useEffect(() => {
@@ -368,6 +388,17 @@ function DocumentEditorView({
               {t("documents.fullWidth")}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={pickCover}>
+              <ImageIcon className="h-3.5 w-3.5 mr-2" />
+              {doc.cover_image_url ? "커버 이미지 변경" : "커버 이미지 추가"}
+            </DropdownMenuItem>
+            {doc.cover_image_url && (
+              <DropdownMenuItem onClick={() => coverMutation.mutate(null)}>
+                <X className="h-3.5 w-3.5 mr-2" />
+                커버 이미지 제거
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => setHistoryOpen(!historyOpen)}>
               <History className="h-3.5 w-3.5 mr-2" />
               {t("documents.pageHistory")}
@@ -414,7 +445,49 @@ function DocumentEditorView({
         {/* 에디터 영역 */}
         <div className="flex-1 overflow-y-auto" ref={editorWrapperRef}>
           <div className={cn("mx-auto w-full py-6 px-4 sm:px-6", fullWidth ? "max-w-none" : "max-w-[860px]")}>
-            <div className="doc-frame rounded-2xl border bg-card shadow-sm px-6 sm:px-10 py-8">
+            <div className="doc-frame rounded-2xl border bg-card shadow-sm overflow-hidden">
+              {/* 커버 이미지 배너 — Notion 스타일, 프레임 상단 전체 너비 */}
+              {doc.cover_image_url && (
+                <div
+                  className="group relative h-40 sm:h-52 bg-muted"
+                  style={{
+                    backgroundImage: `url(${doc.cover_image_url})`,
+                    backgroundSize: "cover",
+                    backgroundPosition: `center ${doc.cover_offset_y ?? 50}%`,
+                  }}
+                >
+                  {editMode && (
+                    <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity" data-print-hide>
+                      <button
+                        onClick={pickCover}
+                        className="h-7 px-2 rounded-md bg-background/80 backdrop-blur text-xs font-medium hover:bg-background transition-colors"
+                      >
+                        변경
+                      </button>
+                      <button
+                        onClick={() => coverMutation.mutate(null)}
+                        className="h-7 px-2 rounded-md bg-background/80 backdrop-blur text-xs font-medium hover:bg-background hover:text-destructive transition-colors"
+                      >
+                        제거
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="px-6 sm:px-10 py-8">
+              {/* 커버 없는 상태의 편집 모드: 커버 추가 유도 */}
+              {!doc.cover_image_url && editMode && (
+                <button
+                  onClick={pickCover}
+                  className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground mb-3 transition-colors"
+                  data-print-hide
+                >
+                  <ImageIcon className="h-3.5 w-3.5" />
+                  커버 추가
+                </button>
+              )}
+
               <input
                 className="w-full text-4xl font-bold bg-transparent outline-none mb-3"
                 value={title}
@@ -453,6 +526,7 @@ function DocumentEditorView({
               }}
             />
             )}
+              </div>
             </div>
 
             {/* 하위 문서 — 프레임 바깥, 인쇄에서 제외 */}

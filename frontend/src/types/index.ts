@@ -229,6 +229,8 @@ export interface Document {
   parent: string | null;
   title: string;
   icon_prop: Record<string, unknown> | null;
+  cover_image_url?: string | null;
+  cover_offset_y?: number;
   content_html: string;
   is_folder: boolean;
   created_by: string | null;

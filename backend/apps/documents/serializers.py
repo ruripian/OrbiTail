@@ -33,11 +33,13 @@ class DocumentSerializer(serializers.ModelSerializer):
     created_by_detail = UserSerializer(source="created_by", read_only=True)
     children_count = serializers.SerializerMethodField()
     has_yjs_state = serializers.SerializerMethodField()
+    cover_image_url = serializers.SerializerMethodField()
 
     class Meta:
         model = Document
         fields = [
             "id", "space", "parent", "title", "icon_prop",
+            "cover_image", "cover_image_url", "cover_offset_y",
             "content_html", "is_folder",
             "created_by", "created_by_detail",
             "sort_order", "children_count",
@@ -46,8 +48,12 @@ class DocumentSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             "id", "space", "created_by", "deleted_at", "created_at", "updated_at",
-            "has_yjs_state",
+            "has_yjs_state", "cover_image_url",
         ]
+        # cover_image 자체는 write-only로 허용 (multipart PATCH 가능), 읽기는 cover_image_url
+        extra_kwargs = {
+            "cover_image": {"write_only": True, "required": False, "allow_null": True},
+        }
 
     def get_children_count(self, obj):
         return obj.children.filter(deleted_at__isnull=True).count()
@@ -55,6 +61,9 @@ class DocumentSerializer(serializers.ModelSerializer):
     def get_has_yjs_state(self, obj):
         # 실시간 시드 권한 판정용 — 이미 CRDT 상태가 있으면 클라이언트는 시드 스킵
         return bool(obj.yjs_state)
+
+    def get_cover_image_url(self, obj):
+        return obj.cover_image.url if obj.cover_image else None
 
 
 class DocumentTreeSerializer(serializers.ModelSerializer):

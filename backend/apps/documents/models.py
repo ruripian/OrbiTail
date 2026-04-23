@@ -88,6 +88,10 @@ class Document(models.Model):
     title = models.CharField(max_length=500, default="제목 없음")
     icon_prop = models.JSONField(null=True, blank=True, default=None)  # { type: "lucide", name: "Box", color: "#hex" }
 
+    # 커버 이미지 — Notion 스타일 상단 배너. cover_offset_y는 0-100 (%) 세로 위치
+    cover_image = models.ImageField(upload_to="documents/covers/%Y/%m/", null=True, blank=True)
+    cover_offset_y = models.IntegerField(default=50)
+
     content_html = models.TextField(blank=True, default="")
     yjs_state = models.BinaryField(null=True, blank=True)
 

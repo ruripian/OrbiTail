@@ -39,6 +39,19 @@ export const documentsApi = {
   update: (workspaceSlug: string, spaceId: string, docId: string, data: Partial<Document>) =>
     api.patch<Document>(`/workspaces/${workspaceSlug}/documents/spaces/${spaceId}/docs/${docId}/`, data).then((r) => r.data),
 
+  /** 커버 이미지 업로드 (multipart) — file을 다른 PATCH 필드와 분리해 보냄.
+      file=null이면 커버 제거. offset만 바꾸려면 update()에 cover_offset_y. */
+  uploadCover: (workspaceSlug: string, spaceId: string, docId: string, file: File | null) => {
+    const fd = new FormData();
+    if (file) fd.append("cover_image", file);
+    else fd.append("cover_image", "");
+    return api.patch<Document>(
+      `/workspaces/${workspaceSlug}/documents/spaces/${spaceId}/docs/${docId}/`,
+      fd,
+      { headers: { "Content-Type": "multipart/form-data" } },
+    ).then((r) => r.data);
+  },
+
   delete: (workspaceSlug: string, spaceId: string, docId: string) =>
     api.delete(`/workspaces/${workspaceSlug}/documents/spaces/${spaceId}/docs/${docId}/`),
 

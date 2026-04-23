@@ -176,7 +176,10 @@ class DocumentListCreateView(generics.ListCreateAPIView):
 
 
 class DocumentDetailView(generics.RetrieveUpdateDestroyAPIView):
-    """문서 상세 (content 포함) / 수정 / 삭제"""
+    """문서 상세 (content 포함) / 수정 / 삭제.
+    cover_image 업로드를 위해 multipart도 수락. JSON PATCH도 그대로 동작."""
+    from rest_framework.parsers import JSONParser, MultiPartParser, FormParser
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
     serializer_class = DocumentSerializer
 
     def get_queryset(self):
