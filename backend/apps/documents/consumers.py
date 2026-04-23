@@ -113,13 +113,14 @@ class DocumentConsumer(AsyncWebsocketConsumer):
 
         # 기존 접속자의 awareness 상태를 새로 들어온 클라이언트에게 전달 —
         # 이 초기 전송 없으면 신규 참여자는 기존 피어를 인지 못 함(아바타/커서 안 보임).
-        # has_yjs_state(seed 권한)는 DocumentSerializer 필드로 이미 REST에서 내려감 →
-        # 여기서 text_data로 별도 전달할 필요 없음 (y-websocket은 binary 전용).
+        # tombstone(끊긴 피어 잔해)는 전달하지 않음 — user 필드가 살아 있는 것만.
         try:
-            existing_ids = list(self.room.awareness.states.keys())
-            # 자신의 상태는 아직 awareness에 없으므로 남을 건 모두 기존 피어
-            if existing_ids:
-                aw_payload = self.room.awareness.encode_awareness_update(existing_ids)
+            live_ids = []
+            for cid, state in self.room.awareness.states.items():
+                if state and isinstance(state, dict) and state.get("user"):
+                    live_ids.append(cid)
+            if live_ids:
+                aw_payload = self.room.awareness.encode_awareness_update(live_ids)
                 await self.send(bytes_data=create_awareness_message(aw_payload))
         except Exception:
             pass

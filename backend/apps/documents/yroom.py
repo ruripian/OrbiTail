@@ -71,6 +71,12 @@ class YRoom:
         self.had_state_on_load = False
         self._save_task: Optional[asyncio.Task] = None
         self._lock = asyncio.Lock()
+        # pycrdt Awareness의 주기적 outdated state 정리 태스크 시작 — 연결 끊긴
+        # 피어의 tombstone이 일정 시간 후 states에서 제거되도록.
+        try:
+            self.awareness.start()
+        except Exception:
+            pass
 
     async def load_from_db(self) -> None:
         state = await database_sync_to_async(_load_state)(self.doc_id)
@@ -156,6 +162,10 @@ async def release_room(doc_id: str) -> None:
         _rooms.pop(doc_id, None)
     # 락 해제 후 flush — DB I/O가 오래 걸려도 다른 룸 연산 블록하지 않게
     await room.flush()
+    try:
+        room.awareness.stop()
+    except Exception:
+        pass
 
 
 async def room_has_state(doc_id: str) -> bool:

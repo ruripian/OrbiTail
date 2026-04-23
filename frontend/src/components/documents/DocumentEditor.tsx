@@ -33,7 +33,7 @@ import { TableHeader } from "@tiptap/extension-table-header";
 import { CharacterCount } from "@tiptap/extension-character-count";
 import GlobalDragHandle from "tiptap-extension-global-drag-handle";
 import { SearchAndReplace } from "@memfoldai/tiptap-search-and-replace";
-import { Node, Extension, mergeAttributes } from "@tiptap/core";
+import { Node, Extension, Mark, mergeAttributes } from "@tiptap/core";
 import { common, createLowlight } from "lowlight";
 import { Collaboration } from "@tiptap/extension-collaboration";
 import { yCursorPlugin, defaultSelectionBuilder } from "@tiptap/y-tiptap";
@@ -47,7 +47,7 @@ import type { DocCollab } from "@/hooks/useDocumentWebSocket";
  */
 interface CollabCaretOptions {
   provider: { awareness: any } | null;
-  user: { name: string; color: string };
+  user: { id?: string; name: string; color: string; avatar?: string };
 }
 const CollaborationCaret = Extension.create<CollabCaretOptions>({
   name: "collaborationCaret",
@@ -100,7 +100,7 @@ import {
   AtSign, User as UserIcon, Hash,
   Merge, Split, Trash2,
   ArrowLeftToLine, ArrowRightToLine, ArrowUpToLine, ArrowDownToLine,
-  PanelTop, PanelLeft,
+  PanelTop, PanelLeft, MessageSquare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -255,6 +255,64 @@ function ImageNodeView({ node, updateAttributes, selected, editor }: NodeViewPro
     </NodeViewWrapper>
   );
 }
+
+/* ── CommentMark: 블록 댓글 앵커 ──
+   선택된 텍스트에 data-thread-id 속성을 가진 span 마크. Yjs Collaboration 모드에선
+   Y.Doc 에 마크 자체가 포함돼 자동 전파. 마크 클릭 시 커스텀 이벤트 디스패치 →
+   에디터 외부(사이드바)에서 리스닝해 해당 스레드로 포커스. */
+declare module "@tiptap/core" {
+  interface Commands<ReturnType> {
+    commentMark: {
+      setCommentMark: (threadId: string) => ReturnType;
+      unsetCommentMark: () => ReturnType;
+    };
+  }
+}
+
+const CommentMark = Mark.create({
+  name: "comment",
+  exitable: true,
+  inclusive: false,
+
+  addAttributes() {
+    return {
+      threadId: {
+        default: null,
+        parseHTML: (el: HTMLElement) => el.getAttribute("data-thread-id"),
+        renderHTML: (attrs: Record<string, any>) =>
+          attrs.threadId ? { "data-thread-id": attrs.threadId } : {},
+      },
+    };
+  },
+
+  parseHTML() {
+    return [{ tag: "span[data-comment-thread]" }];
+  },
+
+  renderHTML({ HTMLAttributes }) {
+    return [
+      "span",
+      mergeAttributes(HTMLAttributes, {
+        "data-comment-thread": "true",
+        class: "doc-comment-mark",
+      }),
+      0,
+    ];
+  },
+
+  addCommands() {
+    return {
+      setCommentMark:
+        (threadId: string) =>
+        ({ commands }) =>
+          commands.setMark(this.name, { threadId }),
+      unsetCommentMark:
+        () =>
+        ({ commands }) =>
+          commands.unsetMark(this.name),
+    };
+  },
+});
 
 const ImageNode = Node.create({
   name: "image",
@@ -1211,6 +1269,14 @@ interface Props {
   collab?: DocCollab;
   /* true면 Y.Doc이 비어 있을 때 content를 Y.Doc에 시드 (최초 연결 사용자만) */
   shouldSeed?: boolean;
+  /* 블록 댓글 시작 — 선택된 텍스트 전달, 스레드 ID 리턴 시 에디터가 mark 적용 */
+  onStartComment?: (selectedText: string) => Promise<string | null>;
+  /* 댓글 마크 클릭 시 부모에 알림 */
+  onCommentMarkClick?: (threadId: string) => void;
+  /* 댓글 마크가 문서에서 사라졌을 때 (텍스트 지움 등) — 부모가 스레드 API 삭제 호출 */
+  onCommentMarksRemoved?: (threadIds: string[]) => void;
+  /* 해결됨 상태로 스타일 분기할 thread id 집합 — DOM에 data-resolved 주입 */
+  resolvedThreadIds?: Set<string>;
 }
 
 /* ── 슬래시 명령어 ── */
@@ -1270,7 +1336,7 @@ const EMOJIS: Array<{ name: string; char: string; kw?: string }> = [
   { name: "hundred", char: "💯" }, { name: "muscle", char: "💪" }, { name: "coffee", char: "☕" },
 ];
 
-export function DocumentEditor({ content, onChange, onBlur, placeholder: _placeholder, editable = true, onFileUpload, workspaceSlug, spaceId, docId, projectId, collab, shouldSeed }: Props) {
+export function DocumentEditor({ content, onChange, onBlur, placeholder: _placeholder, editable = true, onFileUpload, workspaceSlug, spaceId, docId, projectId, collab, shouldSeed, onStartComment, onCommentMarkClick, onCommentMarksRemoved, resolvedThreadIds }: Props) {
   const docCtx = useMemo(() => ({ workspaceSlug, spaceId, docId, projectId }), [workspaceSlug, spaceId, docId, projectId]);
   const { t } = useTranslation();
   const [slashOpen, setSlashOpen] = useState(false);
@@ -1344,6 +1410,7 @@ export function DocumentEditor({ content, onChange, onBlur, placeholder: _placeh
       Subpages,
       Mention,
       IssueCard,
+      CommentMark,
       ImageNode,
       VideoNode,
       PdfNode,
@@ -1355,7 +1422,8 @@ export function DocumentEditor({ content, onChange, onBlur, placeholder: _placeh
         ...(collab.provider ? [
           CollaborationCaret.configure({
             provider: collab.provider,
-            user: { name: collab.me.name, color: collab.me.color },
+            /* id/avatar까지 함께 싣기 — peer 쪽에서 '내 다른 탭/유령' 필터링에 필수 */
+            user: { id: collab.me.id, name: collab.me.name, color: collab.me.color, avatar: collab.me.avatar },
           }),
         ] : []),
       ] : []),
@@ -1451,6 +1519,73 @@ export function DocumentEditor({ content, onChange, onBlur, placeholder: _placeh
     }, 300);
     return () => clearTimeout(t);
   }, [editor, collab?.synced, shouldSeed, content, collab]);
+
+  /* 댓글 마크 클릭 → 부모에 thread id 전달. capture 단계에서 받아 에디터 기본
+     포커스보다 먼저 처리 (selection이 마크에 걸리면 사이드바 트리거) */
+  useEffect(() => {
+    if (!onCommentMarkClick) return;
+    const el = wrapperRef.current;
+    if (!el) return;
+    const handler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      const mark = target?.closest<HTMLElement>("[data-comment-thread]");
+      if (!mark) return;
+      const tid = mark.getAttribute("data-thread-id");
+      if (tid) onCommentMarkClick(tid);
+    };
+    el.addEventListener("click", handler);
+    return () => el.removeEventListener("click", handler);
+  }, [onCommentMarkClick]);
+
+  /* 댓글 마크가 문서에서 제거되면(텍스트 지워짐 등) thread도 자동 삭제.
+     editor.state.doc을 훑어 현재 살아 있는 thread id 집합을 유지하고, 이전과 비교. */
+  const prevMarkIdsRef = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    if (!editor || !onCommentMarksRemoved) return;
+    const collect = (): Set<string> => {
+      const s = new Set<string>();
+      editor.state.doc.descendants((node) => {
+        node.marks.forEach((mark) => {
+          if (mark.type.name === "comment" && mark.attrs.threadId) {
+            s.add(mark.attrs.threadId);
+          }
+        });
+      });
+      return s;
+    };
+    /* 초기 스냅샷 — 첫 진입 시 삭제 판정 막음 */
+    prevMarkIdsRef.current = collect();
+    const handler = ({ transaction }: { transaction: any }) => {
+      if (!transaction?.docChanged) return;
+      const curr = collect();
+      const prev = prevMarkIdsRef.current;
+      if (prev) {
+        const removed: string[] = [];
+        prev.forEach((id) => { if (!curr.has(id)) removed.push(id); });
+        if (removed.length) onCommentMarksRemoved(removed);
+      }
+      prevMarkIdsRef.current = curr;
+    };
+    editor.on("transaction", handler);
+    return () => { editor.off("transaction", handler); };
+  }, [editor, onCommentMarksRemoved]);
+
+  /* 해결된 스레드는 초록색 — DOM의 comment-mark에 data-resolved 주입/제거 */
+  useEffect(() => {
+    const el = wrapperRef.current;
+    if (!el || !editor) return;
+    const apply = () => {
+      el.querySelectorAll<HTMLElement>("[data-comment-thread]").forEach((m) => {
+        const tid = m.getAttribute("data-thread-id");
+        if (tid && resolvedThreadIds?.has(tid)) m.setAttribute("data-resolved", "true");
+        else m.removeAttribute("data-resolved");
+      });
+    };
+    apply();
+    /* 에디터 내용 변경(마크 추가/이동 등) 후에도 재적용 */
+    editor.on("transaction", apply);
+    return () => { editor.off("transaction", apply); };
+  }, [editor, resolvedThreadIds]);
 
   const filtered = CMDS.filter((c) => !slashFilter || c.title.toLowerCase().includes(slashFilter));
   const emojiFiltered = EMOJIS.filter((em) => !emojiFilter || em.name.toLowerCase().includes(emojiFilter));
@@ -1831,6 +1966,7 @@ export function DocumentEditor({ content, onChange, onBlur, placeholder: _placeh
         linkEditorOpen={linkEditorOpen}
         onCloseLinkEditor={() => setLinkEditorOpen(false)}
         onApplyLink={applyLink}
+        onStartComment={onStartComment}
       />}
       {editable && <TableBubbleMenu editor={editor} />}
 
@@ -1979,6 +2115,7 @@ const TEXT_COLORS = ["#ef4444", "#f59e0b", "#22c55e", "#3b82f6", "#a855f7", "#64
 function EditorBubbleMenu({
   editor, onPickFile, onSetLink,
   linkEditorOpen, onCloseLinkEditor, onApplyLink,
+  onStartComment,
 }: {
   editor: Editor;
   onPickFile: () => void;
@@ -1986,6 +2123,7 @@ function EditorBubbleMenu({
   linkEditorOpen: boolean;
   onCloseLinkEditor: () => void;
   onApplyLink: (url: string) => void;
+  onStartComment?: (selectedText: string) => Promise<string | null>;
 }) {
   const [colorPickerOpen, setColorPickerOpen] = useState<"text" | "highlight" | null>(null);
   const [linkInput, setLinkInput] = useState("");
@@ -2068,9 +2206,27 @@ function EditorBubbleMenu({
 
         <BMSep />
 
-        {/* Link + Attach */}
+        {/* Link + Attach + Comment */}
         <BMBtn active={editor.isActive("link")} onClick={onSetLink} title="Link"><LinkIcon className="h-3.5 w-3.5"/></BMBtn>
         <BMBtn onClick={onPickFile} title="Attach"><Paperclip className="h-3.5 w-3.5"/></BMBtn>
+        {onStartComment && (
+          <BMBtn
+            active={editor.isActive("comment")}
+            title="댓글 달기"
+            onClick={async () => {
+              const { from, to } = editor.state.selection;
+              if (from === to) return;
+              const selected = editor.state.doc.textBetween(from, to, " ").trim();
+              if (!selected) return;
+              const threadId = await onStartComment(selected);
+              if (threadId) {
+                editor.chain().focus().setCommentMark(threadId).run();
+              }
+            }}
+          >
+            <MessageSquare className="h-3.5 w-3.5" />
+          </BMBtn>
+        )}
 
         {/* 링크 편집 인라인 팝오버 */}
         {linkEditorOpen && (

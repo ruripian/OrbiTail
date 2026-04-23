@@ -13,6 +13,7 @@ import { useAuthStore } from "@/stores/authStore";
 
 export interface PresencePeer {
   clientID: number;
+  userId?: string;
   name: string;
   color: string;
   avatar?: string;
@@ -24,7 +25,7 @@ export interface DocCollab {
   connected: boolean;
   synced: boolean;         // 초기 sync 완료 여부 — 시드 판단 후 false이면 여전히 seed 가능
   peers: PresencePeer[];    // 자신 제외 접속자
-  me: { name: string; color: string; avatar?: string };
+  me: { id?: string; name: string; color: string; avatar?: string };
 }
 
 /* 사용자별 컬러 — id 해시로 안정적 할당 */
@@ -47,11 +48,13 @@ export function useDocumentWebSocket(docId: string | undefined): DocCollab {
   /* docId가 바뀌면 Y.Doc 자체를 새로 만든다 — 이전 문서 상태 누수 방지 */
   const ydoc = useMemo(() => new Y.Doc(), [docId]);
 
+  /* user 객체 레퍼런스 변동에 민감하지 않게 — id/name/avatar만 deps로 */
   const me = useMemo(() => ({
+    id: user?.id,
     name: user?.display_name || user?.email || "익명",
     color: colorFor(user?.id || "anon"),
     avatar: user?.avatar || undefined,
-  }), [user]);
+  }), [user?.id, user?.display_name, user?.email, user?.avatar]);
 
   /* provider는 state로 관리 — useEditor가 첫 렌더에서만 extensions를 고정하므로
      ref로 돌리면 provider가 null인 채로 CollaborationCursor가 영영 등록 안 됨. */
@@ -72,8 +75,10 @@ export function useDocumentWebSocket(docId: string | undefined): DocCollab {
     });
 
     /* 커서/프레즌스 초기화 — CollaborationCursor도 동일 필드를 설정하지만
-       provider 생성 시점에 한 번 해두면 초기 broadcast에 user 정보가 실림. */
+       provider 생성 시점에 한 번 해두면 초기 broadcast에 user 정보가 실림.
+       id는 다중 탭/유령 세션 필터링용. */
     p.awareness.setLocalStateField("user", {
+      id: me.id,
       name: me.name,
       color: me.color,
       avatar: me.avatar,
@@ -88,15 +93,32 @@ export function useDocumentWebSocket(docId: string | undefined): DocCollab {
     const onAwarenessChange = () => {
       const states = Array.from(p.awareness.getStates().entries()) as Array<[number, any]>;
       const self = p.awareness.clientID;
-      const next: PresencePeer[] = states
-        .filter(([id, st]) => id !== self && st?.user)
-        .map(([id, st]) => ({
-          clientID: id,
-          name: st.user.name || "?",
-          color: st.user.color || "#888",
-          avatar: st.user.avatar,
-        }));
-      setPeers(next);
+      const myUserId = me.id;
+      /* 1) 자기 자신 clientID 제외
+         2) user 데이터가 있는 entry만 (null state tombstone 필터)
+         3) 같은 user.id (내 다른 탭 or 서버 잔여 유령) 중복 제거 — 가장 최근 clientID 하나만
+         4) 내 user.id는 완전히 제외 (토스트바에 '내 아바타' 보이는 의미 없음) */
+      const seen = new Map<string, PresencePeer>();
+      for (const [cid, st] of states) {
+        if (cid === self) continue;
+        if (!st?.user) continue;
+        const u = st.user as { id?: string; name?: string; color?: string; avatar?: string };
+        if (!u.name) continue;
+        if (myUserId && u.id === myUserId) continue; // 내 다른 탭
+        const key = u.id || `cid:${cid}`;
+        const prev = seen.get(key);
+        // 같은 user.id가 여럿이면 가장 최근(=더 큰 clientID) 하나만
+        if (!prev || cid > prev.clientID) {
+          seen.set(key, {
+            clientID: cid,
+            userId: u.id,
+            name: u.name,
+            color: u.color || "#888",
+            avatar: u.avatar,
+          });
+        }
+      }
+      setPeers(Array.from(seen.values()));
     };
 
     p.on("status", onStatus);

@@ -7,7 +7,7 @@ from rest_framework.views import APIView
 
 from apps.projects.models import ProjectMember
 from apps.workspaces.models import WorkspaceMember
-from .models import DocumentSpace, Document, DocumentIssueLink, DocumentAttachment, DocumentComment, DocumentVersion
+from .models import DocumentSpace, Document, DocumentIssueLink, DocumentAttachment, DocumentComment, DocumentVersion, CommentThread
 from .serializers import (
     DocumentSpaceSerializer,
     DocumentSerializer,
@@ -16,6 +16,7 @@ from .serializers import (
     DocumentAttachmentSerializer,
     DocumentCommentSerializer,
     DocumentVersionSerializer,
+    CommentThreadSerializer,
 )
 
 
@@ -323,6 +324,117 @@ class DocumentCommentDetailView(generics.RetrieveUpdateDestroyAPIView):
             document_id=self.kwargs["doc_pk"],
             author=self.request.user,
         )
+
+
+# ── 블록 댓글 스레드 ──────────────────────────────────────────────
+
+class CommentThreadListCreateView(generics.ListCreateAPIView):
+    """스레드 목록 + 생성.
+
+    POST body: { anchor_text, initial_content }
+      → 스레드 + 첫 댓글을 한 번에 생성. 이때 응답에 id가 프론트로 돌아가면
+        CommentMark에 data-thread-id 로 박는다.
+    GET query: ?resolved=false|true (미지정 시 전체)
+    """
+    serializer_class = CommentThreadSerializer
+    pagination_class = None
+
+    def get_queryset(self):
+        qs = CommentThread.objects.filter(
+            document_id=self.kwargs["doc_pk"],
+            document__space_id=self.kwargs["space_pk"],
+        ).select_related("created_by", "resolved_by").prefetch_related("comments__author")
+        resolved = self.request.query_params.get("resolved")
+        if resolved in ("true", "1"):
+            qs = qs.filter(resolved=True)
+        elif resolved in ("false", "0"):
+            qs = qs.filter(resolved=False)
+        return qs
+
+    def perform_create(self, serializer):
+        initial = serializer.validated_data.pop("initial_content", "").strip()
+        if not initial:
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError({"initial_content": "첫 댓글 내용이 필요합니다."})
+        thread = serializer.save(
+            document_id=self.kwargs["doc_pk"],
+            created_by=self.request.user,
+        )
+        DocumentComment.objects.create(
+            document_id=self.kwargs["doc_pk"],
+            thread=thread,
+            author=self.request.user,
+            content=initial,
+        )
+
+
+class CommentThreadDetailView(generics.RetrieveDestroyAPIView):
+    """스레드 상세 / 삭제 — 생성자만 삭제 (단순 규칙, 필요 시 권한 확장).
+    삭제 시 cascade로 내부 댓글 전부 제거. CommentMark는 프론트에서 같이 제거.
+    """
+    serializer_class = CommentThreadSerializer
+    http_method_names = ["get", "delete"]
+
+    def get_queryset(self):
+        return CommentThread.objects.filter(
+            document_id=self.kwargs["doc_pk"],
+            document__space_id=self.kwargs["space_pk"],
+        ).select_related("created_by", "resolved_by").prefetch_related("comments__author")
+
+    def perform_destroy(self, instance):
+        if instance.created_by_id and instance.created_by_id != self.request.user.id:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("자신이 생성한 스레드만 삭제할 수 있습니다.")
+        instance.delete()
+
+
+class CommentThreadReplyView(generics.CreateAPIView):
+    """스레드에 답글 추가."""
+    serializer_class = DocumentCommentSerializer
+
+    def get_queryset(self):
+        return DocumentComment.objects.filter(
+            document_id=self.kwargs["doc_pk"],
+            thread_id=self.kwargs["thread_pk"],
+        )
+
+    def perform_create(self, serializer):
+        thread = get_object_or_404(
+            CommentThread,
+            pk=self.kwargs["thread_pk"],
+            document_id=self.kwargs["doc_pk"],
+        )
+        if thread.resolved:
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError("해결된 스레드에는 답글을 달 수 없습니다. 먼저 재개해주세요.")
+        serializer.save(
+            document_id=self.kwargs["doc_pk"],
+            thread=thread,
+            author=self.request.user,
+        )
+
+
+class CommentThreadResolveView(APIView):
+    """스레드 resolve/reopen 토글."""
+
+    def post(self, request, workspace_slug, space_pk, doc_pk, thread_pk):
+        thread = get_object_or_404(
+            CommentThread,
+            pk=thread_pk,
+            document_id=doc_pk,
+            document__space_id=space_pk,
+        )
+        if thread.resolved:
+            # 재개
+            thread.resolved = False
+            thread.resolved_at = None
+            thread.resolved_by = None
+        else:
+            thread.resolved = True
+            thread.resolved_at = timezone.now()
+            thread.resolved_by = request.user
+        thread.save(update_fields=["resolved", "resolved_at", "resolved_by"])
+        return Response(CommentThreadSerializer(thread).data)
 
 
 class DocumentAttachmentListCreateView(generics.ListCreateAPIView):

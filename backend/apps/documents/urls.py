@@ -14,6 +14,10 @@ from .views import (
     DocumentCommentDetailView,
     DocumentAttachmentListCreateView,
     DocumentAttachmentDeleteView,
+    CommentThreadListCreateView,
+    CommentThreadDetailView,
+    CommentThreadReplyView,
+    CommentThreadResolveView,
 )
 
 urlpatterns = [
@@ -89,6 +93,28 @@ urlpatterns = [
         "workspaces/<slug:workspace_slug>/documents/spaces/<uuid:space_pk>/docs/<uuid:doc_pk>/comments/<uuid:pk>/",
         DocumentCommentDetailView.as_view(),
         name="document-comment-detail",
+    ),
+
+    # 블록 댓글 스레드
+    path(
+        "workspaces/<slug:workspace_slug>/documents/spaces/<uuid:space_pk>/docs/<uuid:doc_pk>/threads/",
+        CommentThreadListCreateView.as_view(),
+        name="comment-thread-list",
+    ),
+    path(
+        "workspaces/<slug:workspace_slug>/documents/spaces/<uuid:space_pk>/docs/<uuid:doc_pk>/threads/<uuid:pk>/",
+        CommentThreadDetailView.as_view(),
+        name="comment-thread-detail",
+    ),
+    path(
+        "workspaces/<slug:workspace_slug>/documents/spaces/<uuid:space_pk>/docs/<uuid:doc_pk>/threads/<uuid:thread_pk>/reply/",
+        CommentThreadReplyView.as_view(),
+        name="comment-thread-reply",
+    ),
+    path(
+        "workspaces/<slug:workspace_slug>/documents/spaces/<uuid:space_pk>/docs/<uuid:doc_pk>/threads/<uuid:thread_pk>/resolve/",
+        CommentThreadResolveView.as_view(),
+        name="comment-thread-resolve",
     ),
 
     # 첨부파일

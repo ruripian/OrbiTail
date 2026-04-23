@@ -156,10 +156,51 @@ class DocumentAttachment(models.Model):
         ordering = ["-created_at"]
 
 
+class CommentThread(models.Model):
+    """블록 단위 댓글 스레드 — 문서의 특정 텍스트 선택 구간에 앵커된 대화.
+
+    CommentMark extension이 inline mark로 텍스트에 data-thread-id를 심고, Y.Doc 전파로
+    다른 피어에게도 마크가 보인다. 스레드 레코드는 REST로 관리 (생성/해결/삭제).
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    document = models.ForeignKey(Document, on_delete=models.CASCADE, related_name="comment_threads")
+    # 원본 선택 텍스트 스냅샷 — 마크가 문서 편집으로 사라지거나 위치가 드리프트해도
+    # 사이드바에서 무슨 내용에 달린 댓글인지 보여주기 위함.
+    anchor_text = models.CharField(max_length=500, blank=True, default="")
+
+    resolved = models.BooleanField(default=False)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    resolved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name="resolved_comment_threads",
+    )
+
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name="created_comment_threads",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "document_comment_threads"
+        ordering = ["created_at"]
+        indexes = [models.Index(fields=["document", "resolved"])]
+
+
 class DocumentComment(models.Model):
-    """문서 댓글"""
+    """문서 댓글 — thread가 있으면 블록 댓글 스레드의 구성원, 없으면 문서 전체 댓글."""
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     document = models.ForeignKey(Document, on_delete=models.CASCADE, related_name="comments")
+    thread = models.ForeignKey(
+        CommentThread,
+        null=True, blank=True,
+        on_delete=models.CASCADE,
+        related_name="comments",
+    )
     author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="document_comments")
     content = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
@@ -167,7 +208,10 @@ class DocumentComment(models.Model):
 
     class Meta:
         db_table = "document_comments"
-        ordering = ["-created_at"]
+        # 스레드 내부에선 오래된 것 먼저(대화 흐름), 스레드 없는 문서-전체 댓글은 최신순 상단이라
+        # view 레벨에서 필요 시 재정렬. 기본은 시간 오름차순 — 스레드 표시에 유리.
+        ordering = ["created_at"]
+        indexes = [models.Index(fields=["thread", "created_at"])]
 
 
 class DocumentVersion(models.Model):

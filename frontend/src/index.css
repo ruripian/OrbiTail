@@ -857,6 +857,64 @@ html { font-size: 18px; }
   /* 선택 영역은 user.color가 background로 주입됨 */
 }
 
+/* ── 블록 댓글 마크 (CommentMark) ──
+   색칠 대신 대시 외곽선 + 우측 상단 점 배지. 본문 가독성 방해 최소화. */
+.doc-comment-mark {
+  position: relative;
+  background: transparent;
+  border: 1px dashed hsla(45, 90%, 50%, 0.55);
+  border-radius: 4px;
+  padding: 0 3px;
+  margin: 0 2px;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, border-style 0.12s;
+}
+.doc-comment-mark:hover {
+  background: hsla(45, 100%, 60%, 0.08);
+  border-style: solid;
+  border-color: hsla(45, 95%, 48%, 0.8);
+}
+.doc-comment-mark[data-active="true"] {
+  background: hsla(45, 100%, 60%, 0.12);
+  border-style: solid;
+  border-width: 1.5px;
+  border-color: hsla(45, 90%, 45%, 0.95);
+}
+/* 우측 상단 콘 점 배지 — 마크 위치를 놓치지 않게 */
+.doc-comment-mark::after {
+  content: "";
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  width: 10px;
+  height: 10px;
+  background: hsla(45, 90%, 50%, 0.95);
+  border: 2px solid hsl(var(--background));
+  border-radius: 50%;
+  pointer-events: none;
+  transition: transform 0.12s, background-color 0.12s;
+}
+.doc-comment-mark:hover::after,
+.doc-comment-mark[data-active="true"]::after {
+  transform: scale(1.25);
+}
+
+/* 해결됨(resolved) 스레드 — 초록색 계열 */
+.doc-comment-mark[data-resolved="true"] {
+  border-color: hsla(145, 60%, 42%, 0.6);
+}
+.doc-comment-mark[data-resolved="true"]:hover {
+  background: hsla(145, 70%, 45%, 0.1);
+  border-color: hsla(145, 60%, 40%, 0.85);
+}
+.doc-comment-mark[data-resolved="true"][data-active="true"] {
+  background: hsla(145, 70%, 45%, 0.15);
+  border-color: hsla(145, 60%, 38%, 0.95);
+}
+.doc-comment-mark[data-resolved="true"]::after {
+  background: hsla(145, 65%, 42%, 0.95);
+}
+
 /* ── Math (KaTeX) ── */
 .doc-math {
   display: inline-block;

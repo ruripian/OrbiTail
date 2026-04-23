@@ -3,7 +3,7 @@
  * 사이드바(트리)는 DocumentLayout에서 관리.
  */
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useParams, useOutletContext, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { documentsApi } from "@/api/documents";
 import { DocumentEditor } from "@/components/documents/DocumentEditor";
+import { CommentsPanel as BlockCommentsPanel, type NewThreadRequest } from "@/components/documents/CommentsPanel";
 import { useDocumentWebSocket } from "@/hooks/useDocumentWebSocket";
 import { AvatarInitials } from "@/components/ui/avatar-initials";
 import { Button } from "@/components/ui/button";
@@ -25,11 +26,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { PanelHeader } from "@/components/ui/panel-header";
 import { UserLine } from "@/components/ui/user-line";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { useAuthStore } from "@/stores/authStore";
 import { cn } from "@/lib/utils";
 import { formatRelativeTime } from "@/lib/relative-time";
-import type { Document as DocType, DocumentComment } from "@/types";
+import type { Document as DocType } from "@/types";
 
 interface LayoutContext {
   activeSpaceId: string;
@@ -133,6 +132,56 @@ function DocumentEditorView({
   const collab = useDocumentWebSocket(editMode ? doc.id : undefined);
   const shouldSeed = !doc.has_yjs_state;
 
+  /* 블록 댓글 상태 */
+  const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
+  const [newThread, setNewThread] = useState<NewThreadRequest | null>(null);
+  const editorWrapperRef = useRef<HTMLDivElement>(null);
+
+  /* 현재 문서의 전체 스레드 — 해결됨 판정 + 자동 삭제 시 캐시 무효화 */
+  const allThreadsQ = useQuery({
+    queryKey: ["doc-threads-all", doc.id],
+    queryFn: () => documentsApi.threads.list(workspaceSlug!, spaceId!, doc.id),
+    enabled: editMode,
+  });
+  const resolvedThreadIds = useMemo(
+    () => new Set((allThreadsQ.data ?? []).filter((t) => t.resolved).map((t) => t.id)),
+    [allThreadsQ.data],
+  );
+
+  const handleStartComment = (selectedText: string): Promise<string | null> => {
+    setCommentsOpen(true);
+    return new Promise<string | null>((resolve) => {
+      setNewThread({ selectedText, resolve });
+    });
+  };
+
+  /* 마크 제거 탐지 시 API 호출 — 이미 삭제된 스레드는 404로 조용히 무시됨 */
+  const qc = useQueryClient();
+  const handleCommentMarksRemoved = useCallback((threadIds: string[]) => {
+    threadIds.forEach(async (id) => {
+      try {
+        await documentsApi.threads.delete(workspaceSlug!, spaceId!, doc.id, id);
+      } catch { /* 404 무시 (이미 다른 피어가 지움) */ }
+    });
+    qc.invalidateQueries({ queryKey: ["doc-threads", doc.id] });
+    qc.invalidateQueries({ queryKey: ["doc-threads-all", doc.id] });
+  }, [workspaceSlug, spaceId, doc.id, qc]);
+
+  /* 활성 스레드 바뀌면 에디터에서 해당 마크로 스크롤 + data-active 하이라이트 */
+  useEffect(() => {
+    const root = editorWrapperRef.current;
+    if (!root) return;
+    root.querySelectorAll<HTMLElement>("[data-comment-thread][data-active]").forEach((el) => {
+      el.removeAttribute("data-active");
+    });
+    if (!activeThreadId) return;
+    const el = root.querySelector<HTMLElement>(`[data-thread-id="${CSS.escape(activeThreadId)}"]`);
+    if (el) {
+      el.setAttribute("data-active", "true");
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [activeThreadId]);
+
   // 마크다운 복사
   const copyAsMarkdown = useCallback(() => {
     // 간단한 HTML → Markdown 변환
@@ -223,22 +272,32 @@ function DocumentEditorView({
 
         <div className="flex-1" />
 
-        {/* 접속자 아바타 — editMode에서 다른 사용자가 있을 때만 표시 */}
-        {editMode && collab.peers.length > 0 && (
-          <div className="flex items-center -space-x-2 mr-2">
-            {collab.peers.slice(0, 5).map((p) => (
+        {/* 접속자 아바타 — editMode에서만 표시. 자기 자신(첫 번째) + 다른 유저들 */}
+        {editMode && (
+          <div className="flex items-center -space-x-1.5 mr-2">
+            <div
+              className="relative rounded-full"
+              title={`${collab.me.name} (나)`}
+              style={{ boxShadow: `0 0 0 2px ${collab.me.color}, 0 0 0 4px hsl(var(--background))` }}
+            >
+              <AvatarInitials name={collab.me.name} avatar={collab.me.avatar} size="xs" />
+            </div>
+            {collab.peers.slice(0, 4).map((p) => (
               <div
-                key={p.clientID}
-                className="relative ring-2 ring-background rounded-full"
+                key={p.userId || p.clientID}
+                className="relative rounded-full"
                 title={p.name}
-                style={{ boxShadow: `0 0 0 2px ${p.color}` }}
+                style={{ boxShadow: `0 0 0 2px ${p.color}, 0 0 0 4px hsl(var(--background))` }}
               >
                 <AvatarInitials name={p.name} avatar={p.avatar} size="xs" />
               </div>
             ))}
-            {collab.peers.length > 5 && (
-              <div className="w-5 h-5 rounded-full bg-muted text-muted-foreground text-2xs flex items-center justify-center font-medium ring-2 ring-background">
-                +{collab.peers.length - 5}
+            {collab.peers.length > 4 && (
+              <div
+                className="w-5 h-5 rounded-full bg-muted text-muted-foreground text-2xs flex items-center justify-center font-medium"
+                style={{ boxShadow: `0 0 0 2px hsl(var(--background))` }}
+              >
+                +{collab.peers.length - 4}
               </div>
             )}
           </div>
@@ -347,7 +406,7 @@ function DocumentEditorView({
       {/* 에디터 + 목차 */}
       <div className="flex flex-1 overflow-hidden">
         {/* 에디터 영역 */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto" ref={editorWrapperRef}>
           <div className={cn("mx-auto w-full py-6 px-4 sm:px-6", fullWidth ? "max-w-none" : "max-w-[860px]")}>
             <div className="doc-frame rounded-2xl border bg-card shadow-sm px-6 sm:px-10 py-8">
               <input
@@ -378,6 +437,10 @@ function DocumentEditorView({
               projectId={projectId}
               collab={editMode ? collab : undefined}
               shouldSeed={editMode && shouldSeed}
+              onStartComment={editMode ? handleStartComment : undefined}
+              onCommentMarkClick={(id) => { setActiveThreadId(id); setCommentsOpen(true); }}
+              onCommentMarksRemoved={editMode ? handleCommentMarksRemoved : undefined}
+              resolvedThreadIds={resolvedThreadIds}
               onFileUpload={async (file) => {
                 const result = await documentsApi.attachments.upload(workspaceSlug!, spaceId!, doc.id, file);
                 return { url: result.file_url || result.file, filename: result.filename };
@@ -425,14 +488,15 @@ function DocumentEditorView({
         )}
 
         {commentsOpen && (
-          <aside className="w-72 border-l overflow-y-auto shrink-0 hidden lg:block" data-print-hide>
-            <CommentsPanel
-              workspaceSlug={workspaceSlug!}
-              spaceId={spaceId!}
-              docId={doc.id}
-              onClose={() => setCommentsOpen(false)}
-            />
-          </aside>
+          <BlockCommentsPanel
+            workspaceSlug={workspaceSlug!}
+            spaceId={spaceId!}
+            docId={doc.id}
+            activeThreadId={activeThreadId}
+            onActiveThreadChange={setActiveThreadId}
+            newThread={newThread}
+            onNewThreadHandled={() => setNewThread(null)}
+          />
         )}
       </div>
 
@@ -748,193 +812,6 @@ function VersionPreviewModal({
         </div>
       </div>
     </>
-  );
-}
-
-/* ── 댓글 패널 ── */
-
-function CommentsPanel({
-  workspaceSlug, spaceId, docId, onClose,
-}: {
-  workspaceSlug: string;
-  spaceId: string;
-  docId: string;
-  onClose: () => void;
-}) {
-  const { t } = useTranslation();
-  const qc = useQueryClient();
-  const currentUserId = useAuthStore((s) => s.user?.id);
-  const [newComment, setNewComment] = useState("");
-
-  const { data: comments = [] } = useQuery({
-    queryKey: ["doc-comments", workspaceSlug, spaceId, docId],
-    queryFn: () => documentsApi.comments.list(workspaceSlug, spaceId, docId),
-  });
-
-  const invalidate = () =>
-    qc.invalidateQueries({ queryKey: ["doc-comments", workspaceSlug, spaceId, docId] });
-
-  const createMutation = useMutation({
-    mutationFn: () => documentsApi.comments.create(workspaceSlug, spaceId, docId, newComment.trim()),
-    onSuccess: () => { invalidate(); setNewComment(""); },
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: ({ id, content }: { id: string; content: string }) =>
-      documentsApi.comments.update(workspaceSlug, spaceId, docId, id, content),
-    onSuccess: () => { invalidate(); toast.success(t("documents.commentUpdated")); },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: (commentId: string) =>
-      documentsApi.comments.delete(workspaceSlug, spaceId, docId, commentId),
-    onSuccess: () => { invalidate(); toast.success(t("documents.commentDeleted")); },
-  });
-
-  return (
-    <div className="flex flex-col h-full">
-      <PanelHeader title={t("documents.comments")} onClose={onClose} />
-
-      {/* 입력 영역 */}
-      <div className="p-3 border-b">
-        <textarea
-          className="w-full text-sm bg-muted/30 border rounded-lg px-3 py-2 resize-none outline-none focus:border-primary/50 min-h-[60px] transition-colors"
-          value={newComment}
-          onChange={(e) => setNewComment(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey && newComment.trim()) {
-              e.preventDefault();
-              createMutation.mutate();
-            }
-          }}
-        />
-        <Button
-          size="sm"
-          className="mt-2 w-full h-7 text-xs"
-          disabled={!newComment.trim() || createMutation.isPending}
-          onClick={() => createMutation.mutate()}
-        >
-          {t("documents.postComment")}
-        </Button>
-      </div>
-
-      {/* 카드 목록 */}
-      <div className="flex-1 overflow-y-auto p-2 space-y-2">
-        {comments.length === 0 ? (
-          <p className="p-4 text-xs text-muted-foreground text-center">
-            {t("documents.noComments")}
-          </p>
-        ) : (
-          comments.map((c) => (
-            <CommentCard
-              key={c.id}
-              comment={c}
-              isOwner={c.author === currentUserId}
-              onSave={(content) => updateMutation.mutate({ id: c.id, content })}
-              onDelete={() => deleteMutation.mutate(c.id)}
-            />
-          ))
-        )}
-      </div>
-    </div>
-  );
-}
-
-/* ── 댓글 카드 ── */
-
-function CommentCard({
-  comment, isOwner, onSave, onDelete,
-}: {
-  comment: DocumentComment;
-  isOwner: boolean;
-  onSave: (content: string) => void;
-  onDelete: () => void;
-}) {
-  const { t } = useTranslation();
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(comment.content);
-  const [confirmOpen, setConfirmOpen] = useState(false);
-
-  const dirty = draft.trim() !== comment.content && draft.trim().length > 0;
-
-  return (
-    <div className="group relative rounded-xl border bg-card px-3 py-2.5 hover:border-border/80 hover:shadow-sm transition-all">
-      <div className="flex items-start justify-between gap-2">
-        <UserLine
-          name={comment.author_detail?.display_name}
-          avatar={comment.author_detail?.avatar}
-          timestamp={comment.created_at}
-          editedAt={comment.updated_at}
-        />
-        {isOwner && !editing && (
-          <div className="opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  className="h-6 w-6 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-                  aria-label="Comment actions"
-                >
-                  <MoreHorizontal className="h-3.5 w-3.5" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-32">
-                <DropdownMenuItem onClick={() => { setDraft(comment.content); setEditing(true); }}>
-                  <Pencil className="h-3.5 w-3.5 mr-2" />
-                  {t("documents.editComment")}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  className="text-destructive focus:text-destructive"
-                  onClick={() => setConfirmOpen(true)}
-                >
-                  <Trash2 className="h-3.5 w-3.5 mr-2" />
-                  {t("documents.deleteComment")}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        )}
-      </div>
-
-      {editing ? (
-        <>
-          <textarea
-            className="w-full mt-2 text-sm bg-muted/30 border rounded-lg px-2.5 py-2 resize-none outline-none focus:border-primary/50 min-h-[70px] transition-colors"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            autoFocus
-          />
-          <div className="flex justify-end gap-1.5 mt-2">
-            <Button
-              variant="ghost" size="sm" className="h-7 text-xs"
-              onClick={() => { setEditing(false); setDraft(comment.content); }}
-            >
-              {t("common.cancel")}
-            </Button>
-            <Button
-              size="sm" className="h-7 text-xs"
-              disabled={!dirty}
-              onClick={() => { onSave(draft.trim()); setEditing(false); }}
-            >
-              {t("documents.saveChanges")}
-            </Button>
-          </div>
-        </>
-      ) : (
-        <p className="text-sm mt-2 whitespace-pre-wrap leading-relaxed text-foreground/90">
-          {comment.content}
-        </p>
-      )}
-
-      <ConfirmDialog
-        open={confirmOpen}
-        onOpenChange={setConfirmOpen}
-        title={t("documents.deleteCommentTitle")}
-        description={t("documents.deleteCommentDesc")}
-        confirmLabel={t("documents.deleteComment")}
-        variant="destructive"
-        onConfirm={() => { setConfirmOpen(false); onDelete(); }}
-      />
-    </div>
   );
 }
 

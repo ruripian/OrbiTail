@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from apps.accounts.serializers import UserSerializer
-from .models import DocumentSpace, Document, DocumentIssueLink, DocumentAttachment, DocumentComment, DocumentVersion
+from .models import DocumentSpace, Document, DocumentIssueLink, DocumentAttachment, DocumentComment, DocumentVersion, CommentThread
 
 
 class DocumentSpaceSerializer(serializers.ModelSerializer):
@@ -125,5 +125,37 @@ class DocumentCommentSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = DocumentComment
-        fields = ["id", "document", "author", "author_detail", "content", "created_at", "updated_at"]
-        read_only_fields = ["id", "document", "author", "created_at", "updated_at"]
+        fields = [
+            "id", "document", "thread", "author", "author_detail",
+            "content", "created_at", "updated_at",
+        ]
+        read_only_fields = ["id", "document", "thread", "author", "created_at", "updated_at"]
+
+
+class CommentThreadSerializer(serializers.ModelSerializer):
+    """스레드 + 내부 댓글 nested. 목록 조회 시 한 번에 내려보낼 수 있도록."""
+    created_by_detail = UserSerializer(source="created_by", read_only=True)
+    resolved_by_detail = UserSerializer(source="resolved_by", read_only=True)
+    comments = DocumentCommentSerializer(many=True, read_only=True)
+    comment_count = serializers.SerializerMethodField()
+
+    # 최초 작성 시 initial_content로 첫 댓글 자동 생성 — 빈 스레드 방지
+    initial_content = serializers.CharField(write_only=True, required=False, allow_blank=False)
+
+    class Meta:
+        model = CommentThread
+        fields = [
+            "id", "document", "anchor_text",
+            "resolved", "resolved_at", "resolved_by", "resolved_by_detail",
+            "created_by", "created_by_detail", "created_at",
+            "comments", "comment_count",
+            "initial_content",
+        ]
+        read_only_fields = [
+            "id", "document",
+            "resolved_at", "resolved_by", "created_by", "created_at",
+            "comments", "comment_count",
+        ]
+
+    def get_comment_count(self, obj):
+        return obj.comments.count()

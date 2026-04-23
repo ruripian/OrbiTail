@@ -241,6 +241,21 @@ export interface Document {
   updated_at: string;
 }
 
+export interface CommentThread {
+  id: string;
+  document: string;
+  anchor_text: string;
+  resolved: boolean;
+  resolved_at: string | null;
+  resolved_by: string | null;
+  resolved_by_detail: User | null;
+  created_by: string | null;
+  created_by_detail: User | null;
+  created_at: string;
+  comments: DocumentComment[];
+  comment_count: number;
+}
+
 export interface DocumentIssueLink {
   id: string;
   document: string;
@@ -267,6 +282,7 @@ export interface DocumentVersion {
 export interface DocumentComment {
   id: string;
   document: string;
+  thread?: string | null;
   author: string;
   author_detail: User | null;
   content: string;

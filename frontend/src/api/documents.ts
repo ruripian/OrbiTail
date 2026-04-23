@@ -1,5 +1,5 @@
 import { api } from "@/lib/axios";
-import type { DocumentSpace, Document, DocumentIssueLink, DocumentComment, DocumentVersion } from "@/types";
+import type { DocumentSpace, Document, DocumentIssueLink, DocumentComment, DocumentVersion, CommentThread } from "@/types";
 
 export const documentsApi = {
   /* ─── 스페이스 ─── */
@@ -91,6 +91,35 @@ export const documentsApi = {
 
     delete: (workspaceSlug: string, spaceId: string, docId: string, commentId: string) =>
       api.delete(`/workspaces/${workspaceSlug}/documents/spaces/${spaceId}/docs/${docId}/comments/${commentId}/`),
+  },
+
+  /* ─── 블록 댓글 스레드 ─── */
+  threads: {
+    list: (workspaceSlug: string, spaceId: string, docId: string, resolved?: boolean) =>
+      api.get<CommentThread[]>(
+        `/workspaces/${workspaceSlug}/documents/spaces/${spaceId}/docs/${docId}/threads/`,
+        { params: resolved === undefined ? {} : { resolved: resolved ? "true" : "false" } },
+      ).then((r) => r.data),
+
+    create: (workspaceSlug: string, spaceId: string, docId: string, data: { anchor_text: string; initial_content: string }) =>
+      api.post<CommentThread>(
+        `/workspaces/${workspaceSlug}/documents/spaces/${spaceId}/docs/${docId}/threads/`,
+        data,
+      ).then((r) => r.data),
+
+    reply: (workspaceSlug: string, spaceId: string, docId: string, threadId: string, content: string) =>
+      api.post<DocumentComment>(
+        `/workspaces/${workspaceSlug}/documents/spaces/${spaceId}/docs/${docId}/threads/${threadId}/reply/`,
+        { content },
+      ).then((r) => r.data),
+
+    resolve: (workspaceSlug: string, spaceId: string, docId: string, threadId: string) =>
+      api.post<CommentThread>(
+        `/workspaces/${workspaceSlug}/documents/spaces/${spaceId}/docs/${docId}/threads/${threadId}/resolve/`,
+      ).then((r) => r.data),
+
+    delete: (workspaceSlug: string, spaceId: string, docId: string, threadId: string) =>
+      api.delete(`/workspaces/${workspaceSlug}/documents/spaces/${spaceId}/docs/${docId}/threads/${threadId}/`),
   },
 
   /* ─── 버전 ─── */
