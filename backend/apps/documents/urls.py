@@ -20,6 +20,8 @@ from .views import (
     CommentThreadResolveView,
     DocumentTemplateListCreateView,
     DocumentTemplateDetailView,
+    DocumentShareView,
+    PublicDocumentView,
 )
 
 urlpatterns = [
@@ -117,6 +119,18 @@ urlpatterns = [
         "workspaces/<slug:workspace_slug>/documents/spaces/<uuid:space_pk>/docs/<uuid:doc_pk>/threads/<uuid:thread_pk>/resolve/",
         CommentThreadResolveView.as_view(),
         name="comment-thread-resolve",
+    ),
+
+    # 공개 공유 링크 — 편집자만 관리, 공개 조회는 /public/documents/<token>/
+    path(
+        "workspaces/<slug:workspace_slug>/documents/spaces/<uuid:space_pk>/docs/<uuid:doc_pk>/share/",
+        DocumentShareView.as_view(),
+        name="document-share",
+    ),
+    path(
+        "public/documents/<str:token>/",
+        PublicDocumentView.as_view(),
+        name="public-document",
     ),
 
     # 템플릿 — 워크스페이스 단위 (built-in + workspace + user)

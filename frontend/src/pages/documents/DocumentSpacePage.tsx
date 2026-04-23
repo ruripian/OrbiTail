@@ -18,6 +18,7 @@ import { documentsApi } from "@/api/documents";
 import { DocumentEditor } from "@/components/documents/DocumentEditor";
 import { CommentsPanel as BlockCommentsPanel, type NewThreadRequest } from "@/components/documents/CommentsPanel";
 import { SaveAsTemplateDialog } from "@/components/documents/TemplatePickerDialog";
+import { ShareDialog } from "@/components/documents/ShareDialog";
 import { useDocumentWebSocket } from "@/hooks/useDocumentWebSocket";
 import { AvatarInitials } from "@/components/ui/avatar-initials";
 import { Button } from "@/components/ui/button";
@@ -128,6 +129,7 @@ function DocumentEditorView({
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [moveOpen, setMoveOpen] = useState(false);
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const contentRef = { current: doc.content_html };
 
   /* 실시간 협업 — Y.Doc + WebSocket provider + Awareness. editMode일 때만 연결. */
@@ -326,12 +328,9 @@ function DocumentEditorView({
         )}
 
         {/* 우측 도구 */}
-        {/* 공유 */}
+        {/* 공유 — 공개 링크 다이얼로그 */}
         <Button variant="ghost" size="sm" className="h-7 text-xs gap-1.5 px-2.5"
-          onClick={() => {
-            navigator.clipboard.writeText(window.location.href);
-            toast.success(t("documents.linkCopied"));
-          }}
+          onClick={() => setShareOpen(true)}
         >
           <Share2 className="h-3.5 w-3.5" />
           {t("documents.share")}
@@ -598,6 +597,15 @@ function DocumentEditorView({
         workspaceSlug={workspaceSlug!}
         contentHtml={contentRef.current}
         defaultName={doc.title}
+      />
+
+      {/* 공개 공유 링크 다이얼로그 */}
+      <ShareDialog
+        open={shareOpen}
+        onOpenChange={setShareOpen}
+        workspaceSlug={workspaceSlug!}
+        spaceId={spaceId!}
+        docId={doc.id}
       />
     </div>
   );

@@ -92,6 +92,10 @@ class Document(models.Model):
     cover_image = models.ImageField(upload_to="documents/covers/%Y/%m/", null=True, blank=True)
     cover_offset_y = models.IntegerField(default=50)
 
+    # 공개 공유 — token이 있으면 로그인 없이 /s/<token>으로 read-only 조회 가능
+    share_token = models.CharField(max_length=64, unique=True, null=True, blank=True, db_index=True)
+    share_expires_at = models.DateTimeField(null=True, blank=True)
+
     content_html = models.TextField(blank=True, default="")
     yjs_state = models.BinaryField(null=True, blank=True)
 

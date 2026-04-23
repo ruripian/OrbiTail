@@ -42,6 +42,7 @@ import { lazy, Suspense } from "react";
 const DocumentsHomePage = lazy(() => import("@/pages/documents/DocumentsHomePage"));
 const DocumentSpacePage = lazy(() => import("@/pages/documents/DocumentSpacePage"));
 const DocumentExplorerPage = lazy(() => import("@/pages/documents/DocumentExplorerPage"));
+const PublicDocumentPage = lazy(() => import("@/pages/public/PublicDocumentPage"));
 
 function LazyPage({ Component }: { Component: React.LazyExoticComponent<() => JSX.Element> }) {
   return <Suspense fallback={<div className="flex items-center justify-center h-full"><div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>}><Component /></Suspense>;
@@ -79,6 +80,11 @@ export const router = createBrowserRouter([
     // 워크스페이스 초대 수락 — 로그인 여부와 무관하게 접근 가능
     path: "/invite/:token",
     element: <InviteAcceptPage />,
+  },
+  {
+    // 공개 공유 문서 — 인증 불필요
+    path: "/s/:token",
+    element: <LazyPage Component={PublicDocumentPage} />,
   },
   {
     path: "/create-workspace",

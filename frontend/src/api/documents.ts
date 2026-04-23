@@ -135,6 +135,29 @@ export const documentsApi = {
       api.delete(`/workspaces/${workspaceSlug}/documents/spaces/${spaceId}/docs/${docId}/threads/${threadId}/`),
   },
 
+  /* ─── 공개 공유 링크 ─── */
+  share: {
+    get: (workspaceSlug: string, spaceId: string, docId: string) =>
+      api.get<{ enabled: boolean; token?: string; url?: string; expires_at?: string | null }>(
+        `/workspaces/${workspaceSlug}/documents/spaces/${spaceId}/docs/${docId}/share/`,
+      ).then((r) => r.data),
+    enable: (workspaceSlug: string, spaceId: string, docId: string, expires_at?: string | null) =>
+      api.post<{ enabled: true; token: string; url: string; expires_at: string | null }>(
+        `/workspaces/${workspaceSlug}/documents/spaces/${spaceId}/docs/${docId}/share/`,
+        expires_at !== undefined ? { expires_at } : {},
+      ).then((r) => r.data),
+    disable: (workspaceSlug: string, spaceId: string, docId: string) =>
+      api.delete(`/workspaces/${workspaceSlug}/documents/spaces/${spaceId}/docs/${docId}/share/`),
+  },
+
+  /* ─── 공개 조회 (인증 불필요) ─── */
+  public: (token: string) =>
+    api.get<{
+      id: string; title: string; icon_prop: Record<string, unknown> | null;
+      content_html: string; cover_image_url: string | null; cover_offset_y: number;
+      updated_at: string;
+    }>(`/public/documents/${token}/`).then((r) => r.data),
+
   /* ─── 템플릿 ─── */
   templates: {
     list: (workspaceSlug: string, scope?: "built_in" | "user" | "workspace") =>

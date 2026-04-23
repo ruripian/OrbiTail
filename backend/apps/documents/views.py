@@ -497,6 +497,89 @@ class DocumentAttachmentListCreateView(generics.ListCreateAPIView):
         )
 
 
+# ── 공개 공유 링크 ──────────────────────────────────────────────
+
+class DocumentShareView(APIView):
+    """문서 공유 토큰 발급/조회/삭제.
+    GET:    현재 상태 { enabled, token?, expires_at?, url? }
+    POST:   body { expires_at? } → 토큰 발급/재발급
+    DELETE: 토큰 제거 (공유 해제)
+    모두 편집 권한 필요 (ProjectMember 또는 WorkspaceMember).
+    """
+
+    def _get_doc(self, request, workspace_slug, space_pk, doc_pk):
+        doc = get_object_or_404(
+            Document.objects.select_related("space"),
+            pk=doc_pk, space_id=space_pk, deleted_at__isnull=True,
+        )
+        if not _check_space_edit(request.user, doc.space):
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("공유 링크 관리 권한이 없습니다.")
+        return doc
+
+    def _shape(self, doc, request):
+        if not doc.share_token:
+            return {"enabled": False}
+        path = f"/s/{doc.share_token}"
+        url = request.build_absolute_uri(path)
+        return {
+            "enabled": True,
+            "token": doc.share_token,
+            "url": url,
+            "expires_at": doc.share_expires_at,
+        }
+
+    def get(self, request, workspace_slug, space_pk, doc_pk):
+        doc = self._get_doc(request, workspace_slug, space_pk, doc_pk)
+        return Response(self._shape(doc, request))
+
+    def post(self, request, workspace_slug, space_pk, doc_pk):
+        import secrets
+        doc = self._get_doc(request, workspace_slug, space_pk, doc_pk)
+        if not doc.share_token:
+            doc.share_token = secrets.token_urlsafe(24)
+        # expires_at 업데이트 (null 허용)
+        exp = request.data.get("expires_at") if hasattr(request, "data") else None
+        if "expires_at" in (request.data or {}):
+            doc.share_expires_at = exp or None
+        doc.save(update_fields=["share_token", "share_expires_at"])
+        return Response(self._shape(doc, request))
+
+    def delete(self, request, workspace_slug, space_pk, doc_pk):
+        doc = self._get_doc(request, workspace_slug, space_pk, doc_pk)
+        doc.share_token = None
+        doc.share_expires_at = None
+        doc.save(update_fields=["share_token", "share_expires_at"])
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class PublicDocumentView(APIView):
+    """인증 없이 토큰으로 조회되는 read-only 문서 뷰.
+    만료 시 404 취급. yjs_state는 노출하지 않음."""
+
+    authentication_classes: list = []
+    permission_classes: list = []
+
+    def get(self, request, token):
+        doc = Document.objects.filter(
+            share_token=token, deleted_at__isnull=True,
+        ).first()
+        if not doc:
+            return Response({"detail": "공유 링크가 유효하지 않습니다."}, status=404)
+        if doc.share_expires_at and doc.share_expires_at < timezone.now():
+            return Response({"detail": "공유 링크가 만료되었습니다."}, status=404)
+        cover_url = doc.cover_image.url if doc.cover_image else None
+        return Response({
+            "id": str(doc.id),
+            "title": doc.title,
+            "icon_prop": doc.icon_prop,
+            "content_html": doc.content_html,
+            "cover_image_url": cover_url,
+            "cover_offset_y": doc.cover_offset_y,
+            "updated_at": doc.updated_at,
+        })
+
+
 class DocumentAttachmentDeleteView(generics.DestroyAPIView):
     """첨부파일 삭제"""
     serializer_class = DocumentAttachmentSerializer

@@ -68,8 +68,12 @@ const CollaborationCaret = Extension.create<CollabCaretOptions>({
        2) 같은 user.id 여럿(다른 사용자의 다중 탭) 중에는 커서 활성인 것 우선,
           없으면 clientID 큰 쪽을 winner로 — 하나만 렌더. */
     const awarenessStateFilter = (clientId: number, state: any) => {
+      /* 방어적 self 제외 — yCursorPlugin이 이미 clientId !== aw.clientID로 거르지만,
+         라이브러리 버전/수정에 의존하지 않도록 여기서도 차단. */
+      if (clientId === aw.clientID) return false;
       const uid: string | undefined = state?.user?.id;
       if (!uid) return true;
+      /* 내 user.id의 다른 탭 커서도 전부 숨김 — 내가 쓰는 창에 내 이름 라벨이 뜨면 혼란. */
       if (myUserId && uid === myUserId) return false;
       const candidates: Array<{ cid: number; hasCursor: boolean }> = [];
       aw.getStates().forEach((s: any, cid: number) => {
