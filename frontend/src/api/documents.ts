@@ -1,5 +1,5 @@
 import { api } from "@/lib/axios";
-import type { DocumentSpace, Document, DocumentIssueLink, DocumentComment, DocumentVersion, CommentThread } from "@/types";
+import type { DocumentSpace, Document, DocumentIssueLink, DocumentComment, DocumentVersion, CommentThread, DocumentTemplate } from "@/types";
 
 export const documentsApi = {
   /* ─── 스페이스 ─── */
@@ -120,6 +120,27 @@ export const documentsApi = {
 
     delete: (workspaceSlug: string, spaceId: string, docId: string, threadId: string) =>
       api.delete(`/workspaces/${workspaceSlug}/documents/spaces/${spaceId}/docs/${docId}/threads/${threadId}/`),
+  },
+
+  /* ─── 템플릿 ─── */
+  templates: {
+    list: (workspaceSlug: string, scope?: "built_in" | "user" | "workspace") =>
+      api.get<DocumentTemplate[]>(
+        `/workspaces/${workspaceSlug}/documents/templates/`,
+        { params: scope ? { scope } : {} },
+      ).then((r) => r.data),
+
+    create: (workspaceSlug: string, data: {
+      name: string; description?: string; icon_prop?: Record<string, unknown> | null;
+      content_html: string; scope?: "user" | "workspace" | "built_in"; sort_order?: number;
+    }) =>
+      api.post<DocumentTemplate>(`/workspaces/${workspaceSlug}/documents/templates/`, data).then((r) => r.data),
+
+    get: (workspaceSlug: string, id: string) =>
+      api.get<DocumentTemplate>(`/workspaces/${workspaceSlug}/documents/templates/${id}/`).then((r) => r.data),
+
+    delete: (workspaceSlug: string, id: string) =>
+      api.delete(`/workspaces/${workspaceSlug}/documents/templates/${id}/`),
   },
 
   /* ─── 버전 ─── */

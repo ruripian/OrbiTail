@@ -7,7 +7,7 @@ from rest_framework.views import APIView
 
 from apps.projects.models import ProjectMember
 from apps.workspaces.models import WorkspaceMember
-from .models import DocumentSpace, Document, DocumentIssueLink, DocumentAttachment, DocumentComment, DocumentVersion, CommentThread
+from .models import DocumentSpace, Document, DocumentIssueLink, DocumentAttachment, DocumentComment, DocumentVersion, CommentThread, DocumentTemplate
 from .serializers import (
     DocumentSpaceSerializer,
     DocumentSerializer,
@@ -17,6 +17,7 @@ from .serializers import (
     DocumentCommentSerializer,
     DocumentVersionSerializer,
     CommentThreadSerializer,
+    DocumentTemplateSerializer,
 )
 
 
@@ -471,3 +472,100 @@ class DocumentAttachmentDeleteView(generics.DestroyAPIView):
             document_id=self.kwargs["doc_pk"],
             document__space_id=self.kwargs["space_pk"],
         )
+
+
+# ── 문서 템플릿 ──────────────────────────────────────────────────
+
+class DocumentTemplateListCreateView(generics.ListCreateAPIView):
+    """템플릿 목록 + 생성.
+
+    GET 반환: built-in + 워크스페이스 공유 + 본인 소유 전부. 쿼리 ?scope= 로 필터 가능.
+    POST body: { name, description?, icon_prop?, content_html, scope?, sort_order? }
+      scope='workspace' 로 저장하려면 워크스페이스 admin 권한 필요, 그 외는 'user'로 강제.
+    """
+    serializer_class = DocumentTemplateSerializer
+    pagination_class = None
+
+    def _get_workspace(self):
+        from apps.workspaces.models import Workspace
+        return get_object_or_404(Workspace, slug=self.kwargs["workspace_slug"])
+
+    def _is_admin(self, ws):
+        from apps.workspaces.models import WorkspaceMember
+        return WorkspaceMember.objects.filter(
+            workspace=ws, member=self.request.user,
+            role__in=[WorkspaceMember.Role.OWNER, WorkspaceMember.Role.ADMIN],
+        ).exists()
+
+    def get_queryset(self):
+        ws = self._get_workspace()
+        user = self.request.user
+        qs = DocumentTemplate.objects.filter(
+            Q(scope=DocumentTemplate.Scope.BUILT_IN)
+            | Q(scope=DocumentTemplate.Scope.WORKSPACE, workspace=ws)
+            | Q(scope=DocumentTemplate.Scope.USER, owner=user)
+        ).select_related("created_by")
+        scope = self.request.query_params.get("scope")
+        if scope in [c[0] for c in DocumentTemplate.Scope.choices]:
+            qs = qs.filter(scope=scope)
+        return qs
+
+    def perform_create(self, serializer):
+        ws = self._get_workspace()
+        requested_scope = self.request.data.get("scope") or DocumentTemplate.Scope.USER
+        if requested_scope == DocumentTemplate.Scope.BUILT_IN:
+            # 내장 템플릿은 슈퍼유저만
+            if not self.request.user.is_superuser:
+                from rest_framework.exceptions import PermissionDenied
+                raise PermissionDenied("내장 템플릿은 관리자만 생성할 수 있습니다.")
+            serializer.save(scope=DocumentTemplate.Scope.BUILT_IN, workspace=None, owner=None, created_by=self.request.user)
+        elif requested_scope == DocumentTemplate.Scope.WORKSPACE:
+            if not self._is_admin(ws):
+                from rest_framework.exceptions import PermissionDenied
+                raise PermissionDenied("워크스페이스 공유 템플릿은 관리자/오너만 생성할 수 있습니다.")
+            serializer.save(scope=DocumentTemplate.Scope.WORKSPACE, workspace=ws, owner=None, created_by=self.request.user)
+        else:
+            serializer.save(
+                scope=DocumentTemplate.Scope.USER, workspace=None,
+                owner=self.request.user, created_by=self.request.user,
+            )
+
+
+class DocumentTemplateDetailView(generics.RetrieveDestroyAPIView):
+    """템플릿 상세 / 삭제.
+    built-in은 슈퍼유저만, workspace는 해당 워크스페이스 admin, user 범위는 본인만 삭제.
+    """
+    serializer_class = DocumentTemplateSerializer
+    http_method_names = ["get", "delete"]
+
+    def _get_workspace(self):
+        from apps.workspaces.models import Workspace
+        return get_object_or_404(Workspace, slug=self.kwargs["workspace_slug"])
+
+    def get_queryset(self):
+        ws = self._get_workspace()
+        user = self.request.user
+        return DocumentTemplate.objects.filter(
+            Q(scope=DocumentTemplate.Scope.BUILT_IN)
+            | Q(scope=DocumentTemplate.Scope.WORKSPACE, workspace=ws)
+            | Q(scope=DocumentTemplate.Scope.USER, owner=user)
+        )
+
+    def perform_destroy(self, instance):
+        from rest_framework.exceptions import PermissionDenied
+        from apps.workspaces.models import WorkspaceMember
+        user = self.request.user
+        if instance.scope == DocumentTemplate.Scope.BUILT_IN:
+            if not user.is_superuser:
+                raise PermissionDenied("내장 템플릿은 관리자만 삭제할 수 있습니다.")
+        elif instance.scope == DocumentTemplate.Scope.WORKSPACE:
+            is_admin = WorkspaceMember.objects.filter(
+                workspace=instance.workspace, member=user,
+                role__in=[WorkspaceMember.Role.OWNER, WorkspaceMember.Role.ADMIN],
+            ).exists()
+            if not is_admin:
+                raise PermissionDenied("워크스페이스 템플릿 삭제 권한이 없습니다.")
+        else:
+            if instance.owner_id != user.id:
+                raise PermissionDenied("본인 소유 템플릿만 삭제할 수 있습니다.")
+        instance.delete()

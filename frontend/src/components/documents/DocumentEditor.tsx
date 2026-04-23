@@ -61,8 +61,20 @@ const CollaborationCaret = Extension.create<CollabCaretOptions>({
   addProseMirrorPlugins() {
     const aw = this.options.provider?.awareness;
     if (!aw) return [];
+    /* 같은 user.id에 대해 가장 최근(=더 큰 clientID) 커서 1개만 표시.
+       새로고침 유령/다른 탭 커서가 화면에 누적되는 현상 차단. */
+    const awarenessStateFilter = (clientId: number, state: any) => {
+      const uid: string | undefined = state?.user?.id;
+      if (!uid) return true;
+      let maxCid = clientId;
+      aw.getStates().forEach((s: any, cid: number) => {
+        if (s?.user?.id === uid && cid > maxCid) maxCid = cid;
+      });
+      return clientId === maxCid;
+    };
     return [
       yCursorPlugin(aw, {
+        awarenessStateFilter,
         cursorBuilder: (u: any) => {
           const span = document.createElement("span");
           span.classList.add("collaboration-cursor__caret");

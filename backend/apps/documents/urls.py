@@ -18,6 +18,8 @@ from .views import (
     CommentThreadDetailView,
     CommentThreadReplyView,
     CommentThreadResolveView,
+    DocumentTemplateListCreateView,
+    DocumentTemplateDetailView,
 )
 
 urlpatterns = [
@@ -115,6 +117,18 @@ urlpatterns = [
         "workspaces/<slug:workspace_slug>/documents/spaces/<uuid:space_pk>/docs/<uuid:doc_pk>/threads/<uuid:thread_pk>/resolve/",
         CommentThreadResolveView.as_view(),
         name="comment-thread-resolve",
+    ),
+
+    # 템플릿 — 워크스페이스 단위 (built-in + workspace + user)
+    path(
+        "workspaces/<slug:workspace_slug>/documents/templates/",
+        DocumentTemplateListCreateView.as_view(),
+        name="document-template-list",
+    ),
+    path(
+        "workspaces/<slug:workspace_slug>/documents/templates/<uuid:pk>/",
+        DocumentTemplateDetailView.as_view(),
+        name="document-template-detail",
     ),
 
     # 첨부파일

@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from apps.accounts.serializers import UserSerializer
-from .models import DocumentSpace, Document, DocumentIssueLink, DocumentAttachment, DocumentComment, DocumentVersion, CommentThread
+from .models import DocumentSpace, Document, DocumentIssueLink, DocumentAttachment, DocumentComment, DocumentVersion, CommentThread, DocumentTemplate
 
 
 class DocumentSpaceSerializer(serializers.ModelSerializer):
@@ -102,6 +102,24 @@ class DocumentVersionSerializer(serializers.ModelSerializer):
             "created_by", "created_by_detail", "created_at",
         ]
         read_only_fields = ["id", "document", "version_number", "created_by", "created_at"]
+
+
+class DocumentTemplateSerializer(serializers.ModelSerializer):
+    created_by_detail = UserSerializer(source="created_by", read_only=True)
+
+    class Meta:
+        model = DocumentTemplate
+        fields = [
+            "id", "name", "description", "icon_prop",
+            "scope", "workspace", "owner",
+            "content_html", "sort_order",
+            "created_by", "created_by_detail",
+            "created_at", "updated_at",
+        ]
+        read_only_fields = [
+            "id", "scope", "workspace", "owner",
+            "created_by", "created_at", "updated_at",
+        ]
 
 
 class DocumentAttachmentSerializer(serializers.ModelSerializer):

@@ -24,6 +24,7 @@ import { useUndoStore } from "@/stores/undoStore";
 import { Z_SIDEBAR_OVERLAY, Z_SIDEBAR } from "@/constants/z-index";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { TemplatePickerDialog } from "@/components/documents/TemplatePickerDialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -133,7 +134,7 @@ export function DocumentLayout() {
 
   // 문서 생성
   const createMutation = useMutation({
-    mutationFn: (data: { title?: string; parent?: string | null; is_folder?: boolean }) =>
+    mutationFn: (data: { title?: string; parent?: string | null; is_folder?: boolean; content_html?: string }) =>
       documentsApi.create(workspaceSlug!, activeSpaceId!, data),
     onSuccess: (doc) => {
       invalidate();
@@ -142,6 +143,10 @@ export function DocumentLayout() {
       }
     },
   });
+
+  /* 템플릿 선택 다이얼로그 상태 — 트리 '+ 새 문서' 또는 하위 문서 생성 시 오픈 */
+  const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
+  const [pendingParentId, setPendingParentId] = useState<string | null>(null);
 
   // 문서 수정
   const updateMutation = useMutation({
@@ -200,13 +205,13 @@ export function DocumentLayout() {
             </span>
           )}
 
-          {/* + 새 문서 */}
+          {/* + 새 문서 — 템플릿 선택 다이얼로그 */}
           <Button
             variant="ghost"
             size="icon"
             className="h-7 w-7 shrink-0"
             title={t("documents.newDocument")}
-            onClick={() => createMutation.mutate({ title: t("documents.untitled") })}
+            onClick={() => { setPendingParentId(null); setTemplatePickerOpen(true); }}
           >
             <FilePlus className="h-4 w-4" />
           </Button>
@@ -248,13 +253,19 @@ export function DocumentLayout() {
                     if (window.confirm(t("documents.deleteConfirm"))) deleteMutation.mutate(id);
                   }}
                   onRename={(id, title) => updateMutation.mutate({ id, data: { title } })}
-                  onCreate={(parentId, isFolder) =>
-                    createMutation.mutate({
-                      title: isFolder ? t("documents.newFolder") : t("documents.untitled"),
-                      parent: parentId,
-                      is_folder: isFolder,
-                    })
-                  }
+                  onCreate={(parentId, isFolder) => {
+                    if (isFolder) {
+                      createMutation.mutate({
+                        title: t("documents.newFolder"),
+                        parent: parentId,
+                        is_folder: true,
+                      });
+                    } else {
+                      /* 하위 문서도 템플릿 선택 화면 거침 */
+                      setPendingParentId(parentId);
+                      setTemplatePickerOpen(true);
+                    }
+                  }}
                   onDragStartGlobal={(id) => setDraggingId(id)}
                   onDragEndGlobal={() => setDraggingId(null)}
                   onMove={(docId, targetId, position) => {
@@ -367,6 +378,23 @@ export function DocumentLayout() {
           <Outlet context={{ activeSpaceId, invalidate }} />
         </main>
       </div>
+
+      {/* 템플릿 선택 다이얼로그 */}
+      {activeSpaceId && workspaceSlug && (
+        <TemplatePickerDialog
+          open={templatePickerOpen}
+          onOpenChange={setTemplatePickerOpen}
+          workspaceSlug={workspaceSlug}
+          onPick={(tpl) => {
+            createMutation.mutate({
+              title: tpl ? tpl.name : t("documents.untitled"),
+              parent: pendingParentId,
+              content_html: tpl?.content_html ?? "",
+            });
+            setPendingParentId(null);
+          }}
+        />
+      )}
     </div>
   );
 }

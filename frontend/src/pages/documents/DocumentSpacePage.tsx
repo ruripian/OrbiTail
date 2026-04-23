@@ -17,6 +17,7 @@ import {
 import { documentsApi } from "@/api/documents";
 import { DocumentEditor } from "@/components/documents/DocumentEditor";
 import { CommentsPanel as BlockCommentsPanel, type NewThreadRequest } from "@/components/documents/CommentsPanel";
+import { SaveAsTemplateDialog } from "@/components/documents/TemplatePickerDialog";
 import { useDocumentWebSocket } from "@/hooks/useDocumentWebSocket";
 import { AvatarInitials } from "@/components/ui/avatar-initials";
 import { Button } from "@/components/ui/button";
@@ -126,6 +127,7 @@ function DocumentEditorView({
   const [historyOpen, setHistoryOpen] = useState(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [moveOpen, setMoveOpen] = useState(false);
+  const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
   const contentRef = { current: doc.content_html };
 
   /* 실시간 협업 — Y.Doc + WebSocket provider + Awareness. editMode일 때만 연결. */
@@ -382,6 +384,10 @@ function DocumentEditorView({
               <Download className="h-3.5 w-3.5 mr-2 rotate-180" />
               {t("documents.importDocx")}
             </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setSaveTemplateOpen(true)}>
+              <FileText className="h-3.5 w-3.5 mr-2" />
+              템플릿으로 저장
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handlePrint}>
               <Printer className="h-3.5 w-3.5 mr-2" />
@@ -510,6 +516,15 @@ function DocumentEditorView({
           onClose={() => setMoveOpen(false)}
         />
       )}
+
+      {/* 템플릿으로 저장 다이얼로그 */}
+      <SaveAsTemplateDialog
+        open={saveTemplateOpen}
+        onOpenChange={setSaveTemplateOpen}
+        workspaceSlug={workspaceSlug!}
+        contentHtml={contentRef.current}
+        defaultName={doc.title}
+      />
     </div>
   );
 }

@@ -214,6 +214,59 @@ class DocumentComment(models.Model):
         indexes = [models.Index(fields=["thread", "created_at"])]
 
 
+class DocumentTemplate(models.Model):
+    """문서 템플릿 — 빈 문서 대신 미리 정의된 구조로 시작할 수 있도록.
+
+    범위(scope):
+      built_in  — 시스템 내장 (관리자만 수정, 모든 사용자에게 노출)
+      user      — 본인 전용 (owner만 조회/사용/삭제)
+      workspace — 워크스페이스 공유 (멤버 전체 조회/사용, 관리자 삭제)
+    """
+
+    class Scope(models.TextChoices):
+        BUILT_IN = "built_in", "Built-in"
+        USER = "user", "User"
+        WORKSPACE = "workspace", "Workspace"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=200)
+    description = models.CharField(max_length=500, blank=True, default="")
+    icon_prop = models.JSONField(null=True, blank=True, default=None)
+
+    scope = models.CharField(max_length=16, choices=Scope.choices, default=Scope.USER)
+    workspace = models.ForeignKey(
+        "workspaces.Workspace",
+        null=True, blank=True,
+        on_delete=models.CASCADE,
+        related_name="document_templates",
+    )
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True, blank=True,
+        on_delete=models.CASCADE,
+        related_name="document_templates",
+    )
+
+    content_html = models.TextField(blank=True, default="")
+    sort_order = models.IntegerField(default=0)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name="created_document_templates",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "document_templates"
+        ordering = ["scope", "sort_order", "name"]
+        indexes = [
+            models.Index(fields=["scope", "workspace"]),
+            models.Index(fields=["scope", "owner"]),
+        ]
+
+
 class DocumentVersion(models.Model):
     """문서 버전 스냅샷 — 자동 저장 (5분) 또는 수동 저장"""
 

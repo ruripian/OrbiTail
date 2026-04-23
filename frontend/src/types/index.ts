@@ -241,6 +241,22 @@ export interface Document {
   updated_at: string;
 }
 
+export interface DocumentTemplate {
+  id: string;
+  name: string;
+  description: string;
+  icon_prop: Record<string, unknown> | null;
+  scope: "built_in" | "user" | "workspace";
+  workspace: string | null;
+  owner: string | null;
+  content_html: string;
+  sort_order: number;
+  created_by: string | null;
+  created_by_detail: User | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface CommentThread {
   id: string;
   document: string;
