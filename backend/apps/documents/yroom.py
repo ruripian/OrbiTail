@@ -61,7 +61,8 @@ def _has_state(doc_id: str) -> bool:
 class YRoom:
     """단일 문서의 서버 측 CRDT 상태."""
 
-    SAVE_DEBOUNCE_SEC = 5.0
+    # 타이핑 직후 새로고침 시 손실 방지 — 1초로 짧게. 어차피 disconnect 시 즉시 flush.
+    SAVE_DEBOUNCE_SEC = 1.0
 
     def __init__(self, doc_id: str):
         self.doc_id = doc_id
@@ -152,6 +153,12 @@ async def get_or_create_room(doc_id: str) -> YRoom:
 
 
 async def release_room(doc_id: str) -> None:
+    """마지막 접속자가 나가면 flush + evict.
+
+    중요: pop보다 flush가 먼저. pop 후 flush 중에 새 연결이 오면 같은 room을
+    못 찾고 DB에서 아직 저장 안 된 옛 상태를 load → 내용 증발. 그래서 flush가
+    끝날 때까지 room을 _rooms에 유지.
+    """
     async with _rooms_lock:
         room = _rooms.get(doc_id)
         if room is None:
@@ -159,13 +166,20 @@ async def release_room(doc_id: str) -> None:
         room.connections -= 1
         if room.connections > 0:
             return
-        _rooms.pop(doc_id, None)
-    # 락 해제 후 flush — DB I/O가 오래 걸려도 다른 룸 연산 블록하지 않게
+        # 아직 pop 안 함 — flush 동안 새 연결이 기존 room을 쓸 수 있도록.
+
+    # 락 밖에서 DB I/O. 오래 걸려도 다른 룸 연산은 막지 않음.
     await room.flush()
-    try:
-        room.awareness.stop()
-    except Exception:
-        pass
+
+    # flush 후 다시 락 잡고, 그사이 재접속이 없었을 때만 최종 evict.
+    async with _rooms_lock:
+        current = _rooms.get(doc_id)
+        if current is room and room.connections == 0:
+            _rooms.pop(doc_id, None)
+            try:
+                room.awareness.stop()
+            except Exception:
+                pass
 
 
 async def room_has_state(doc_id: str) -> bool:
