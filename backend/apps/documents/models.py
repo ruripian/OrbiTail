@@ -88,9 +88,26 @@ class Document(models.Model):
     title = models.CharField(max_length=500, default="제목 없음")
     icon_prop = models.JSONField(null=True, blank=True, default=None)  # { type: "lucide", name: "Box", color: "#hex" }
 
-    # 커버 이미지 — Notion 스타일 상단 배너. cover_offset_y는 0-100 (%) 세로 위치
+    # 커버 이미지 — Notion 스타일 상단 배너.
+    # offset_x/offset_y: 0~100 % (이미지의 어느 지점이 컨테이너 중앙에 오도록 할지)
+    # zoom: 1.0 ~ 3.0 (기본 1.0 = cover로 딱 맞음, ↑일수록 더 확대/크롭됨)
     cover_image = models.ImageField(upload_to="documents/covers/%Y/%m/", null=True, blank=True)
+    cover_offset_x = models.IntegerField(default=50)
     cover_offset_y = models.IntegerField(default=50)
+    cover_zoom = models.FloatField(default=1.0)
+    cover_height = models.IntegerField(default=208)  # px, 120 ~ 480 권장 (h-52 ≒ 208px가 기본)
+
+    # 작성자가 권장하는 너비 — 다른 사용자가 열었을 때 기본 너비.
+    # 사용자가 그 자리에서 토글해도 본인 세션만 영향 (저장 안 함).
+    PREFERRED_WIDTH_CHOICES = (("narrow", "Narrow (860px)"), ("wide", "Wide (full)"))
+    preferred_width = models.CharField(max_length=8, choices=PREFERRED_WIDTH_CHOICES, default="narrow")
+
+    # 문서 단위 글자 크기 (px) — 모든 협업자에게 동일하게 보임. 편집 권한자가 변경.
+    # 본문 < H3 < H2 < H1 순서를 클라이언트가 강제.
+    font_size_body = models.IntegerField(default=18)
+    font_size_h3   = models.IntegerField(default=22)
+    font_size_h2   = models.IntegerField(default=28)
+    font_size_h1   = models.IntegerField(default=36)
 
     # 공개 공유 — token이 있으면 로그인 없이 /s/<token>으로 read-only 조회 가능
     share_token = models.CharField(max_length=64, unique=True, null=True, blank=True, db_index=True)
@@ -125,6 +142,28 @@ class Document(models.Model):
     def __str__(self):
         prefix = "📁" if self.is_folder else "📄"
         return f"{prefix} {self.title}"
+
+
+class DocumentBookmark(models.Model):
+    """사용자별 문서 즐겨찾기 — 사용자/문서 unique"""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="document_bookmarks",
+    )
+    document = models.ForeignKey(
+        Document,
+        on_delete=models.CASCADE,
+        related_name="bookmarks",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "document_bookmarks"
+        unique_together = ("user", "document")
+        indexes = [models.Index(fields=["user", "-created_at"])]
 
 
 class DocumentIssueLink(models.Model):

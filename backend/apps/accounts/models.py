@@ -55,6 +55,10 @@ class User(AbstractBaseUser, PermissionsMixin):
         related_name="+",
     )
     theme = models.CharField(max_length=10, choices=Theme.choices, default=Theme.SYSTEM)
+    # 보기 설정 — 사용자별 UI 글자 크기/폰트. 프론트는 :root CSS 변수로 적용.
+    ui_font_scale = models.FloatField(default=1.0)          # 0.8 ~ 1.4
+    ui_font_family = models.CharField(max_length=32, default="pretendard")
+    ui_font_mono = models.CharField(max_length=32, default="jetbrains")
     # 소프트 삭제: 계정 탈퇴 시 설정. 이 값이 set이면 로그인 불가 (is_active=False와 병행).
     deleted_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)

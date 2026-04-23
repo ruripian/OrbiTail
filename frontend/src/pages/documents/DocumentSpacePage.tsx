@@ -9,18 +9,23 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
-  FileText, Loader2, Pencil, Eye, Share2, MessageSquare,
-  List, MoreHorizontal, Copy, Maximize2, Minimize2,
+  FileText, Loader2, Pencil, Eye, Share2, MessageSquare, Hash, Plus, Star,
+  List, MoreHorizontal, Maximize2, Minimize2,
   History, FolderInput, Download, Printer, FileDown, Trash2, LayoutGrid,
-  FolderOpen, FilePlus, Image as ImageIcon, X,
+  FolderOpen, FilePlus, Image as ImageIcon,
 } from "lucide-react";
 import { documentsApi } from "@/api/documents";
+import { useAuthStore } from "@/stores/authStore";
 import { DocumentEditor } from "@/components/documents/DocumentEditor";
 import { CommentsPanel as BlockCommentsPanel, type NewThreadRequest } from "@/components/documents/CommentsPanel";
 import { SaveAsTemplateDialog } from "@/components/documents/TemplatePickerDialog";
 import { ShareDialog } from "@/components/documents/ShareDialog";
+import { CoverEditDialog } from "@/components/documents/CoverEditDialog";
+import { CoverView } from "@/components/documents/CoverView";
+import { IssuePickerDialog } from "@/components/documents/IssuePickerDialog";
 import { useDocumentWebSocket } from "@/hooks/useDocumentWebSocket";
 import { AvatarInitials } from "@/components/ui/avatar-initials";
+import { ResizableAside } from "@/components/ui/resizable-aside";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
@@ -123,13 +128,111 @@ function DocumentEditorView({
   const navigate = useNavigate();
   const [title, setTitle] = useState(doc.title);
   const [editMode, setEditMode] = useState(true);
-  const [fullWidth, setFullWidth] = useState(false);
+  /* fullWidth 초기값 = 작성자가 권장한 preferred_width. 사용자가 그 자리에서 토글하면 본인 세션만 변경. */
+  const [fullWidth, setFullWidth] = useState((doc.preferred_width ?? "narrow") === "wide");
+  /* 다른 문서로 이동 시 그 문서의 추천값으로 재초기화 */
+  useEffect(() => { setFullWidth((doc.preferred_width ?? "narrow") === "wide"); }, [doc.id, doc.preferred_width]);
+  /* 작성자만 추천 너비 변경 가능 — 다른 사용자는 본인 세션 토글만 */
+  const currentUser = useAuthStore((s) => s.user);
+  const isAuthor = !!currentUser && doc.created_by === currentUser.id;
+
+  /* 작성자가 본인 화면 너비를 바꾸면 그 값이 자동으로 '추천 너비'로 저장됨 (디바운스).
+     작성자가 의도적으로 토글할 필요 없이 본인이 보는 모드 그대로 추천. */
+  /* 즐겨찾기 — 사용자별 toggle. 아이콘은 메타 라인의 점세개 옆. */
+  const { data: bookmarks = [] } = useQuery({
+    queryKey: ["doc-bookmarks", workspaceSlug],
+    queryFn: () => documentsApi.bookmarks.list(workspaceSlug!),
+    enabled: !!workspaceSlug,
+  });
+  const isBookmarked = bookmarks.some((b) => b.id === doc.id);
+  const bookmarkMut = useMutation({
+    mutationFn: () => isBookmarked
+      ? documentsApi.bookmarks.remove(workspaceSlug!, doc.id)
+      : documentsApi.bookmarks.add(workspaceSlug!, doc.id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["doc-bookmarks", workspaceSlug] }),
+  });
+
+  const widthSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (!isAuthor) return;
+    const desired: "narrow" | "wide" = fullWidth ? "wide" : "narrow";
+    if (desired === (doc.preferred_width ?? "narrow")) return;
+    if (widthSaveTimer.current) clearTimeout(widthSaveTimer.current);
+    widthSaveTimer.current = setTimeout(() => {
+      onUpdate({ preferred_width: desired });
+    }, 600);
+    return () => { if (widthSaveTimer.current) clearTimeout(widthSaveTimer.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthor, fullWidth, doc.preferred_width]);
   const [tocOpen, setTocOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [moveOpen, setMoveOpen] = useState(false);
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  /* 문서 단위 글자 크기 — 백엔드 필드에 저장, 모든 협업자에게 동일 표시.
+     슬라이더 드래그 중 중간값을 매번 PATCH 하지 않도록 로컬 draft + 400ms debounce. */
+  type DocFs = { body: number; h3: number; h2: number; h1: number };
+  const DOC_FS_DEFAULT: DocFs = { body: 18, h3: 22, h2: 28, h1: 36 };
+  const DOC_FS_RANGE: Record<keyof DocFs, [number, number]> = {
+    body: [14, 24], h3: [16, 32], h2: [20, 44], h1: [24, 60],
+  };
+  const fromDoc: DocFs = {
+    body: doc.font_size_body ?? DOC_FS_DEFAULT.body,
+    h3:   doc.font_size_h3   ?? DOC_FS_DEFAULT.h3,
+    h2:   doc.font_size_h2   ?? DOC_FS_DEFAULT.h2,
+    h1:   doc.font_size_h1   ?? DOC_FS_DEFAULT.h1,
+  };
+  const [docFs, setDocFsState] = useState<DocFs>(fromDoc);
+  /* 다른 문서로 이동 또는 서버 값 변경 시 동기화 */
+  useEffect(() => {
+    setDocFsState({
+      body: doc.font_size_body ?? DOC_FS_DEFAULT.body,
+      h3:   doc.font_size_h3   ?? DOC_FS_DEFAULT.h3,
+      h2:   doc.font_size_h2   ?? DOC_FS_DEFAULT.h2,
+      h1:   doc.font_size_h1   ?? DOC_FS_DEFAULT.h1,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [doc.id, doc.font_size_body, doc.font_size_h3, doc.font_size_h2, doc.font_size_h1]);
+
+  const fsSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const persistDocFs = (next: DocFs) => {
+    if (fsSaveTimer.current) clearTimeout(fsSaveTimer.current);
+    fsSaveTimer.current = setTimeout(() => {
+      onUpdate({
+        font_size_body: next.body,
+        font_size_h3: next.h3,
+        font_size_h2: next.h2,
+        font_size_h1: next.h1,
+      });
+    }, 400);
+  };
+  /* 슬라이더는 각자 절대 min/max 범위 안에서 자유롭게 움직임.
+     바뀐 단계에 맞춰 다른 단계들이 자동으로 밀려올라가거나 내려감.
+     e.g. body를 20으로 높이면 h3/h2/h1이 최소 21/22/23으로 자동 상승.
+          h1을 26으로 내리면 h2/h3/body가 최대 25/24/23으로 자동 하강. */
+  const setDocFsKey = (key: keyof DocFs, val: number) => {
+    const [lo, hi] = DOC_FS_RANGE[key];
+    const v = Math.max(lo, Math.min(hi, Math.round(val)));
+    setDocFsState((prev) => {
+      const next: DocFs = { ...prev, [key]: v };
+      const ORDER: (keyof DocFs)[] = ["body", "h3", "h2", "h1"];
+      const idx = ORDER.indexOf(key);
+      /* 위쪽 단계 밀어올리기 */
+      for (let i = idx + 1; i < ORDER.length; i++) {
+        const prevKey = ORDER[i - 1];
+        if (next[ORDER[i]] <= next[prevKey]) next[ORDER[i]] = next[prevKey] + 1;
+      }
+      /* 아래쪽 단계 끌어내리기 */
+      for (let i = idx - 1; i >= 0; i--) {
+        const upper = ORDER[i + 1];
+        if (next[ORDER[i]] >= next[upper]) next[ORDER[i]] = next[upper] - 1;
+      }
+      persistDocFs(next);
+      return next;
+    });
+  };
+  const resetDocFs = () => { setDocFsState(DOC_FS_DEFAULT); persistDocFs(DOC_FS_DEFAULT); };
   const contentRef = useRef(doc.content_html);
   /* doc.id 바뀌면 초기화 */
   useEffect(() => { contentRef.current = doc.content_html; }, [doc.id, doc.content_html]);
@@ -217,24 +320,32 @@ function DocumentEditorView({
     };
   }, [workspaceSlug, spaceId, doc.id, doc.content_html]);
 
-  /* 커버 이미지 업로드/제거 */
-  const coverMutation = useMutation({
-    mutationFn: (file: File | null) =>
-      documentsApi.uploadCover(workspaceSlug!, spaceId!, doc.id, file),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["document", workspaceSlug, spaceId, doc.id] });
-    },
-    onError: () => toast.error("커버 이미지 처리 실패"),
-  });
-  const pickCover = () => {
-    const input = window.document.createElement("input");
-    input.type = "file";
-    input.accept = "image/*";
-    input.onchange = (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (file) coverMutation.mutate(file);
-    };
-    input.click();
+  /* 커버 편집 다이얼로그 — 신규 업로드/이미지 변경/위치 재조정 모두 동일 다이얼로그 */
+  const [coverDialogOpen, setCoverDialogOpen] = useState(false);
+  const handleCoverSave = async (v: { file?: File; offsetX: number; offsetY: number; zoom: number; height: number }) => {
+    if (v.file) {
+      const fd = new FormData();
+      fd.append("cover_image", v.file);
+      fd.append("cover_offset_x", String(v.offsetX));
+      fd.append("cover_offset_y", String(v.offsetY));
+      fd.append("cover_zoom", String(v.zoom));
+      fd.append("cover_height", String(v.height));
+      await documentsApi.uploadCoverWithMeta(workspaceSlug!, spaceId!, doc.id, fd);
+    } else {
+      await documentsApi.update(workspaceSlug!, spaceId!, doc.id, {
+        cover_offset_x: v.offsetX,
+        cover_offset_y: v.offsetY,
+        cover_zoom: v.zoom,
+        cover_height: v.height,
+      });
+    }
+    qc.invalidateQueries({ queryKey: ["document", workspaceSlug, spaceId, doc.id] });
+  };
+  const handleCoverRemove = async () => {
+    const fd = new FormData();
+    fd.append("cover_image", "");
+    await documentsApi.uploadCoverWithMeta(workspaceSlug!, spaceId!, doc.id, fd);
+    qc.invalidateQueries({ queryKey: ["document", workspaceSlug, spaceId, doc.id] });
   };
 
   /* 활성 스레드 바뀌면 에디터에서 해당 마크로 스크롤 + data-active 하이라이트 */
@@ -252,24 +363,6 @@ function DocumentEditorView({
     }
   }, [activeThreadId]);
 
-  // 마크다운 복사
-  const copyAsMarkdown = useCallback(() => {
-    // 간단한 HTML → Markdown 변환
-    let md = contentRef.current
-      .replace(/<h1[^>]*>(.*?)<\/h1>/gi, "# $1\n")
-      .replace(/<h2[^>]*>(.*?)<\/h2>/gi, "## $1\n")
-      .replace(/<h3[^>]*>(.*?)<\/h3>/gi, "### $1\n")
-      .replace(/<strong>(.*?)<\/strong>/gi, "**$1**")
-      .replace(/<em>(.*?)<\/em>/gi, "*$1*")
-      .replace(/<code>(.*?)<\/code>/gi, "`$1`")
-      .replace(/<li>(.*?)<\/li>/gi, "- $1\n")
-      .replace(/<br\s*\/?>/gi, "\n")
-      .replace(/<p>(.*?)<\/p>/gi, "$1\n\n")
-      .replace(/<[^>]+>/g, "")
-      .trim();
-    navigator.clipboard.writeText(md);
-    toast.success(t("documents.copiedMarkdown"));
-  }, [t]);
 
   // 인쇄
   const handlePrint = useCallback(() => window.print(), []);
@@ -342,31 +435,28 @@ function DocumentEditorView({
 
         <div className="flex-1" />
 
-        {/* 접속자 아바타 — editMode에서만 표시. 자기 자신(첫 번째) + 다른 유저들 */}
+        {/* 접속자 아바타 — 아바타 외곽에 직접 2px 컬러 테두리만. */}
         {editMode && (
-          <div className="flex items-center -space-x-1.5 mr-2">
+          <div className="flex items-center gap-1 mr-2">
             <div
-              className="relative rounded-full"
+              className="relative rounded-full overflow-hidden"
               title={`${collab.me.name} (나)`}
-              style={{ boxShadow: `0 0 0 2px ${collab.me.color}, 0 0 0 4px hsl(var(--background))` }}
+              style={{ boxShadow: `inset 0 0 0 2px ${collab.me.color}` }}
             >
-              <AvatarInitials name={collab.me.name} avatar={collab.me.avatar} size="xs" />
+              <AvatarInitials name={collab.me.name} avatar={collab.me.avatar} size="sm" />
             </div>
             {collab.peers.slice(0, 4).map((p) => (
               <div
                 key={p.userId || p.clientID}
-                className="relative rounded-full"
+                className="relative rounded-full overflow-hidden"
                 title={p.name}
-                style={{ boxShadow: `0 0 0 2px ${p.color}, 0 0 0 4px hsl(var(--background))` }}
+                style={{ boxShadow: `inset 0 0 0 2px ${p.color}` }}
               >
-                <AvatarInitials name={p.name} avatar={p.avatar} size="xs" />
+                <AvatarInitials name={p.name} avatar={p.avatar} size="sm" />
               </div>
             ))}
             {collab.peers.length > 4 && (
-              <div
-                className="w-5 h-5 rounded-full bg-muted text-muted-foreground text-2xs flex items-center justify-center font-medium"
-                style={{ boxShadow: `0 0 0 2px hsl(var(--background))` }}
-              >
+              <div className="w-6 h-6 rounded-full bg-muted text-muted-foreground text-2xs flex items-center justify-center font-medium">
                 +{collab.peers.length - 4}
               </div>
             )}
@@ -406,8 +496,9 @@ function DocumentEditorView({
 
         <div className="w-px h-5 bg-border mx-1" />
 
-        {/* 전체 너비 토글 */}
-        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setFullWidth(!fullWidth)}>
+        {/* 너비 토글 — 본인 세션만 영향 (저장 X). 추천 너비는 점세개 메뉴 안에서 작성자가 변경. */}
+        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setFullWidth(!fullWidth)}
+          title={fullWidth ? "좁게 보기" : "넓게 보기"}>
           {fullWidth ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
         </Button>
 
@@ -418,31 +509,11 @@ function DocumentEditorView({
               <MoreHorizontal className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
+          <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuItem onClick={() => navigate(`/${workspaceSlug}/documents/space/${spaceId}/explorer`)}>
               <LayoutGrid className="h-3.5 w-3.5 mr-2" />
               {t("documents.explorer")}
             </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={copyAsMarkdown}>
-              <Copy className="h-3.5 w-3.5 mr-2" />
-              {t("documents.copyMarkdown")}
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setFullWidth(!fullWidth)}>
-              {fullWidth ? <Minimize2 className="h-3.5 w-3.5 mr-2" /> : <Maximize2 className="h-3.5 w-3.5 mr-2" />}
-              {t("documents.fullWidth")}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={pickCover}>
-              <ImageIcon className="h-3.5 w-3.5 mr-2" />
-              {doc.cover_image_url ? "커버 이미지 변경" : "커버 이미지 추가"}
-            </DropdownMenuItem>
-            {doc.cover_image_url && (
-              <DropdownMenuItem onClick={() => coverMutation.mutate(null)}>
-                <X className="h-3.5 w-3.5 mr-2" />
-                커버 이미지 제거
-              </DropdownMenuItem>
-            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => setHistoryOpen(!historyOpen)}>
               <History className="h-3.5 w-3.5 mr-2" />
@@ -490,41 +561,44 @@ function DocumentEditorView({
         {/* 에디터 영역 */}
         <div className="flex-1 overflow-y-auto" ref={editorWrapperRef}>
           <div className={cn("mx-auto w-full py-6 px-4 sm:px-6", fullWidth ? "max-w-none" : "max-w-[860px]")}>
-            <div className="doc-frame rounded-2xl border bg-card shadow-sm overflow-hidden">
-              {/* 커버 이미지 배너 — Notion 스타일, 프레임 상단 전체 너비 */}
+            <div
+              className="doc-frame rounded-2xl border bg-card shadow-sm overflow-hidden"
+              data-print-width={fullWidth ? "wide" : "narrow"}
+              style={{
+                ["--doc-fs-body" as string]: `${docFs.body}px`,
+                ["--doc-fs-h3" as string]:   `${docFs.h3}px`,
+                ["--doc-fs-h2" as string]:   `${docFs.h2}px`,
+                ["--doc-fs-h1" as string]:   `${docFs.h1}px`,
+              }}
+            >
+              {/* 커버 이미지 배너 — CoverView 공용 렌더러 (다이얼로그 미리보기와 동일 공식) */}
               {doc.cover_image_url && (
-                <div
-                  className="group relative h-40 sm:h-52 bg-muted"
-                  style={{
-                    backgroundImage: `url(${doc.cover_image_url})`,
-                    backgroundSize: "cover",
-                    backgroundPosition: `center ${doc.cover_offset_y ?? 50}%`,
-                  }}
+                <CoverView
+                  url={doc.cover_image_url}
+                  offsetX={doc.cover_offset_x ?? 50}
+                  offsetY={doc.cover_offset_y ?? 50}
+                  zoom={doc.cover_zoom ?? 1}
+                  height={doc.cover_height ?? 208}
+                  className="group"
                 >
                   {editMode && (
-                    <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity" data-print-hide>
+                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity" data-print-hide>
                       <button
-                        onClick={pickCover}
+                        onClick={() => setCoverDialogOpen(true)}
                         className="h-7 px-2 rounded-md bg-background/80 backdrop-blur text-xs font-medium hover:bg-background transition-colors"
                       >
-                        변경
-                      </button>
-                      <button
-                        onClick={() => coverMutation.mutate(null)}
-                        className="h-7 px-2 rounded-md bg-background/80 backdrop-blur text-xs font-medium hover:bg-background hover:text-destructive transition-colors"
-                      >
-                        제거
+                        커버 편집
                       </button>
                     </div>
                   )}
-                </div>
+                </CoverView>
               )}
 
               <div className="px-6 sm:px-10 py-8">
               {/* 커버 없는 상태의 편집 모드: 커버 추가 유도 */}
               {!doc.cover_image_url && editMode && (
                 <button
-                  onClick={pickCover}
+                  onClick={() => setCoverDialogOpen(true)}
                   className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground mb-3 transition-colors"
                   data-print-hide
                 >
@@ -534,12 +608,88 @@ function DocumentEditorView({
               )}
 
               <input
-                className="w-full text-4xl font-bold bg-transparent outline-none mb-3"
+                className="doc-title w-full font-bold bg-transparent outline-none mb-2"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 onBlur={() => { if (title.trim() !== doc.title) onUpdate({ title: title.trim() }); }}
                 readOnly={!editMode}
               />
+              {/* 작성자 + 작성일 — 제목 바로 아래 메타 정보. 우측에 문서 속성(글자 크기/추천 너비) 점세개 */}
+              <div className="flex items-center gap-2 text-xs text-muted-foreground mb-3">
+                {doc.created_by_detail && (
+                  <>
+                    <AvatarInitials
+                      name={doc.created_by_detail.display_name || doc.created_by_detail.email || "?"}
+                      avatar={doc.created_by_detail.avatar}
+                      size="xs"
+                    />
+                    <span>{doc.created_by_detail.display_name || doc.created_by_detail.email}</span>
+                  </>
+                )}
+                {doc.created_at && (
+                  <>
+                    <span className="text-muted-foreground/50">·</span>
+                    <span>{new Date(doc.created_at).toLocaleDateString()}</span>
+                  </>
+                )}
+                <div className="ml-auto flex items-center gap-0.5" data-print-hide>
+                  {/* 즐겨찾기 토글 — 모든 사용자 */}
+                  <button
+                    onClick={() => bookmarkMut.mutate()}
+                    className={cn(
+                      "h-6 w-6 rounded-md hover:bg-muted/50 flex items-center justify-center transition-colors",
+                      isBookmarked ? "text-amber-500" : "text-muted-foreground hover:text-foreground",
+                    )}
+                    title={isBookmarked ? "즐겨찾기 해제" : "즐겨찾기에 추가"}
+                  >
+                    <Star className={cn("h-3.5 w-3.5", isBookmarked && "fill-current")} />
+                  </button>
+                  {editMode && (
+                  <>
+                    {/* 문서 글자 크기 */}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          className="h-6 w-6 rounded-md hover:bg-muted/50 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+                          title="문서 글자 크기"
+                        >
+                          <MoreHorizontal className="h-3.5 w-3.5" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-64 p-2">
+                        <div className="px-1 py-1 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-2xs font-semibold text-foreground">글자 크기</span>
+                            <button onClick={resetDocFs} className="text-3xs text-muted-foreground hover:text-foreground">기본값</button>
+                          </div>
+                          {(["body", "h3", "h2", "h1"] as const).map((k) => {
+                            const labels = { body: "본문", h3: "헤더 3", h2: "헤더 2", h1: "헤더 1" } as const;
+                            const [lo, hi] = DOC_FS_RANGE[k];
+                            return (
+                              <div key={k}>
+                                <div className="flex items-center justify-between mb-0.5">
+                                  <span className="text-3xs text-muted-foreground">{labels[k]}</span>
+                                  <span className="text-3xs tabular-nums text-muted-foreground">{docFs[k]}px</span>
+                                </div>
+                                <input
+                                  type="range"
+                                  min={lo}
+                                  max={hi}
+                                  step={1}
+                                  value={docFs[k]}
+                                  onChange={(e) => setDocFsKey(k, Number(e.target.value))}
+                                  className="w-full accent-primary"
+                                />
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </>
+                  )}
+                </div>
+              </div>
               <div className="h-px bg-border/40 mb-4" />
 
               {editMode && !collab.provider ? (
@@ -574,6 +724,16 @@ function DocumentEditorView({
               </div>
             </div>
 
+            {/* 연결된 이슈 — 프레임 바깥. 사용자가 추가/제거. 인쇄 제외 */}
+            <div data-print-hide>
+              <LinkedIssuesSection
+                workspaceSlug={workspaceSlug!}
+                spaceId={spaceId!}
+                docId={doc.id}
+                editable={editMode}
+              />
+            </div>
+
             {/* 하위 문서 — 프레임 바깥, 인쇄에서 제외 */}
             <div data-print-hide>
               <SubDocuments
@@ -587,17 +747,32 @@ function DocumentEditorView({
 
         {/* 목차 패널 */}
         {tocOpen && (
-          <aside className="w-56 border-l overflow-y-auto p-3 shrink-0 hidden lg:block" data-print-hide>
+          <ResizableAside
+            storageKey="doc_toc_width"
+            defaultWidth={224}
+            minWidth={224}
+            maxWidth={520}
+            handleSide="left"
+            className="border-l overflow-y-auto p-3 hidden lg:block"
+            ariaLabel={t("documents.toc")}
+          >
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
               {t("documents.toc")}
             </p>
             <TableOfContents html={contentRef.current} />
-          </aside>
+          </ResizableAside>
         )}
 
         {/* 버전 히스토리 패널 */}
         {historyOpen && (
-          <aside className="w-64 border-l overflow-y-auto shrink-0 hidden lg:block" data-print-hide>
+          <ResizableAside
+            storageKey="doc_history_width"
+            defaultWidth={256}
+            minWidth={256}
+            maxWidth={560}
+            handleSide="left"
+            className="border-l overflow-y-auto hidden lg:block"
+          >
             <VersionHistoryPanel
               workspaceSlug={workspaceSlug!}
               spaceId={spaceId!}
@@ -609,7 +784,7 @@ function DocumentEditorView({
               }}
               onClose={() => setHistoryOpen(false)}
             />
-          </aside>
+          </ResizableAside>
         )}
 
         {commentsOpen && (
@@ -652,6 +827,19 @@ function DocumentEditorView({
         workspaceSlug={workspaceSlug!}
         spaceId={spaceId!}
         docId={doc.id}
+      />
+
+      {/* 커버 편집 다이얼로그 — 신규/변경/위치+확대 모두 처리 */}
+      <CoverEditDialog
+        open={coverDialogOpen}
+        onOpenChange={setCoverDialogOpen}
+        currentUrl={doc.cover_image_url}
+        initialOffsetX={doc.cover_offset_x ?? 50}
+        initialOffsetY={doc.cover_offset_y ?? 50}
+        initialZoom={doc.cover_zoom ?? 1}
+        initialHeight={doc.cover_height ?? 208}
+        onSave={handleCoverSave}
+        onRemove={doc.cover_image_url ? handleCoverRemove : undefined}
       />
     </div>
   );
@@ -1007,6 +1195,91 @@ function MoveDocumentDialog({
         </div>
       </div>
     </>
+  );
+}
+
+/* ── 연결된 이슈 섹션 — 문서 ↔ 이슈 양방향 링크 표시 + 추가/제거 ── */
+
+function LinkedIssuesSection({ workspaceSlug, spaceId, docId, editable }: {
+  workspaceSlug: string; spaceId: string; docId: string; editable: boolean;
+}) {
+  const navigate = useNavigate();
+  const qc = useQueryClient();
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  const { data: links = [] } = useQuery({
+    queryKey: ["doc-issue-links", spaceId, docId],
+    queryFn: () => documentsApi.issues.list(workspaceSlug, spaceId, docId),
+    enabled: !!docId,
+  });
+
+  const linkMut = useMutation({
+    mutationFn: (issueId: string) => documentsApi.issues.link(workspaceSlug, spaceId, docId, issueId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["doc-issue-links", spaceId, docId] }),
+  });
+  const unlinkMut = useMutation({
+    mutationFn: (issueId: string) => documentsApi.issues.unlink(workspaceSlug, spaceId, docId, issueId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["doc-issue-links", spaceId, docId] }),
+  });
+
+  /* 표시할 게 없고 편집 권한도 없으면 섹션 자체를 숨김 */
+  if (!editable && links.length === 0) return null;
+
+  return (
+    <div className="mt-6 px-4 sm:px-6">
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          연결된 이슈 {links.length > 0 && <span className="ml-1 text-muted-foreground/60">({links.length})</span>}
+        </h3>
+        {editable && (
+          <button
+            onClick={() => setPickerOpen(true)}
+            className="flex items-center gap-1 text-2xs text-primary hover:underline"
+          >
+            <Plus className="h-3 w-3" />
+            이슈 연결
+          </button>
+        )}
+      </div>
+      {links.length === 0 ? (
+        <p className="text-2xs text-muted-foreground/60">연결된 이슈가 없습니다.</p>
+      ) : (
+        <ul className="space-y-1">
+          {links.map((link) => (
+            <li key={link.id} className="group flex items-center gap-2 text-sm">
+              <Hash className="h-3 w-3 text-muted-foreground shrink-0" />
+              <button
+                onClick={() => navigate(`/${workspaceSlug}/projects/${link.issue}/issues?issue=${link.issue}`)}
+                className="flex-1 text-left text-xs hover:text-primary transition-colors min-w-0"
+                title={link.issue_title}
+              >
+                <span className="font-mono text-2xs text-muted-foreground mr-1.5">
+                  {link.project_identifier}-{link.issue_sequence_id}
+                </span>
+                <span className="truncate">{link.issue_title}</span>
+              </button>
+              {editable && (
+                <button
+                  onClick={() => unlinkMut.mutate(link.issue)}
+                  className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive text-2xs transition-opacity"
+                  title="연결 해제"
+                >
+                  ✕
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <IssuePickerDialog
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        workspaceSlug={workspaceSlug}
+        excludeIds={links.map((l) => l.issue)}
+        onSelect={async (issue) => { await linkMut.mutateAsync(issue.id); }}
+      />
+    </div>
   );
 }
 

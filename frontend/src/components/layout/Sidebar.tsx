@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { ResizableAside } from "@/components/ui/resizable-aside";
 import { Link, useParams, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -14,7 +15,7 @@ import {
   Star,
   GripVertical,
   Trash2,
-  Lock,
+  Lock, Eye, EyeOff,
   Megaphone,
   MessageSquarePlus,
 } from "lucide-react";
@@ -305,9 +306,23 @@ export function Sidebar({ onNavigate, wsStatus = "connecting" }: { onNavigate?: 
     return ai - bi;
   });
 
-  const favoriteProjects = sortedProjects.filter((p) => favIds.has(p.id));
-  const publicProjects = sortedProjects.filter((p) => !favIds.has(p.id) && p.network === 0);
-  const privateProjects = sortedProjects.filter((p) => !favIds.has(p.id) && p.network === 2);
+  /* 내가 참여한 프로젝트만 보기 — 사용자별 영구 설정 */
+  const [showAllProjects, setShowAllProjects] = useState<boolean>(() => {
+    try { return localStorage.getItem("sidebar_show_all_projects") === "1"; } catch { return false; }
+  });
+  const visibleProjects = showAllProjects ? sortedProjects : sortedProjects.filter((p) => p.is_member);
+  const hiddenCount = sortedProjects.length - visibleProjects.length;
+  const toggleShowAll = () => {
+    setShowAllProjects((v) => {
+      const next = !v;
+      try { localStorage.setItem("sidebar_show_all_projects", next ? "1" : "0"); } catch { /* noop */ }
+      return next;
+    });
+  };
+
+  const favoriteProjects = visibleProjects.filter((p) => favIds.has(p.id));
+  const publicProjects = visibleProjects.filter((p) => !favIds.has(p.id) && p.network === 0);
+  const privateProjects = visibleProjects.filter((p) => !favIds.has(p.id) && p.network === 2);
 
   /* DnD 상태 — ref로 최신값 유지 (stale closure 방지) */
   const [dragId, setDragId] = useState<string | null>(null);
@@ -356,7 +371,15 @@ export function Sidebar({ onNavigate, wsStatus = "connecting" }: { onNavigate?: 
   );
 
   return (
-    <aside className="flex h-screen w-64 flex-col border-r glass-sidebar shrink-0" role="navigation" aria-label="Main navigation">
+    <ResizableAside
+      storageKey="sidebar_main_width"
+      defaultWidth={256}
+      minWidth={256}
+      maxWidth={480}
+      handleSide="right"
+      className="flex h-screen flex-col border-r glass-sidebar"
+      ariaLabel="Main navigation"
+    >
 
       <WorkspaceHeader />
 
@@ -409,13 +432,23 @@ export function Sidebar({ onNavigate, wsStatus = "connecting" }: { onNavigate?: 
             <span className="text-xs font-semibold uppercase tracking-widest text-sidebar-foreground/65">
               {t("sidebar.projects")}
             </span>
-            <Link
-              to={`/${workspaceSlug}/projects/create`}
-              className="rounded-lg p-1 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
-              title={t("sidebar.newProject")}
-            >
-              <Plus className="h-3.5 w-3.5" />
-            </Link>
+            <div className="flex items-center gap-0.5">
+              {/* 내가 참여한 것만 / 전체 보기 토글 */}
+              <button
+                onClick={toggleShowAll}
+                className="rounded-lg p-1 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
+                title={showAllProjects ? `참여한 프로젝트만 보기` : `전체 보기 (숨김 ${hiddenCount}개)`}
+              >
+                {showAllProjects ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+              </button>
+              <Link
+                to={`/${workspaceSlug}/projects/create`}
+                className="rounded-lg p-1 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
+                title={t("sidebar.newProject")}
+              >
+                <Plus className="h-3.5 w-3.5" />
+              </Link>
+            </div>
           </div>
 
           <div className="space-y-0.5">
@@ -470,6 +503,6 @@ export function Sidebar({ onNavigate, wsStatus = "connecting" }: { onNavigate?: 
           </span>
         </div>
       </div>
-    </aside>
+    </ResizableAside>
   );
 }

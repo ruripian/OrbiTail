@@ -12,6 +12,7 @@ import "./lib/i18n"; // i18n 초기화 (side-effect import)
 import { router } from "./router";
 import { ThemeProvider } from "./lib/theme-provider";
 import { MotionProvider } from "./lib/motion-provider";
+import { ViewSettingsProvider } from "./lib/view-settings";
 import { setupApi } from "./api/setup";
 import { SetupPage } from "./pages/setup/SetupPage";
 import { Toaster } from "sonner";
@@ -61,9 +62,10 @@ createRoot(document.getElementById("root")!).render(
     <ThemeProvider>
       <MotionProvider>
         <QueryClientProvider client={queryClient}>
-          <AppBootstrap />
-          <Toaster position="top-right" richColors closeButton />
-          {/* DevTools는 개발 환경에서만 표시 — 프로덕션 빌드 시 제거됨 */}
+          <ViewSettingsProvider>
+            <AppBootstrap />
+            <Toaster position="top-right" richColors closeButton />
+          </ViewSettingsProvider>
         </QueryClientProvider>
       </MotionProvider>
     </ThemeProvider>

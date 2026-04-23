@@ -52,6 +52,14 @@ export const documentsApi = {
     ).then((r) => r.data);
   },
 
+  /** 커버 + zoom/offset 메타를 한 번에 보냄 (CoverEditDialog 저장 경로) */
+  uploadCoverWithMeta: (workspaceSlug: string, spaceId: string, docId: string, fd: FormData) =>
+    api.patch<Document>(
+      `/workspaces/${workspaceSlug}/documents/spaces/${spaceId}/docs/${docId}/`,
+      fd,
+      { headers: { "Content-Type": "multipart/form-data" } },
+    ).then((r) => r.data),
+
   delete: (workspaceSlug: string, spaceId: string, docId: string) =>
     api.delete(`/workspaces/${workspaceSlug}/documents/spaces/${spaceId}/docs/${docId}/`),
 
@@ -73,6 +81,20 @@ export const documentsApi = {
   /* ─── 검색 ─── */
   search: (workspaceSlug: string, q: string) =>
     api.get<Document[]>(`/workspaces/${workspaceSlug}/documents/search/`, { params: { q } }).then((r) => r.data),
+
+  /* ─── 탐색 탭 + 즐겨찾기 ─── */
+  mine: (workspaceSlug: string) =>
+    api.get<Document[]>(`/workspaces/${workspaceSlug}/documents/mine/`).then((r) => r.data),
+  recent: (workspaceSlug: string) =>
+    api.get<Document[]>(`/workspaces/${workspaceSlug}/documents/recent/`).then((r) => r.data),
+  bookmarks: {
+    list: (workspaceSlug: string) =>
+      api.get<Document[]>(`/workspaces/${workspaceSlug}/documents/bookmarks/`).then((r) => r.data),
+    add: (workspaceSlug: string, docId: string) =>
+      api.post<{ bookmarked: boolean }>(`/workspaces/${workspaceSlug}/documents/bookmarks/${docId}/`).then((r) => r.data),
+    remove: (workspaceSlug: string, docId: string) =>
+      api.delete<{ bookmarked: boolean }>(`/workspaces/${workspaceSlug}/documents/bookmarks/${docId}/`).then((r) => r.data),
+  },
 
   /* ─── 첨부파일 ─── */
   attachments: {

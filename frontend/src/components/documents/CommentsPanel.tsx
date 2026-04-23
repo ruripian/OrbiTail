@@ -8,6 +8,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
+import { ResizableAside } from "@/components/ui/resizable-aside";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Check, MessageSquareReply, Trash2, X as XIcon, CornerDownLeft } from "lucide-react";
@@ -114,7 +115,14 @@ export function CommentsPanel({
   };
 
   return (
-    <aside className="w-80 border-l flex flex-col shrink-0 bg-card/30" data-print-hide>
+    <ResizableAside
+      storageKey="doc_comments_width"
+      defaultWidth={320}
+      minWidth={320}
+      maxWidth={560}
+      handleSide="left"
+      className="border-l flex flex-col bg-card/30"
+    >
       <div className="flex items-center gap-1 px-3 py-2 border-b">
         <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mr-auto">
           댓글
@@ -195,7 +203,7 @@ export function CommentsPanel({
           </ul>
         )}
       </div>
-    </aside>
+    </ResizableAside>
   );
 }
 

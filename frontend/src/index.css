@@ -2,8 +2,10 @@
 @tailwind components;
 @tailwind utilities;
 
-/* 전역 폰트 스케일 — 1920×1080 기준 피드백에 따라 16→18px (+12.5%). Tailwind text/spacing이 rem 기반이라 root만 키우면 전체 비례 확대. */
-html { font-size: 18px; }
+/* 전역 폰트 스케일 — 사용자 보기 설정(ui_font_scale)이 --app-font-scale 을 덮어씀.
+   기본 18px × scale(1.0) = 18px. Tailwind rem 기반이라 전체 UI가 비례 확대/축소. */
+:root { --app-font-scale: 1; }
+html { font-size: calc(18px * var(--app-font-scale, 1)); }
 
 /*
  * 폰트 설정
@@ -309,25 +311,28 @@ html { font-size: 18px; }
   text-decoration: underline;
 }
 /* ── 문서 에디터 타이포그래피 ── */
+/* doc-frame이 --doc-fs-* 변수를 정의하면 본문/제목/헤더가 사용자 설정대로 표시 (이 문서 한정).
+   기본값은 폴백 — 사용자가 한 번도 안 바꿨거나 변수가 누락된 경우. */
+.doc-frame .doc-title { font-size: var(--doc-fs-h1, 36px); }
 .doc-editor {
-  font-size: 16px;
+  font-size: var(--doc-fs-body, 18px);
   line-height: 1.7;
   color: hsl(var(--foreground));
 }
 .doc-editor h1 {
-  font-size: 2em;
+  font-size: var(--doc-fs-h1, 36px);
   font-weight: 700;
   margin: 1em 0 0.5em;
   line-height: 1.2;
 }
 .doc-editor h2 {
-  font-size: 1.5em;
+  font-size: var(--doc-fs-h2, 28px);
   font-weight: 700;
   margin: 0.8em 0 0.4em;
   line-height: 1.3;
 }
 .doc-editor h3 {
-  font-size: 1.25em;
+  font-size: var(--doc-fs-h3, 22px);
   font-weight: 600;
   margin: 0.6em 0 0.3em;
   line-height: 1.4;
@@ -669,7 +674,30 @@ html { font-size: 18px; }
 .doc-editor .tableWrapper,
 .ProseMirror .tableWrapper {
   overflow-x: auto;
+  /* 컬럼 리사이즈 중 스크롤바 출몰로 인한 layout shift/깜빡임 방지 */
+  scrollbar-gutter: stable;
+  scrollbar-width: auto;          /* Firefox: 기본 굵기 */
   margin: 12px 0;
+  min-width: 0;
+  max-width: 100%;
+}
+/* webkit — 잡기 쉽게 충분히 굵게 */
+.doc-editor .tableWrapper::-webkit-scrollbar,
+.ProseMirror .tableWrapper::-webkit-scrollbar {
+  height: 14px;
+  background: hsla(0, 0%, 50%, 0.06);
+}
+.doc-editor .tableWrapper::-webkit-scrollbar-thumb,
+.ProseMirror .tableWrapper::-webkit-scrollbar-thumb {
+  background: hsla(0, 0%, 50%, 0.45);
+  border-radius: 7px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+.doc-editor .tableWrapper::-webkit-scrollbar-thumb:hover,
+.ProseMirror .tableWrapper::-webkit-scrollbar-thumb:hover {
+  background: hsla(0, 0%, 50%, 0.7);
+  background-clip: padding-box;
 }
 /* .doc-table 클래스가 적용 안 되는 경우를 대비해 ProseMirror table도 같이 타겟 */
 .doc-editor table,
@@ -1514,23 +1542,42 @@ body.hide-dots::before { display: none; }
 }
 
 
-/* ── 인쇄 스타일 — 확장 여부 무관하게 항상 전체 너비로 인쇄 ── */
+/* ── 인쇄 스타일 — Word(.docx) 인쇄와 유사한 깔끔한 문서 페이지 ──
+   - 사용자별 글자 크기(--doc-fs-*) 무시 → 표준 pt 단위. 모두 동일한 결과물.
+   - 너비 모드: 좁게는 본문 readable column, 넓게는 페이지 전체.
+   - floating UI(드래그 핸들/유령 커서/버블/팝오버) 모두 제거. */
 @media print {
-  /* 사이드바, 도구 모음, TopBar, 목차 패널 숨김 */
+  /* 페이지 — 두 양식: 세로(narrow, 기본) vs 가로(wide). Word의 portrait/landscape와 동일. */
+  /* 항상 세로(portrait) A4 — 페이지 자체 여백 제거.
+     문서 내부 wrapper(.doc-frame 자식 div의 px/py)가 이미 시각적 여백 담당 → 이중 여백 방지. */
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+
+  /* 화면용 UI 전부 제거 */
   aside,
   header,
   nav,
-  [data-print-hide] {
+  [data-print-hide],
+  .drag-handle,
+  .collaboration-cursor__caret,
+  .collaboration-cursor__label,
+  [data-radix-popper-content-wrapper],
+  .tippy-box,
+  [role="tooltip"] {
     display: none !important;
   }
-  /* 레이아웃 flex 해제 → 단일 컬럼 */
-  body, #root, #root > div {
+
+  /* 페이지 흐름 — 단일 컬럼 */
+  html, body, #root, #root > div {
     display: block !important;
-    width: 100% !important;
+    width: auto !important;
     height: auto !important;
     overflow: visible !important;
+    background: white !important;
+    color: black !important;
   }
-  /* 메인 영역 전체 너비 */
   main, main > div, main > div > div {
     margin: 0 !important;
     padding: 0 !important;
@@ -1538,40 +1585,172 @@ body.hide-dots::before { display: none; }
     max-width: none !important;
     width: 100% !important;
   }
-  /* max-w-3xl 등 너비 제한 전부 해제 */
-  [class*="max-w-"] {
-    max-width: none !important;
-  }
-  /* 에디터 영역 여백 */
-  .ProseMirror {
-    padding: 0 !important;
-    min-height: auto !important;
-  }
-  /* 배경색/테두리 제거 */
+  [class*="max-w-"] { max-width: none !important; }
+
+  /* 화면 컬러 그대로 인쇄 — 사용자가 텍스트 색/배경 강조한 것 다 보이도록.
+     UI 요소(스크롤바/그림자)만 정리. */
   *, *::before, *::after {
-    background: white !important;
-    color: black !important;
-    border-color: #ddd !important;
     box-shadow: none !important;
+    text-shadow: none !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
-  /* 제목 */
-  input[class*="text-3xl"],
-  input[class*="text-4xl"] {
-    font-size: 24pt !important;
-    border: none !important;
-    padding: 0 !important;
-    margin-bottom: 12pt !important;
-  }
-  /* 문서 frame — 인쇄 시 border/패딩/배경 제거 */
+  /* 페이지 본 배경은 흰색 — 다크 모드에서 인쇄해도 종이는 흰색 */
+  html, body, main, .doc-frame { background: white !important; }
+
+  /* 문서 frame — 표준 글자 크기로 강제 (모든 협업자 동일 결과물) */
   .doc-frame {
     border: none !important;
     border-radius: 0 !important;
     background: transparent !important;
-    box-shadow: none !important;
     padding: 0 !important;
+    overflow: visible !important;
+    --doc-fs-body: 11pt !important;
+    --doc-fs-h3: 13pt !important;
+    --doc-fs-h2: 16pt !important;
+    --doc-fs-h1: 20pt !important;
   }
-  /* 페이지 여백 */
-  @page {
-    margin: 2cm;
+  .doc-frame, .doc-frame * { overflow: visible !important; }
+  /* 커버 컨테이너만 예외 — overflow:hidden 유지해서 절대 위치 img가 페이지 전체로 새지 않게 */
+  .doc-frame [data-cover-container] {
+    overflow: hidden !important;
+    position: relative !important;
   }
+  /* 커버 img — JS 계산된 absolute 좌표를 무시하고 표준 cover로. offset/zoom은 인쇄에선
+     반영하지 않음(컨테이너 너비가 화면과 다르므로 계산 무효). */
+  .doc-frame [data-cover-img] {
+    position: static !important;
+    width: 100% !important;
+    height: 100% !important;
+    left: 0 !important;
+    top: 0 !important;
+    object-fit: cover !important;
+    object-position: center !important;
+    opacity: 1 !important;
+    max-width: none !important;
+    max-height: none !important;
+  }
+
+  /* 모두 세로 A4. 내용은 페이지 본문 영역을 가득 채움.
+     - narrow: 표준 크기. 한 줄에 적당한 글자.
+     - wide: 글자/간격 더 작게 → 한 줄에 더 많은 글자 → 화면 wide 모드 느낌 재현. */
+  .doc-frame {
+    max-width: none !important;
+    margin: 0 !important;
+    width: 100% !important;
+  }
+  .doc-frame[data-print-width="wide"] {
+    --doc-fs-body: 9pt !important;
+    --doc-fs-h3: 11pt !important;
+    --doc-fs-h2: 13pt !important;
+    --doc-fs-h1: 17pt !important;
+  }
+  .doc-frame[data-print-width="wide"] .doc-editor { line-height: 1.45 !important; }
+  .doc-frame[data-print-width="wide"] .doc-title { font-size: 18pt !important; }
+  .doc-frame[data-print-width="wide"] .doc-editor p { margin: 0 0 4pt 0 !important; }
+
+  /* 제목 — 페이지 상단 큰 제목 + 하단 가는 선 (Word 표준) */
+  .doc-title {
+    font-size: 22pt !important;
+    font-weight: 700 !important;
+    margin: 0 0 6pt 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    border-bottom: 0.5pt solid #aaa !important;
+    padding-bottom: 6pt !important;
+    color: black !important;
+  }
+
+  /* 본문 타이포그래피 — Word 기본값에 가깝게.
+     기본 텍스트만 검정으로 (다크 모드 인쇄 시 흰 텍스트가 흰 종이에 안 보이는 문제 방지).
+     사용자가 명시적으로 색을 준 텍스트는 inline style로 우선 적용되어 그대로 유지. */
+  .doc-editor {
+    font-family: "Pretendard", "Malgun Gothic", -apple-system, "Segoe UI", sans-serif !important;
+    line-height: 1.6 !important;
+    color: black;
+  }
+  .doc-editor p { margin: 0 0 6pt 0 !important; }
+  .doc-editor h1 { margin: 18pt 0 6pt 0 !important; font-weight: 700 !important; }
+  .doc-editor h2 { margin: 14pt 0 5pt 0 !important; font-weight: 700 !important; }
+  .doc-editor h3 { margin: 12pt 0 4pt 0 !important; font-weight: 600 !important; }
+  .doc-editor ul, .doc-editor ol { margin: 4pt 0 6pt 0 !important; }
+  .doc-editor li { margin: 0 !important; }
+
+  /* 코드/인용 — 가벼운 배경 대신 좌측 라인 */
+  .doc-editor pre, .doc-editor code {
+    background: #f7f7f7 !important;
+    color: black !important;
+    border: 0.5pt solid #ddd !important;
+  }
+  .doc-editor blockquote {
+    border-left: 2pt solid #999 !important;
+    padding-left: 10pt !important;
+    color: #333 !important;
+    margin: 6pt 0 !important;
+  }
+
+  /* 표 — 화면과 동일한 열 너비/레이아웃 유지.
+     - tableWrapper 의 스크롤/min-width 제거: 인쇄에선 페이지 폭에 맞춰 보이게.
+     - table-layout: fixed + colgroup 의 col width 인라인 스타일을 그대로 활용.
+     - 너비 강제(100%) 안 함 — 사용자가 조정한 열 너비 보존. */
+  .doc-editor .tableWrapper,
+  .ProseMirror .tableWrapper {
+    overflow: visible !important;
+    margin: 6pt 0 !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+  .doc-editor .tableWrapper::-webkit-scrollbar,
+  .ProseMirror .tableWrapper::-webkit-scrollbar { display: none !important; }
+  .doc-editor table {
+    border-collapse: collapse !important;
+    table-layout: fixed !important;
+    /* 화면에서 100%였다면 그대로 100%, 사용자가 더 좁게 만들었다면 그 값 유지 */
+    max-width: 100% !important;
+    page-break-inside: auto !important;
+  }
+  .doc-editor th, .doc-editor td {
+    /* 화면과 동일한 옅은 회색 테두리 — hsla(0,0%,50%,0.4) ≒ #ccc on white */
+    border: 0.5pt solid hsla(0, 0%, 50%, 0.4) !important;
+    padding: 4pt 6pt !important;
+    min-width: 0 !important;
+    word-wrap: break-word !important;
+    overflow-wrap: anywhere !important;
+  }
+  .doc-editor th {
+    /* 화면에서 사용된 헤더 배경(hsla(0,0%,50%,0.12)) 그대로 — 다른 셀 색이 있으면 그걸 우선 */
+    background: hsla(0, 0%, 50%, 0.12) !important;
+    font-weight: 600 !important;
+    /* background-clip: padding-box로 border와 background 사이 빈 공간 방지 */
+    background-clip: padding-box !important;
+  }
+  /* 셀 색상이 inline style로 지정된 경우 보존 — 화면과 동일 */
+  .doc-editor td[style*="background"], .doc-editor th[style*="background"] {
+    background-clip: padding-box !important;
+  }
+  /* 행/셀이 페이지 경계에서 끊기지 않도록 */
+  .doc-editor tr, .doc-editor th, .doc-editor td {
+    page-break-inside: avoid !important;
+  }
+
+  /* 페이지 분할 휴리스틱 */
+  .doc-editor h1, .doc-editor h2, .doc-editor h3,
+  .doc-editor img, .doc-editor table { page-break-inside: avoid; }
+  .doc-editor h1, .doc-editor h2, .doc-editor h3 { page-break-after: avoid; }
+  .doc-editor p, .doc-editor li { orphans: 3; widows: 3; }
+
+  /* 커버 — 첫 페이지 상단 배너. 너무 크면 종이 낭비라 적당히 제한. */
+  .doc-frame [data-cover-container] {
+    height: 3.5cm !important;
+    max-height: 3.5cm !important;
+    margin-bottom: 8pt !important;
+    page-break-after: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* 링크 — 색 제거 (모노톤 출력) */
+  .doc-editor a { color: black !important; text-decoration: underline !important; }
+
+  /* 작성자/날짜 메타 — 흐리게 표시, 작은 글자 */
+  .doc-frame .text-muted-foreground { color: #666 !important; font-size: 9pt !important; }
 }

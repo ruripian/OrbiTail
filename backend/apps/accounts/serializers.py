@@ -34,7 +34,9 @@ class UserSerializer(serializers.ModelSerializer):
             "is_staff", "is_superuser", "is_approved", "is_email_verified",
             "is_suspended",
             "timezone", "language",
-            "first_day_of_week", "theme", "created_at",
+            "first_day_of_week", "theme",
+            "ui_font_scale", "ui_font_family", "ui_font_mono",
+            "created_at",
         ]
         read_only_fields = [
             "id", "email", "is_staff", "is_superuser", "is_approved",

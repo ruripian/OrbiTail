@@ -9,6 +9,8 @@ import { projectsApi } from "@/api/projects";
 import { useAuthStore } from "@/stores/authStore";
 import { useUndoStore } from "@/stores/undoStore";
 import { documentsApi } from "@/api/documents";
+import { DocumentPickerDialog } from "@/components/documents/DocumentPickerDialog";
+import { CreateDocumentDialog } from "@/components/documents/CreateDocumentDialog";
 import { useProjectPerms } from "@/hooks/useProjectPerms";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -1055,6 +1057,9 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
 function LinkedDocumentsSection({ issueId, workspaceSlug, projectId }: { issueId: string; workspaceSlug: string; projectId: string }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const qc = useQueryClient();
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
 
   const { data: links = [] } = useQuery({
     queryKey: ["issue-doc-links", issueId],
@@ -1062,47 +1067,84 @@ function LinkedDocumentsSection({ issueId, workspaceSlug, projectId }: { issueId
     enabled: !!issueId,
   });
 
+  /** 문서 ↔ 이슈 연결: 어느 스페이스의 문서인지에 따라 spaceId 사용 */
+  const linkDocToIssue = async (docSpaceId: string, docId: string) => {
+    await documentsApi.issues.link(workspaceSlug, docSpaceId, docId, issueId);
+    qc.invalidateQueries({ queryKey: ["issue-doc-links", issueId] });
+  };
+
+  const unlinkMutation = useMutation({
+    mutationFn: ({ docSpaceId, docId }: { docSpaceId: string; docId: string }) =>
+      documentsApi.issues.unlink(workspaceSlug, docSpaceId, docId, issueId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["issue-doc-links", issueId] }),
+  });
+
+  /* 문서 스페이스 목록 — 신규 문서 다이얼로그의 기본 스페이스 추천(프로젝트 스페이스가 있으면 그쪽) */
+  const { data: spaces = [] } = useQuery({
+    queryKey: ["document-spaces", workspaceSlug],
+    queryFn: () => documentsApi.spaces.list(workspaceSlug),
+    enabled: !!workspaceSlug,
+  });
+  const projectSpaceId = spaces.find((s) => s.space_type === "project" && s.project === projectId)?.id;
+
   return (
     <div className="px-4 py-3">
       <div className="flex items-center justify-between mb-1.5">
         <p className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground/70">
           {t("issues.detail.linkedDocs")}
         </p>
-        <button
-          className="text-2xs text-primary hover:underline"
-          onClick={() => {
-            // 프로젝트 문서 스페이스로 이동하여 새 문서 생성
-            documentsApi.spaces.list(workspaceSlug).then((spaces) => {
-              const ps = spaces.find((s) => s.space_type === "project");
-              if (ps) {
-                documentsApi.create(workspaceSlug, ps.id, {
-                  title: `Issue #${issueId.slice(0, 8)}`,
-                }).then((doc) => {
-                  navigate(`/${workspaceSlug}/documents/space/${ps.id}/${doc.id}`);
-                });
-              }
-            });
-          }}
-        >
-          + {t("issues.detail.createDoc")}
-        </button>
+        <div className="flex items-center gap-2">
+          <button className="text-2xs text-primary hover:underline" onClick={() => setPickerOpen(true)}>
+            + 기존 문서
+          </button>
+          <button className="text-2xs text-primary hover:underline" onClick={() => setCreateOpen(true)}>
+            + 새 문서
+          </button>
+        </div>
       </div>
       {links.length === 0 ? (
         <p className="text-2xs text-muted-foreground/50">{t("issues.detail.noDocs")}</p>
       ) : (
         <div className="space-y-1">
           {links.map((link) => (
-            <button
-              key={link.id}
-              onClick={() => navigate(`/${workspaceSlug}/documents/space/${link.space_id}/${link.document_id}`)}
-              className="flex items-center gap-2 w-full text-left text-xs hover:text-primary transition-colors py-0.5"
-            >
-              <FileText className="h-3 w-3 shrink-0" />
-              <span className="truncate">{link.document_title}</span>
-            </button>
+            <div key={link.id} className="group flex items-center gap-2">
+              <button
+                onClick={() => navigate(`/${workspaceSlug}/documents/space/${link.space_id}/${link.document_id}`)}
+                className="flex items-center gap-2 flex-1 text-left text-xs hover:text-primary transition-colors py-0.5 min-w-0"
+              >
+                <FileText className="h-3 w-3 shrink-0" />
+                <span className="truncate">{link.document_title}</span>
+              </button>
+              <button
+                onClick={() => unlinkMutation.mutate({ docSpaceId: link.space_id, docId: link.document_id })}
+                className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity text-2xs"
+                title="연결 해제"
+              >
+                ✕
+              </button>
+            </div>
           ))}
         </div>
       )}
+
+      <DocumentPickerDialog
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        workspaceSlug={workspaceSlug}
+        excludeIds={links.map((l) => l.document_id)}
+        onSelect={async (doc) => { await linkDocToIssue(doc.space, doc.id); }}
+      />
+      <CreateDocumentDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        workspaceSlug={workspaceSlug}
+        defaultSpaceId={projectSpaceId}
+        defaultTitle={`Issue 관련 문서`}
+        onCreated={async (doc) => {
+          await linkDocToIssue(doc.space, doc.id);
+          navigate(`/${workspaceSlug}/documents/space/${doc.space}/${doc.id}`);
+        }}
+      />
     </div>
   );
 }

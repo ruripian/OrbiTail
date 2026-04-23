@@ -1,6 +1,6 @@
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
-from django.db.models import Q
+from django.db.models import Q, Count
 from django.utils import timezone
 from rest_framework import generics, status
 from rest_framework.generics import get_object_or_404
@@ -47,49 +47,49 @@ from .serializers import (
 # ── 권한 헬퍼 ──
 
 def _check_space_access(user, space):
-    """스페이스 읽기 권한"""
+    """스페이스 읽기 권한.
+    프로젝트 스페이스: 프로젝트 멤버 OR space.members 추가 인원 모두 허용."""
     if space.space_type == "project":
-        return (
-            space.project
-            and ProjectMember.objects.filter(
-                project=space.project, member=user
-            ).exists()
-        )
+        if space.project and ProjectMember.objects.filter(
+            project=space.project, member=user,
+        ).exists():
+            return True
+        return space.members.filter(pk=user.pk).exists()
     elif space.space_type == "personal":
         return space.owner_id == user.id
     else:  # shared
         return WorkspaceMember.objects.filter(
-            workspace=space.workspace, member=user
+            workspace=space.workspace, member=user,
         ).exists()
 
 
 def _check_space_edit(user, space):
-    """스페이스 편집 권한 — 프로젝트 스페이스는 프로젝트 can_edit 따라감"""
+    """스페이스 편집 권한 — 프로젝트 멤버는 can_edit, 추가 인원은 모두 편집 가능."""
     if space.space_type == "project":
-        if not space.project:
-            return False
-        pm = ProjectMember.objects.filter(
-            project=space.project, member=user
-        ).first()
-        if not pm:
-            return False
-        return pm.effective_perms.get("can_edit", False)
+        if space.project:
+            pm = ProjectMember.objects.filter(
+                project=space.project, member=user,
+            ).first()
+            if pm and pm.effective_perms.get("can_edit", False):
+                return True
+        return space.members.filter(pk=user.pk).exists()
     elif space.space_type == "personal":
         return space.owner_id == user.id
     else:
         return WorkspaceMember.objects.filter(
-            workspace=space.workspace, member=user
+            workspace=space.workspace, member=user,
         ).exists()
 
 
 def _get_accessible_spaces(user, workspace_slug):
-    """유저가 접근 가능한 스페이스 queryset"""
+    """유저가 접근 가능한 스페이스 queryset — 프로젝트 멤버 OR space.members 추가 인원 포함."""
     return DocumentSpace.objects.filter(
         workspace__slug=workspace_slug,
     ).filter(
         Q(space_type="shared")
         | Q(space_type="personal", owner=user)
         | Q(space_type="project", project__members__member=user)
+        | Q(space_type="project", members=user)
     ).distinct().select_related("project", "owner")
 
 
@@ -282,6 +282,173 @@ class DocumentSearchView(generics.ListAPIView):
         if q:
             qs = qs.filter(Q(title__icontains=q) | Q(content_html__icontains=q))
         return qs.order_by("-updated_at")[:20]
+
+
+# ── 즐겨찾기 / 탐색 탭 ──
+
+class MyDocumentsView(generics.ListAPIView):
+    """내가 만든 문서 — 접근 가능한 스페이스 안에서"""
+    serializer_class = DocumentTreeSerializer
+    pagination_class = None
+
+    def get_queryset(self):
+        spaces = _get_accessible_spaces(self.request.user, self.kwargs["workspace_slug"])
+        return Document.objects.filter(
+            space__in=spaces,
+            deleted_at__isnull=True,
+            is_folder=False,
+            created_by=self.request.user,
+        ).order_by("-updated_at")[:100]
+
+
+class RecentDocumentsView(generics.ListAPIView):
+    """최근 업데이트된 문서 — 접근 가능한 스페이스 전반"""
+    serializer_class = DocumentTreeSerializer
+    pagination_class = None
+
+    def get_queryset(self):
+        spaces = _get_accessible_spaces(self.request.user, self.kwargs["workspace_slug"])
+        return Document.objects.filter(
+            space__in=spaces,
+            deleted_at__isnull=True,
+            is_folder=False,
+        ).order_by("-updated_at")[:50]
+
+
+class BookmarkedDocumentsView(generics.ListAPIView):
+    """내가 즐겨찾기한 문서"""
+    serializer_class = DocumentTreeSerializer
+    pagination_class = None
+
+    def get_queryset(self):
+        spaces = _get_accessible_spaces(self.request.user, self.kwargs["workspace_slug"])
+        return Document.objects.filter(
+            space__in=spaces,
+            deleted_at__isnull=True,
+            is_folder=False,
+            bookmarks__user=self.request.user,
+        ).order_by("-bookmarks__created_at")
+
+
+def _require_workspace_admin(user, workspace_slug):
+    """워크스페이스 ADMIN 이상만 통과. 슈퍼유저는 무조건 통과."""
+    if user.is_superuser:
+        return True
+    return WorkspaceMember.objects.filter(
+        workspace__slug=workspace_slug, member=user,
+        role__gte=WorkspaceMember.Role.ADMIN,
+    ).exists()
+
+
+class OrphanSpaceListView(APIView):
+    """탈퇴/비활성 사용자의 개인 스페이스 목록 — 워크스페이스 관리자 전용"""
+
+    def get(self, request, workspace_slug):
+        if not _require_workspace_admin(request.user, workspace_slug):
+            return Response({"detail": "권한이 없습니다."}, status=status.HTTP_403_FORBIDDEN)
+        # owner가 deleted_at != null 또는 is_active=False
+        spaces = DocumentSpace.objects.filter(
+            workspace__slug=workspace_slug,
+            space_type="personal",
+        ).filter(
+            Q(owner__deleted_at__isnull=False) | Q(owner__is_active=False),
+        ).select_related("owner").annotate(doc_count=Count("documents", filter=Q(documents__deleted_at__isnull=True)))
+
+        data = []
+        for s in spaces:
+            owner = s.owner
+            data.append({
+                "id": str(s.id),
+                "name": s.name,
+                "owner_email": owner.email if owner else None,
+                "owner_display_name": owner.display_name if owner else None,
+                "owner_deleted_at": owner.deleted_at.isoformat() if owner and owner.deleted_at else None,
+                "owner_is_active": owner.is_active if owner else False,
+                "document_count": s.doc_count,
+                "created_at": s.created_at.isoformat(),
+            })
+        return Response(data)
+
+
+class OrphanSpaceDeleteView(APIView):
+    """탈퇴자 개인 스페이스 영구 삭제 (CASCADE로 문서/첨부 모두 삭제)"""
+
+    def delete(self, request, workspace_slug, pk):
+        if not _require_workspace_admin(request.user, workspace_slug):
+            return Response({"detail": "권한이 없습니다."}, status=status.HTTP_403_FORBIDDEN)
+        try:
+            space = DocumentSpace.objects.get(
+                pk=pk, workspace__slug=workspace_slug, space_type="personal",
+            )
+        except DocumentSpace.DoesNotExist:
+            return Response({"detail": "스페이스가 없습니다."}, status=status.HTTP_404_NOT_FOUND)
+        # 안전장치 — 활성 사용자의 개인 스페이스는 거부
+        owner = space.owner
+        if owner and owner.is_active and not owner.deleted_at:
+            return Response(
+                {"detail": "활성 사용자의 개인 스페이스는 삭제할 수 없습니다."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        space.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class AttachmentSearchView(APIView):
+    """워크스페이스 전체 첨부파일 검색 (관리자 전용)"""
+
+    def get(self, request, workspace_slug):
+        if not _require_workspace_admin(request.user, workspace_slug):
+            return Response({"detail": "권한이 없습니다."}, status=status.HTTP_403_FORBIDDEN)
+        q = request.query_params.get("q", "").strip()
+        qs = DocumentAttachment.objects.filter(
+            document__space__workspace__slug=workspace_slug,
+        ).select_related("document", "document__space", "uploaded_by")
+        if q:
+            qs = qs.filter(filename__icontains=q)
+        qs = qs.order_by("-created_at")[:200]
+
+        data = []
+        for a in qs:
+            data.append({
+                "id": str(a.id),
+                "filename": a.filename,
+                "file_size": a.file_size,
+                "content_type": a.content_type,
+                "file_url": a.file.url if a.file else None,
+                "document_id": str(a.document.id),
+                "document_title": a.document.title,
+                "space_id": str(a.document.space.id),
+                "space_name": a.document.space.name,
+                "uploaded_by": a.uploaded_by.display_name if a.uploaded_by else None,
+                "uploaded_at": a.created_at.isoformat(),
+            })
+        return Response(data)
+
+
+class DocumentBookmarkToggleView(APIView):
+    """즐겨찾기 토글 — POST면 추가, DELETE면 제거. 접근 권한 필요."""
+
+    def _get_doc(self, request, workspace_slug, doc_id):
+        from .models import DocumentBookmark  # local import to avoid cycle
+        spaces = _get_accessible_spaces(request.user, workspace_slug)
+        try:
+            return Document.objects.get(pk=doc_id, space__in=spaces, deleted_at__isnull=True), DocumentBookmark
+        except Document.DoesNotExist:
+            return None, DocumentBookmark
+
+    def post(self, request, workspace_slug, doc_id):
+        doc, Bookmark = self._get_doc(request, workspace_slug, doc_id)
+        if doc is None:
+            return Response({"detail": "문서가 없거나 접근 권한이 없습니다."}, status=status.HTTP_404_NOT_FOUND)
+        Bookmark.objects.get_or_create(user=request.user, document=doc)
+        return Response({"bookmarked": True})
+
+    def delete(self, request, workspace_slug, doc_id):
+        doc, Bookmark = self._get_doc(request, workspace_slug, doc_id)
+        if doc is None:
+            return Response({"detail": "문서가 없거나 접근 권한이 없습니다."}, status=status.HTTP_404_NOT_FOUND)
+        Bookmark.objects.filter(user=request.user, document=doc).delete()
+        return Response({"bookmarked": False})
 
 
 # ── 버전 ──
