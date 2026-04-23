@@ -128,6 +128,11 @@ class YRoom:
                 state = self.doc.get_update()
             except Exception:
                 return
+            # 빈 Doc의 get_update()는 2바이트(\x00\x00) — 이걸 DB에 저장하면
+            # 다음 로드에서 has_yjs_state=True로 잘못 판정돼 시드가 스킵되고,
+            # 클라이언트가 빈 상태를 그대로 확정하게 됨. 실질 내용 없으면 저장 안 함.
+            if not state or len(state) <= 2:
+                return
             await database_sync_to_async(_save_state)(self.doc_id, state)
 
     async def flush(self) -> None:

@@ -130,7 +130,9 @@ function DocumentEditorView({
   const [moveOpen, setMoveOpen] = useState(false);
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
-  const contentRef = { current: doc.content_html };
+  const contentRef = useRef(doc.content_html);
+  /* doc.id 바뀌면 초기화 */
+  useEffect(() => { contentRef.current = doc.content_html; }, [doc.id, doc.content_html]);
 
   /* 실시간 협업 — Y.Doc + WebSocket provider + Awareness. editMode일 때만 연결. */
   const collab = useDocumentWebSocket(editMode ? doc.id : undefined);
@@ -170,6 +172,50 @@ function DocumentEditorView({
     qc.invalidateQueries({ queryKey: ["doc-threads", doc.id] });
     qc.invalidateQueries({ queryKey: ["doc-threads-all", doc.id] });
   }, [workspaceSlug, spaceId, doc.id, qc]);
+
+  /* content_html 안전망 저장 — Yjs WS가 refresh 직전 마지막 업데이트를 flush 못
+     해도, content_html이 REST로 저장되어 있으면 다음 로드에서 seed로 복원된다.
+     1) 편집 중 debounce 2초 뒤 저장
+     2) 페이지 언로드 시 keepalive fetch로 즉시 저장 (sendBeacon은 인증 헤더 불가) */
+  const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const queueAutoSave = useCallback(() => {
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    autoSaveTimer.current = setTimeout(() => {
+      const html = contentRef.current;
+      if (html && html !== doc.content_html) {
+        documentsApi.update(workspaceSlug!, spaceId!, doc.id, { content_html: html }).catch(() => {});
+      }
+    }, 2000);
+  }, [workspaceSlug, spaceId, doc.id, doc.content_html]);
+
+  useEffect(() => {
+    const handler = () => {
+      const html = contentRef.current;
+      if (!html || html === doc.content_html) return;
+      try {
+        const token = localStorage.getItem("access_token");
+        fetch(
+          `/api/workspaces/${workspaceSlug}/documents/spaces/${spaceId}/docs/${doc.id}/`,
+          {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({ content_html: html }),
+            keepalive: true,
+          },
+        ).catch(() => {});
+      } catch { /* 언로드 경로에서 예외는 무시 */ }
+    };
+    window.addEventListener("beforeunload", handler);
+    /* pagehide — 모바일 safari 등 beforeunload 안 쏘는 환경 대비 */
+    window.addEventListener("pagehide", handler);
+    return () => {
+      window.removeEventListener("beforeunload", handler);
+      window.removeEventListener("pagehide", handler);
+    };
+  }, [workspaceSlug, spaceId, doc.id, doc.content_html]);
 
   /* 커버 이미지 업로드/제거 */
   const coverMutation = useMutation({
@@ -504,7 +550,7 @@ function DocumentEditorView({
               <DocumentEditor
               key={doc.id + (editMode ? ":edit" : ":read")}
               content={doc.content_html}
-              onChange={(html) => { contentRef.current = html; }}
+              onChange={(html) => { contentRef.current = html; queueAutoSave(); }}
               onBlur={() => {
                 if (contentRef.current !== doc.content_html) onUpdate({ content_html: contentRef.current });
               }}

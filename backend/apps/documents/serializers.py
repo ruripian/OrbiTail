@@ -59,8 +59,11 @@ class DocumentSerializer(serializers.ModelSerializer):
         return obj.children.filter(deleted_at__isnull=True).count()
 
     def get_has_yjs_state(self, obj):
-        # 실시간 시드 권한 판정용 — 이미 CRDT 상태가 있으면 클라이언트는 시드 스킵
-        return bool(obj.yjs_state)
+        # 실시간 시드 권한 판정용 — 실질 내용 있는 state만 True.
+        # 빈 Y.Doc의 get_update()는 2바이트 marker라 bool()로는 구분 안 됨.
+        if not obj.yjs_state:
+            return False
+        return len(bytes(obj.yjs_state)) > 2
 
     def get_cover_image_url(self, obj):
         return obj.cover_image.url if obj.cover_image else None
