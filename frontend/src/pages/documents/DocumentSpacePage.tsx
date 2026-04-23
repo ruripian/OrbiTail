@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 import { documentsApi } from "@/api/documents";
 import { DocumentEditor } from "@/components/documents/DocumentEditor";
+import { useDocumentWebSocket } from "@/hooks/useDocumentWebSocket";
+import { AvatarInitials } from "@/components/ui/avatar-initials";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
@@ -127,6 +129,10 @@ function DocumentEditorView({
   const [moveOpen, setMoveOpen] = useState(false);
   const contentRef = { current: doc.content_html };
 
+  /* 실시간 협업 — Y.Doc + WebSocket provider + Awareness. editMode일 때만 연결. */
+  const collab = useDocumentWebSocket(editMode ? doc.id : undefined);
+  const shouldSeed = !doc.has_yjs_state;
+
   // 마크다운 복사
   const copyAsMarkdown = useCallback(() => {
     // 간단한 HTML → Markdown 변환
@@ -216,6 +222,27 @@ function DocumentEditorView({
         </div>
 
         <div className="flex-1" />
+
+        {/* 접속자 아바타 — editMode에서 다른 사용자가 있을 때만 표시 */}
+        {editMode && collab.peers.length > 0 && (
+          <div className="flex items-center -space-x-2 mr-2">
+            {collab.peers.slice(0, 5).map((p) => (
+              <div
+                key={p.clientID}
+                className="relative ring-2 ring-background rounded-full"
+                title={p.name}
+                style={{ boxShadow: `0 0 0 2px ${p.color}` }}
+              >
+                <AvatarInitials name={p.name} avatar={p.avatar} size="xs" />
+              </div>
+            ))}
+            {collab.peers.length > 5 && (
+              <div className="w-5 h-5 rounded-full bg-muted text-muted-foreground text-2xs flex items-center justify-center font-medium ring-2 ring-background">
+                +{collab.peers.length - 5}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* 우측 도구 */}
         {/* 공유 */}
@@ -332,8 +359,13 @@ function DocumentEditorView({
               />
               <div className="h-px bg-border/40 mb-4" />
 
+              {editMode && !collab.provider ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                </div>
+              ) : (
               <DocumentEditor
-              key={doc.id}
+              key={doc.id + (editMode ? ":edit" : ":read")}
               content={doc.content_html}
               onChange={(html) => { contentRef.current = html; }}
               onBlur={() => {
@@ -344,11 +376,14 @@ function DocumentEditorView({
               spaceId={spaceId}
               docId={doc.id}
               projectId={projectId}
+              collab={editMode ? collab : undefined}
+              shouldSeed={editMode && shouldSeed}
               onFileUpload={async (file) => {
                 const result = await documentsApi.attachments.upload(workspaceSlug!, spaceId!, doc.id, file);
                 return { url: result.file_url || result.file, filename: result.filename };
               }}
             />
+            )}
             </div>
 
             {/* 하위 문서 — 프레임 바깥, 인쇄에서 제외 */}

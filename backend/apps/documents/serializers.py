@@ -32,6 +32,7 @@ class DocumentSpaceSerializer(serializers.ModelSerializer):
 class DocumentSerializer(serializers.ModelSerializer):
     created_by_detail = UserSerializer(source="created_by", read_only=True)
     children_count = serializers.SerializerMethodField()
+    has_yjs_state = serializers.SerializerMethodField()
 
     class Meta:
         model = Document
@@ -40,12 +41,20 @@ class DocumentSerializer(serializers.ModelSerializer):
             "content_html", "is_folder",
             "created_by", "created_by_detail",
             "sort_order", "children_count",
+            "has_yjs_state",
             "deleted_at", "created_at", "updated_at",
         ]
-        read_only_fields = ["id", "space", "created_by", "deleted_at", "created_at", "updated_at"]
+        read_only_fields = [
+            "id", "space", "created_by", "deleted_at", "created_at", "updated_at",
+            "has_yjs_state",
+        ]
 
     def get_children_count(self, obj):
         return obj.children.filter(deleted_at__isnull=True).count()
+
+    def get_has_yjs_state(self, obj):
+        # 실시간 시드 권한 판정용 — 이미 CRDT 상태가 있으면 클라이언트는 시드 스킵
+        return bool(obj.yjs_state)
 
 
 class DocumentTreeSerializer(serializers.ModelSerializer):

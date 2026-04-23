@@ -235,6 +235,7 @@ export interface Document {
   created_by_detail: User | null;
   sort_order: number;
   children_count: number;
+  has_yjs_state?: boolean;
   deleted_at: string | null;
   created_at: string;
   updated_at: string;

@@ -33,8 +33,59 @@ import { TableHeader } from "@tiptap/extension-table-header";
 import { CharacterCount } from "@tiptap/extension-character-count";
 import GlobalDragHandle from "tiptap-extension-global-drag-handle";
 import { SearchAndReplace } from "@memfoldai/tiptap-search-and-replace";
-import { Node, mergeAttributes } from "@tiptap/core";
+import { Node, Extension, mergeAttributes } from "@tiptap/core";
 import { common, createLowlight } from "lowlight";
+import { Collaboration } from "@tiptap/extension-collaboration";
+import { yCursorPlugin, defaultSelectionBuilder } from "@tiptap/y-tiptap";
+import type { DocCollab } from "@/hooks/useDocumentWebSocket";
+
+/*
+ * CollaborationCaret — @tiptap/extension-collaboration-cursor는 v3.0.0에서
+ * 별도 `y-prosemirror` 패키지를 참조해 @tiptap/y-tiptap의 ySyncPluginKey와
+ * 불일치 → createDecorations에서 ystate undefined 에러. 공식 Collaboration과
+ * 같은 패키지의 yCursorPlugin을 직접 사용하는 경량 확장으로 대체.
+ */
+interface CollabCaretOptions {
+  provider: { awareness: any } | null;
+  user: { name: string; color: string };
+}
+const CollaborationCaret = Extension.create<CollabCaretOptions>({
+  name: "collaborationCaret",
+  addOptions() {
+    return { provider: null, user: { name: "", color: "#888" } };
+  },
+  onCreate() {
+    const aw = this.options.provider?.awareness;
+    if (aw) aw.setLocalStateField("user", this.options.user);
+  },
+  addProseMirrorPlugins() {
+    const aw = this.options.provider?.awareness;
+    if (!aw) return [];
+    return [
+      yCursorPlugin(aw, {
+        cursorBuilder: (u: any) => {
+          const span = document.createElement("span");
+          span.classList.add("collaboration-cursor__caret");
+          span.setAttribute("style", `border-color: ${u.color}`);
+          const label = document.createElement("div");
+          label.classList.add("collaboration-cursor__label");
+          label.setAttribute("style", `background-color: ${u.color}`);
+          label.textContent = u.name || "";
+          // 캐럿 내부 양끝에 word-joiner 넣어 커서 위치 안정화 (yjs 권장)
+          span.appendChild(document.createTextNode("⁠"));
+          span.appendChild(label);
+          span.appendChild(document.createTextNode("⁠"));
+          return span;
+        },
+        selectionBuilder: (u: any) => ({
+          ...defaultSelectionBuilder(u),
+          class: "collaboration-cursor__selection",
+          style: `background-color: ${u.color}`,
+        }),
+      }),
+    ];
+  },
+});
 import {
   Bold, Italic, Strikethrough, Code, List, ListOrdered,
   Quote, Minus, Heading1, Heading2, Heading3,
@@ -1156,6 +1207,10 @@ interface Props {
   spaceId?: string;
   docId?: string;
   projectId?: string;
+  /* 실시간 협업 — 주어지면 Yjs Collaboration 확장 활성화, content는 Y.Doc 기반 */
+  collab?: DocCollab;
+  /* true면 Y.Doc이 비어 있을 때 content를 Y.Doc에 시드 (최초 연결 사용자만) */
+  shouldSeed?: boolean;
 }
 
 /* ── 슬래시 명령어 ── */
@@ -1215,7 +1270,7 @@ const EMOJIS: Array<{ name: string; char: string; kw?: string }> = [
   { name: "hundred", char: "💯" }, { name: "muscle", char: "💪" }, { name: "coffee", char: "☕" },
 ];
 
-export function DocumentEditor({ content, onChange, onBlur, placeholder: _placeholder, editable = true, onFileUpload, workspaceSlug, spaceId, docId, projectId }: Props) {
+export function DocumentEditor({ content, onChange, onBlur, placeholder: _placeholder, editable = true, onFileUpload, workspaceSlug, spaceId, docId, projectId, collab, shouldSeed }: Props) {
   const docCtx = useMemo(() => ({ workspaceSlug, spaceId, docId, projectId }), [workspaceSlug, spaceId, docId, projectId]);
   const { t } = useTranslation();
   const [slashOpen, setSlashOpen] = useState(false);
@@ -1243,7 +1298,13 @@ export function DocumentEditor({ content, onChange, onBlur, placeholder: _placeh
 
   const editor = useEditor({
     extensions: [
-      StarterKit.configure({ heading: { levels: [1, 2, 3] }, codeBlock: false }),
+      /* Collaboration 사용 시 StarterKit의 undoRedo를 비활성화 —
+         Yjs UndoManager(Collaboration extension 내장)가 이 역할 담당. 중복되면 히스토리 깨짐. */
+      StarterKit.configure({
+        heading: { levels: [1, 2, 3] },
+        codeBlock: false,
+        ...(collab ? { undoRedo: false as const } : {}),
+      }),
       LinkExt.configure({ openOnClick: false }),
       CodeBlockLowlight.configure({ lowlight }),
       Underline,
@@ -1287,8 +1348,21 @@ export function DocumentEditor({ content, onChange, onBlur, placeholder: _placeh
       VideoNode,
       PdfNode,
       AttachmentNode,
+      /* 협업 확장 — ydoc이 있을 때만. provider가 아직 없어도 Collaboration은 동작.
+         CollaborationCaret은 provider.awareness가 있을 때만 yCursorPlugin 붙임. */
+      ...(collab ? [
+        Collaboration.configure({ document: collab.ydoc }),
+        ...(collab.provider ? [
+          CollaborationCaret.configure({
+            provider: collab.provider,
+            user: { name: collab.me.name, color: collab.me.color },
+          }),
+        ] : []),
+      ] : []),
     ],
-    content,
+    /* Collaboration 모드: Y.Doc이 content의 source of truth. 초기 content는
+       비워두고, shouldSeed 사용자만 mount 후 seed. */
+    content: collab ? "" : content,
     editable,
     editorProps: {
       attributes: { class: "doc-editor outline-none min-h-[400px]" },
@@ -1354,10 +1428,29 @@ export function DocumentEditor({ content, onChange, onBlur, placeholder: _placeh
     onBlur: () => { onBlur?.(); setTimeout(() => { setSlashOpen(false); setEmojiOpen(false); setMentionOpen(false); }, 200); },
   });
 
-  // content 동기화
+  // content 동기화 — 협업 모드에선 Y.Doc이 source of truth라 setContent 금지
   useEffect(() => {
-    if (editor && content !== editor.getHTML()) editor.commands.setContent(content, { emitUpdate: false });
-  }, [content]);
+    if (!editor || collab) return;
+    if (content !== editor.getHTML()) editor.commands.setContent(content, { emitUpdate: false });
+  }, [content, collab, editor]);
+
+  /* 협업 초기 시드: has_yjs_state=false였던 문서를 처음 연 사용자가 기존 HTML을
+     Y.Doc에 주입. 서버 측 sync 이후 실행 (너무 이른 시점엔 원격 상태가 안 도착). */
+  const seededRef = useRef(false);
+  useEffect(() => {
+    if (!editor || !collab || !shouldSeed || seededRef.current) return;
+    if (!collab.synced) return;
+    const trimmed = (content || "").replace(/<p><\/p>/g, "").trim();
+    if (!trimmed) return;
+    if (!editor.isEmpty) return;
+    /* 동시 연결 시드 레이스 완화 — 짧게 대기 후 여전히 비어 있으면 시드 */
+    const t = setTimeout(() => {
+      if (!editor.isEmpty || seededRef.current) return;
+      seededRef.current = true;
+      editor.commands.setContent(content);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [editor, collab?.synced, shouldSeed, content, collab]);
 
   const filtered = CMDS.filter((c) => !slashFilter || c.title.toLowerCase().includes(slashFilter));
   const emojiFiltered = EMOJIS.filter((em) => !emojiFilter || em.name.toLowerCase().includes(emojiFilter));

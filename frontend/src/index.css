@@ -826,6 +826,37 @@ html { font-size: 18px; }
   background: hsla(30, 100%, 50%, 0.6);
 }
 
+/* ── 실시간 협업 커서 (CollaborationCursor) ── */
+.collaboration-cursor__caret {
+  position: relative;
+  margin-left: -1px;
+  margin-right: -1px;
+  border-left: 1px solid;
+  border-right: 1px solid;
+  border-color: inherit;
+  word-break: normal;
+  pointer-events: none;
+}
+.collaboration-cursor__label {
+  position: absolute;
+  top: -1.35em;
+  left: -1px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  user-select: none;
+  color: #fff;
+  padding: 2px 6px;
+  border-radius: 4px 4px 4px 0;
+  white-space: nowrap;
+  /* 라벨은 편집 시 방해되지 않도록 초기엔 투명도 낮음 */
+  opacity: 0.92;
+}
+.collaboration-cursor__selection {
+  opacity: 0.25;
+  /* 선택 영역은 user.color가 background로 주입됨 */
+}
+
 /* ── Math (KaTeX) ── */
 .doc-math {
   display: inline-block;
