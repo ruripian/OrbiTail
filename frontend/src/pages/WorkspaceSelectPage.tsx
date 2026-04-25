@@ -3,8 +3,9 @@ import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, LogOut } from "lucide-react";
 import { workspacesApi } from "@/api/workspaces";
+import { api } from "@/lib/axios";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
 import { useAuthStore } from "@/stores/authStore";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,20 @@ export function WorkspaceSelectPage() {
   const qc = useQueryClient();
   const { setCurrentWorkspace } = useWorkspaceStore();
   const user = useAuthStore((s) => s.user);
+  const clearAuth = useAuthStore((s) => s.clearAuth);
+
+  /* 로그아웃 — 다른 계정으로 진입하거나 잘못된 자동 로그인 상태에서 빠져나올 때 */
+  const handleLogout = async () => {
+    try {
+      const refresh = localStorage.getItem("refresh_token");
+      if (refresh) await api.post("/auth/logout/", { refresh });
+    } catch {
+      /* 서버 폐기 실패해도 로컬 상태는 비움 */
+    } finally {
+      clearAuth();
+      navigate("/auth/login", { replace: true });
+    }
+  };
   // ?switch=1 쿼리가 있으면 "명시적 전환" 의도 — 워크스페이스가 1개뿐이어도 자동 진입 안 함
   const [searchParams] = useSearchParams();
   const explicitSwitch = searchParams.get("switch") === "1";
@@ -60,7 +75,17 @@ export function WorkspaceSelectPage() {
   if (isLoading) return <div className="flex items-center justify-center h-screen">{t("workspaceSelect.loading")}</div>;
 
   return (
-    <div className="flex min-h-screen items-center justify-center">
+    <div className="relative flex min-h-screen items-center justify-center">
+      {/* 우상단 — 로그아웃 (다른 계정으로 전환 / 자동 로그인 빠져나오기) */}
+      <button
+        type="button"
+        onClick={handleLogout}
+        className="absolute top-4 right-4 inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+      >
+        <LogOut className="h-3.5 w-3.5" />
+        {t("topbar.logout")}
+      </button>
+
       <div className="w-full max-w-sm space-y-4">
         <h1 className="text-xl font-bold">{t("workspaceSelect.title")}</h1>
 

@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import i18n from "@/lib/i18n";
+import { queryClient } from "@/lib/query-client";
 import type { User } from "@/types";
 
 interface AuthState {
@@ -26,11 +27,16 @@ export const useAuthStore = create<AuthState>()(
         localStorage.setItem("refresh_token", refreshToken);
         /* 유저의 언어 설정을 i18n에 즉시 반영 */
         if (user.language && i18n.language !== user.language) i18n.changeLanguage(user.language);
+        /* 사용자 전환 — 이전 사용자의 query cache(workspaces/issues 등)를 모두 비워
+           새 사용자에게 stale 데이터가 노출되지 않도록 한다. (계정 전환/재로그인 모두 커버) */
+        queryClient.clear();
         set({ user, accessToken, refreshToken });
       },
       clearAuth: () => {
         localStorage.removeItem("access_token");
         localStorage.removeItem("refresh_token");
+        /* 로그아웃 시에도 cache 비움 — 다음 로그인 사용자가 빈/타인 데이터를 받지 않게 */
+        queryClient.clear();
         set({ user: null, accessToken: null, refreshToken: null });
       },
       updateUser: (user) => set({ user }),

@@ -1,7 +1,8 @@
 import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { RouterProvider } from "react-router-dom";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { queryClient } from "./lib/query-client";
 /* React Query DevTools — 프로덕션에서 숨김 (번들은 tree-shake됨) */
 import { Loader2 } from "lucide-react";
 
@@ -16,12 +17,6 @@ import { DensityProvider } from "./lib/density-provider";
 import { setupApi } from "./api/setup";
 import { SetupPage } from "./pages/setup/SetupPage";
 import { Toaster } from "sonner";
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: { staleTime: 1000 * 60, retry: 1 },
-  },
-});
 
 type BootStatus = "loading" | "setup" | "ready";
 
