@@ -1527,7 +1527,7 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
                     />
                   )}
 
-                  {/* 이벤트 바 — 이벤트 색상, 일반 클릭 시 캘린더로 이동/편집은 향후 */}
+                  {/* 이벤트 바 — K2: 이슈 막대와 동일한 솔리드 + 외곽선 + shadow 로 시인성 강화 */}
                   {row.type === "event" && (() => {
                     if (!row.event.date) return null;
                     const evtStart = parseLocalDate(row.event.date);
@@ -1546,13 +1546,23 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
                           height:    barH,
                           top:       (ROW_H - barH) / 2,
                           backgroundColor: barColor,
+                          opacity:         1,
+                          border:          `1px solid ${barColor}`,
+                          borderLeft:      `3px solid ${barColor}`,
+                          boxShadow:       `0 1px 2px rgba(0,0,0,0.15)`,
                           color:           "#fff",
                           borderRadius:    5,
                           cursor:          "pointer",
-                          transition:      "filter 0.15s",
+                          transition:      "filter 0.15s, box-shadow 0.15s",
                         }}
-                        onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.filter = "brightness(1.08)"; }}
-                        onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.filter = "none"; }}
+                        onMouseEnter={(e) => {
+                          (e.currentTarget as HTMLDivElement).style.filter = "brightness(1.08)";
+                          (e.currentTarget as HTMLDivElement).style.boxShadow = `0 4px 12px ${barColor}60`;
+                        }}
+                        onMouseLeave={(e) => {
+                          (e.currentTarget as HTMLDivElement).style.filter = "none";
+                          (e.currentTarget as HTMLDivElement).style.boxShadow = "0 1px 2px rgba(0,0,0,0.15)";
+                        }}
                       >
                         <span className="text-xs font-semibold truncate px-3 pointer-events-none">
                           {row.event.title}

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
@@ -1154,11 +1154,61 @@ function NodeLinksPane({
   const navigate = useNavigate();
   const [, setSearchParams] = useSearchParams();
 
+  /* 같은 프로젝트의 이슈 트리 — sub-issue 포함, sort_order + sequence_id 기준 정렬 후
+     parent → 자식 순회로 평탄화하면서 depth 부여. TableView 가 이미 같은 queryKey 로 캐싱중. */
+  const { data: projectIssues = [] } = useQuery({
+    queryKey: ["issues", workspaceSlug, projectId, { include_sub_issues: "true" }],
+    queryFn: () => issuesApi.list(workspaceSlug, projectId, { include_sub_issues: "true" }),
+  });
+
+  const projectTree = useMemo(() => {
+    const byParent: Record<string, import("@/types").Issue[]> = {};
+    for (const i of projectIssues) {
+      const key = i.parent ?? "__root__";
+      (byParent[key] ??= []).push(i);
+    }
+    for (const arr of Object.values(byParent)) {
+      arr.sort((a, b) => a.sort_order - b.sort_order || a.sequence_id - b.sequence_id);
+    }
+    const out: Array<import("@/types").Issue & { depth: number }> = [];
+    const walk = (parentId: string, depth: number) => {
+      for (const c of byParent[parentId] ?? []) {
+        out.push({ ...c, depth });
+        walk(c.id, depth + 1);
+      }
+    };
+    walk("__root__", 0);
+    return out;
+  }, [projectIssues]);
+
+  /* 검색어가 있을 때만 다른 프로젝트 결과도 fetch (워크스페이스 검색은 비용↑) */
   const { data: searchResults = [] } = useQuery({
     queryKey: ["issue-search", workspaceSlug, nodeLinkSearch],
     queryFn: () => issuesApi.searchByWorkspace(workspaceSlug, nodeLinkSearch),
     enabled: nodeLinkSearch.trim().length >= 2,
   });
+
+  /* 현재 프로젝트 트리 필터: 검색어가 있으면 title / sequence_id 포함 매칭, 없으면 전체 */
+  const trimmedSearch = nodeLinkSearch.trim().toLowerCase();
+  const filteredTree = trimmedSearch
+    ? projectTree.filter(
+        (i) =>
+          i.title.toLowerCase().includes(trimmedSearch) ||
+          String(i.sequence_id).includes(trimmedSearch),
+      )
+    : projectTree;
+
+  /* 다른 프로젝트 검색 결과(현재 프로젝트는 트리에서 이미 보이니 제거) */
+  const otherProjectResults = (searchResults as import("@/types").IssueSearchResult[])
+    .filter((r) => r.project !== projectId)
+    .slice(0, 30);
+
+  /* 헬퍼 — 이미 연결되었거나 자기 자신인지 */
+  const isLinkedOrSelf = (id: string) =>
+    id === issueId ||
+    nodeLinks.some(
+      (nl) => (nl.source === id || nl.target === id) && nl.link_type === nodeLinkType,
+    );
 
   return (
     <div className="space-y-3">
@@ -1248,38 +1298,87 @@ function NodeLinksPane({
               ))}
             </div>
           </details>
-          {nodeLinkSearch.trim().length >= 2 && (
-            <div className="max-h-48 overflow-y-auto border rounded">
-              {searchResults.length === 0 ? (
-                <p className="text-2xs text-muted-foreground px-2 py-1.5">
-                  {t("issues.detail.nodes.searchEmpty", "검색 결과 없음")}
-                </p>
-              ) : (
-                searchResults.slice(0, 20).map((r: import("@/types").IssueSearchResult) => {
-                  // 자기 자신 또는 같은 link_type 으로 이미 연결된 경우만 비활성 — DB unique = (source, target, link_type)
-                  // 같은 쌍에 다른 타입은 허용하므로 타입까지 비교해서 중복 판정
-                  const alreadyLinked =
-                    r.id === issueId ||
-                    nodeLinks.some((nl: import("@/types").IssueNodeLink) =>
-                      (nl.source === r.id || nl.target === r.id) && nl.link_type === nodeLinkType
-                    );
-                  return (
-                    <button
-                      key={r.id}
-                      disabled={alreadyLinked || createNodeLinkMutation.isPending}
-                      onClick={() => createNodeLinkMutation.mutate(r.id)}
-                      className="w-full flex items-center gap-2 px-2 py-1.5 text-left text-xs hover:bg-accent/50 disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      <span className="text-muted-foreground shrink-0">
-                        {r.project_identifier}-{r.sequence_id}
-                      </span>
-                      <span className="flex-1 truncate">{r.title}</span>
-                      {alreadyLinked && <span className="text-2xs text-muted-foreground">연결됨</span>}
-                    </button>
-                  );
-                })
-              )}
-            </div>
+          {/* 항상 보이는 드롭다운 리스트.
+              섹션 1: 같은 프로젝트의 이슈 트리(테이블 정렬 + parent depth indent)
+              섹션 2: (검색어 ≥2자일 때만) 다른 프로젝트 검색 결과 */}
+          <div className="max-h-72 overflow-y-auto border rounded">
+            {filteredTree.length === 0 && otherProjectResults.length === 0 ? (
+              <p className="text-2xs text-muted-foreground px-2 py-1.5">
+                {t("issues.detail.nodes.searchEmpty", "검색 결과 없음")}
+              </p>
+            ) : (
+              <>
+                {filteredTree.length > 0 && (
+                  <>
+                    <div className="text-2xs uppercase tracking-wider text-muted-foreground/70 px-2 pt-1.5 pb-1 border-b border-border/40 sticky top-0 bg-background z-[1]">
+                      {t("issues.detail.nodes.thisProject", "이 프로젝트")}
+                    </div>
+                    {filteredTree.map((i) => {
+                      const linked = isLinkedOrSelf(i.id);
+                      return (
+                        <button
+                          key={i.id}
+                          disabled={linked || createNodeLinkMutation.isPending}
+                          onClick={() => createNodeLinkMutation.mutate(i.id)}
+                          className="w-full flex items-center gap-2 px-2 py-1.5 text-left text-xs hover:bg-accent/50 disabled:opacity-40 disabled:cursor-not-allowed"
+                          style={{ paddingLeft: 8 + i.depth * 14 }}
+                          title={i.title}
+                        >
+                          {i.depth > 0 && (
+                            <span className="text-muted-foreground/40 shrink-0">↳</span>
+                          )}
+                          <span className="text-muted-foreground shrink-0 font-mono">
+                            {i.sequence_id}
+                          </span>
+                          <span className="flex-1 truncate">{i.title}</span>
+                          {linked && (
+                            <span className="text-2xs text-muted-foreground shrink-0">
+                              {i.id === issueId
+                                ? t("issues.detail.nodes.self", "자기 자신")
+                                : t("issues.detail.nodes.linked", "연결됨")}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </>
+                )}
+                {otherProjectResults.length > 0 && (
+                  <>
+                    <div className="text-2xs uppercase tracking-wider text-muted-foreground/70 px-2 pt-1.5 pb-1 border-b border-t border-border/40 sticky top-0 bg-background z-[1]">
+                      {t("issues.detail.nodes.otherProjects", "다른 프로젝트")}
+                    </div>
+                    {otherProjectResults.map((r) => {
+                      const linked = isLinkedOrSelf(r.id);
+                      return (
+                        <button
+                          key={r.id}
+                          disabled={linked || createNodeLinkMutation.isPending}
+                          onClick={() => createNodeLinkMutation.mutate(r.id)}
+                          className="w-full flex items-center gap-2 px-2 py-1.5 text-left text-xs hover:bg-accent/50 disabled:opacity-40 disabled:cursor-not-allowed"
+                          title={r.title}
+                        >
+                          <span className="text-muted-foreground shrink-0 font-mono">
+                            {r.project_identifier}-{r.sequence_id}
+                          </span>
+                          <span className="flex-1 truncate">{r.title}</span>
+                          {linked && (
+                            <span className="text-2xs text-muted-foreground shrink-0">
+                              {t("issues.detail.nodes.linked", "연결됨")}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </>
+                )}
+              </>
+            )}
+          </div>
+          {nodeLinkSearch.trim().length === 1 && (
+            <p className="text-2xs text-muted-foreground/70 px-1">
+              {t("issues.detail.nodes.searchHint", "다른 프로젝트 검색은 2자 이상 입력")}
+            </p>
           )}
         </div>
       )}

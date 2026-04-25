@@ -15,8 +15,8 @@ export function AuthCard({
   /** 추가 클래스 */
   className?: string;
 }) {
-  const { theme, setTheme } = useTheme();
-  const toggleTheme = () => setTheme(theme === "dark" ? "light" : "dark");
+  const { resolvedTheme, setTheme } = useTheme();
+  const toggleTheme = () => setTheme(resolvedTheme === "dark" ? "light" : "dark");
   const { i18n, t } = useTranslation();
 
   const toggleLang = () =>
@@ -45,7 +45,7 @@ export function AuthCard({
           className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
           aria-label={t("theme.toggle")}
         >
-          {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+          {resolvedTheme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
         </button>
       </div>
 

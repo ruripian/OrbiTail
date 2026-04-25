@@ -19,6 +19,7 @@ import { HoverLift, StaggerList, StaggerItem } from "@/components/motion";
 import { motion } from "framer-motion";
 import { useMotion, EASE_ORBIT } from "@/lib/motion-provider";
 import { useRecentChangesStore } from "@/stores/recentChangesStore";
+import { PriorityGlyph } from "@/components/ui/priority-glyph";
 import type { Issue, State } from "@/types";
 
 interface Props {
@@ -216,6 +217,8 @@ export function BoardView({ workspaceSlug, projectId, onIssueClick, issueFilter,
                       );
                     })()}
 
+                    {/* J1 — sequence_id 제거(사용자 피드백: 움직이는 숫자 거슬림 + ID 의미 불명).
+                        카드 표시 필드: 이름·날짜(위), 담당자·중요도(아래). 상태는 컬럼이 표현. */}
                     <div className="flex items-center justify-between min-h-[20px]">
                       {issue.assignee_details.length > 0 ? (
                         <div className="flex -space-x-1">
@@ -231,13 +234,7 @@ export function BoardView({ workspaceSlug, projectId, onIssueClick, issueFilter,
                       ) : (
                         <span className="text-2xs text-muted-foreground/50">{t("issues.picker.none")}</span>
                       )}
-                      {/* Phase 3.3 — IssueDetailPage의 issueRef와 같은 layoutId. 모달 열림 시 시각적으로 이어짐. */}
-                      <motion.span
-                        layoutId={`issue-ref-${issue.id}`}
-                        className="text-2xs text-muted-foreground/60 font-mono"
-                      >
-                        {issue.sequence_id}
-                      </motion.span>
+                      <PriorityGlyph priority={issue.priority} size={12} />
                     </div>
                   </div>
                   </HoverLift>

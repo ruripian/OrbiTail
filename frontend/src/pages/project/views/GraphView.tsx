@@ -112,7 +112,7 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick }
   });
   useEffect(() => { try { localStorage.setItem("orbitail_graph_repulsion", String(repulsionLevel)); } catch {/*ignore*/} }, [repulsionLevel]);
 
-  // 태양계 공전 속도 배율 — 0(정지) ~ 200(%).
+  // 태양계 궤도 속도 배율 — 0(정지) ~ 200(%).
   const [orbitSpeed, setOrbitSpeed] = useState<number>(() => {
     try { return Number(localStorage.getItem("orbitail_graph_orbitSpeed") ?? 100); } catch { return 100; }
   });
@@ -508,7 +508,7 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick }
       return Math.pow(r / 7, 2);
     };
 
-    // 드래그 중엔 반발력을 크게 낮춤 → 공전궤도처럼 "부모 쪽으로 직선 끌림" 에 가까운 감각.
+    // 드래그 중엔 반발력을 크게 낮춤 → 궤도처럼 "부모 쪽으로 직선 끌림" 에 가까운 감각.
     const repBase = REPULSION * (N > 80 ? 0.75 : 1);
     const rep = dragRef.current ? repBase * 0.2 : repBase;
 
@@ -840,7 +840,7 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick }
             onClick={() => setLayoutMode("orbit")}
             className={`px-2.5 py-1 border-l border-border transition-colors ${layoutMode === "orbit" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted/40"}`}
           >
-            공전궤도
+            궤도
           </button>
         </div>
         {/* 연결 모드 */}
@@ -988,7 +988,7 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick }
             <ul className="space-y-0.5 text-muted-foreground">
               <li>· 드래그: 노드 고정 · 더블클릭: 고정 해제</li>
               <li>· 휠: 줌 · 빈 곳 드래그: 팬</li>
-              <li>· 공전궤도 모드에서 중심 노드 드래그 = 자식 전체가 따라 이동</li>
+              <li>· 궤도 모드에서 중심 노드 드래그 = 자식 전체가 따라 이동</li>
             </ul>
           </div>
         </div>
@@ -1085,12 +1085,12 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick }
 
           <div className="pt-1">
             <div className="flex items-center gap-2 text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
-              <span className="shrink-0">공전궤도</span>
+              <span className="shrink-0">궤도</span>
               <div className="flex-1 border-t border-border" />
             </div>
             <div className="mt-2">
               <div className="flex items-center justify-between mb-1">
-                <span>{t("graph.orbitSpeed", "공전 속도")}</span>
+                <span>{t("graph.orbitSpeed", "궤도 속도")}</span>
                 <span className="text-xs text-muted-foreground">{orbitSpeed}%</span>
               </div>
               <input

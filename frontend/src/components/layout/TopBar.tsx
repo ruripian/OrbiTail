@@ -29,7 +29,7 @@ export function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
   const clearAuth = useAuthStore((s) => s.clearAuth);
   const navigate = useNavigate();
   const { workspaceSlug } = useParams<{ workspaceSlug: string }>();
-  const { theme, setTheme } = useTheme();
+  const { resolvedTheme, setTheme } = useTheme();
   const location = useLocation();
   const isDocumentMode = location.pathname.includes("/documents");
   const [searchOpen, setSearchOpen] = useState(false);
@@ -270,12 +270,12 @@ export function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
         )}
 
         <button
-          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+          /* I2 — 현재 "보이는" 테마 기준으로 반전. theme==="system" 이라도 한 번 클릭에 즉시 전환. */
+          onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
           className="flex h-9 w-9 items-center justify-center rounded-xl hover:bg-accent text-muted-foreground transition-colors outline-none"
           aria-label="Toggle theme"
         >
-          {/* 현재 테마 상태를 나타냄 — 다크면 달, 라이트면 해. 클릭 시 반대로 전환 */}
-          {theme === "dark" ? <Moon size={18} /> : <Sun size={18} />}
+          {resolvedTheme === "dark" ? <Moon size={18} /> : <Sun size={18} />}
         </button>
 
         {user && (
