@@ -141,8 +141,8 @@ export function BacklogView({ workspaceSlug, projectId, onIssueClick, issueFilte
       {totalCount === 0 ? (
         <EmptyState
           icon={<Inbox className="h-10 w-10" />}
-          title={t("views.backlog.empty")}
-          description={t("views.backlog.emptyHint")}
+          title={t("empty.backlog.title")}
+          description={t("empty.backlog.description")}
         />
       ) : (
         <div className="space-y-4">

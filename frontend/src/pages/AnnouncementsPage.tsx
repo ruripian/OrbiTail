@@ -99,7 +99,10 @@ export function AnnouncementsPage() {
       {isLoading ? (
         <div className="text-sm text-muted-foreground">{t("common.loading")}</div>
       ) : items.length === 0 ? (
-        <EmptyState title={t("announcements.empty")} />
+        <EmptyState
+          title={t("empty.announcements.title")}
+          description={t("empty.announcements.description")}
+        />
       ) : (
         <div className="space-y-4">
           {items.map((a) => {

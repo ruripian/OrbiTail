@@ -97,7 +97,14 @@ export function SprintsPage() {
       {sprints.length === 0 ? (
         <EmptyState
           icon={<Zap className="h-10 w-10" />}
-          title={t("cycles.empty")}
+          title={t("empty.sprints.title")}
+          description={t("empty.sprints.description")}
+          cta={
+            <Button size="sm" onClick={() => setCreateOpen(true)} className="gap-1.5">
+              <Plus className="h-3.5 w-3.5" />
+              {t("empty.sprints.cta")}
+            </Button>
+          }
         />
       ) : (
         <div className="grid gap-3 xl:grid-cols-2">

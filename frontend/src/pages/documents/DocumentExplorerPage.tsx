@@ -162,7 +162,14 @@ export default function DocumentExplorerPage() {
         {currentItems.length === 0 ? (
           <EmptyState
             icon={<FolderOpen className="h-10 w-10" />}
-            title={t("documents.emptyFolder")}
+            title={t("empty.documents.title")}
+            description={t("empty.documents.description")}
+            cta={
+              <Button size="sm" onClick={() => createMutation.mutate({ title: t("documents.untitled") })} className="gap-1.5">
+                <FilePlus className="h-3.5 w-3.5" />
+                {t("empty.documents.cta")}
+              </Button>
+            }
           />
         ) : viewMode === "grid" ? (
           /* 그리드 뷰 */

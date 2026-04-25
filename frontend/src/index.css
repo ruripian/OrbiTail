@@ -102,12 +102,12 @@
     --sidebar-border:      220  8% 78%;   /* Phase 1.2: 사이드바도 중립 톤 */
     --sidebar-ring:        221 60% 52%;
 
-    /* ── 패널 변수 — 완전 불투명 ── */
+    /* ── 패널 변수 — 완전 불투명. PASS2-2: 라이트의 primary 블루 톤 제거, --border 중립값 재사용 ── */
     --glass-bg:            rgb(240, 242, 250);
     --glass-sidebar-bg:    rgb(225, 230, 242);
-    --glass-border:        rgba(61, 114, 232, 0.35);   /* primary 블루 테두리 */
-    --glass-shadow:        0 8px 32px rgba(61, 114, 232, 0.08), 0 2px 8px rgba(61, 114, 232, 0.05), inset 0 1px 0 rgba(255,255,255,0.60);
-    --glass-sidebar-shadow: 0 0 0 1px rgba(61, 114, 232, 0.12), 2px 0 24px rgba(61, 114, 232, 0.06);
+    --glass-border:        hsl(var(--border) / 0.7);
+    --glass-shadow:        0 8px 32px rgba(20, 28, 50, 0.08), 0 2px 8px rgba(20, 28, 50, 0.05), inset 0 1px 0 rgba(255,255,255,0.60);
+    --glass-sidebar-shadow: 0 0 0 1px hsl(var(--border) / 0.5), 2px 0 24px rgba(20, 28, 50, 0.06);
 
     /* ── 배경 패턴 변수 ── */
     --perspective-dot-color: rgba(50, 70, 140, 0.32);  /* 원근 투시 점 격자 — 진하게 */
@@ -183,10 +183,11 @@
     font-size: clamp(14px, 0.875vw, 19px);
   }
   /* Phase 2.6 — Density 토글이 root font-size 스케일을 분기.
-     Tailwind text/spacing 모두 rem 기반이라 root만 바뀌면 전체 비례 확대/축소. */
-  html[data-density="compact"]     { font-size: clamp(13px, 0.7vw,   15px); }
+     Tailwind text/spacing 모두 rem 기반이라 root만 바뀌면 전체 비례 확대/축소.
+     PASS2-4 — 격차 확대해 토글 효과를 명확히. FHD 1920px 기준 13 / ~17 / 20px. */
+  html[data-density="compact"]     { font-size: clamp(12px, 0.78vw, 14px); }
   html[data-density="comfortable"] { font-size: clamp(14px, 0.875vw, 17px); }
-  html[data-density="spacious"]    { font-size: clamp(16px, 1vw,     19px); }
+  html[data-density="spacious"]    { font-size: clamp(16px, 1.05vw, 20px); }
 
   /*
    * body — 전역 배경 레이어 (3개)
@@ -241,6 +242,18 @@
 
   /* 콘텐츠가 점 격자 위에 오도록 */
   body > * { position: relative; z-index: 1; }
+
+  /* PASS2-3 — 키보드 포커스 글로벌 보장 (WCAG 2.4.7).
+     :focus-visible 매처 덕에 마우스 클릭 포커스에는 적용되지 않음.
+     shadcn 컴포넌트의 자체 ring과 중복돼도 시각적으로 문제 없음. */
+  button:focus-visible,
+  a:focus-visible,
+  [role="button"]:focus-visible,
+  [tabindex]:focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+    border-radius: var(--radius);
+  }
 }
 
 /* 글라스 유틸리티 */

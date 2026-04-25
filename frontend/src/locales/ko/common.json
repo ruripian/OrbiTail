@@ -1383,5 +1383,33 @@
     "labelSizeHint": "0 으로 두면 라벨이 숨겨집니다.",
     "empty": "이 프로젝트에 아직 이슈가 없습니다.",
     "stats": "{{nodes}}개 노드 · {{edges}}개 연결"
+  },
+  "empty": {
+    "table": {
+      "title": "이슈가 없습니다",
+      "titleFiltered": "조건에 맞는 이슈가 없습니다",
+      "description": "이 프로젝트에 첫 이슈를 만들어 보세요.",
+      "descriptionFiltered": "필터를 조정하거나 새 이슈를 만들 수 있습니다.",
+      "cta": "+ 새 이슈"
+    },
+    "announcements": {
+      "title": "공지가 없습니다",
+      "description": "새 공지가 등록되면 여기에 표시됩니다."
+    },
+    "sprints": {
+      "title": "스프린트가 없습니다",
+      "description": "팀의 작업 사이클을 만들어 일정을 관리하세요.",
+      "cta": "+ 스프린트 만들기"
+    },
+    "backlog": {
+      "title": "백로그가 비어 있습니다",
+      "description": "백로그는 아직 시작하지 않은 후보 이슈를 모아두는 곳입니다.",
+      "cta": "+ 백로그에 추가"
+    },
+    "documents": {
+      "title": "이 폴더는 비어 있습니다",
+      "description": "문서나 하위 폴더를 추가해 보세요.",
+      "cta": "+ 새 문서"
+    }
   }
 }

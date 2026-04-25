@@ -324,19 +324,24 @@ export function ProjectIssuePage() {
               {endDate.toLocaleDateString("ko-KR", { month: "short", day: "numeric" })}
             </span>
 
+            {/* PASS2-1 — 진행 띠/카운트 색을 state-{group} 토큰으로. 토큰값이 OKLCH 라 var() 직접 사용. */}
             <div className="flex-1 h-1.5 rounded-full bg-muted/40 overflow-hidden min-w-[60px]">
               <div
-                className="h-full rounded-full bg-green-500 transition-all duration-500"
-                style={{ width: `${pct}%` }}
+                className="h-full rounded-full transition-all"
+                style={{
+                  width: `${pct}%`,
+                  background: "var(--state-completed-fill)",
+                  transitionDuration: "var(--motion-slow)",
+                }}
               />
             </div>
 
             <span className="text-muted-foreground shrink-0 font-medium">{pct}%</span>
-            <span className="flex items-center gap-1 text-green-600 shrink-0">
+            <span className="flex items-center gap-1 shrink-0" style={{ color: "var(--state-completed-text)" }}>
               <CheckCircle2 className="h-3 w-3" />
               {completed}
             </span>
-            <span className="flex items-center gap-1 text-blue-600 shrink-0">
+            <span className="flex items-center gap-1 shrink-0" style={{ color: "var(--state-started-text)" }}>
               <Circle className="h-3 w-3" />
               {inProgress}
             </span>

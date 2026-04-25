@@ -1025,7 +1025,15 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
           </div>
 
           {topLevelFiltered.length === 0 ? (
-            <EmptyState title={hasFilter ? t("issues.table.emptyFiltered") : t("issues.table.empty")} />
+            <EmptyState
+              title={t(hasFilter ? "empty.table.titleFiltered" : "empty.table.title")}
+              description={t(hasFilter ? "empty.table.descriptionFiltered" : "empty.table.description")}
+              cta={!hasFilter && !readOnly ? (
+                <Button size="sm" onClick={() => setInlineAdding(true)}>
+                  {t("empty.table.cta")}
+                </Button>
+              ) : undefined}
+            />
           ) : (
             <div className="py-3">
               {/* liveDisplayOrder: 드래그 중 카드가 목적지로 실시간 이동해 미리보기 제공 */}

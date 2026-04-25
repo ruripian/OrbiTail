@@ -1383,5 +1383,33 @@
     "labelSizeHint": "0 hides labels.",
     "empty": "No issues in this project yet.",
     "stats": "{{nodes}} nodes · {{edges}} links"
+  },
+  "empty": {
+    "table": {
+      "title": "No issues",
+      "titleFiltered": "No issues match these filters",
+      "description": "Start by creating the first issue in this project.",
+      "descriptionFiltered": "Adjust filters or create a new issue.",
+      "cta": "+ New issue"
+    },
+    "announcements": {
+      "title": "No announcements",
+      "description": "New announcements will appear here."
+    },
+    "sprints": {
+      "title": "No sprints",
+      "description": "Set up work cycles to plan your team's schedule.",
+      "cta": "+ Create sprint"
+    },
+    "backlog": {
+      "title": "Backlog is empty",
+      "description": "Backlog holds candidate issues that haven't started yet.",
+      "cta": "+ Add to backlog"
+    },
+    "documents": {
+      "title": "This folder is empty",
+      "description": "Add a document or sub-folder to get started.",
+      "cta": "+ New document"
+    }
   }
 }
