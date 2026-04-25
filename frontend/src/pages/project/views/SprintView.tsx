@@ -202,7 +202,7 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
                     <StaggerItem key={sprint.id}>
                       <div
                         className={cn(
-                          "group w-full text-left rounded-xl px-3 py-2.5 transition-all duration-150 relative",
+                          "group w-full text-left rounded-xl px-3 py-2.5 transition-all duration-fast relative",
                           isSelected
                             ? "bg-primary/10 border border-primary/30 shadow-sm"
                             : "hover:bg-muted/50 border border-transparent"

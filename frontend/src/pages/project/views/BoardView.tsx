@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { HoverLift, StaggerList, StaggerItem } from "@/components/motion";
 import { motion } from "framer-motion";
 import { useMotion, EASE_ORBIT } from "@/lib/motion-provider";
+import { useRecentChangesStore } from "@/stores/recentChangesStore";
 import type { Issue, State } from "@/types";
 
 interface Props {
@@ -31,6 +32,8 @@ interface Props {
 export function BoardView({ workspaceSlug, projectId, onIssueClick, issueFilter, readOnly }: Props) {
   const { t } = useTranslation();
   const { isRich } = useMotion();
+  // Phase 3.4 — 카드별 recently-changed strip. dict 통째로 구독하고 row마다 lookup.
+  const recentChanges = useRecentChangesStore((s) => s.recent);
   const { refresh } = useIssueRefresh(workspaceSlug, projectId);
   const [createOpen, setCreateOpen]       = useState(false);
   const [selectedState, setSelectedState] = useState<State | null>(null);
@@ -91,7 +94,7 @@ export function BoardView({ workspaceSlug, projectId, onIssueClick, issueFilter,
           <div
             key={state.id}
             className={cn(
-              "group flex flex-col min-w-[260px] sm:min-w-[220px] flex-1 flex-shrink-0 rounded-2xl p-2 transition-colors duration-200 border-2 snap-start",
+              "group flex flex-col min-w-[260px] sm:min-w-[220px] flex-1 flex-shrink-0 rounded-2xl p-2 transition-colors duration-base border-2 snap-start",
               dragOverStateId === state.id 
                 ? "bg-secondary/20 border-primary/30" 
                 : "bg-transparent border-transparent"
@@ -137,6 +140,8 @@ export function BoardView({ workspaceSlug, projectId, onIssueClick, issueFilter,
             <StaggerList className="space-y-2 flex-1 px-1">
               {(issuesByState[state.id] ?? []).map((issue) => {
                 const isDraggingThis = draggedIssueId === issue.id;
+                const recent = recentChanges[issue.id];
+                const recentColor = recent?.color;
                 return (
                   <StaggerItem key={issue.id}>
                   {/* Phase 2.8 — FLIP: 같은 layoutId 카드가 컬럼을 옮길 때 위치 트윈.
@@ -149,6 +154,7 @@ export function BoardView({ workspaceSlug, projectId, onIssueClick, issueFilter,
                   <HoverLift>
                   <div
                     draggable={!readOnly}
+                    data-recently-changed={recent ? "true" : undefined}
                     onDragStart={(e) => {
                       e.dataTransfer.setData("issueId", issue.id);
                       setTimeout(() => setDraggedIssueId(issue.id), 0);
@@ -158,8 +164,9 @@ export function BoardView({ workspaceSlug, projectId, onIssueClick, issueFilter,
                       setDragOverStateId(null);
                     }}
                     onClick={() => onIssueClick(issue.id)}
+                    style={recent && recentColor ? ({ ["--recent-color" as never]: recentColor } as React.CSSProperties) : undefined}
                     className={cn(
-                      "rounded-xl border glass p-3 text-sm cursor-pointer transition-all duration-200",
+                      "rounded-xl border glass p-3 text-sm cursor-pointer transition-all duration-base",
                       isDraggingThis
                         ? "opacity-40 border-dashed border-primary/50 shadow-none scale-95"
                         : "border-border hover:shadow-lg hover:border-border active:cursor-grabbing"
@@ -226,7 +233,7 @@ export function BoardView({ workspaceSlug, projectId, onIssueClick, issueFilter,
 
               {/* 드래그 오버 시 카드 이동 플레이스홀더 */}
               {dragOverStateId === state.id && draggedIssueId && !issuesByState[state.id]?.some(i => i.id === draggedIssueId) && (
-                <div className="h-24 mt-2 rounded-xl border-2 border-dashed border-primary/40 bg-primary/5 flex items-center justify-center animate-in fade-in zoom-in-95 duration-200 cursor-default">
+                <div className="h-24 mt-2 rounded-xl border-2 border-dashed border-primary/40 bg-primary/5 flex items-center justify-center animate-in fade-in zoom-in-95 duration-base cursor-default">
                   <span className="text-primary/60 text-xs font-medium flex items-center gap-2">
                     {t("views.board.moveHere")}
                   </span>
@@ -268,7 +275,7 @@ export function BoardView({ workspaceSlug, projectId, onIssueClick, issueFilter,
                 <button
                   type="button"
                   onClick={() => { setInlineStateId(state.id); setInlineTitle(""); }}
-                  className="w-full mt-2 flex items-center justify-center gap-2 rounded-xl border border-dashed border-border px-3 py-3 text-xs font-medium text-muted-foreground/70 opacity-0 group-hover:opacity-100 hover:border-primary/50 hover:bg-primary/5 hover:text-primary transition-all duration-150"
+                  className="w-full mt-2 flex items-center justify-center gap-2 rounded-xl border border-dashed border-border px-3 py-3 text-xs font-medium text-muted-foreground/70 opacity-0 group-hover:opacity-100 hover:border-primary/50 hover:bg-primary/5 hover:text-primary transition-all duration-fast"
                 >
                   <Plus className="h-3.5 w-3.5" />
                   {t("views.addIssue")}

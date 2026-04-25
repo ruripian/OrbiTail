@@ -191,7 +191,7 @@ function TriToggleRow({
               type="button"
               onClick={() => onChange(o.v)}
               className={cn(
-                "rounded-md px-3 py-1 text-xs font-medium transition-all duration-150",
+                "rounded-md px-3 py-1 text-xs font-medium transition-all duration-fast",
                 active
                   ? "bg-primary text-primary-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground"

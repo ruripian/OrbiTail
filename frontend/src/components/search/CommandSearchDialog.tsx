@@ -17,16 +17,7 @@ import { issuesApi } from "@/api/issues";
 import { documentsApi } from "@/api/documents";
 import { cn } from "@/lib/utils";
 import { Z_SEARCH } from "@/constants/z-index";
-import type { IssueSearchResult, Priority, Document as DocType } from "@/types";
-
-/* 우선순위 색상 매핑 */
-const PRIORITY_COLORS: Record<Priority, string> = {
-  urgent: "text-red-500",
-  high: "text-orange-500",
-  medium: "text-yellow-500",
-  low: "text-blue-500",
-  none: "text-muted-foreground",
-};
+import type { IssueSearchResult, Document as DocType } from "@/types";
 
 /**
  * 검색 쿼리 파서 — "priority:high some text assignee:me" 등을 파싱
@@ -225,7 +216,7 @@ export function CommandSearchDialog({ open, onOpenChange, documentMode = false }
                   i === selectedIndex ? "bg-accent" : "hover:bg-accent/50"
                 )}
               >
-                <FileText className={cn("h-4 w-4 shrink-0", PRIORITY_COLORS[issue.priority])} />
+                <FileText className="h-4 w-4 shrink-0" style={{ color: `var(--priority-${issue.priority})` }} />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-mono text-muted-foreground shrink-0">

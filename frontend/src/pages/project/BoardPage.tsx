@@ -104,25 +104,29 @@ export function BoardPage() {
                     animate={{ opacity: 1, scale: 1 }}
                     exit={isRich ? { opacity: 0, scale: 0.96 } : { opacity: 0 }}
                     transition={{ duration: 0.22, ease: EASE_ORBIT }}
-                    draggable
-                    onDragStart={(e) => e.dataTransfer.setData("issueId", issue.id)}
-                    className="rounded-md border glass p-3 text-sm cursor-grab hover:shadow-sm transition-shadow active:cursor-grabbing"
                   >
-                    <p className="font-medium mb-2 line-clamp-2">{issue.title}</p>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-muted-foreground">{issue.sequence_id}</span>
-                      {issue.assignee_details.length > 0 && (
-                        <div className="flex -space-x-1">
-                          {issue.assignee_details.slice(0, 2).map((a) => (
-                            <div
-                              key={a.id}
-                              className="h-5 w-5 rounded-full bg-primary/10 text-xs flex items-center justify-center border border-background"
-                            >
-                              {a.display_name[0].toUpperCase()}
-                            </div>
-                          ))}
-                        </div>
-                      )}
+                    {/* native HTML drag — motion 컴포넌트의 onDragStart 타입과 충돌하지 않게 inner div로 분리 */}
+                    <div
+                      draggable
+                      onDragStart={(e) => e.dataTransfer.setData("issueId", issue.id)}
+                      className="rounded-md border glass p-3 text-sm cursor-grab hover:shadow-sm transition-shadow active:cursor-grabbing"
+                    >
+                      <p className="font-medium mb-2 line-clamp-2">{issue.title}</p>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-muted-foreground">{issue.sequence_id}</span>
+                        {issue.assignee_details.length > 0 && (
+                          <div className="flex -space-x-1">
+                            {issue.assignee_details.slice(0, 2).map((a) => (
+                              <div
+                                key={a.id}
+                                className="h-5 w-5 rounded-full bg-primary/10 text-xs flex items-center justify-center border border-background"
+                              >
+                                {a.display_name[0].toUpperCase()}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </motion.div>
                 ))}

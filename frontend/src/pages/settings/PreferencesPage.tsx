@@ -136,7 +136,7 @@ export function PreferencesPage() {
                     setTheme(themeVal);
                   }}
                   className={cn(
-                    "rounded-md px-5 py-1.5 text-xs font-medium transition-all duration-150",
+                    "rounded-md px-5 py-1.5 text-xs font-medium transition-all duration-fast",
                     active
                       ? "bg-primary text-primary-foreground shadow-sm"
                       : "text-muted-foreground hover:text-foreground hover:bg-background/60"
@@ -164,7 +164,7 @@ export function PreferencesPage() {
                   type="button"
                   onClick={() => setMotionMode(o.value as MotionMode)}
                   className={cn(
-                    "rounded-md px-5 py-1.5 text-xs font-medium transition-all duration-150",
+                    "rounded-md px-5 py-1.5 text-xs font-medium transition-all duration-fast",
                     active
                       ? "bg-primary text-primary-foreground shadow-sm"
                       : "text-muted-foreground hover:text-foreground hover:bg-background/60"
@@ -193,7 +193,7 @@ export function PreferencesPage() {
                   type="button"
                   onClick={() => setDensity(o.value as Density)}
                   className={cn(
-                    "rounded-md px-5 py-1.5 text-xs font-medium transition-all duration-150",
+                    "rounded-md px-5 py-1.5 text-xs font-medium transition-all duration-fast",
                     active
                       ? "bg-primary text-primary-foreground shadow-sm"
                       : "text-muted-foreground hover:text-foreground hover:bg-background/60"

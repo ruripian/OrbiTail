@@ -16,6 +16,8 @@ import { useState, useMemo, useRef, Fragment, useEffect, createContext, useConte
 import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { motion } from "framer-motion";
+import { useRecentChangesStore } from "@/stores/recentChangesStore";
 import {
   Plus, SlidersHorizontal, Check, X,
   GitBranch, Link2, LayoutGrid, ChevronDown, ChevronRight,
@@ -52,6 +54,7 @@ import type { Issue, State, WorkspaceMember, Label, Category, Sprint } from "@/t
 
 /* 우선순위 상수 — 필터 표시용 (Picker는 자체 상수 사용) */
 import { PRIORITY_COLOR, PRIORITY_LIST } from "@/constants/priority";
+import { EmptyState } from "@/components/ui/empty-state";
 
 type ColId =
   | "state" | "priority" | "assignee"
@@ -801,7 +804,7 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
           type="button"
           onClick={() => setHideCompleted((v) => !v)}
           className={cn(
-            "inline-flex items-center gap-1.5 text-xs rounded-lg px-2.5 py-1.5 border transition-all duration-150",
+            "inline-flex items-center gap-1.5 text-xs rounded-lg px-2.5 py-1.5 border transition-all duration-fast",
             hideCompleted
               ? "bg-primary/10 border-primary/30 text-primary"
               : "border-border text-muted-foreground hover:text-foreground hover:bg-muted/40"
@@ -817,7 +820,7 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
           type="button"
           onClick={() => setRelHighlight((v) => !v)}
           className={cn(
-            "inline-flex items-center gap-1.5 text-xs rounded-lg px-2.5 py-1.5 border transition-all duration-150",
+            "inline-flex items-center gap-1.5 text-xs rounded-lg px-2.5 py-1.5 border transition-all duration-fast",
             relHighlight
               ? "bg-amber-400/15 border-amber-400/40 text-amber-600 dark:text-amber-400"
               : "border-border text-muted-foreground hover:text-foreground hover:bg-muted/40"
@@ -996,7 +999,7 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
                       onDrop={() => onColDrop(col.id)}
                       style={{ width: `var(--col-w-${col.id})`, minWidth: `var(--col-w-${col.id})` }}
                       className={cn(
-                        "flex items-center gap-1 text-xs font-semibold uppercase tracking-wide cursor-grab active:cursor-grabbing select-none group shrink-0 overflow-hidden transition-all duration-150",
+                        "flex items-center gap-1 text-xs font-semibold uppercase tracking-wide cursor-grab active:cursor-grabbing select-none group shrink-0 overflow-hidden transition-all duration-fast",
                         isDraggingThis
                           ? "opacity-20 scale-[0.95] text-muted-foreground/40"
                           : showIndicator
@@ -1022,11 +1025,7 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
           </div>
 
           {topLevelFiltered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
-              <p className="text-sm">
-                {hasFilter ? t("issues.table.emptyFiltered") : t("issues.table.empty")}
-              </p>
-            </div>
+            <EmptyState title={hasFilter ? t("issues.table.emptyFiltered") : t("issues.table.empty")} />
           ) : (
             <div className="py-3">
               {/* liveDisplayOrder: 드래그 중 카드가 목적지로 실시간 이동해 미리보기 제공 */}
@@ -1096,7 +1095,7 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
                       if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
                     });
                   }}
-                  className="w-full flex items-center gap-2 rounded-xl border border-dashed border-border px-4 py-2.5 text-xs font-medium text-muted-foreground/50 hover:border-primary/40 hover:bg-primary/5 hover:text-primary transition-all duration-150 mb-1.5"
+                  className="w-full flex items-center gap-2 rounded-xl border border-dashed border-border px-4 py-2.5 text-xs font-medium text-muted-foreground/50 hover:border-primary/40 hover:bg-primary/5 hover:text-primary transition-all duration-fast mb-1.5"
                 >
                   <Plus className="h-3.5 w-3.5" />
                   {t("views.addIssue")}
@@ -1649,10 +1648,16 @@ function IssueCard({
     }
   };
 
+  // Phase 3.4 — 5초 strip 표시 selector
+  const isRecent = useRecentChangesStore((s) => !!s.recent[issue.id]);
+  const recentColor = useRecentChangesStore((s) => s.recent[issue.id]?.color);
+
   return (
     <div>
       <div
         draggable={true}
+        data-recently-changed={isRecent ? "true" : undefined}
+        style={isRecent && recentColor ? ({ ["--recent-color" as never]: recentColor } as React.CSSProperties) : undefined}
         onDragStart={(e) => {
           e.stopPropagation();
           e.dataTransfer.setData("text/plain", `issue-${issue.id}`);
@@ -1673,7 +1678,7 @@ function IssueCard({
         onDrop={(e) => { e.stopPropagation(); onDrop(issue); }}
         className={cn(
           // transition: 드래그 중 liveDisplayOrder로 카드 순서가 바뀔 때 부드럽게 이동
-          "relative flex items-center gap-3 bg-card rounded-xl border border-border shadow-sm px-4 py-3 group mb-1.5 transition-[opacity,transform,box-shadow,filter] duration-200",
+          "relative flex items-center gap-3 bg-card rounded-xl border border-border shadow-sm px-4 py-3 group mb-1.5 transition-[opacity,transform,box-shadow,filter] duration-base",
           // 하위 이슈 시각 구분 — depth별 좌측 보더 색상 차별화
           depth === 1 && "border-l-[3px] border-l-primary/40 bg-card/90",
           depth === 2 && "border-l-[3px] border-l-blue-400/40 bg-card/80",
@@ -1743,9 +1748,13 @@ function IssueCard({
           className="shrink-0 flex items-center truncate overflow-hidden"
           style={{ width: "var(--col-w-_id)", minWidth: "var(--col-w-_id)" }}
         >
-          <span className="font-mono text-xs font-semibold text-muted-foreground/70 truncate">
+          {/* Phase 3.3 — IssueDetailPage의 issueRef와 같은 layoutId. 모달 열림 시 자연 이어짐 */}
+          <motion.span
+            layoutId={`issue-ref-${issue.id}`}
+            className="font-mono text-xs font-semibold text-muted-foreground/70 truncate"
+          >
             {projectIdentifier ? `${projectIdentifier}-${issue.sequence_id}` : `#${issue.sequence_id}`}
-          </span>
+          </motion.span>
         </div>
 
         <div className="w-[10px] self-stretch shrink-0 flex items-center text-transparent">|</div>
@@ -1963,7 +1972,7 @@ function ColDropIndicator({
       onMouseDown={onResizeStart}
     >
       <div
-        className="self-stretch rounded-full transition-all duration-150"
+        className="self-stretch rounded-full transition-all duration-fast"
         style={{
           width:      highlighted ? 3 : 1,
           opacity:    active || isResizing ? 1 : hovered ? 0.85 : 0.55,
@@ -2006,7 +2015,7 @@ function FilterDropdown({
       <DropdownMenuTrigger asChild>
         <button
           className={cn(
-            "inline-flex items-center gap-1.5 text-xs rounded-lg px-2.5 py-1.5 border transition-all duration-150",
+            "inline-flex items-center gap-1.5 text-xs rounded-lg px-2.5 py-1.5 border transition-all duration-fast",
             count > 0
               ? "bg-primary/10 border-primary/30 text-primary"
               : "border-border text-muted-foreground hover:text-foreground hover:bg-muted/40"

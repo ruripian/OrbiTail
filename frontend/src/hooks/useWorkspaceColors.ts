@@ -26,5 +26,14 @@ export function useWorkspaceColors() {
         document.documentElement.style.removeProperty(`--priority-${key}`);
       }
     });
+
+    // Phase 2.3 / F6 — workspace.brand_color 를 보조 액센트로 노출.
+    // 컴포넌트는 var(--workspace-brand) 로 참조 가능. 미설정 시 var(--accent) fallback.
+    const brand = currentWorkspace?.brand_color?.trim();
+    if (brand) {
+      document.documentElement.style.setProperty("--workspace-brand", brand);
+    } else {
+      document.documentElement.style.removeProperty("--workspace-brand");
+    }
   }, [currentWorkspace]);
 }

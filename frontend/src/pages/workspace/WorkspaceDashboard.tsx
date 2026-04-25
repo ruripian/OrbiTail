@@ -23,8 +23,9 @@ import { PageTransition } from "@/components/motion";
 import { Skeleton } from "@/components/ui/skeleton";
 import { OrbiTailOrbit } from "@/components/auth/OrbiTailOrbit";
 import { SprintProgressOrbit } from "@/components/ui/orbit-glyph";
+import { PriorityGlyph } from "@/components/ui/priority-glyph";
 import { useRecentChangesStore } from "@/stores/recentChangesStore";
-import { PRIORITY_COLOR, PRIORITY_LIST, PRIORITY_LABEL_KEY } from "@/constants/priority";
+import { PRIORITY_LIST, PRIORITY_LABEL_KEY } from "@/constants/priority";
 import type { Issue, State } from "@/types";
 
 /* ──────────────── 대시보드 필터 영속화 ──────────────── */
@@ -123,7 +124,7 @@ function IssueRow({ issue, workspaceSlug }: { issue: Issue; workspaceSlug: strin
       <span className="text-xs text-muted-foreground/60 shrink-0 font-mono">
         {issue.project_identifier ? `${issue.project_identifier}-${issue.sequence_id}` : `#${issue.sequence_id}`}
       </span>
-      <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: PRIORITY_COLOR[issue.priority] ?? "#9ca3af" }} />
+      <PriorityGlyph priority={issue.priority} size={10} className="shrink-0" />
       <span className="flex-1 truncate text-sm text-foreground group-hover:text-primary transition-colors font-medium">
         {issue.title}
       </span>
@@ -396,7 +397,7 @@ export function WorkspaceDashboard() {
                   onCheckedChange={() => setPriorityFilter(toggleSet(priorityFilter, p))}
                 >
                   <span className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: PRIORITY_COLOR[p] }} />
+                    <PriorityGlyph priority={p} size={10} />
                     {t(PRIORITY_LABEL_KEY[p])}
                   </span>
                 </DropdownMenuCheckboxItem>

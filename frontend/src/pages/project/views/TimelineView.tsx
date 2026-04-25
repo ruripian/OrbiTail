@@ -197,7 +197,7 @@ function SettingsPanel({
                 key={s}
                 onClick={() => onChange({ scale: s })}
                 className={cn(
-                  "flex-1 text-xs py-1.5 rounded-xl border transition-all duration-150 font-medium",
+                  "flex-1 text-xs py-1.5 rounded-xl border transition-all duration-fast font-medium",
                   settings.scale === s
                     ? "bg-primary text-primary-foreground border-primary shadow-md"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/40 border-border"
@@ -217,7 +217,7 @@ function SettingsPanel({
                 key={g}
                 onClick={() => onChange({ groupBy: g })}
                 className={cn(
-                  "text-xs px-3 py-1.5 rounded-xl border transition-all duration-150 font-medium",
+                  "text-xs px-3 py-1.5 rounded-xl border transition-all duration-fast font-medium",
                   settings.groupBy === g
                     ? "bg-primary text-primary-foreground border-primary shadow-md"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/40 border-border"
@@ -245,14 +245,14 @@ function SettingsPanel({
             <div
               onClick={() => onChange({ [key]: !settings[key] })}
               className={cn(
-                "h-5 w-9 rounded-full border transition-all duration-200 flex items-center px-0.5",
+                "h-5 w-9 rounded-full border transition-all duration-base flex items-center px-0.5",
                 settings[key]
                   ? "bg-primary border-primary"
                   : "bg-muted/40 border-border group-hover:border-border"
               )}
             >
               <div className={cn(
-                "h-4 w-4 rounded-full shadow-sm transition-all duration-200",
+                "h-4 w-4 rounded-full shadow-sm transition-all duration-base",
                 settings[key]
                   ? "translate-x-4 bg-primary-foreground"
                   : "translate-x-0 bg-muted-foreground/60"
@@ -989,7 +989,7 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
         <div className="flex items-center gap-2">
           <button
             onClick={scrollToToday}
-            className="px-3 py-1.5 text-xs font-semibold rounded-xl border border-primary/40 text-primary hover:bg-primary/10 transition-all duration-150"
+            className="px-3 py-1.5 text-xs font-semibold rounded-xl border border-primary/40 text-primary hover:bg-primary/10 transition-all duration-fast"
           >
             {t("views.timeline.today")}
           </button>
@@ -1036,7 +1036,7 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
                 key={s}
                 onClick={() => onSettingsChange({ scale: s })}
                 className={cn(
-                  "px-3 py-1 text-xs font-semibold rounded-lg transition-all duration-150",
+                  "px-3 py-1 text-xs font-semibold rounded-lg transition-all duration-fast",
                   settings.scale === s
                     ? "bg-primary text-primary-foreground shadow-sm"
                     : "text-muted-foreground hover:text-foreground"
@@ -1054,7 +1054,7 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
             ref={settingsBtnRef}
             onClick={() => setSettingsOpen((v) => !v)}
             className={cn(
-              "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all duration-150 border",
+              "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all duration-fast border",
               settingsOpen
                 ? "bg-primary/10 text-primary border-primary/30"
                 : "text-muted-foreground hover:text-foreground hover:bg-muted/40 border-border"

@@ -18,6 +18,9 @@ class Workspace(models.Model):
     # 구조: {"urgent": "#ff4444", "high": "#ff4db8", "medium": "#f5c400", "low": "#aaff00", "none": "#6b7080"}
     # 빈 dict = 프론트엔드 tokens.css 기본값 사용
     priority_colors = models.JSONField(default=dict, blank=True)
+    # 브랜드 색 — 워크스페이스 아바타/액센트 등 보조 사용. CSS color (hex/hsl).
+    # 빈 문자열 = 프론트엔드 토큰의 --primary 사용
+    brand_color = models.CharField(max_length=32, blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

@@ -22,7 +22,7 @@ export function SponsorButton() {
         type="button"
         onClick={() => setOpen((v) => !v)}
         className={cn(
-          "fixed bottom-4 right-4 z-50 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium shadow-lg transition-all duration-200",
+          "fixed bottom-4 right-4 z-50 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium shadow-lg transition-all duration-base",
           open
             ? "bg-rose-500 text-white"
             : "bg-background border border-border text-muted-foreground hover:text-foreground hover:border-rose-300 hover:shadow-xl"
@@ -34,7 +34,7 @@ export function SponsorButton() {
 
       {/* 후원 패널 — Ko-fi iframe + GitHub Sponsors 링크 */}
       {open && (
-        <div className="fixed bottom-14 right-4 z-50 w-[300px] rounded-2xl border border-border bg-background shadow-2xl overflow-hidden animate-in slide-in-from-bottom-2 fade-in duration-200">
+        <div className="fixed bottom-14 right-4 z-50 w-[300px] rounded-2xl border border-border bg-background shadow-2xl overflow-hidden animate-in slide-in-from-bottom-2 fade-in duration-base">
           {/* 헤더 */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-border">
             <div className="flex items-center gap-2">

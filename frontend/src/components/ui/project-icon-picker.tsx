@@ -245,7 +245,7 @@ export function ProjectIconPicker({ value, onChange, size = "lg" }: ProjectIconP
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className={`inline-flex items-center justify-center overflow-hidden rounded-2xl border-2 transition-all duration-200 hover:scale-105 hover:shadow-md ${
+        className={`inline-flex items-center justify-center overflow-hidden rounded-2xl border-2 transition-all duration-base hover:scale-105 hover:shadow-md ${
           open ? "border-primary shadow-md" : "border-border hover:border-primary/60"
         }`}
         style={{
@@ -290,7 +290,7 @@ export function ProjectIconPicker({ value, onChange, size = "lg" }: ProjectIconP
             />
             <div className="relative flex items-center gap-3">
               <div
-                className="inline-flex items-center justify-center overflow-hidden rounded-xl shrink-0 transition-all duration-300"
+                className="inline-flex items-center justify-center overflow-hidden rounded-xl shrink-0 transition-all duration-slow"
                 style={{
                   backgroundColor: current.type === "lucide" ? current.color + "20" : undefined,
                   color: current.type === "lucide" ? current.color : undefined,
@@ -373,7 +373,7 @@ export function ProjectIconPicker({ value, onChange, size = "lg" }: ProjectIconP
                         key={c}
                         type="button"
                         onClick={() => onChange({ type: "lucide", name: lucideSnapshot.name, color: c })}
-                        className={`relative h-6 w-6 rounded-full transition-all duration-200 hover:scale-110 flex items-center justify-center ${
+                        className={`relative h-6 w-6 rounded-full transition-all duration-base hover:scale-110 flex items-center justify-center ${
                           selected ? "ring-2 ring-offset-2 ring-offset-background" : "hover:shadow-lg"
                         }`}
                         style={{
@@ -410,7 +410,7 @@ export function ProjectIconPicker({ value, onChange, size = "lg" }: ProjectIconP
                             key={name}
                             type="button"
                             onClick={() => onChange({ type: "lucide", name, color: lucideSnapshot.color })}
-                            className={`relative flex h-8 w-8 items-center justify-center rounded-lg transition-all duration-150 ${
+                            className={`relative flex h-8 w-8 items-center justify-center rounded-lg transition-all duration-fast ${
                               selected
                                 ? "scale-110 border-transparent"
                                 : "text-muted-foreground hover:text-foreground hover:bg-muted/60 hover:scale-105"

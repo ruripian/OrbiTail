@@ -212,7 +212,7 @@ function AnnouncementEditor({
           onChange={(e) => setBody(e.target.value)}
           rows={8}
           placeholder="공지 내용 (markdown 지원)"
-          className="flex w-full rounded-md border border-border bg-input/60 px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-primary focus-visible:ring-1 focus-visible:ring-primary/30 resize-y font-mono"
+          className="flex w-full rounded-md border border-border bg-input/60 px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-primary focus-visible:ring-1 focus-visible:ring-ring/60 resize-y font-mono"
         />
       </div>
 

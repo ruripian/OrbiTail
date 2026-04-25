@@ -61,7 +61,7 @@ export const Checkbox = React.forwardRef<HTMLInputElement, CheckboxProps>(
         />
         <span
           className={cn(
-            "inline-flex items-center justify-center rounded border transition-all duration-150",
+            "inline-flex items-center justify-center rounded border transition-all duration-fast",
             SIZE_CLASSES[size],
             /* 기본 */
             "border-border bg-input/40",
@@ -71,7 +71,7 @@ export const Checkbox = React.forwardRef<HTMLInputElement, CheckboxProps>(
             "peer-checked:bg-primary peer-checked:border-primary peer-checked:text-primary-foreground",
             "peer-indeterminate:bg-primary peer-indeterminate:border-primary peer-indeterminate:text-primary-foreground",
             /* focus ring */
-            "peer-focus-visible:ring-2 peer-focus-visible:ring-primary/30 peer-focus-visible:ring-offset-1 peer-focus-visible:ring-offset-background",
+            "peer-focus-visible:ring-2 peer-focus-visible:ring-ring/60 peer-focus-visible:ring-offset-1 peer-focus-visible:ring-offset-background",
           )}
         >
           {indeterminate ? (

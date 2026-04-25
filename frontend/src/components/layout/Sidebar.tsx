@@ -162,7 +162,7 @@ function ProjectItem({
         <button
           onClick={() => onSelect(project)}
           className={cn(
-            "flex-1 flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-medium transition-all duration-150 text-left min-w-0",
+            "flex-1 flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-medium transition-all duration-fast text-left min-w-0",
             isActive
               ? "text-sidebar-foreground bg-sidebar-accent/60"
               : "text-sidebar-foreground/80 hover:bg-sidebar-accent/40 hover:text-sidebar-foreground"
@@ -216,7 +216,7 @@ function ProjectItem({
               onDragEnd={() => { catDragRef.current = null; setCatDragId(null); setCatDragOverId(null); }}
               onDrop={(e) => { e.preventDefault(); e.stopPropagation(); handleCatDrop(cat.id); }}
               className={cn(
-                "flex items-center gap-2 rounded-lg px-2.5 py-1 ml-4 text-xs transition-all duration-150",
+                "flex items-center gap-2 rounded-lg px-2.5 py-1 ml-4 text-xs transition-all duration-fast",
                 location.pathname === `${base}/categories/${cat.id}/issues`
                   ? "bg-primary/10 text-primary font-medium"
                   : "text-sidebar-foreground/65 hover:text-sidebar-foreground hover:bg-sidebar-accent/40",

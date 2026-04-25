@@ -11,6 +11,7 @@ import { useProjectPerms } from "@/hooks/useProjectPerms";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { EmptyState } from "@/components/ui/empty-state";
 
 /* 우선순위 색상 */
 const PRIORITY_COLORS: Record<string, string> = {
@@ -61,11 +62,11 @@ export function TrashView({ workspaceSlug, projectId }: Props) {
 
   if (deletedIssues.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 gap-3 text-muted-foreground">
-        <Trash2 className="h-10 w-10 opacity-30" />
-        <p className="text-sm font-medium">{t("views.trash.empty")}</p>
-        <p className="text-xs">{t("views.trash.emptyDescription")}</p>
-      </div>
+      <EmptyState
+        icon={<Trash2 className="h-10 w-10" />}
+        title={t("views.trash.empty")}
+        description={t("views.trash.emptyDescription")}
+      />
     );
   }
 

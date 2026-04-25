@@ -69,7 +69,7 @@ export function AppLayout() {
             />
           )}
           <div
-            className={`fixed inset-y-0 left-0 transform transition-transform duration-200 ease-out ${
+            className={`fixed inset-y-0 left-0 transform transition-transform duration-base ease-out ${
               sidebarOpen ? "translate-x-0" : "-translate-x-full"
             }`}
             style={{ zIndex: Z_SIDEBAR }}

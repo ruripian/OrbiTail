@@ -128,7 +128,7 @@ export function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
         {workspaces.length > 1 && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="flex items-center gap-1.5 rounded-xl border bg-muted/30 px-3 h-9 text-sm font-medium hover:bg-muted/50 hover:border-border transition-all duration-150 shrink-0 max-w-[160px]">
+              <button className="flex items-center gap-1.5 rounded-xl border bg-muted/30 px-3 h-9 text-sm font-medium hover:bg-muted/50 hover:border-border transition-all duration-fast shrink-0 max-w-[160px]">
                 <span className="truncate">{workspaces.find((w) => w.slug === workspaceSlug)?.name ?? workspaceSlug}</span>
                 <ChevronsUpDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
               </button>
@@ -159,7 +159,7 @@ export function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
         {/* 검색창 — 클릭 시 검색 다이얼로그 열기 */}
         <div
           onClick={() => setSearchOpen(true)}
-          className="flex items-center gap-2.5 rounded-xl border bg-muted/30 px-4 h-9 text-sm text-muted-foreground w-auto sm:w-72 flex-1 sm:flex-none cursor-pointer hover:bg-muted/50 hover:border-border transition-all duration-150 group"
+          className="flex items-center gap-2.5 rounded-xl border bg-muted/30 px-4 h-9 text-sm text-muted-foreground w-auto sm:w-72 flex-1 sm:flex-none cursor-pointer hover:bg-muted/50 hover:border-border transition-all duration-fast group"
         >
           <Search className="h-4.5 w-4.5 shrink-0 group-hover:text-foreground transition-colors" />
           <span className="group-hover:text-foreground/70 transition-colors">
@@ -281,7 +281,7 @@ export function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
         {user && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="flex items-center gap-2.5 rounded-xl px-3 py-1.5 hover:bg-accent transition-all duration-150 outline-none group">
+              <button className="flex items-center gap-2.5 rounded-xl px-3 py-1.5 hover:bg-accent transition-all duration-fast outline-none group">
                 {/* 아바타 — 이미지 있으면 표시, 없으면 이니셜 */}
                 <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-xl bg-primary/20 text-sm font-bold text-primary ring-2 ring-primary/20 group-hover:ring-primary/40 transition-all">
                   {user.avatar ? (

@@ -223,7 +223,7 @@ export function CreateProjectPage() {
                   placeholder={t("project.create.descriptionPlaceholder")}
                   rows={2}
                   {...register("description")}
-                  className="flex w-full rounded-md border border-border bg-input/60 px-3 py-2 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-primary focus-visible:ring-1 focus-visible:ring-primary/30 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
+                  className="flex w-full rounded-md border border-border bg-input/60 px-3 py-2 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-primary focus-visible:ring-1 focus-visible:ring-ring/60 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
                 />
               </div>
             </div>

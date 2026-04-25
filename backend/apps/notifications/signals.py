@@ -39,6 +39,22 @@ def _broadcast_to_workspace(workspace_slug, event):
         pass
 
 
+def _actor_color(actor) -> str:
+    """프론트의 recently-changed strip 색을 위한 deterministic CSS color.
+
+    actor.brand_color 우선 (User 모델에 있을 경우), 없으면 user.id 의
+    hash 로 360 hue 중 하나를 결정 — 같은 사용자는 항상 같은 색.
+    """
+    if actor is None:
+        return ""
+    explicit = getattr(actor, "brand_color", "") or ""
+    if explicit:
+        return explicit
+    # uuid → 안정적 hue (0..359)
+    h = abs(hash(str(getattr(actor, "id", "")))) % 360
+    return f"hsl({h}, 70%, 55%)"
+
+
 def _issue_breadcrumb(issue) -> str:
     """이슈 표시명 — 부모가 있으면 'Parent → Title' 한 줄로.
 
@@ -120,6 +136,7 @@ def notify_on_issue_activity(sender, instance, created, **kwargs):
         "project_id": str(issue.project_id),
         "field": activity.field,
         "actor_name": actor.display_name,
+        "actor_color": _actor_color(actor),
     })
 
     # 이슈 담당자 목록
@@ -160,6 +177,7 @@ def notify_on_comment(sender, instance, created, **kwargs):
         "type": "issue.commented",
         "issue_id": str(issue.id),
         "project_id": str(issue.project_id),
+        "actor_color": _actor_color(actor),
     })
 
     # 알림 대상: 이슈 담당자 + 이슈 생성자 (중복 제거)
@@ -194,10 +212,13 @@ def broadcast_issue_change(sender, instance, created, **kwargs):
     """
     issue = instance
     event_type = "issue.created" if created else "issue.updated"
+    # bulk update 등은 actor를 직접 알 수 없어 created_by(=처음 작성자) 색을 일단 사용.
+    # IssueActivity 시그널 핸들러가 동일 변경에 대해 더 정확한 actor_color 를 또 보낸다.
     _broadcast_to_workspace(issue.workspace.slug, {
         "type": event_type,
         "issue_id": str(issue.id),
         "project_id": str(issue.project_id),
+        "actor_color": _actor_color(getattr(issue, "created_by", None)),
     })
 
     if not created:

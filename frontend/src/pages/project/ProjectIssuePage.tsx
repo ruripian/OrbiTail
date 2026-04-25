@@ -174,7 +174,7 @@ export function ProjectIssuePage() {
               key={id}
               onClick={() => setView(id)}
               className={cn(
-                "inline-flex items-center gap-1.5 px-2 sm:px-2.5 py-1 text-xs font-medium rounded-md transition-all duration-150 whitespace-nowrap",
+                "inline-flex items-center gap-1.5 px-2 sm:px-2.5 py-1 text-xs font-medium rounded-md transition-all duration-fast whitespace-nowrap",
                 currentView === id
                   ? "bg-background text-foreground shadow-sm border border-border"
                   : "text-muted-foreground hover:text-foreground"
@@ -191,7 +191,7 @@ export function ProjectIssuePage() {
           <DropdownMenuTrigger asChild>
             <button
               className={cn(
-                "inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md border transition-all duration-150",
+                "inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md border transition-all duration-fast",
                 categoryId
                   ? "bg-primary/10 text-primary border-primary/30"
                   : "text-muted-foreground border-border hover:bg-muted/40"
@@ -243,7 +243,7 @@ export function ProjectIssuePage() {
           <DropdownMenuTrigger asChild>
             <button
               className={cn(
-                "inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md border transition-all duration-150",
+                "inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md border transition-all duration-fast",
                 sprintId
                   ? "bg-primary/10 text-primary border-primary/30"
                   : "text-muted-foreground border-border hover:bg-muted/40"

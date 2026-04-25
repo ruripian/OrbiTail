@@ -151,7 +151,7 @@ export function DatePicker({
             open ? setOpen(false) : openCalendar();
           }}
           className={cn(
-            "flex items-center gap-1 text-xs rounded-lg px-2 py-1 transition-all duration-150 flex-1 text-left min-h-[28px]",
+            "flex items-center gap-1 text-xs rounded-lg px-2 py-1 transition-all duration-fast flex-1 text-left min-h-[28px]",
             "hover:bg-primary/15 hover:text-primary hover:shadow-sm",
             displayValue ? (overdueClass ?? "text-foreground") : "text-muted-foreground/40",
             open && "bg-primary/15 text-primary",

@@ -98,7 +98,7 @@ export function ParentPicker({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={t("issues.picker.searchPlaceholder")}
-            className="w-full rounded-md border border-border bg-input/40 pl-7 pr-2 py-1.5 text-xs outline-none focus:border-primary focus:ring-1 focus:ring-primary/30"
+            className="w-full rounded-md border border-border bg-input/40 pl-7 pr-2 py-1.5 text-xs outline-none focus:border-primary focus:ring-1 focus:ring-ring/60"
             onKeyDown={(e) => e.stopPropagation()}
           />
         </div>

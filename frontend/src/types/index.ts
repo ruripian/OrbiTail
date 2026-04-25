@@ -60,6 +60,8 @@ export interface Workspace {
   owner: User;
   member_count: number;
   priority_colors: PriorityColors;
+  /** 브랜드 색 — workspace 아바타/액센트 보조 사용. 빈 문자열이면 토큰 default */
+  brand_color?: string;
   created_at: string;
 }
 

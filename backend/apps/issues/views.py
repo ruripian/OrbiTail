@@ -36,6 +36,17 @@ def _ws_broadcast(workspace_slug, event):
         pass
 
 
+def _actor_color(user) -> str:
+    """변경자 색 — recently-changed strip 표시용. user.id 기반 deterministic hue."""
+    if user is None:
+        return ""
+    explicit = getattr(user, "brand_color", "") or ""
+    if explicit:
+        return explicit
+    h = abs(hash(str(getattr(user, "id", "")))) % 360
+    return f"hsl({h}, 70%, 55%)"
+
+
 def _get_effective_perms(user, project_id):
     """유저의 프로젝트 멤버십을 조회하고 effective_perms를 반환.
     멤버가 아니면 None, 멤버이면 {"can_edit":..., "can_archive":..., ...} dict."""
@@ -407,6 +418,7 @@ class IssueArchiveView(APIView):
             "type": "issue.archived",
             "issue_id": str(pk),
             "project_id": str(project_pk),
+            "actor_color": _actor_color(request.user),
         })
         return Response(IssueSerializer(issue, context={"request": request}).data)
 
@@ -432,6 +444,7 @@ class IssueArchiveView(APIView):
             "type": "issue.archived",
             "issue_id": str(pk),
             "project_id": str(project_pk),
+            "actor_color": _actor_color(request.user),
         })
         return Response(IssueSerializer(issue, context={"request": request}).data)
 
@@ -908,6 +921,7 @@ class IssueBulkUpdateView(APIView):
         _ws_broadcast(workspace_slug, {
             "type": "issue.bulk_updated",
             "project_id": str(project_pk),
+            "actor_color": _actor_color(request.user),
         })
         return Response({"detail": f"{issues.count()}개 이슈가 업데이트되었습니다."})
 
@@ -945,6 +959,7 @@ class IssueBulkDeleteView(APIView):
         _ws_broadcast(workspace_slug, {
             "type": "issue.bulk_deleted",
             "project_id": str(project_pk),
+            "actor_color": _actor_color(request.user),
         })
         return Response({"detail": f"{updated}개 이슈가 삭제되었습니다."})
 

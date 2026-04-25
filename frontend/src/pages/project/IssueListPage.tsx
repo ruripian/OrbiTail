@@ -218,7 +218,7 @@ export function IssueListPage() {
                 <button
                   type="button"
                   onClick={() => { setInlineStateId(state.id); setInlineTitle(""); }}
-                  className="w-full flex items-center gap-2 rounded-xl border border-dashed border-border px-4 py-2 text-xs font-medium text-muted-foreground/50 hover:border-primary/40 hover:bg-primary/5 hover:text-primary transition-all duration-150 mt-1.5"
+                  className="w-full flex items-center gap-2 rounded-xl border border-dashed border-border px-4 py-2 text-xs font-medium text-muted-foreground/50 hover:border-primary/40 hover:bg-primary/5 hover:text-primary transition-all duration-fast mt-1.5"
                 >
                   <Plus className="h-3.5 w-3.5" />
                   {t("views.addIssue")}

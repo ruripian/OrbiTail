@@ -99,6 +99,17 @@ const config: Config = {
         md:    "calc(var(--radius) - 2px)",
         sm:    "calc(var(--radius) - 4px)",
       },
+      /* Phase 1.4 토큰을 Tailwind utility 로 노출 — duration-fast/base/slow 사용 */
+      transitionDuration: {
+        fast: "var(--motion-fast)",
+        base: "var(--motion-base)",
+        slow: "var(--motion-slow)",
+      },
+      transitionTimingFunction: {
+        snap:   "var(--ease-snap)",
+        smooth: "var(--ease-smooth)",
+        orbit:  "var(--ease-orbit)",
+      },
       fontFamily: {
         /* CSS 변수 → 폰트 추가/교체는 index.css 변수만 바꾸면 됨 */
         sans:    ["var(--font-sans)"],

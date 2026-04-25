@@ -18,6 +18,7 @@ import { PriorityPicker } from "@/components/issues/priority-picker";
 import { AssigneePicker } from "@/components/issues/assignee-picker";
 import { SprintPicker } from "@/components/issues/sprint-picker";
 import { PRIORITY_COLOR } from "@/constants/priority";
+import { EmptyState } from "@/components/ui/empty-state";
 import type { Issue, State } from "@/types";
 
 interface Props {
@@ -138,11 +139,11 @@ export function BacklogView({ workspaceSlug, projectId, onIssueClick, issueFilte
       </div>
 
       {totalCount === 0 ? (
-        <div className="rounded-2xl border border-dashed p-12 text-center">
-          <Inbox className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
-          <p className="text-base text-muted-foreground">{t("views.backlog.empty")}</p>
-          <p className="text-sm text-muted-foreground mt-1">{t("views.backlog.emptyHint")}</p>
-        </div>
+        <EmptyState
+          icon={<Inbox className="h-10 w-10" />}
+          title={t("views.backlog.empty")}
+          description={t("views.backlog.emptyHint")}
+        />
       ) : (
         <div className="space-y-4">
           {groups.map((g) => {

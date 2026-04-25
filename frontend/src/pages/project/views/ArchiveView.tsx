@@ -11,11 +11,9 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { formatDate } from "@/utils/date-format";
+import { PriorityGlyph } from "@/components/ui/priority-glyph";
+import { EmptyState } from "@/components/ui/empty-state";
 import type { Issue } from "@/types";
-
-const PRIORITY_COLORS: Record<string, string> = {
-  urgent: "text-red-500", high: "text-orange-500", medium: "text-yellow-500", low: "text-blue-500", none: "text-muted-foreground",
-};
 
 interface Props {
   workspaceSlug: string;
@@ -72,11 +70,11 @@ export function ArchiveView({ workspaceSlug, projectId, onIssueClick, issueFilte
 
   if (allArchived.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 gap-3 text-muted-foreground">
-        <Archive className="h-10 w-10 opacity-30" />
-        <p className="text-sm font-medium">{t("views.archive.empty")}</p>
-        <p className="text-xs">{t("views.archive.emptyDescription")}</p>
-      </div>
+      <EmptyState
+        icon={<Archive className="h-10 w-10" />}
+        title={t("views.archive.empty")}
+        description={t("views.archive.emptyDescription")}
+      />
     );
   }
 
@@ -169,7 +167,11 @@ function ArchivedIssueRow({
           <span className="text-sm truncate">{issue.title}</span>
         </div>
 
-        <span className={cn("w-20 text-center text-xs font-medium", PRIORITY_COLORS[issue.priority] ?? "text-muted-foreground")}>
+        <span
+          className="w-20 inline-flex items-center justify-center gap-1.5 text-xs font-medium"
+          style={{ color: `var(--priority-${issue.priority})` }}
+        >
+          <PriorityGlyph priority={issue.priority} size={10} />
           {issue.priority === "none" ? "—" : issue.priority}
         </span>
 

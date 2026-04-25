@@ -111,7 +111,7 @@ export function MemberMultiSelect({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full min-h-9 items-center gap-1.5 flex-wrap rounded-md border border-border bg-input/60 px-2 py-1.5 text-sm text-left transition-colors hover:border-primary/50 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30"
+        className="flex w-full min-h-9 items-center gap-1.5 flex-wrap rounded-md border border-border bg-input/60 px-2 py-1.5 text-sm text-left transition-colors hover:border-primary/50 focus:outline-none focus:border-primary focus:ring-1 focus:ring-ring/60"
       >
         {selectedOptions.length === 0 ? (
           <span className="text-muted-foreground px-1">{resolvedPlaceholder}</span>

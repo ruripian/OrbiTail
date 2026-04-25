@@ -23,6 +23,15 @@
   font-display: swap; /* 폰트 로딩 전 시스템 폰트 먼저 보여줌 */
 }
 
+/* Phase 3.2 / F7 — Fraunces Variable (display serif, weight 100–900). 376KB. */
+@font-face {
+  font-family: "Fraunces";
+  src: url("../font/Fraunces-Variable.ttf") format("truetype-variations");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 /*
  * 폰트 패밀리 CSS 변수
  * 나중에 영문 전용 폰트(e.g. Inter, Geist)를 추가할 경우:

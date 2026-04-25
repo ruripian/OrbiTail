@@ -243,14 +243,14 @@ function SettingsPanel({ settings, onChange, onClose, triggerRef }: SettingsPane
             <div
               onClick={() => onChange({ [key]: !settings[key] })}
               className={cn(
-                "h-5 w-9 rounded-full border transition-all duration-200 flex items-center px-0.5 shrink-0",
+                "h-5 w-9 rounded-full border transition-all duration-base flex items-center px-0.5 shrink-0",
                 settings[key]
                   ? "bg-primary border-primary"
                   : "bg-muted/40 border-border group-hover:border-border"
               )}
             >
               <div className={cn(
-                "h-4 w-4 rounded-full shadow-sm transition-all duration-200",
+                "h-4 w-4 rounded-full shadow-sm transition-all duration-base",
                 settings[key]
                   ? "translate-x-4 bg-primary-foreground"
                   : "translate-x-0 bg-muted-foreground/60"
