@@ -1785,7 +1785,13 @@ function IssueCard({
           className="flex items-center gap-2 cursor-pointer shrink-0 flex-1 min-w-0"
           onClick={() => onIssueClick(issue.id)}
         >
-          <span className="text-sm font-medium text-foreground group-hover:text-primary transition-colors line-clamp-1">
+          <span
+            className={cn(
+              "text-sm font-medium text-foreground group-hover:text-primary transition-colors line-clamp-1",
+              /* Phase 2.2 — cancelled state 이슈는 취소선 표시 */
+              issue.state_detail?.group === "cancelled" && "line-through text-muted-foreground",
+            )}
+          >
             {issue.title}
           </span>
           <button

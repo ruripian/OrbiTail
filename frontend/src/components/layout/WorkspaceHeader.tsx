@@ -7,12 +7,15 @@
 
 import { useParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, Layers, Settings, User as UserIcon } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuthStore } from "@/stores/authStore";
+import { workspacesApi } from "@/api/workspaces";
+import { OrbitAvatar } from "@/components/ui/orbit-glyph";
 
 export function WorkspaceHeader() {
   const { t } = useTranslation();
@@ -23,12 +26,25 @@ export function WorkspaceHeader() {
     user?.is_superuser || user?.is_workspace_admin,
   );
 
+  /* Phase 3.1 — workspace.brand_color 를 OrbitAvatar 색으로. 캐시는 setAuth/clearAuth 가 비움. */
+  const { data: workspace } = useQuery({
+    queryKey: ["workspace", workspaceSlug],
+    queryFn: () => workspacesApi.get(workspaceSlug!),
+    enabled: !!workspaceSlug,
+  });
+  const brand = workspace?.brand_color?.trim() || undefined;
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button className="flex h-11 w-full items-center gap-3 border-b border-border px-4 hover:bg-accent/50 transition-colors">
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary text-xs font-black text-primary-foreground shadow-sm">
-            ∞
+          {/* Phase 3.1 — 워크스페이스 아바타: 행성 1~3개의 작은 궤도 글리프.
+              brand_color 가 설정되어 있으면 그 색, 없으면 currentColor(text-primary) 사용. */}
+          <span
+            className="shrink-0 text-primary"
+            style={brand ? { color: brand } : undefined}
+          >
+            <OrbitAvatar size={28} planets={1} label={workspaceSlug} />
           </span>
           <div className="flex flex-col min-w-0 text-left">
             <span className="truncate text-sm font-semibold text-sidebar-foreground leading-tight">

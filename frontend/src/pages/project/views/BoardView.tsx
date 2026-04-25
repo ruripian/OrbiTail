@@ -118,13 +118,21 @@ export function BoardView({ workspaceSlug, projectId, onIssueClick, issueFilter,
               setDraggedIssueId(null);
             }}
           >
+            {/* Phase 2.2 — count 배지에 state-{group}-fill / -text 토큰 적용.
+                헤더 border / dot 색은 사용자 커스텀(state.color)을 그대로 사용. */}
             <div className="flex items-center gap-2.5 mb-3 px-2 pb-3" style={{ borderBottom: `2px solid ${state.color}20` }}>
               <span
                 className="h-2.5 w-2.5 rounded-full shrink-0"
                 style={{ background: state.color }}
               />
               <span className="text-sm font-semibold">{state.name}</span>
-              <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full ml-auto">
+              <span
+                className="text-xs px-1.5 py-0.5 rounded-full ml-auto font-medium"
+                style={{
+                  background: `var(--state-${state.group}-fill)`,
+                  color: `var(--state-${state.group}-text)`,
+                }}
+              >
                 {issuesByState[state.id]?.length ?? 0}
               </span>
               {!readOnly && (
@@ -172,7 +180,14 @@ export function BoardView({ workspaceSlug, projectId, onIssueClick, issueFilter,
                         : "border-border hover:shadow-lg hover:border-border active:cursor-grabbing"
                     )}
                   >
-                    <p className="font-medium mb-2 line-clamp-2 text-sm">{issue.title}</p>
+                    <p
+                      className={cn(
+                        "font-medium mb-2 line-clamp-2 text-sm",
+                        state.group === "cancelled" && "line-through text-muted-foreground",
+                      )}
+                    >
+                      {issue.title}
+                    </p>
 
                     {/* 2행: 시작일 → 마감일 (기한 색상 차별) */}
                     {(issue.start_date || issue.due_date) && (() => {
