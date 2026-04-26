@@ -27,15 +27,8 @@ import { AssigneePicker } from "@/components/issues/assignee-picker";
 import { LabelPicker } from "@/components/issues/label-picker";
 import { CategoryPicker } from "@/components/issues/category-picker";
 import { SprintPicker } from "@/components/issues/sprint-picker";
-import type { Issue, IssueAttachment, Priority } from "@/types";
-
-const PRIORITY_CONFIG: Record<Priority, { label: string; color: string }> = {
-  urgent: { label: "Urgent", color: "#ef4444" },
-  high:   { label: "High",   color: "#f97316" },
-  medium: { label: "Medium", color: "#eab308" },
-  low:    { label: "Low",    color: "#60a5fa" },
-  none:   { label: "None",   color: "#9ca3af" },
-};
+import { PRIORITY_LABEL_KEY } from "@/constants/priority";
+import type { Issue, IssueAttachment } from "@/types";
 
 const fmtDate = (iso: string) => formatLongDate(iso);
 
@@ -547,9 +540,9 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
                 <span className="text-sm flex-1 truncate">{sub.title}</span>
                 <span
                   className="text-xs shrink-0"
-                  style={{ color: PRIORITY_CONFIG[sub.priority].color }}
+                  style={{ color: `var(--priority-${sub.priority})` }}
                 >
-                  {PRIORITY_CONFIG[sub.priority].label}
+                  {t(PRIORITY_LABEL_KEY[sub.priority])}
                 </span>
               </div>
             ))}

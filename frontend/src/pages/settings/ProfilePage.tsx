@@ -197,16 +197,15 @@ export function ProfilePage() {
       {/* ── 구분선 ── */}
       <hr className="border-border" />
 
-      {/* ── 이메일 (읽기 전용) ── */}
-      <div className="space-y-1.5">
-        <Label>{t("settings.profile.emailTitle")}</Label>
-        <Input
-          type="email"
-          value={user?.email ?? ""}
-          readOnly
-          className="bg-muted/40 cursor-not-allowed"
-        />
-        <p className="text-xs text-muted-foreground">{t("settings.profile.emailReadOnly")}</p>
+      {/* ── 이메일 (읽기 전용) — PASS3-1: input 어포던스 제거, 평문 + 변경 안내 */}
+      <div>
+        <Label className="text-xs uppercase tracking-wide text-muted-foreground">
+          {t("settings.profile.emailTitle")}
+        </Label>
+        <p className="mt-1 text-sm font-medium">{user?.email}</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {t("settings.profile.emailChangeHint")}
+        </p>
       </div>
 
       {/* ── 프로필 사진 크롭 다이얼로그 ── */}

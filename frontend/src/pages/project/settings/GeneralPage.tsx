@@ -8,16 +8,10 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { projectsApi } from "@/api/projects";
 import { useAuthStore } from "@/stores/authStore";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { DangerZone } from "@/components/ui/danger-zone";
 import { ProjectIconPicker, parseIconProp, type IconProp } from "@/components/ui/project-icon-picker";
 import { cn } from "@/lib/utils";
 import type { ProjectFeatureKey } from "@/types";
@@ -48,10 +42,7 @@ export function GeneralPage() {
   const myProjectRole = projectMembers.find((m) => m.member.id === currentUser?.id)?.role ?? 0;
   const isProjectAdmin = myProjectRole >= 20;
 
-  const [archiveOpen, setArchiveOpen] = useState(false);
-  const [leaveOpen, setLeaveOpen] = useState(false);
-  const [deleteOpen, setDeleteOpen] = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState("");
+  /* PASS3-7: archive/leave/delete state 와 Dialog wrapper 제거 — DangerZone 인라인으로 대체. */
 
   const { data: project } = useQuery({
     queryKey: ["project", workspaceSlug, projectId],
@@ -154,7 +145,6 @@ export function GeneralPage() {
     mutationFn: () => projectsApi.archive(workspaceSlug!, projectId!),
     onSuccess: () => {
       invalidateProject();
-      setArchiveOpen(false);
       toast.success(t("project.settings.general.archived"));
       navigate(`/${workspaceSlug}`);
     },
@@ -164,7 +154,6 @@ export function GeneralPage() {
     mutationFn: () => projectsApi.leave(workspaceSlug!, projectId!),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["projects", workspaceSlug] });
-      setLeaveOpen(false);
       toast.success(t("project.settings.general.left"));
       navigate(`/${workspaceSlug}`);
     },
@@ -175,7 +164,6 @@ export function GeneralPage() {
     mutationFn: () => projectsApi.delete(workspaceSlug!, projectId!),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["projects", workspaceSlug] });
-      setDeleteOpen(false);
       toast.success(t("project.settings.general.deleted"));
       navigate(`/${workspaceSlug}`);
     },
@@ -331,107 +319,45 @@ export function GeneralPage() {
         </div>
       )}
 
-      {/* ── 위험 구역 — 프로젝트 나가기는 모두, 보관/삭제는 관리자만 ── */}
-      <div className="border-t pt-8 space-y-4">
+      {/* ── 위험 구역 — PASS3-7: Dialog 3개 → DangerZone 인라인 3개 ── */}
+      <div className="border-t pt-8 space-y-3">
         <h2 className="text-sm font-semibold text-destructive">{t("project.settings.general.dangerZone")}</h2>
 
         {/* 프로젝트 나가기 — 모든 멤버 가능 */}
-        <div className="flex items-center justify-between rounded-lg border glass p-4">
-          <div>
-            <p className="text-sm font-medium">{t("project.settings.general.leaveTitle")}</p>
-            <p className="text-xs text-muted-foreground">{t("project.settings.general.leaveDescription")}</p>
-          </div>
-          <Button variant="outline" size="sm" onClick={() => setLeaveOpen(true)}>
-            {t("project.settings.general.leaveButton")}
-          </Button>
-        </div>
+        <DangerZone
+          severity="subtle"
+          title={t("project.settings.general.leaveTitle")}
+          description={t("project.settings.general.leaveConfirmMessage")}
+          buttonLabel={t("project.settings.general.leaveButton")}
+          onConfirm={() => leaveMutation.mutate()}
+          isPending={leaveMutation.isPending}
+        />
 
         {/* 프로젝트 보관 — 관리자 이상 */}
         {isProjectAdmin && (
-          <div className="flex items-center justify-between rounded-lg border glass p-4">
-            <div>
-              <p className="text-sm font-medium">{t("project.settings.general.archiveTitle")}</p>
-              <p className="text-xs text-muted-foreground">{t("project.settings.general.archiveDescription")}</p>
-            </div>
-            <Button variant="outline" size="sm" onClick={() => setArchiveOpen(true)}>
-              {t("project.settings.general.archiveButton")}
-            </Button>
-          </div>
+          <DangerZone
+            severity="subtle"
+            title={t("project.settings.general.archiveTitle")}
+            description={t("project.settings.general.archiveConfirmMessage")}
+            buttonLabel={t("project.settings.general.archiveButton")}
+            onConfirm={() => archiveMutation.mutate()}
+            isPending={archiveMutation.isPending}
+          />
         )}
 
-        {/* 프로젝트 삭제 — 관리자 이상 */}
+        {/* 프로젝트 삭제 — 관리자 이상, 이름 입력 confirm */}
         {isProjectAdmin && (
-          <div className="flex items-center justify-between rounded-lg border border-destructive/30 p-4">
-            <div>
-              <p className="text-sm font-medium text-destructive">{t("project.settings.general.deleteTitle")}</p>
-              <p className="text-xs text-muted-foreground">{t("project.settings.general.deleteDescription")}</p>
-            </div>
-            <Button variant="destructive" size="sm" onClick={() => setDeleteOpen(true)}>
-              {t("project.settings.general.deleteButton")}
-            </Button>
-          </div>
+          <DangerZone
+            title={t("project.settings.general.deleteTitle")}
+            description={t("project.settings.general.deleteConfirmMessage", { name: project?.name })}
+            confirmText={project?.name}
+            confirmPlaceholder={project?.name ?? ""}
+            buttonLabel={t("project.settings.general.deleteButton")}
+            onConfirm={() => deleteMutation.mutate()}
+            isPending={deleteMutation.isPending}
+          />
         )}
       </div>
-
-      {/* ── 보관 확인 다이얼로그 ── */}
-      <Dialog open={archiveOpen} onOpenChange={setArchiveOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("project.settings.general.archiveConfirmTitle")}</DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">{t("project.settings.general.archiveConfirmMessage")}</p>
-          <div className="flex justify-end gap-2 mt-4">
-            <Button variant="outline" onClick={() => setArchiveOpen(false)}>{t("project.settings.general.cancel")}</Button>
-            <Button onClick={() => archiveMutation.mutate()} disabled={archiveMutation.isPending}>
-              {t("project.settings.general.archiveButton")}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* ── 삭제 확인 다이얼로그 ── */}
-      <Dialog open={deleteOpen} onOpenChange={(v) => { setDeleteOpen(v); setDeleteConfirm(""); }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("project.settings.general.deleteConfirmTitle")}</DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            {t("project.settings.general.deleteConfirmMessage", { name: project?.name })}
-          </p>
-          <Input
-            placeholder={project?.name ?? ""}
-            value={deleteConfirm}
-            onChange={(e) => setDeleteConfirm(e.target.value)}
-            className="mt-2"
-          />
-          <div className="flex justify-end gap-2 mt-4">
-            <Button variant="outline" onClick={() => setDeleteOpen(false)}>{t("project.settings.general.cancel")}</Button>
-            <Button
-              variant="destructive"
-              disabled={deleteConfirm !== project?.name || deleteMutation.isPending}
-              onClick={() => deleteMutation.mutate()}
-            >
-              {t("project.settings.general.deleteButton")}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* ── 나가기 확인 다이얼로그 ── */}
-      <Dialog open={leaveOpen} onOpenChange={setLeaveOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("project.settings.general.leaveConfirmTitle")}</DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">{t("project.settings.general.leaveConfirmMessage")}</p>
-          <div className="flex justify-end gap-2 mt-4">
-            <Button variant="outline" onClick={() => setLeaveOpen(false)}>{t("project.settings.general.cancel")}</Button>
-            <Button variant="destructive" onClick={() => leaveMutation.mutate()} disabled={leaveMutation.isPending}>
-              {t("project.settings.general.leaveButton")}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

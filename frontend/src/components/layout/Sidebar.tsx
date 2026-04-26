@@ -29,20 +29,21 @@ import type { Project, Category } from "@/types";
 import type { WsStatus } from "@/hooks/useWebSocket";
 
 /**
- * Phase 2.5 — Sidebar 활성 상태를 "좌측 3px bar"로 단일화.
- * 우측 dot은 제거하고, ::before 의사요소로 좌측 indicator를 그린다.
- * 색은 var(--accent) 또는 primary, 높이 60%, radius 99px (caps).
+ * 활성 상태는 좌측 3px ::before bar 로 단일화. badge 가 있으면 우측에 카운트 노출.
  */
 function NavItem({
   to,
   icon: Icon,
   label,
   active,
+  badge,
 }: {
   to: string;
   icon?: React.ElementType;
   label: string;
   active?: boolean;
+  /** 우상단 미읽음 카운트 등. 0/undefined 면 노출 안 함 */
+  badge?: number;
 }) {
   return (
     <Link
@@ -57,7 +58,12 @@ function NavItem({
       style={{ transitionDuration: "var(--motion-fast)" }}
     >
       {Icon && <Icon className="h-4 w-4 shrink-0" />}
-      <span className="truncate">{label}</span>
+      <span className="truncate flex-1">{label}</span>
+      {badge !== undefined && badge > 0 && (
+        <span className="ml-auto inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-primary text-primary-foreground text-2xs font-bold not-italic leading-none tabular-nums">
+          {badge > 99 ? "99+" : badge}
+        </span>
+      )}
     </Link>
   );
 }
@@ -254,33 +260,14 @@ function ProjectItem({
   );
 }
 
-function AnnouncementsNavItem({ workspaceSlug, active }: { workspaceSlug: string; active: boolean }) {
-  const { t } = useTranslation();
-  const { data: unread = 0 } = useQuery({
+/* PASS3-4: AnnouncementsNavItem 제거 — NavItem 의 badge prop 으로 통합. 미읽음 카운트만 inline fetch. */
+function useAnnouncementsUnread(): number {
+  const { data = 0 } = useQuery({
     queryKey: ["announcements-unread"],
     queryFn:  announcementsApi.unreadCount,
     refetchInterval: 60_000,
   });
-  return (
-    <Link
-      to={`/${workspaceSlug}/announcements`}
-      className={cn(
-        "relative flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors",
-        active
-          ? "bg-primary/12 text-foreground before:content-[''] before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:w-[3px] before:h-[60%] before:bg-primary before:rounded-full"
-          : "text-sidebar-foreground/75 hover:bg-sidebar-accent hover:text-sidebar-foreground"
-      )}
-      style={{ transitionDuration: "var(--motion-fast)" }}
-    >
-      <Megaphone className="h-4 w-4 shrink-0" />
-      <span className="truncate flex-1">{t("sidebar.announcements")}</span>
-      {unread > 0 && (
-        <span className="ml-auto inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-primary text-primary-foreground text-2xs font-bold not-italic leading-none tabular-nums">
-          {unread > 99 ? "99+" : unread}
-        </span>
-      )}
-    </Link>
-  );
+  return data;
 }
 
 export function Sidebar({ onNavigate, wsStatus = "connecting" }: { onNavigate?: () => void; wsStatus?: WsStatus } = {}) {
@@ -312,6 +299,8 @@ export function Sidebar({ onNavigate, wsStatus = "connecting" }: { onNavigate?: 
   const favoriteProjects = sortedProjects.filter((p) => favIds.has(p.id));
   const publicProjects = sortedProjects.filter((p) => !favIds.has(p.id) && p.network === 0);
   const privateProjects = sortedProjects.filter((p) => !favIds.has(p.id) && p.network === 2);
+
+  const announcementsUnread = useAnnouncementsUnread();
 
   /* DnD 상태 — ref로 최신값 유지 (stale closure 방지) */
   const [dragId, setDragId] = useState<string | null>(null);
@@ -392,7 +381,13 @@ export function Sidebar({ onNavigate, wsStatus = "connecting" }: { onNavigate?: 
           active={location.pathname === `/${workspaceSlug}/projects/archived`}
         />
 
-        <AnnouncementsNavItem workspaceSlug={workspaceSlug ?? ""} active={location.pathname === `/${workspaceSlug}/announcements`} />
+        <NavItem
+          to={`/${workspaceSlug}/announcements`}
+          icon={Megaphone}
+          label={t("sidebar.announcements")}
+          active={location.pathname === `/${workspaceSlug}/announcements`}
+          badge={announcementsUnread}
+        />
 
         {favoriteProjects.length > 0 && (
           <div className="mt-5">
@@ -422,14 +417,11 @@ export function Sidebar({ onNavigate, wsStatus = "connecting" }: { onNavigate?: 
             </Link>
           </div>
 
+          {/* PASS3-4: allFavorited 분기 제거 — 공개 프로젝트가 없으면 그냥 안 그림. */}
           <div className="space-y-0.5">
             {publicProjects.length === 0 && privateProjects.length === 0 && favoriteProjects.length === 0 ? (
               <p className="px-3 py-2 text-xs text-sidebar-foreground/70">
                 {t("sidebar.noProjects")}
-              </p>
-            ) : publicProjects.length === 0 && privateProjects.length === 0 ? (
-              <p className="px-3 py-2 text-xs text-sidebar-foreground/50">
-                {t("sidebar.allFavorited")}
               </p>
             ) : (
               publicProjects.map(renderProject)

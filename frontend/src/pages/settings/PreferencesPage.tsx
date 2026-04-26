@@ -1,10 +1,7 @@
-import { useForm } from "react-hook-form";
+import { useState } from "react";
 import { useTranslation, getI18n } from "react-i18next";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-
 
 import { settingsApi } from "@/api/settings";
 import { notificationsApi, type NotificationPreference } from "@/api/notifications";
@@ -13,7 +10,6 @@ import { useTheme } from "@/lib/theme-provider";
 import { useMotion, type MotionMode } from "@/lib/motion-provider";
 import { useDensity, type Density } from "@/lib/density-provider";
 import { TIMEZONES } from "@/lib/timezones";
-import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import {
@@ -24,13 +20,20 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-const schema = z.object({
-  theme:             z.enum(["light", "dark"]),
-  language:          z.enum(["ko", "en"]),
-  timezone:          z.string().min(1),
-  first_day_of_week: z.number().int().min(0).max(1),
-});
-type FormValues = z.infer<typeof schema>;
+/** PASS3-6 — 모든 프리퍼런스를 즉시 저장으로 통일.
+    Theme/Motion/Density 는 자체 provider 가 즉시 반영. Locale 그룹(Language/Timezone/FirstDayOfWeek)도
+    onChange 시 PATCH 한 번. Save 버튼/form wrapper 제거.
+    카드 그루핑: Appearance / Locale & Region / Notifications. */
+
+type Theme = "light" | "dark";
+type Language = "ko" | "en";
+type FirstDow = 0 | 1;
+
+interface LocaleState {
+  language: Language;
+  timezone: string;
+  first_day_of_week: FirstDow;
+}
 
 export function PreferencesPage() {
   const { t } = useTranslation();
@@ -40,10 +43,27 @@ export function PreferencesPage() {
   const { mode: motionMode, setMode: setMotionMode } = useMotion();
   const { density, setDensity } = useDensity();
 
-  // 옵션 목록 (t() 사용을 위해 컴포넌트 내부에 정의)
+  const initialTheme: Theme = ((user?.theme === "system" ? "dark" : user?.theme) ?? "dark") as Theme;
+  const [themeValue, setThemeValue] = useState<Theme>(initialTheme);
+  const [locale, setLocale] = useState<LocaleState>({
+    language: (user?.language ?? "ko") as Language,
+    timezone: user?.timezone ?? "Asia/Seoul",
+    first_day_of_week: (user?.first_day_of_week ?? 0) as FirstDow,
+  });
+
+  const mutation = useMutation({
+    mutationFn: (data: Partial<{ theme: Theme; language: Language; timezone: string; first_day_of_week: FirstDow }>) =>
+      settingsApi.updatePreferences(data),
+    onSuccess: (updated) => {
+      updateUser(updated);
+      if (updated.language) getI18n().changeLanguage(updated.language);
+    },
+    onError: () => toast.error(t("settings.preferences.saveFailed")),
+  });
+
   const THEME_OPTIONS = [
-    { value: "light",  label: t("settings.preferences.themeLight") },
-    { value: "dark",   label: t("settings.preferences.themeDark") },
+    { value: "light", label: t("settings.preferences.themeLight") },
+    { value: "dark",  label: t("settings.preferences.themeDark")  },
   ] as const;
 
   const LANGUAGE_OPTIONS = [
@@ -56,31 +76,7 @@ export function PreferencesPage() {
     { value: 1, label: t("settings.preferences.monday") },
   ];
 
-  const { handleSubmit, setValue, watch } = useForm<FormValues>({
-    resolver: zodResolver(schema),
-    defaultValues: {
-      theme:             ((user?.theme === "system" ? "dark" : user?.theme) ?? "dark") as FormValues["theme"],
-      language:          (user?.language ?? "ko") as FormValues["language"],
-      timezone:          user?.timezone ?? "Asia/Seoul",
-      first_day_of_week: user?.first_day_of_week ?? 0,
-    },
-  });
-
-  const mutation = useMutation({
-    mutationFn: (data: FormValues) => settingsApi.updatePreferences(data),
-    onSuccess: (updated) => {
-      updateUser(updated);
-      /* 언어 변경을 i18n에 즉시 반영 */
-      if (updated.language) getI18n().changeLanguage(updated.language);
-      toast.success(t("settings.preferences.saved"));
-    },
-    onError: () => toast.error(t("settings.preferences.saveFailed")),
-  });
-
-  // watch로 현재 값 추적 (Select에 value 바인딩 필요)
-  const values = watch();
-
-  /* ── 알림 환경설정 (이메일) — 별도 엔드포인트로 즉시 저장 ── */
+  /* ── 알림 환경설정 ── */
   const qc = useQueryClient();
   const { data: notifPrefs } = useQuery({
     queryKey: ["notification-preferences"],
@@ -89,7 +85,6 @@ export function PreferencesPage() {
   });
   const notifMutation = useMutation({
     mutationFn: (data: Partial<NotificationPreference>) => notificationsApi.updatePreferences(data),
-    /* 옵티미스틱 업데이트 — 토글 즉시 반영, 실패 시 롤백 */
     onMutate: async (patch) => {
       await qc.cancelQueries({ queryKey: ["notification-preferences"] });
       const prev = qc.getQueryData<NotificationPreference>(["notification-preferences"]);
@@ -105,12 +100,12 @@ export function PreferencesPage() {
 
   const NOTIF_KEYS = [
     { key: "email_issue_assigned", labelKey: "settings.preferences.notifIssueAssigned" },
-    { key: "email_comment_added",  labelKey: "settings.preferences.notifCommentAdded" },
-    { key: "email_issue_updated",  labelKey: "settings.preferences.notifIssueUpdated" },
+    { key: "email_comment_added",  labelKey: "settings.preferences.notifCommentAdded"  },
+    { key: "email_issue_updated",  labelKey: "settings.preferences.notifIssueUpdated"  },
   ] as const;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <div>
         <h1 className="text-lg font-semibold">{t("settings.preferences.title")}</h1>
         <p className="text-sm text-muted-foreground mt-1">
@@ -118,100 +113,67 @@ export function PreferencesPage() {
         </p>
       </div>
 
-      <form onSubmit={handleSubmit((d) => mutation.mutate(d))} className="space-y-6">
+      {/* ── Appearance ── */}
+      <section className="rounded-lg border border-border bg-card p-5 space-y-5">
+        <h2 className="text-sm font-semibold text-foreground">
+          {t("settings.preferences.sectionAppearance", "외관")}
+        </h2>
 
-        {/* 테마 토글 */}
         <div className="flex items-center gap-6">
           <Label>{t("settings.preferences.theme")}</Label>
-          <div className="inline-flex items-center gap-1 rounded-lg border border-border bg-muted/30 p-1">
-            {THEME_OPTIONS.map((o) => {
-              const active = values.theme === o.value;
-              return (
-                <button
-                  key={o.value}
-                  type="button"
-                  onClick={() => {
-                    const themeVal = o.value as FormValues["theme"];
-                    setValue("theme", themeVal);
-                    setTheme(themeVal);
-                  }}
-                  className={cn(
-                    "rounded-md px-5 py-1.5 text-xs font-medium transition-all duration-fast",
-                    active
-                      ? "bg-primary text-primary-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground hover:bg-background/60"
-                  )}
-                >
-                  {o.label}
-                </button>
-              );
-            })}
-          </div>
+          <SegmentedControl
+            value={themeValue}
+            options={THEME_OPTIONS}
+            onChange={(v) => {
+              const nv = v as Theme;
+              setThemeValue(nv);
+              setTheme(nv);
+              mutation.mutate({ theme: nv });
+            }}
+          />
         </div>
 
-        {/* 애니메이션 모드 */}
         <div className="flex items-center gap-6">
           <Label>{t("settings.preferences.motionMode")}</Label>
-          <div className="inline-flex items-center gap-1 rounded-lg border border-border bg-muted/30 p-1">
-            {([
+          <SegmentedControl
+            value={motionMode}
+            options={[
               { value: "rich",    label: t("settings.preferences.motionRich") },
               { value: "minimal", label: t("settings.preferences.motionMinimal") },
-            ] as const).map((o) => {
-              const active = motionMode === o.value;
-              return (
-                <button
-                  key={o.value}
-                  type="button"
-                  onClick={() => setMotionMode(o.value as MotionMode)}
-                  className={cn(
-                    "rounded-md px-5 py-1.5 text-xs font-medium transition-all duration-fast",
-                    active
-                      ? "bg-primary text-primary-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground hover:bg-background/60"
-                  )}
-                >
-                  {o.label}
-                </button>
-              );
-            })}
-          </div>
+            ]}
+            onChange={(v) => setMotionMode(v as MotionMode)}
+          />
         </div>
 
-        {/* Phase 2.6 — Density 토글 (compact / comfortable / spacious) */}
         <div className="flex items-center gap-6">
           <Label>{t("settings.preferences.density", "밀도")}</Label>
-          <div className="inline-flex items-center gap-1 rounded-lg border border-border bg-muted/30 p-1">
-            {([
-              { value: "compact",     label: t("settings.preferences.densityCompact",     "조밀") },
-              { value: "comfortable", label: t("settings.preferences.densityComfortable", "보통") },
-              { value: "spacious",    label: t("settings.preferences.densitySpacious",    "여유") },
-            ] as const).map((o) => {
-              const active = density === o.value;
-              return (
-                <button
-                  key={o.value}
-                  type="button"
-                  onClick={() => setDensity(o.value as Density)}
-                  className={cn(
-                    "rounded-md px-5 py-1.5 text-xs font-medium transition-all duration-fast",
-                    active
-                      ? "bg-primary text-primary-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground hover:bg-background/60"
-                  )}
-                >
-                  {o.label}
-                </button>
-              );
-            })}
-          </div>
+          <SegmentedControl
+            value={density}
+            options={[
+              { value: "compact",     label: t("settings.preferences.densityCompact") },
+              { value: "comfortable", label: t("settings.preferences.densityComfortable") },
+              { value: "spacious",    label: t("settings.preferences.densitySpacious") },
+            ]}
+            onChange={(v) => setDensity(v as Density)}
+          />
         </div>
+      </section>
 
-        {/* 언어 */}
+      {/* ── Locale & Region ── */}
+      <section className="rounded-lg border border-border bg-card p-5 space-y-5">
+        <h2 className="text-sm font-semibold text-foreground">
+          {t("settings.preferences.sectionLocale", "언어 및 지역")}
+        </h2>
+
         <div className="space-y-1.5">
           <Label>{t("settings.preferences.language")}</Label>
           <Select
-            value={values.language}
-            onValueChange={(v) => setValue("language", v as FormValues["language"])}
+            value={locale.language}
+            onValueChange={(v) => {
+              const nv = v as Language;
+              setLocale((prev) => ({ ...prev, language: nv }));
+              mutation.mutate({ language: nv });
+            }}
           >
             <SelectTrigger className="w-64">
               <SelectValue />
@@ -226,12 +188,14 @@ export function PreferencesPage() {
           </Select>
         </div>
 
-        {/* 시간대 */}
         <div className="space-y-1.5">
           <Label>{t("settings.preferences.timezone")}</Label>
           <Select
-            value={values.timezone}
-            onValueChange={(v) => setValue("timezone", v)}
+            value={locale.timezone}
+            onValueChange={(v) => {
+              setLocale((prev) => ({ ...prev, timezone: v }));
+              mutation.mutate({ timezone: v });
+            }}
           >
             <SelectTrigger className="w-64">
               <SelectValue />
@@ -246,12 +210,15 @@ export function PreferencesPage() {
           </Select>
         </div>
 
-        {/* 주의 시작 요일 */}
         <div className="space-y-1.5">
           <Label>{t("settings.preferences.firstDayOfWeek")}</Label>
           <Select
-            value={String(values.first_day_of_week)}
-            onValueChange={(v) => setValue("first_day_of_week", Number(v))}
+            value={String(locale.first_day_of_week)}
+            onValueChange={(v) => {
+              const nv = Number(v) as FirstDow;
+              setLocale((prev) => ({ ...prev, first_day_of_week: nv }));
+              mutation.mutate({ first_day_of_week: nv });
+            }}
           >
             <SelectTrigger className="w-64">
               <SelectValue />
@@ -265,34 +232,27 @@ export function PreferencesPage() {
             </SelectContent>
           </Select>
         </div>
+      </section>
 
-        <Button type="submit" size="sm" disabled={mutation.isPending}>
-          {mutation.isPending ? t("settings.preferences.saving") : t("settings.preferences.save")}
-        </Button>
-      </form>
-
-      {/* ── 알림 환경설정 ── */}
-      <div className="pt-8 mt-2 border-t border-border space-y-8">
+      {/* ── Notifications ── */}
+      <section className="rounded-lg border border-border bg-card p-5 space-y-5">
         <div>
-          <h2 className="text-base font-semibold">{t("settings.preferences.notifTitle")}</h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            {t("settings.preferences.notifSubtitle")}
-          </p>
+          <h2 className="text-sm font-semibold text-foreground">{t("settings.preferences.notifTitle")}</h2>
+          <p className="text-xs text-muted-foreground mt-1">{t("settings.preferences.notifSubtitle")}</p>
         </div>
 
-        {/* 인앱 알림 — 항상 표시, 토글 없음 */}
-        <section className="space-y-2">
-          <h3 className="text-sm font-semibold">{t("settings.preferences.inAppTitle")}</h3>
-          <p className="text-xs text-muted-foreground">
-            {t("settings.preferences.inAppDesc")}
-          </p>
+        <section className="space-y-1">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            {t("settings.preferences.inAppTitle")}
+          </h3>
+          <p className="text-xs text-muted-foreground">{t("settings.preferences.inAppDesc")}</p>
         </section>
 
-        {/* 메일 알림 */}
-        <section className="space-y-5">
-          <h3 className="text-sm font-semibold">{t("settings.preferences.emailTitle")}</h3>
+        <section className="space-y-3">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            {t("settings.preferences.emailTitle")}
+          </h3>
 
-          {/* 마스터 토글 */}
           <NotifToggle
             label={t("settings.preferences.notifEmailMaster")}
             description={t("settings.preferences.notifEmailMasterDesc")}
@@ -300,7 +260,6 @@ export function PreferencesPage() {
             onChange={(v) => notifMutation.mutate({ email_enabled: v })}
           />
 
-          {/* 타입별 토글 — 마스터가 꺼져있으면 비활성화 */}
           <div className={cn("space-y-3 pl-2", !(notifPrefs?.email_enabled ?? true) && "opacity-40 pointer-events-none")}>
             {NOTIF_KEYS.map(({ key, labelKey }) => (
               <NotifToggle
@@ -312,12 +271,45 @@ export function PreferencesPage() {
             ))}
           </div>
         </section>
-      </div>
+      </section>
     </div>
   );
 }
 
-/* 작은 토글 행 컴포넌트 — PreferencesPage 안에서만 사용 */
+/* ── Helpers ── */
+
+interface SegOpt<V extends string> { value: V; label: string }
+function SegmentedControl<V extends string>({
+  value, options, onChange,
+}: {
+  value: V;
+  options: readonly SegOpt<V>[];
+  onChange: (v: V) => void;
+}) {
+  return (
+    <div className="inline-flex items-center gap-1 rounded-lg border border-border bg-muted/30 p-1">
+      {options.map((o) => {
+        const active = value === o.value;
+        return (
+          <button
+            key={o.value}
+            type="button"
+            onClick={() => onChange(o.value)}
+            className={cn(
+              "rounded-md px-5 py-1.5 text-xs font-medium transition-all duration-fast",
+              active
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground hover:bg-background/60"
+            )}
+          >
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function NotifToggle({
   label, description, checked, onChange,
 }: {

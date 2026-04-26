@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
@@ -6,25 +5,21 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { AlertTriangle } from "lucide-react";
 import { settingsApi } from "@/api/settings";
 import { useAuthStore } from "@/stores/authStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { DangerZone } from "@/components/ui/danger-zone";
 
 export function SecurityPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const clearAuth = useAuthStore((s) => s.clearAuth);
 
-  /* 계정 탈퇴 상태 */
-  const [deleteOpen, setDeleteOpen]         = useState(false);
-  const [deletePassword, setDeletePassword] = useState("");
-  const [deleteConfirm, setDeleteConfirm]   = useState("");
-
+  /* 계정 탈퇴 — PASS3-7: DangerZone 으로 통합 (password+DELETE 입력 inline) */
   const deleteMutation = useMutation({
-    mutationFn: () => settingsApi.deleteAccount(deletePassword),
+    mutationFn: (password: string) => settingsApi.deleteAccount(password),
     onSuccess: () => {
       toast.success(t("settings.security.deleteAccountSuccess"));
       clearAuth();
@@ -127,94 +122,19 @@ export function SecurityPage() {
         </Button>
       </form>
 
-      {/* ═══════════ DANGER ZONE: 계정 탈퇴 ═══════════ */}
+      {/* ═══════════ DANGER ZONE — 계정 탈퇴 (PASS3-7) ═══════════ */}
       <div className="max-w-xl pt-6 border-t border-border">
-        <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4">
-          <div className="flex items-start gap-3 mb-3">
-            <AlertTriangle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
-            <div>
-              <p className="text-sm font-bold text-destructive">
-                {t("settings.security.deleteAccountTitle")}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                {t("settings.security.deleteAccountWarning")}
-              </p>
-            </div>
-          </div>
-
-          {!deleteOpen ? (
-            <Button
-              type="button"
-              variant="destructive"
-              size="sm"
-              onClick={() => setDeleteOpen(true)}
-            >
-              {t("settings.security.deleteAccountButton")}
-            </Button>
-          ) : (
-            <div className="space-y-3 mt-3 pt-3 border-t border-destructive/20">
-              <div className="space-y-1.5">
-                <Label htmlFor="delete_password" className="text-xs">
-                  {t("settings.security.deleteAccountPasswordLabel")}
-                </Label>
-                <Input
-                  id="delete_password"
-                  type="password"
-                  autoComplete="current-password"
-                  value={deletePassword}
-                  onChange={(e) => setDeletePassword(e.target.value)}
-                  className="h-9"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="delete_confirm" className="text-xs">
-                  {t("settings.security.deleteAccountConfirmLabel")}
-                </Label>
-                <Input
-                  id="delete_confirm"
-                  type="text"
-                  value={deleteConfirm}
-                  onChange={(e) => setDeleteConfirm(e.target.value)}
-                  placeholder={t("settings.security.deleteAccountConfirmText")}
-                  className="h-9 font-mono"
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  type="button"
-                  variant="destructive"
-                  size="sm"
-                  disabled={
-                    deleteMutation.isPending ||
-                    !deletePassword ||
-                    deleteConfirm !== t("settings.security.deleteAccountConfirmText")
-                  }
-                  onClick={() => {
-                    if (window.confirm(t("settings.security.deleteAccountConfirm"))) {
-                      deleteMutation.mutate();
-                    }
-                  }}
-                >
-                  {deleteMutation.isPending
-                    ? t("settings.security.deleteAccountSubmitting")
-                    : t("settings.security.deleteAccountSubmit")}
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setDeleteOpen(false);
-                    setDeletePassword("");
-                    setDeleteConfirm("");
-                  }}
-                >
-                  {t("settings.security.deleteAccountCancel")}
-                </Button>
-              </div>
-            </div>
-          )}
-        </div>
+        <DangerZone
+          title={t("settings.security.deleteAccountTitle")}
+          description={t("settings.security.deleteAccountWarning")}
+          confirmText={t("settings.security.deleteAccountConfirmText")}
+          confirmPlaceholder={t("settings.security.deleteAccountConfirmLabel")}
+          requiresPassword
+          passwordPlaceholder={t("settings.security.deleteAccountPasswordLabel")}
+          buttonLabel={t("settings.security.deleteAccountButton")}
+          onConfirm={({ password }) => deleteMutation.mutate(password!)}
+          isPending={deleteMutation.isPending}
+        />
       </div>
     </div>
   );

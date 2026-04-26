@@ -47,12 +47,15 @@ interface PersistedFilters {
   priority: string[];
   project: string[];
   stateGroup: StateGroup[];
-  groupBy: "state" | "project";
 }
+/* PASS3-5: groupBy 필드 제거. 옛 사용자 데이터에 groupBy 가 들어 있어도 한 번에 정리. */
 function loadFilters(): Partial<PersistedFilters> {
   try {
     const raw = localStorage.getItem(LS_KEY);
-    return raw ? JSON.parse(raw) : {};
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    delete parsed.groupBy;
+    return parsed;
   } catch {
     return {};
   }
@@ -83,8 +86,6 @@ function formatTime(): string {
 }
 
 /* ──────────────── 그룹 타입 ──────────────── */
-
-type GroupBy = "state" | "project";
 
 interface IssueGroup {
   key: string;
@@ -204,20 +205,15 @@ export function WorkspaceDashboard() {
     const f = loadFilters();
     return new Set(Array.isArray(f.stateGroup) ? f.stateGroup : []);
   });
-  const [groupBy, setGroupBy] = useState<GroupBy>(() => {
-    const f = loadFilters();
-    return f.groupBy === "project" ? "project" : "state";
-  });
 
-  // 필터 변경 시 즉시 저장
+  // PASS3-5: groupBy 토글 제거 — 상태별 그룹으로 고정.
   useEffect(() => {
     saveFilters({
       priority: Array.from(priorityFilter),
       project: Array.from(projectFilter),
       stateGroup: Array.from(stateGroupFilter),
-      groupBy,
     });
-  }, [priorityFilter, projectFilter, stateGroupFilter, groupBy]);
+  }, [priorityFilter, projectFilter, stateGroupFilter]);
 
   /* 내 할 일 (완료/취소 제외, 상태 순서대로) */
   const { data: myIssues = [], isLoading } = useQuery({
@@ -257,26 +253,19 @@ export function WorkspaceDashboard() {
     });
   }, [myIssues, projectFilter, priorityFilter, stateGroupFilter]);
 
-  // 그룹핑
+  // 그룹핑 — 상태별 (PASS3-5)
   const groups = useMemo((): IssueGroup[] => {
     const map = new Map<string, IssueGroup>();
     for (const issue of filtered) {
-      let key: string, label: string, color: string;
-      if (groupBy === "state") {
-        const sd = issue.state_detail as State | null;
-        key = sd?.id ?? "__none__";
-        label = sd?.name ?? "Unassigned";
-        color = sd?.color ?? "#9ca3af";
-      } else {
-        key = issue.project;
-        label = issue.project_name ?? issue.project_identifier ?? issue.project;
-        color = "#6366f1";
-      }
+      const sd = issue.state_detail as State | null;
+      const key = sd?.id ?? "__none__";
+      const label = sd?.name ?? "Unassigned";
+      const color = sd?.color ?? "#9ca3af";
       if (!map.has(key)) map.set(key, { key, label, color, issues: [] });
       map.get(key)!.issues.push(issue);
     }
     return Array.from(map.values());
-  }, [filtered, groupBy]);
+  }, [filtered]);
 
   const totalCount = myIssues.length;
   const hasFilters = projectFilter.size > 0 || priorityFilter.size > 0 || stateGroupFilter.size > 0;
@@ -470,24 +459,7 @@ export function WorkspaceDashboard() {
           )}
 
           {/* 그룹 기준 토글 */}
-          <div className="ml-auto flex items-center gap-1">
-            <Button
-              variant={groupBy === "state" ? "default" : "outline"}
-              size="sm"
-              className="h-7 text-xs"
-              onClick={() => setGroupBy("state")}
-            >
-              {t("dashboard.groupByState")}
-            </Button>
-            <Button
-              variant={groupBy === "project" ? "default" : "outline"}
-              size="sm"
-              className="h-7 text-xs"
-              onClick={() => setGroupBy("project")}
-            >
-              {t("dashboard.groupByProject")}
-            </Button>
-          </div>
+          {/* PASS3-5: groupBy 토글 제거 — 상태별 그룹 고정 */}
         </div>
       )}
 
