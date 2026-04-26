@@ -22,7 +22,6 @@ import {
 import { PageTransition } from "@/components/motion";
 import { Skeleton } from "@/components/ui/skeleton";
 import { OrbiTailOrbit } from "@/components/auth/OrbiTailOrbit";
-import { SprintProgressOrbit } from "@/components/ui/orbit-glyph";
 import { PriorityGlyph } from "@/components/ui/priority-glyph";
 import { useRecentChangesStore } from "@/stores/recentChangesStore";
 import { PRIORITY_LIST, PRIORITY_LABEL_KEY } from "@/constants/priority";
@@ -285,34 +284,19 @@ export function WorkspaceDashboard() {
         <OrbiTailOrbit size={1000} strokeW={4} offsetY={-60} position="absolute" idPrefix="home-orb" canvasMultiplier={2.2} />
       </div>
 
-      {/* 인사 섹션 — Phase 3.2 display serif + 3.1 SprintProgressOrbit */}
-      <div className="mb-8 relative z-10 flex items-start justify-between gap-6">
-        <div>
-          <h1 className="font-display text-3xl sm:text-4xl font-semibold text-foreground tracking-tight">
-            {t(getGreetingKey())}, <span className="text-primary">{user?.display_name ?? t("dashboard.there")}</span>
-          </h1>
-          <p className="mt-2 text-base text-muted-foreground">
-            {formatDate()} · {formatTime()}
-            {!isLoading && totalCount > 0 && (
-              <span className="ml-3 text-foreground font-medium">
-                · {t("dashboard.assignedCount", { count: totalCount })}
-              </span>
-            )}
-          </p>
-        </div>
-        {/* 진행 중 비율 시각화 — started / totalCount */}
-        {!isLoading && totalCount > 0 && (() => {
-          const started = myIssues.filter((i) => (i.state_detail as State | null)?.group === "started").length;
-          const ratio = started / totalCount;
-          return (
-            <div className="hidden sm:flex flex-col items-center text-primary">
-              <SprintProgressOrbit ratio={ratio} size={88} label={t("dashboard.assignedCount", { count: totalCount })} />
-              <span className="text-2xs uppercase tracking-widest text-muted-foreground mt-1">
-                {Math.round(ratio * 100)}% in progress
-              </span>
-            </div>
-          );
-        })()}
+      {/* 인사 섹션 — Phase 3.2 display serif. SprintProgressOrbit 카드는 제거 (사용자 피드백: 의미 모호) */}
+      <div className="mb-8 relative z-10">
+        <h1 className="font-display text-3xl sm:text-4xl font-semibold text-foreground tracking-tight">
+          {t(getGreetingKey())}, <span className="text-primary">{user?.display_name ?? t("dashboard.there")}</span>
+        </h1>
+        <p className="mt-2 text-base text-muted-foreground">
+          {formatDate()} · {formatTime()}
+          {!isLoading && totalCount > 0 && (
+            <span className="ml-3 text-foreground font-medium">
+              · {t("dashboard.assignedCount", { count: totalCount })}
+            </span>
+          )}
+        </p>
       </div>
 
       {/* 필터 바 */}
