@@ -19,7 +19,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { useRecentChangesStore } from "@/stores/recentChangesStore";
 import {
-  Plus, SlidersHorizontal, Check, X,
+  Plus, SlidersHorizontal, Check, X, Inbox,
   GitBranch, Link2, LayoutGrid, ChevronDown, ChevronRight,
   GripVertical, MoreHorizontal, Trash2, CheckCircle2, Copy, Archive, Share2, Folder, FileText,
 } from "lucide-react";
@@ -1026,6 +1026,7 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
 
           {topLevelFiltered.length === 0 ? (
             <EmptyState
+              icon={<Inbox className="h-10 w-10" />}
               title={t(hasFilter ? "empty.table.titleFiltered" : "empty.table.title")}
               description={t(hasFilter ? "empty.table.descriptionFiltered" : "empty.table.description")}
               cta={!hasFilter && !readOnly ? (

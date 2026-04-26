@@ -100,6 +100,7 @@ export function AnnouncementsPage() {
         <div className="text-sm text-muted-foreground">{t("common.loading")}</div>
       ) : items.length === 0 ? (
         <EmptyState
+          icon={<Megaphone className="h-10 w-10" />}
           title={t("empty.announcements.title")}
           description={t("empty.announcements.description")}
         />

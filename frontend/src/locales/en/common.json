@@ -1414,6 +1414,10 @@
       "title": "This folder is empty",
       "description": "Add a document or sub-folder to get started.",
       "cta": "+ New document"
+    },
+    "notifications": {
+      "title": "No notifications",
+      "description": "New notifications will appear here when they arrive."
     }
   }
 }

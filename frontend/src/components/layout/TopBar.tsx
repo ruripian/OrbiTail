@@ -222,7 +222,8 @@ export function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
                 {notifications.length === 0 ? (
                   <EmptyState
                     icon={<Bell className="h-8 w-8" />}
-                    title={t("notifications.empty")}
+                    title={t("empty.notifications.title")}
+                    description={t("empty.notifications.description")}
                     className="py-8"
                   />
                 ) : (
