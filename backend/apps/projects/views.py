@@ -44,6 +44,9 @@ class ProjectListCreateView(generics.ListCreateAPIView):
         # 기본: 보관되지 않은 프로젝트만 반환. ?archived=true 시 보관된 프로젝트도 포함
         if self.request.query_params.get("archived") != "true":
             qs = qs.filter(archived_at__isnull=True)
+        # ?member_only=true → 본인이 멤버인 프로젝트만. public 이라도 미가입이면 제외.
+        if self.request.query_params.get("member_only") == "true":
+            qs = qs.filter(members__member=self.request.user)
         return qs
 
     def get_serializer_context(self):

@@ -47,15 +47,14 @@ export function IssuePickerDialog({ open, onOpenChange, workspaceSlug, excludeId
     enabled: open && isSearching,
   });
 
-  const { data: allProjects = [] } = useQuery({
-    queryKey: ["projects", workspaceSlug],
-    queryFn: () => projectsApi.list(workspaceSlug),
+  /* 본인이 멤버인 프로젝트만 — 백엔드의 ?member_only=true 로 서버단 필터.
+     별도 캐시 키("projects-member") 로 일반 list 와 충돌 안 함. */
+  const { data: projects = [] } = useQuery({
+    queryKey: ["projects-member", workspaceSlug],
+    queryFn: () => projectsApi.list(workspaceSlug, { member_only: "true" }),
     enabled: open,
     ...QUERY_TIERS.meta,
   });
-
-  /* 본인이 멤버인 프로젝트만 — public 노출 X */
-  const projects = useMemo(() => allProjects.filter((p) => p.is_member), [allProjects]);
   const memberProjectIds = useMemo(() => new Set(projects.map((p) => p.id)), [projects]);
 
   /* 검색 결과를 멤버 프로젝트로 한정 */
