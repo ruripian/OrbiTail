@@ -18,7 +18,12 @@
 
 import { useEffect, useRef, useCallback, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 import { useRecentChangesStore } from "@/stores/recentChangesStore";
+
+/* PASS10 — 토스트 노출 대상. 사용자가 종 아이콘을 안 봐도 즉시 인지해야 하는 타입. */
+const HIGH_PRIORITY_NOTIFICATION_TYPES = new Set(["mentioned", "issue_assigned"]);
 
 interface WebSocketEvent {
   type: string;
@@ -34,6 +39,7 @@ export type WsStatus = "connecting" | "connected" | "disconnected";
 
 export function useWebSocket(workspaceSlug: string | undefined): WsStatus {
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const getAccessToken = useCallback(() => localStorage.getItem("access_token"), []);
@@ -141,10 +147,26 @@ export function useWebSocket(workspaceSlug: string | undefined): WsStatus {
           }
           break;
 
-        case "notification.new":
+        case "notification.new": {
           qc.invalidateQueries({ queryKey: ["notifications", workspaceSlug] });
           qc.invalidateQueries({ queryKey: ["notifications-unread", workspaceSlug] });
+          /* PASS10-Toast — 우선순위 높은 알림은 종 아이콘 dropdown 을 안 열어도 보이게 토스트.
+             백엔드 payload: { notification_type, message, issue_id, project_id, actor_name } */
+          const ntype = typeof event.notification_type === "string" ? event.notification_type : null;
+          if (ntype && HIGH_PRIORITY_NOTIFICATION_TYPES.has(ntype)) {
+            const issueId = typeof event.issue_id === "string" ? event.issue_id : null;
+            const projectId = typeof event.project_id === "string" ? event.project_id : null;
+            const message = typeof event.message === "string" ? event.message : "새 알림";
+            toast(message, {
+              duration: 6000,
+              action: issueId && projectId ? {
+                label: "보기",
+                onClick: () => navigate(`/${workspaceSlug}/projects/${projectId}/issues?issue=${issueId}`),
+              } : undefined,
+            });
+          }
           break;
+        }
 
         case "doc.thread.changed":
           // 문서 댓글 스레드 변경 — 해당 문서의 스레드 리스트 + 전체 스레드(해결여부) 무효화
