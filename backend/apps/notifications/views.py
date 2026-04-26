@@ -1,3 +1,4 @@
+from django.utils import timezone
 from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -10,18 +11,23 @@ from .serializers import (
 
 
 class NotificationListView(generics.ListAPIView):
-    """워크스페이스 내 내 알림 목록 (최신순, 최대 50개)"""
+    """워크스페이스 내 내 알림 목록 (최신순, 최대 50개).
+
+    기본: 보관되지 않은 알림만. ?archived=true 시 보관 알림만 (Archived 탭).
+    """
     serializer_class = NotificationSerializer
 
     def get_queryset(self):
-        return (
-            Notification.objects.filter(
-                workspace__slug=self.kwargs["workspace_slug"],
-                recipient=self.request.user,
-            )
-            .select_related("actor", "issue", "issue__project")
-            [:50]
+        qs = Notification.objects.filter(
+            workspace__slug=self.kwargs["workspace_slug"],
+            recipient=self.request.user,
         )
+        archived_only = self.request.query_params.get("archived") == "true"
+        if archived_only:
+            qs = qs.filter(archived_at__isnull=False)
+        else:
+            qs = qs.filter(archived_at__isnull=True)
+        return qs.select_related("actor", "issue", "issue__project")[:50]
 
 
 class NotificationMarkReadView(APIView):
@@ -39,6 +45,39 @@ class NotificationMarkReadView(APIView):
 
         notification.read = True
         notification.save(update_fields=["read"])
+        return Response(NotificationSerializer(notification).data)
+
+
+class NotificationArchiveView(APIView):
+    """알림 보관 토글 — POST 보관, DELETE 복원"""
+
+    def post(self, request, workspace_slug, pk):
+        try:
+            notification = Notification.objects.get(
+                id=pk,
+                workspace__slug=workspace_slug,
+                recipient=request.user,
+            )
+        except Notification.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        notification.archived_at = timezone.now()
+        # 보관과 동시에 읽음 처리 — 일반적으로 읽고 보관하는 흐름
+        if not notification.read:
+            notification.read = True
+        notification.save(update_fields=["archived_at", "read"])
+        return Response(NotificationSerializer(notification).data)
+
+    def delete(self, request, workspace_slug, pk):
+        try:
+            notification = Notification.objects.get(
+                id=pk,
+                workspace__slug=workspace_slug,
+                recipient=request.user,
+            )
+        except Notification.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        notification.archived_at = None
+        notification.save(update_fields=["archived_at"])
         return Response(NotificationSerializer(notification).data)
 
 

@@ -16,9 +16,12 @@ from django.db import models
 class Notification(models.Model):
     class Type(models.TextChoices):
         ISSUE_ASSIGNED = "issue_assigned", "Issue Assigned"
+        ISSUE_UNASSIGNED = "issue_unassigned", "Issue Unassigned"
         ISSUE_UPDATED = "issue_updated", "Issue Updated"
         COMMENT_ADDED = "comment_added", "Comment Added"
+        COMMENT_REPLIED = "comment_replied", "Comment Replied"
         ISSUE_CREATED = "issue_created", "Issue Created"
+        MENTIONED = "mentioned", "Mentioned"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
@@ -58,6 +61,7 @@ class Notification(models.Model):
     message = models.TextField()
 
     read = models.BooleanField(default=False)
+    archived_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -66,6 +70,7 @@ class Notification(models.Model):
         indexes = [
             models.Index(fields=["recipient", "-created_at"]),
             models.Index(fields=["recipient", "read"]),
+            models.Index(fields=["recipient", "archived_at"]),
         ]
 
     def __str__(self):

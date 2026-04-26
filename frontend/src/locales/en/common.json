@@ -1091,8 +1091,11 @@
     "openInbox": "Open Inbox →",
     "type": {
       "issue_assigned": "Issue Assigned",
+      "issue_unassigned": "Issue Unassigned",
       "issue_updated": "Issue Updated",
+      "issue_created": "Issue Created",
       "comment_added": "New Comment",
+      "comment_replied": "Comment Reply",
       "mentioned": "Mentioned"
     }
   },
@@ -1430,8 +1433,11 @@
       "all": "All",
       "unread": "Unread",
       "mentions": "@mentions",
-      "assigned": "Assigned"
+      "assigned": "Assigned",
+      "archived": "Archived"
     },
+    "archive": "Archive",
+    "unarchive": "Restore",
     "group": {
       "today": "Today",
       "week": "This week",

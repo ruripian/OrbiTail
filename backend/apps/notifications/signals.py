@@ -292,3 +292,38 @@ def notify_on_assignee_added(sender, instance, action, pk_set, **kwargs):
         ntype=Notification.Type.ISSUE_ASSIGNED,
         message=message,
     )
+
+
+@receiver(m2m_changed, sender=Issue.assignees.through)
+def notify_on_assignee_removed(sender, instance, action, pk_set, **kwargs):
+    """이슈에서 담당자가 제거되면 해당 사용자에게 알림"""
+    if action != "post_remove" or not pk_set:
+        return
+
+    issue = instance
+
+    latest_activity = (
+        IssueActivity.objects.filter(issue=issue)
+        .order_by("-created_at")
+        .first()
+    )
+    actor = latest_activity.actor if latest_activity else issue.created_by
+    if not actor:
+        return
+
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+    removed = list(User.objects.filter(id__in=pk_set))
+
+    message = (
+        f"{actor.display_name}님이 {issue.project.name}에서 "
+        f"'{_issue_breadcrumb(issue)}'의 담당자에서 제외했습니다."
+    )
+
+    _create_notifications(
+        recipients=removed,
+        actor=actor,
+        issue=issue,
+        ntype=Notification.Type.ISSUE_UNASSIGNED,
+        message=message,
+    )

@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useNavigate, useParams, useSearchParams, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Bell, CheckCheck, MessageSquare, UserPlus, AtSign, RefreshCw } from "lucide-react";
+import { Bell, CheckCheck, MessageSquare, UserPlus, UserMinus, AtSign, RefreshCw, FilePlus, Reply, Archive, ArchiveRestore } from "lucide-react";
 import { notificationsApi } from "@/api/notifications";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -15,13 +15,16 @@ import type { Notification, NotificationType } from "@/types";
 /* PASS10 — Inbox 페이지. 워크스페이스 알림을 today/week/earlier 그룹으로 노출 + 필터.
    archive 액션은 backend Notification 에 archived_at 필드 추가 시 활성화 (현재 frontend-only) */
 
-type Filter = "all" | "unread" | "mentions" | "assigned";
+type Filter = "all" | "unread" | "mentions" | "assigned" | "archived";
 
 const TYPE_ICON: Record<NotificationType, React.ElementType> = {
   mentioned: AtSign,
   issue_assigned: UserPlus,
+  issue_unassigned: UserMinus,
   issue_updated: RefreshCw,
+  issue_created: FilePlus,
   comment_added: MessageSquare,
+  comment_replied: Reply,
 };
 
 function classify(n: Notification, now: number): "today" | "week" | "earlier" {
@@ -41,27 +44,37 @@ export function InboxPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const filter = (searchParams.get("filter") as Filter | null) ?? "all";
 
+  /* archived 탭은 별도 호출(쿼리 키도 분리)해야 백엔드의 archived=true 필터 사용 가능 */
+  const isArchivedTab = filter === "archived";
   const { data: notifications = [], isLoading } = useQuery({
-    queryKey: ["notifications", workspaceSlug],
-    queryFn: () => notificationsApi.list(workspaceSlug!),
+    queryKey: ["notifications", workspaceSlug, isArchivedTab ? "archived" : "active"],
+    queryFn: () => notificationsApi.list(workspaceSlug!, { archived: isArchivedTab }),
     enabled: !!workspaceSlug,
     ...QUERY_TIERS.realtime,
   });
 
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["notifications", workspaceSlug] });
+    qc.invalidateQueries({ queryKey: ["notifications-unread", workspaceSlug] });
+  };
+
   const markRead = useMutation({
     mutationFn: (id: string) => notificationsApi.markAsRead(workspaceSlug!, id),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["notifications", workspaceSlug] });
-      qc.invalidateQueries({ queryKey: ["notifications-unread", workspaceSlug] });
-    },
+    onSuccess: invalidate,
   });
 
   const markAllRead = useMutation({
     mutationFn: () => notificationsApi.markAllAsRead(workspaceSlug!),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["notifications", workspaceSlug] });
-      qc.invalidateQueries({ queryKey: ["notifications-unread", workspaceSlug] });
-    },
+    onSuccess: invalidate,
+  });
+
+  const archiveMut = useMutation({
+    mutationFn: (id: string) => notificationsApi.archive(workspaceSlug!, id),
+    onSuccess: invalidate,
+  });
+  const unarchiveMut = useMutation({
+    mutationFn: (id: string) => notificationsApi.unarchive(workspaceSlug!, id),
+    onSuccess: invalidate,
   });
 
   const filtered = useMemo(() => {
@@ -69,6 +82,7 @@ export function InboxPage() {
       if (filter === "unread") return !n.read;
       if (filter === "mentions") return n.type === "mentioned";
       if (filter === "assigned") return n.type === "issue_assigned";
+      /* archived 탭은 백엔드에서 이미 필터됨 — 여기선 통과 */
       return true;
     });
   }, [notifications, filter]);
@@ -96,6 +110,7 @@ export function InboxPage() {
     { id: "unread",    label: t("inbox.filter.unread", "읽지 않음") },
     { id: "mentions",  label: t("inbox.filter.mentions", "@언급") },
     { id: "assigned",  label: t("inbox.filter.assigned", "내가 담당") },
+    { id: "archived",  label: t("inbox.filter.archived", "보관함") },
   ];
 
   const unreadCount = notifications.filter((n) => !n.read).length;
@@ -165,45 +180,56 @@ export function InboxPage() {
                   {items.map((n) => {
                     const Icon = TYPE_ICON[n.type] ?? Bell;
                     return (
-                      <li key={n.id} className="border-b last:border-0">
+                      <li
+                        key={n.id}
+                        className={cn(
+                          "border-b last:border-0 group flex items-start gap-3 px-4 py-3 hover:bg-muted/40 transition-colors",
+                          !n.read && !isArchivedTab && "bg-primary/5",
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            "h-2 w-2 rounded-full shrink-0 mt-2",
+                            n.read ? "bg-transparent" : "bg-primary",
+                          )}
+                          aria-label={n.read ? "읽음" : "읽지 않음"}
+                        />
+                        <Icon className="h-4 w-4 shrink-0 mt-0.5 text-muted-foreground" />
+                        <AvatarInitials
+                          name={n.actor_detail?.display_name}
+                          avatar={n.actor_detail?.avatar}
+                          size="sm"
+                        />
                         <button
                           onClick={() => handleClick(n)}
-                          className={cn(
-                            "w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-muted/40 transition-colors",
-                            !n.read && "bg-primary/5",
-                          )}
+                          className="flex-1 min-w-0 text-left"
                         >
-                          <span
-                            className={cn(
-                              "h-2 w-2 rounded-full shrink-0 mt-2",
-                              n.read ? "bg-transparent" : "bg-primary",
-                            )}
-                            aria-label={n.read ? "읽음" : "읽지 않음"}
-                          />
-                          <Icon className="h-4 w-4 shrink-0 mt-0.5 text-muted-foreground" />
-                          <AvatarInitials
-                            name={n.actor_detail?.display_name}
-                            avatar={n.actor_detail?.avatar}
-                            size="sm"
-                          />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm leading-snug">
-                              <span className="font-medium">{n.actor_detail?.display_name}</span>
-                              {" "}
-                              <span className="text-muted-foreground">{n.message}</span>
+                          <p className="text-sm leading-snug">
+                            <span className="font-medium">{n.actor_detail?.display_name}</span>
+                            {" "}
+                            <span className="text-muted-foreground">{n.message}</span>
+                          </p>
+                          {n.issue_title && (
+                            <p className="text-xs text-muted-foreground/80 truncate mt-0.5">
+                              {n.project_identifier && (
+                                <span className="font-mono mr-1.5">{n.project_identifier}-{n.issue_sequence_id}</span>
+                              )}
+                              {n.issue_title}
                             </p>
-                            {n.issue_title && (
-                              <p className="text-xs text-muted-foreground/80 truncate mt-0.5">
-                                {n.project_identifier && (
-                                  <span className="font-mono mr-1.5">{n.project_identifier}-{n.issue_sequence_id}</span>
-                                )}
-                                {n.issue_title}
-                              </p>
-                            )}
-                          </div>
-                          <span className="text-2xs text-muted-foreground/70 shrink-0 ml-2 mt-0.5">
-                            {formatRelative(n.created_at, t)}
-                          </span>
+                          )}
+                        </button>
+                        <span className="text-2xs text-muted-foreground/70 shrink-0 ml-2 mt-0.5">
+                          {formatRelative(n.created_at, t)}
+                        </span>
+                        {/* Archive / Unarchive 액션 — hover 시에만 표시 */}
+                        <button
+                          onClick={() => isArchivedTab ? unarchiveMut.mutate(n.id) : archiveMut.mutate(n.id)}
+                          className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground transition-opacity p-1 rounded hover:bg-muted/60 shrink-0"
+                          title={isArchivedTab ? t("inbox.unarchive", "복원") : t("inbox.archive", "보관")}
+                        >
+                          {isArchivedTab
+                            ? <ArchiveRestore className="h-3.5 w-3.5" />
+                            : <Archive className="h-3.5 w-3.5" />}
                         </button>
                       </li>
                     );

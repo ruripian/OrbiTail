@@ -14,6 +14,12 @@ urlpatterns = [
         views.NotificationMarkReadView.as_view(),
         name="notification-mark-read",
     ),
+    # POST/DELETE /api/workspaces/<slug>/notifications/<id>/archive/ — 보관/복원
+    path(
+        "workspaces/<str:workspace_slug>/notifications/<uuid:pk>/archive/",
+        views.NotificationArchiveView.as_view(),
+        name="notification-archive",
+    ),
     # POST /api/workspaces/<slug>/notifications/read-all/  — 전체 읽음
     path(
         "workspaces/<str:workspace_slug>/notifications/read-all/",

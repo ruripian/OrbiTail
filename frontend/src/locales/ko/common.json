@@ -1091,8 +1091,11 @@
     "openInbox": "인박스 열기 →",
     "type": {
       "issue_assigned": "이슈 배정",
+      "issue_unassigned": "이슈 배정 해제",
       "issue_updated": "이슈 변경",
+      "issue_created": "이슈 생성",
       "comment_added": "새 댓글",
+      "comment_replied": "댓글에 답글",
       "mentioned": "멘션"
     }
   },
@@ -1430,8 +1433,11 @@
       "all": "전체",
       "unread": "읽지 않음",
       "mentions": "@언급",
-      "assigned": "내가 담당"
+      "assigned": "내가 담당",
+      "archived": "보관함"
     },
+    "archive": "보관",
+    "unarchive": "복원",
     "group": {
       "today": "오늘",
       "week": "이번 주",

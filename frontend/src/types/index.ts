@@ -499,13 +499,21 @@ export interface MyIssues {
   upcoming: Issue[];
 }
 
-export type NotificationType = "issue_assigned" | "issue_updated" | "comment_added" | "mentioned";
+export type NotificationType =
+  | "issue_assigned"
+  | "issue_unassigned"
+  | "issue_updated"
+  | "issue_created"
+  | "comment_added"
+  | "comment_replied"
+  | "mentioned";
 
 export interface Notification {
   id: string;
   type: NotificationType;
   message: string;
   read: boolean;
+  archived_at: string | null;
   actor: string;
   actor_detail: User;
   issue: string | null;

@@ -20,11 +20,19 @@ export interface ProjectNotificationPreference {
 }
 
 export const notificationsApi = {
-  /** 알림 목록 (최신순 50개) */
-  list: (workspaceSlug: string) =>
+  /** 알림 목록 (최신순 50개). archived=true 시 보관 알림만. */
+  list: (workspaceSlug: string, opts?: { archived?: boolean }) =>
     api
-      .get<{ results: Notification[] }>(`/workspaces/${workspaceSlug}/notifications/`)
+      .get<{ results: Notification[] }>(`/workspaces/${workspaceSlug}/notifications/`, {
+        params: opts?.archived ? { archived: "true" } : undefined,
+      })
       .then((r) => r.data.results),
+
+  /** 알림 보관 / 복원 */
+  archive: (workspaceSlug: string, id: string) =>
+    api.post(`/workspaces/${workspaceSlug}/notifications/${id}/archive/`),
+  unarchive: (workspaceSlug: string, id: string) =>
+    api.delete(`/workspaces/${workspaceSlug}/notifications/${id}/archive/`),
 
   /** 미읽음 알림 수 */
   unreadCount: (workspaceSlug: string) =>
