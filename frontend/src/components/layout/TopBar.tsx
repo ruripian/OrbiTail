@@ -266,6 +266,15 @@ export function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
                   ))
                 )}
               </div>
+              {/* 인박스 풀 페이지 진입 — 20개 초과 알림이나 그룹/필터가 필요할 때 */}
+              <div className="border-t px-4 py-2 text-center">
+                <button
+                  onClick={() => navigate(`/${workspaceSlug}/inbox`)}
+                  className="text-2xs text-primary hover:underline"
+                >
+                  {t("notifications.openInbox", "인박스 열기 →")}
+                </button>
+              </div>
             </DropdownMenuContent>
           </DropdownMenu>
         )}

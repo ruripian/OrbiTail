@@ -1088,6 +1088,7 @@
     "title": "Notifications",
     "empty": "No notifications",
     "markAllRead": "Mark all read",
+    "openInbox": "Open Inbox →",
     "type": {
       "issue_assigned": "Issue Assigned",
       "issue_updated": "Issue Updated",
@@ -1418,6 +1419,23 @@
     "notifications": {
       "title": "No notifications",
       "description": "New notifications will appear here when they arrive."
+    }
+  },
+  "inbox": {
+    "title": "Inbox",
+    "unreadSummary": "{{count}} new notifications",
+    "allCaughtUp": "You're all caught up",
+    "managePreferences": "Notification preferences →",
+    "filter": {
+      "all": "All",
+      "unread": "Unread",
+      "mentions": "@mentions",
+      "assigned": "Assigned"
+    },
+    "group": {
+      "today": "Today",
+      "week": "This week",
+      "earlier": "Earlier"
     }
   }
 }

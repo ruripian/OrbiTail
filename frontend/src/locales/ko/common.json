@@ -1088,6 +1088,7 @@
     "title": "알림",
     "empty": "알림이 없습니다",
     "markAllRead": "모두 읽음",
+    "openInbox": "인박스 열기 →",
     "type": {
       "issue_assigned": "이슈 배정",
       "issue_updated": "이슈 변경",
@@ -1418,6 +1419,23 @@
     "notifications": {
       "title": "알림이 없습니다",
       "description": "새 알림이 도착하면 여기에 표시됩니다."
+    }
+  },
+  "inbox": {
+    "title": "인박스",
+    "unreadSummary": "{{count}}개의 새 알림",
+    "allCaughtUp": "전부 확인했습니다",
+    "managePreferences": "알림 환경설정 →",
+    "filter": {
+      "all": "전체",
+      "unread": "읽지 않음",
+      "mentions": "@언급",
+      "assigned": "내가 담당"
+    },
+    "group": {
+      "today": "오늘",
+      "week": "이번 주",
+      "earlier": "이전"
     }
   }
 }

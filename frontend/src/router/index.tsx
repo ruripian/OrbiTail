@@ -10,6 +10,7 @@ import { ResetPasswordPage } from "@/pages/auth/ResetPasswordPage";
 import { WorkspaceSelectPage } from "@/pages/WorkspaceSelectPage";
 import { CreateWorkspacePage } from "@/pages/workspace/CreateWorkspacePage";
 import { WorkspaceDashboard } from "@/pages/workspace/WorkspaceDashboard";
+import { InboxPage } from "@/pages/workspace/InboxPage";
 import { CreateProjectPage } from "@/pages/project/CreateProjectPage";
 import { ProjectIssuePage } from "@/pages/project/ProjectIssuePage";
 import { SettingsLayout } from "@/pages/settings/SettingsLayout";
@@ -157,6 +158,7 @@ export const router = createBrowserRouter([
     handle: { chrome: "minimal" } satisfies RouteHandle,
     children: [
       { index: true, element: <WorkspaceDashboard />, handle: { chrome: "branded" } satisfies RouteHandle },
+      { path: "inbox", element: <InboxPage /> },
       { path: "announcements", element: <AnnouncementsPage /> },
       { path: "projects/create", element: <CreateProjectPage /> },
       { path: "projects/discover", element: <DiscoverProjectsPage /> },
