@@ -2013,8 +2013,10 @@ export function DocumentEditor({ content, onChange, onBlur, placeholder: _placeh
         />
       )}
 
-      {/* Phase 2.6 — 문서 본문은 사용자의 density 토글과 무관하게 항상 comfortable 강제 */}
-      <div className="flex-1 overflow-y-auto px-6 py-4 cursor-text"
+      {/* Phase 2.6 — 본문은 사용자의 density 토글과 무관하게 항상 comfortable 강제.
+          좌우 padding 은 부모(DocumentSpacePage 의 px-6 sm:px-10) 가 담당 — 여기서 또
+          px-6 을 두면 제목 input(w-full) 보다 24px 좁아져 정렬이 어긋난다. */}
+      <div className="flex-1 overflow-y-auto py-4 cursor-text"
         data-density="comfortable"
         onClick={() => { if (!editor.isFocused) editor.chain().focus().run(); }}>
         <EditorContent editor={editor} />
