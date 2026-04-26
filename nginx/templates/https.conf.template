@@ -2,13 +2,8 @@
 # HTTPS 설정 (Let's Encrypt 자동 인증서)
 # DOMAIN 환경변수가 entrypoint에서 치환됨
 # ═══════════════════════════════════════════════════
-upstream backend {
-    server backend:8000;
-}
-
-upstream frontend {
-    server frontend:80;
-}
+# upstream 블록은 시작 시점 1회만 DNS 해석 → 컨테이너 recreate 후 IP 변경 시 502.
+# `set $var` + 변수 proxy_pass + Docker 내장 DNS resolver 조합으로 매 요청 재해석.
 
 # 확장자별 Content-Disposition — 이미지/비디오/PDF는 inline, 그 외(html/svg 등 XSS 위험)는 attachment
 map $uri $media_disposition {
@@ -57,21 +52,30 @@ server {
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
     add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
 
+    # Docker 내장 DNS — recreate 후 IP 갱신 자동 추종
+    resolver 127.0.0.11 valid=5s ipv6=off;
+
     # --- API ---
     location /api/ {
         limit_except GET POST PUT PATCH DELETE OPTIONS {
             deny all;
         }
-        proxy_pass http://backend;
+        set $backend_upstream backend:8000;
+        proxy_pass http://$backend_upstream;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto https;
+        proxy_connect_timeout 3s;
+        proxy_next_upstream error timeout http_502 http_503 http_504;
+        proxy_next_upstream_tries 3;
+        proxy_next_upstream_timeout 10s;
     }
 
     # --- WebSocket ---
     location /ws/ {
-        proxy_pass http://backend;
+        set $backend_upstream backend:8000;
+        proxy_pass http://$backend_upstream;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
@@ -84,7 +88,8 @@ server {
 
     # --- Django Admin ---
     location /admin/ {
-        proxy_pass http://backend;
+        set $backend_upstream backend:8000;
+        proxy_pass http://$backend_upstream;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -107,8 +112,13 @@ server {
 
     # --- 프론트엔드 SPA ---
     location / {
-        proxy_pass http://frontend;
+        set $frontend_upstream frontend:80;
+        proxy_pass http://$frontend_upstream;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
+        proxy_connect_timeout 3s;
+        proxy_next_upstream error timeout http_502 http_503 http_504;
+        proxy_next_upstream_tries 3;
+        proxy_next_upstream_timeout 10s;
     }
 }
