@@ -14,6 +14,7 @@ import { Search, Loader2, ChevronRight, ChevronDown, Folder } from "lucide-react
 import { issuesApi } from "@/api/issues";
 import { projectsApi } from "@/api/projects";
 import { PriorityGlyph } from "@/components/ui/priority-glyph";
+import { getStateIcon } from "@/constants/state-icons";
 import { QUERY_TIERS } from "@/lib/query-defaults";
 import type { IssueSearchResult, Issue, Project, Priority } from "@/types";
 import { cn } from "@/lib/utils";
@@ -159,6 +160,8 @@ function SearchResults({ results, excludeIds, busy, onSelect, setBusy }: {
     <ul>
       {results.map((i) => {
         const excluded = excludeIds.includes(i.id);
+        const StateIcon = getStateIcon(i.state_detail?.group);
+        const stateColor = i.state_detail?.color ?? "#9ca3af";
         return (
           <li key={i.id}>
             <button
@@ -169,11 +172,12 @@ function SearchResults({ results, excludeIds, busy, onSelect, setBusy }: {
                 (busy !== null || excluded) && "opacity-50 cursor-not-allowed",
               )}
             >
-              <span className="font-mono text-2xs text-muted-foreground shrink-0">
-                {i.project_identifier}-{i.sequence_id}
-              </span>
+              <StateIcon className="h-3.5 w-3.5 shrink-0" style={{ color: stateColor }} />
               <span className="inline-flex shrink-0">
                 <PriorityGlyph priority={i.priority as Priority} size={10} />
+              </span>
+              <span className="font-mono text-2xs text-muted-foreground shrink-0">
+                {i.project_identifier}-{i.sequence_id}
               </span>
               <span className="truncate">{i.title}</span>
               <span className="text-2xs text-muted-foreground/70 shrink-0 ml-auto">{i.project_name}</span>
@@ -245,6 +249,8 @@ function ProjectTree({ projects, expanded, issuesMap, excludeIds, busy, onToggle
                 ) : (
                   tree.map((i) => {
                     const excluded = excludeIds.includes(i.id);
+                    const StateIcon = getStateIcon(i.state_detail?.group);
+                    const stateColor = i.state_detail?.color ?? "#9ca3af";
                     return (
                       <div
                         key={i.id}
@@ -257,6 +263,7 @@ function ProjectTree({ projects, expanded, issuesMap, excludeIds, busy, onToggle
                         {i.depth > 0 && (
                           <span className="text-muted-foreground/40 shrink-0">↳</span>
                         )}
+                        <StateIcon className="h-3.5 w-3.5 shrink-0" style={{ color: stateColor }} />
                         <span className="inline-flex shrink-0">
                           <PriorityGlyph priority={i.priority} size={10} />
                         </span>
