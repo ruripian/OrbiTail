@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Megaphone, Plus, Tag, Trash2, Edit3, X, Save } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { announcementsApi, type Announcement } from "@/api/announcements";
@@ -98,9 +99,7 @@ export function AnnouncementsPage() {
       {isLoading ? (
         <div className="text-sm text-muted-foreground">{t("common.loading")}</div>
       ) : items.length === 0 ? (
-        <div className="text-sm text-muted-foreground py-12 text-center">
-          {t("announcements.empty")}
-        </div>
+        <EmptyState title={t("announcements.empty")} />
       ) : (
         <div className="space-y-4">
           {items.map((a) => {

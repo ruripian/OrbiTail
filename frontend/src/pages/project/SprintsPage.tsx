@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { Plus, Zap } from "lucide-react";
 import { projectsApi } from "@/api/projects";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -94,10 +95,10 @@ export function SprintsPage() {
 
       {/* 스프린트 목록 */}
       {sprints.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-          <Zap className="h-10 w-10 mb-3 opacity-30" />
-          <p className="text-sm">{t("cycles.empty")}</p>
-        </div>
+        <EmptyState
+          icon={<Zap className="h-10 w-10" />}
+          title={t("cycles.empty")}
+        />
       ) : (
         <div className="grid gap-3 xl:grid-cols-2">
           {sprints.map((sprint: Sprint) => (

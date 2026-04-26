@@ -57,13 +57,39 @@ const config: Config = {
           low:    "var(--priority-low)",
           none:   "var(--priority-none)",
         },
-        // 상태 그룹 색상 — State.color 없을 때 fallback
+        // 상태 그룹 색상 — Phase 2.2: fill / text / border 3쌍.
+        // DEFAULT는 fill로 매핑 → 기존 bg-state-started 등은 fill 색을 그대로 받음.
         state: {
-          backlog:   "var(--state-backlog)",
-          unstarted: "var(--state-unstarted)",
-          started:   "var(--state-started)",
-          completed: "var(--state-completed)",
-          cancelled: "var(--state-cancelled)",
+          backlog: {
+            DEFAULT: "var(--state-backlog-fill)",
+            fill:    "var(--state-backlog-fill)",
+            text:    "var(--state-backlog-text)",
+            border:  "var(--state-backlog-border)",
+          },
+          unstarted: {
+            DEFAULT: "var(--state-unstarted-fill)",
+            fill:    "var(--state-unstarted-fill)",
+            text:    "var(--state-unstarted-text)",
+            border:  "var(--state-unstarted-border)",
+          },
+          started: {
+            DEFAULT: "var(--state-started-fill)",
+            fill:    "var(--state-started-fill)",
+            text:    "var(--state-started-text)",
+            border:  "var(--state-started-border)",
+          },
+          completed: {
+            DEFAULT: "var(--state-completed-fill)",
+            fill:    "var(--state-completed-fill)",
+            text:    "var(--state-completed-text)",
+            border:  "var(--state-completed-border)",
+          },
+          cancelled: {
+            DEFAULT: "var(--state-cancelled-fill)",
+            fill:    "var(--state-cancelled-fill)",
+            text:    "var(--state-cancelled-text)",
+            border:  "var(--state-cancelled-border)",
+          },
         },
       },
       borderRadius: {

@@ -11,6 +11,7 @@ import { notificationsApi, type NotificationPreference } from "@/api/notificatio
 import { useAuthStore } from "@/stores/authStore";
 import { useTheme } from "@/lib/theme-provider";
 import { useMotion, type MotionMode } from "@/lib/motion-provider";
+import { useDensity, type Density } from "@/lib/density-provider";
 import { TIMEZONES } from "@/lib/timezones";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -37,6 +38,7 @@ export function PreferencesPage() {
   const updateUser = useAuthStore((s) => s.updateUser);
   const { setTheme } = useTheme();
   const { mode: motionMode, setMode: setMotionMode } = useMotion();
+  const { density, setDensity } = useDensity();
 
   // 옵션 목록 (t() 사용을 위해 컴포넌트 내부에 정의)
   const THEME_OPTIONS = [
@@ -161,6 +163,35 @@ export function PreferencesPage() {
                   key={o.value}
                   type="button"
                   onClick={() => setMotionMode(o.value as MotionMode)}
+                  className={cn(
+                    "rounded-md px-5 py-1.5 text-xs font-medium transition-all duration-150",
+                    active
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground hover:bg-background/60"
+                  )}
+                >
+                  {o.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Phase 2.6 — Density 토글 (compact / comfortable / spacious) */}
+        <div className="flex items-center gap-6">
+          <Label>{t("settings.preferences.density", "밀도")}</Label>
+          <div className="inline-flex items-center gap-1 rounded-lg border border-border bg-muted/30 p-1">
+            {([
+              { value: "compact",     label: t("settings.preferences.densityCompact",     "조밀") },
+              { value: "comfortable", label: t("settings.preferences.densityComfortable", "보통") },
+              { value: "spacious",    label: t("settings.preferences.densitySpacious",    "여유") },
+            ] as const).map((o) => {
+              const active = density === o.value;
+              return (
+                <button
+                  key={o.value}
+                  type="button"
+                  onClick={() => setDensity(o.value as Density)}
                   className={cn(
                     "rounded-md px-5 py-1.5 text-xs font-medium transition-all duration-150",
                     active

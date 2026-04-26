@@ -28,6 +28,11 @@ import { WorkspaceHeader } from "./WorkspaceHeader";
 import type { Project, Category } from "@/types";
 import type { WsStatus } from "@/hooks/useWebSocket";
 
+/**
+ * Phase 2.5 — Sidebar 활성 상태를 "좌측 3px bar"로 단일화.
+ * 우측 dot은 제거하고, ::before 의사요소로 좌측 indicator를 그린다.
+ * 색은 var(--accent) 또는 primary, 높이 60%, radius 99px (caps).
+ */
 function NavItem({
   to,
   icon: Icon,
@@ -44,17 +49,15 @@ function NavItem({
       to={to}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-all duration-150",
+        "relative flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors",
         active
-          ? "bg-primary/12 text-primary shadow-sm"
+          ? "bg-primary/12 text-foreground before:content-[''] before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:w-[3px] before:h-[60%] before:bg-primary before:rounded-full"
           : "text-sidebar-foreground/75 hover:bg-sidebar-accent hover:text-sidebar-foreground"
       )}
+      style={{ transitionDuration: "var(--motion-fast)" }}
     >
       {Icon && <Icon className="h-4 w-4 shrink-0" />}
       <span className="truncate">{label}</span>
-      {active && (
-        <span className="ml-auto h-1.5 w-1.5 rounded-full bg-primary shrink-0" />
-      )}
     </Link>
   );
 }
@@ -64,15 +67,15 @@ function SubLink({ to, icon: Icon, label, active }: { to: string; icon: React.El
     <Link
       to={to}
       className={cn(
-        "flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-sm transition-all duration-150",
+        "relative flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-sm transition-colors",
         active
-          ? "bg-primary/10 text-primary font-medium"
+          ? "bg-primary/10 text-foreground font-medium before:content-[''] before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:w-[3px] before:h-[55%] before:bg-primary before:rounded-full"
           : "text-sidebar-foreground/75 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
       )}
+      style={{ transitionDuration: "var(--motion-fast)" }}
     >
       <Icon className="h-3.5 w-3.5 shrink-0" />
       <span className="truncate">{label}</span>
-      {active && <span className="ml-auto h-1 w-1 rounded-full bg-primary shrink-0" />}
     </Link>
   );
 }
@@ -262,11 +265,12 @@ function AnnouncementsNavItem({ workspaceSlug, active }: { workspaceSlug: string
     <Link
       to={`/${workspaceSlug}/announcements`}
       className={cn(
-        "flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-all duration-150",
+        "relative flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors",
         active
-          ? "bg-primary/12 text-primary shadow-sm"
+          ? "bg-primary/12 text-foreground before:content-[''] before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:w-[3px] before:h-[60%] before:bg-primary before:rounded-full"
           : "text-sidebar-foreground/75 hover:bg-sidebar-accent hover:text-sidebar-foreground"
       )}
+      style={{ transitionDuration: "var(--motion-fast)" }}
     >
       <Megaphone className="h-4 w-4 shrink-0" />
       <span className="truncate flex-1">{t("sidebar.announcements")}</span>

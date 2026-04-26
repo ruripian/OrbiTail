@@ -2,8 +2,8 @@
 @tailwind components;
 @tailwind utilities;
 
-/* 전역 폰트 스케일 — 1920×1080 기준 피드백에 따라 16→18px (+12.5%). Tailwind text/spacing이 rem 기반이라 root만 키우면 전체 비례 확대. */
-html { font-size: 18px; }
+/* 전역 폰트 스케일 — Phase 2.6 이후 html[data-density="..."] 분기로 결정됨.
+   기본 clamp는 ./layer base 의 html { font-size } 가 담당. */
 
 /*
  * 폰트 설정
@@ -112,7 +112,8 @@ html { font-size: 18px; }
     --popover:             222 18% 10%;
     --popover-foreground:  220 15% 82%;
 
-    --primary:              48 100% 48%;
+    /* Phase 2.3 — 라이트와 같은 hue(221)로 통일. 골드(48)는 워크스페이스 brand_color로 격하 예정 */
+    --primary:             221 70% 68%;
     --primary-foreground:  220 28%  8%;
 
     --secondary:           222 16% 16%;   /* #1a2336 */
@@ -127,31 +128,31 @@ html { font-size: 18px; }
     --destructive:          18 82% 52%;
     --destructive-foreground: 0 0% 100%;
 
-    /* border — Phase 1.2: 채도 낮춰 중립 슬레이트로. 골드 톤 제거 */
+    /* border — Phase 1.2: 채도 낮춰 중립 슬레이트로. */
     --border:              220  6% 24%;
     --input:               222 16% 15%;  /* input 배경용 */
-    /* ring — Phase 1.3: 다크 --primary(골드)와 같은 hue(48) but 다른 채도. focus-visible 식별용 */
-    --ring:                 48 70% 55%;
+    /* ring — Phase 2.3: 다크 --primary(블루)와 같은 hue(221), 다른 채도/명도 */
+    --ring:                221 75% 72%;
 
     /* 사이드바 */
     --sidebar-background:  222 24%  4%;   /* #060910 */
     --sidebar-foreground:  220 15% 82%;
-    --sidebar-primary:      48 100% 48%;
+    --sidebar-primary:     221 70% 68%;   /* Phase 2.3: 블루 통일 */
     --sidebar-primary-foreground: 220 28% 8%;
     --sidebar-accent:      222 20% 12%;
     --sidebar-accent-foreground: 220 15% 82%;
-    --sidebar-border:      220  6% 22%;   /* Phase 1.2: 사이드바도 중립 톤 */
-    --sidebar-ring:         48 70% 55%;
+    --sidebar-border:      220  6% 22%;
+    --sidebar-ring:        221 75% 72%;
 
-    /* ── 패널 변수 — 완전 불투명 ── */
+    /* ── 패널 변수 — Phase 2.3: 블루 톤으로 통일 ── */
     --glass-bg:            rgb(12, 18, 34);
     --glass-sidebar-bg:    rgb(6, 9, 18);
-    --glass-border:        rgba(229, 168, 0, 0.25);    /* 골드 테두리 */
-    --glass-shadow:        0 8px 40px rgba(0, 0, 0, 0.60), 0 2px 12px rgba(0,0,0,0.40), inset 0 1px 0 rgba(229, 168, 0, 0.06);
-    --glass-sidebar-shadow: 0 0 0 1px rgba(229, 168, 0, 0.10), 2px 0 32px rgba(0,0,0,0.50);
+    --glass-border:        rgba(120, 150, 230, 0.20);
+    --glass-shadow:        0 8px 40px rgba(0, 0, 0, 0.60), 0 2px 12px rgba(0,0,0,0.40), inset 0 1px 0 rgba(120, 150, 230, 0.05);
+    --glass-sidebar-shadow: 0 0 0 1px rgba(120, 150, 230, 0.08), 2px 0 32px rgba(0,0,0,0.50);
 
-    /* ── 배경 패턴 변수 ── */
-    --perspective-dot-color: rgba(229, 168, 0, 0.24);  /* 원근 투시 점 격자 — 골드, 진하게 */
+    /* ── 배경 패턴 변수 — Phase 2.3: 블루 톤 ── */
+    --perspective-dot-color: rgba(140, 170, 230, 0.20);
   }
 }
 
@@ -169,6 +170,11 @@ html { font-size: 18px; }
        모바일(360): 하한 14px 고정 */
     font-size: clamp(14px, 0.875vw, 19px);
   }
+  /* Phase 2.6 — Density 토글이 root font-size 스케일을 분기.
+     Tailwind text/spacing 모두 rem 기반이라 root만 바뀌면 전체 비례 확대/축소. */
+  html[data-density="compact"]     { font-size: clamp(13px, 0.7vw,   15px); }
+  html[data-density="comfortable"] { font-size: clamp(14px, 0.875vw, 17px); }
+  html[data-density="spacious"]    { font-size: clamp(16px, 1vw,     19px); }
 
   /*
    * body — 전역 배경 레이어 (3개)
@@ -212,6 +218,10 @@ html { font-size: 18px; }
   @media (prefers-reduced-motion: reduce) {
     body::before { animation: none; }
   }
+  /* Phase 2.4 — 라우트 chrome 메타. router의 handle.chrome이 body[data-chrome]에 반영됨.
+     branded → 풀 표현 (default), minimal → 점 격자 숨김, document → 흐림 */
+  body[data-chrome="minimal"]::before  { display: none; }
+  body[data-chrome="document"]::before { opacity: 0.3; }
   /* 초광폭 화면(2560px+): 도트 간격 넓혀 GPU 부하 감소 */
   @media (min-width: 2560px) {
     body::before { background-size: 32px 32px; }

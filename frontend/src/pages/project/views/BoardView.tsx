@@ -16,6 +16,8 @@ import { Button } from "@/components/ui/button";
 import { IssueCreateDialog } from "@/components/issues/IssueCreateDialog";
 import { cn } from "@/lib/utils";
 import { HoverLift, StaggerList, StaggerItem } from "@/components/motion";
+import { motion } from "framer-motion";
+import { useMotion, EASE_ORBIT } from "@/lib/motion-provider";
 import type { Issue, State } from "@/types";
 
 interface Props {
@@ -28,6 +30,7 @@ interface Props {
 
 export function BoardView({ workspaceSlug, projectId, onIssueClick, issueFilter, readOnly }: Props) {
   const { t } = useTranslation();
+  const { isRich } = useMotion();
   const { refresh } = useIssueRefresh(workspaceSlug, projectId);
   const [createOpen, setCreateOpen]       = useState(false);
   const [selectedState, setSelectedState] = useState<State | null>(null);
@@ -136,6 +139,13 @@ export function BoardView({ workspaceSlug, projectId, onIssueClick, issueFilter,
                 const isDraggingThis = draggedIssueId === issue.id;
                 return (
                   <StaggerItem key={issue.id}>
+                  {/* Phase 2.8 — FLIP: 같은 layoutId 카드가 컬럼을 옮길 때 위치 트윈.
+                      rich 모드만 활성화. minimal/reduced-motion에서는 즉시 점프. */}
+                  <motion.div
+                    layout={isRich}
+                    layoutId={isRich ? `board-card-${issue.id}` : undefined}
+                    transition={{ duration: 0.22, ease: EASE_ORBIT }}
+                  >
                   <HoverLift>
                   <div
                     draggable={!readOnly}
@@ -205,6 +215,7 @@ export function BoardView({ workspaceSlug, projectId, onIssueClick, issueFilter,
                     </div>
                   </div>
                   </HoverLift>
+                  </motion.div>
                   </StaggerItem>
                 );
               })}

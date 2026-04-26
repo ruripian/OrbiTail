@@ -2,10 +2,12 @@ import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { issuesApi } from "@/api/issues";
 import { projectsApi } from "@/api/projects";
 import { Button } from "@/components/ui/button";
 import { IssueCreateDialog } from "@/components/issues/IssueCreateDialog";
+import { useMotion, EASE_ORBIT } from "@/lib/motion-provider";
 import type { Issue, State } from "@/types";
 
 export function BoardPage() {
@@ -14,6 +16,7 @@ export function BoardPage() {
     projectId: string;
   }>();
   const qc = useQueryClient();
+  const { isRich } = useMotion();
   const [createOpen, setCreateOpen] = useState(false);
   const [selectedState, setSelectedState] = useState<State | null>(null);
 
@@ -87,32 +90,43 @@ export function BoardPage() {
               </Button>
             </div>
 
+            {/* Phase 2.8 — FLIP: 카드가 컬럼 간 이동하면 자동으로 layout 트윈.
+                같은 layoutId(=issue.id)를 가진 카드는 framer-motion이 위치 이동을 보간한다.
+                rich 모드일 때만 활성화 — minimal 모드는 즉시 점프. */}
             <div className="space-y-2 flex-1">
-              {(issuesByState[state.id] ?? []).map((issue) => (
-                <div
-                  key={issue.id}
-                  draggable
-                  onDragStart={(e) => e.dataTransfer.setData("issueId", issue.id)}
-                  className="rounded-md border glass p-3 text-sm cursor-grab hover:shadow-sm transition-shadow active:cursor-grabbing"
-                >
-                  <p className="font-medium mb-2 line-clamp-2">{issue.title}</p>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-muted-foreground">{issue.sequence_id}</span>
-                    {issue.assignee_details.length > 0 && (
-                      <div className="flex -space-x-1">
-                        {issue.assignee_details.slice(0, 2).map((a) => (
-                          <div
-                            key={a.id}
-                            className="h-5 w-5 rounded-full bg-primary/10 text-xs flex items-center justify-center border border-background"
-                          >
-                            {a.display_name[0].toUpperCase()}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
+              <AnimatePresence initial={false}>
+                {(issuesByState[state.id] ?? []).map((issue) => (
+                  <motion.div
+                    key={issue.id}
+                    layout={isRich}
+                    layoutId={isRich ? `board-card-${issue.id}` : undefined}
+                    initial={isRich ? { opacity: 0, scale: 0.96 } : false}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={isRich ? { opacity: 0, scale: 0.96 } : { opacity: 0 }}
+                    transition={{ duration: 0.22, ease: EASE_ORBIT }}
+                    draggable
+                    onDragStart={(e) => e.dataTransfer.setData("issueId", issue.id)}
+                    className="rounded-md border glass p-3 text-sm cursor-grab hover:shadow-sm transition-shadow active:cursor-grabbing"
+                  >
+                    <p className="font-medium mb-2 line-clamp-2">{issue.title}</p>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">{issue.sequence_id}</span>
+                      {issue.assignee_details.length > 0 && (
+                        <div className="flex -space-x-1">
+                          {issue.assignee_details.slice(0, 2).map((a) => (
+                            <div
+                              key={a.id}
+                              className="h-5 w-5 rounded-full bg-primary/10 text-xs flex items-center justify-center border border-background"
+                            >
+                              {a.display_name[0].toUpperCase()}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
             </div>
           </div>
         ))}

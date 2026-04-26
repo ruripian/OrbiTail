@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { documentsApi } from "@/api/documents";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuSeparator, DropdownMenuTrigger,
@@ -159,10 +160,10 @@ export default function DocumentExplorerPage() {
       {/* 콘텐츠 */}
       <div className="flex-1 overflow-y-auto p-4">
         {currentItems.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-64 text-muted-foreground gap-2">
-            <FolderOpen className="h-10 w-10 opacity-20" />
-            <p className="text-sm">{t("documents.emptyFolder")}</p>
-          </div>
+          <EmptyState
+            icon={<FolderOpen className="h-10 w-10" />}
+            title={t("documents.emptyFolder")}
+          />
         ) : viewMode === "grid" ? (
           /* 그리드 뷰 */
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">

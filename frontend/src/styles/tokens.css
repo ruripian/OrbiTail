@@ -5,22 +5,58 @@
  * 런타임에서 워크스페이스 설정이 로드되면
  * useWorkspaceColors 훅이 --priority-* 변수를 덮어쓴다.
  *
- * 컴포넌트에서는 var(--priority-high), var(--state-started) 등으로 참조하거나
+ * 컴포넌트에서는 var(--priority-high), var(--state-started-fill) 등으로 참조하거나
  * Tailwind 클래스 text-priority-high / bg-state-started 로 사용한다.
+ *
+ * Phase 2.1 — 우선순위는 단일 hue 그라디언트(red→amber→sage)로 시각 계층화.
+ *             형태 시그널은 PriorityGlyph 컴포넌트가 함께 렌더한다.
+ * Phase 2.2 — 상태는 fill / text / border 3쌍으로 분해.
+ *             border는 액세서리(테두리), text는 본문 글자 가독성 보장,
+ *             fill은 배경 채움 — 같은 hue 안에서 명도/채도만 다르다.
  */
 
 :root {
-  /* ── 우선순위 기본 색상 ── */
-  --priority-urgent: #ff4444;  /* 긴급 — 레드 */
-  --priority-high:   #ff4db8;  /* 높음 — 핫핑크 */
-  --priority-medium: #f5c400;  /* 중간 — 골드 */
-  --priority-low:    #aaff00;  /* 낮음 — 라임그린 */
-  --priority-none:   #6b7080;  /* 없음 — 뮤트 회색 */
+  /* ── 우선순위 — 단일 hue 그라디언트 (Phase 2.1, OKLCH) ──
+     색만으로 식별하지 말고 PriorityGlyph의 형태(◆▲●○·)와 함께 사용. */
+  --priority-urgent: oklch(0.50 0.22 25);   /* deep red — 긴급 */
+  --priority-high:   oklch(0.62 0.18 25);   /* red — 높음 */
+  --priority-medium: oklch(0.74 0.14 50);   /* amber — 중간 */
+  --priority-low:    oklch(0.82 0.08 90);   /* sage/yellow-green — 낮음 */
+  --priority-none:   oklch(0.85 0.01 260);  /* near-neutral — 없음 */
 
-  /* ── 상태 그룹 기본 색상 (State.color 가 없을 때 fallback) ── */
-  --state-backlog:   #6b7080;  /* 백로그 — 회색 */
-  --state-unstarted: #c8cadb;  /* 시작 전 — 연회색 */
-  --state-started:   #aaff00;  /* 진행 중 — 라임그린 */
-  --state-completed: #00c4a8;  /* 완료 — 틸 */
-  --state-cancelled: #3d4055;  /* 취소 — 다크 회색 */
+  /* ── 상태 그룹 — fill / text / border 3쌍 (Phase 2.2, OKLCH) ──
+     같은 hue 안에서 fill 옅음, text 진함, border 중간으로 계층화. */
+
+  /* backlog — 중립 차가운 회색 */
+  --state-backlog-fill:    oklch(0.92 0.01 260);
+  --state-backlog-text:    oklch(0.45 0.02 260);
+  --state-backlog-border:  oklch(0.65 0.012 260);
+
+  /* unstarted — 약간 더 밝은 중립 */
+  --state-unstarted-fill:   oklch(0.94 0.02 260);
+  --state-unstarted-text:   oklch(0.50 0.02 260);
+  --state-unstarted-border: oklch(0.70 0.015 260);
+
+  /* started — sage green */
+  --state-started-fill:    oklch(0.92 0.08 145);
+  --state-started-text:    oklch(0.40 0.16 145);
+  --state-started-border:  oklch(0.55 0.16 145);
+
+  /* completed — teal */
+  --state-completed-fill:   oklch(0.92 0.10 180);
+  --state-completed-text:   oklch(0.40 0.14 180);
+  --state-completed-border: oklch(0.55 0.14 180);
+
+  /* cancelled — desaturated 중립 (취소선과 함께 사용) */
+  --state-cancelled-fill:   oklch(0.90 0.005 260);
+  --state-cancelled-text:   oklch(0.45 0.01 260);
+  --state-cancelled-border: oklch(0.65 0.01 260);
+
+  /* ── 하위호환 단일 색 (legacy fallback) ──
+     기존 --state-{name} 변수를 참조하던 코드가 있으면 fill로 매핑. */
+  --state-backlog:   var(--state-backlog-fill);
+  --state-unstarted: var(--state-unstarted-fill);
+  --state-started:   var(--state-started-fill);
+  --state-completed: var(--state-completed-fill);
+  --state-cancelled: var(--state-cancelled-fill);
 }

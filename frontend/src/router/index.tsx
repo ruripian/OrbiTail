@@ -1,4 +1,5 @@
-import { createBrowserRouter, Navigate } from "react-router-dom";
+import { createBrowserRouter, Navigate, Outlet, useMatches } from "react-router-dom";
+import { useEffect } from "react";
 import { useAuthStore } from "@/stores/authStore";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { LoginPage } from "@/pages/auth/LoginPage";
@@ -44,8 +45,37 @@ const DocumentSpacePage = lazy(() => import("@/pages/documents/DocumentSpacePage
 const DocumentExplorerPage = lazy(() => import("@/pages/documents/DocumentExplorerPage"));
 const PublicDocumentPage = lazy(() => import("@/pages/public/PublicDocumentPage"));
 
+/**
+ * Phase 2.4 — chrome 메타 (라우트 핸들)
+ *   "branded"  → Orbit/점 격자 풀 표현 (Login, Dashboard, empty state 류)
+ *   "minimal"  → 점 격자 숨김, 카드/테이블에 시각 부담 적게 (Issue/Board/Settings)
+ *   "document" → 점 격자 흐리게(opacity 0.3) (Document 류)
+ *
+ * AppLayout/DocumentLayout이 useMatches()로 가장 깊은 chrome 값을 읽어
+ * <body>에 data-chrome 속성을 부여하고, index.css의 body[data-chrome="..."]
+ * 셀렉터로 표시 강도를 제어한다.
+ */
+export type ChromeKind = "branded" | "minimal" | "document";
+
+export interface RouteHandle {
+  chrome?: ChromeKind;
+}
+
 function LazyPage({ Component }: { Component: React.LazyExoticComponent<() => JSX.Element> }) {
   return <Suspense fallback={<div className="flex items-center justify-center h-full"><div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>}><Component /></Suspense>;
+}
+
+/** 가장 깊은 chrome 메타를 body[data-chrome]에 부여. index.css가 이 속성으로 점격자 표시 제어 */
+function ChromeAttributeWrapper() {
+  const matches = useMatches();
+  useEffect(() => {
+    const chrome = [...matches]
+      .reverse()
+      .map((m) => (m.handle as RouteHandle | undefined)?.chrome)
+      .find(Boolean);
+    document.body.setAttribute("data-chrome", chrome ?? "branded");
+  }, [matches]);
+  return <Outlet />;
 }
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -57,34 +87,44 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 
 export const router = createBrowserRouter([
   {
+    element: <ChromeAttributeWrapper />,
+    children: [
+  {
     path: "/auth/login",
     element: <LoginPage />,
+    handle: { chrome: "branded" } satisfies RouteHandle,
   },
   {
     path: "/auth/register",
     element: <RegisterPage />,
+    handle: { chrome: "branded" } satisfies RouteHandle,
   },
   {
     path: "/auth/verify-email",
     element: <VerifyEmailPage />,
+    handle: { chrome: "branded" } satisfies RouteHandle,
   },
   {
     path: "/auth/forgot-password",
     element: <ForgotPasswordPage />,
+    handle: { chrome: "branded" } satisfies RouteHandle,
   },
   {
     path: "/auth/reset-password",
     element: <ResetPasswordPage />,
+    handle: { chrome: "branded" } satisfies RouteHandle,
   },
   {
     // 워크스페이스 초대 수락 — 로그인 여부와 무관하게 접근 가능
     path: "/invite/:token",
     element: <InviteAcceptPage />,
+    handle: { chrome: "branded" } satisfies RouteHandle,
   },
   {
     // 공개 공유 문서 — 인증 불필요
     path: "/s/:token",
     element: <LazyPage Component={PublicDocumentPage} />,
+    handle: { chrome: "document" } satisfies RouteHandle,
   },
   {
     path: "/create-workspace",
@@ -93,6 +133,7 @@ export const router = createBrowserRouter([
         <CreateWorkspacePage />
       </RequireAuth>
     ),
+    handle: { chrome: "branded" } satisfies RouteHandle,
   },
   {
     path: "/",
@@ -101,6 +142,7 @@ export const router = createBrowserRouter([
         <WorkspaceSelectPage />
       </RequireAuth>
     ),
+    handle: { chrome: "branded" } satisfies RouteHandle,
   },
   {
     path: "/:workspaceSlug",
@@ -109,8 +151,9 @@ export const router = createBrowserRouter([
         <AppLayout />
       </RequireAuth>
     ),
+    handle: { chrome: "minimal" } satisfies RouteHandle,
     children: [
-      { index: true, element: <WorkspaceDashboard /> },
+      { index: true, element: <WorkspaceDashboard />, handle: { chrome: "branded" } satisfies RouteHandle },
       { path: "announcements", element: <AnnouncementsPage /> },
       { path: "projects/create", element: <CreateProjectPage /> },
       { path: "projects/discover", element: <DiscoverProjectsPage /> },
@@ -178,11 +221,14 @@ export const router = createBrowserRouter([
         <DocumentLayout />
       </RequireAuth>
     ),
+    handle: { chrome: "document" } satisfies RouteHandle,
     children: [
       { index: true, element: <LazyPage Component={DocumentsHomePage} /> },
       { path: "space/:spaceId", element: <LazyPage Component={DocumentSpacePage} /> },
       { path: "space/:spaceId/explorer", element: <LazyPage Component={DocumentExplorerPage} /> },
       { path: "space/:spaceId/:docId", element: <LazyPage Component={DocumentSpacePage} /> },
+    ],
+  },
     ],
   },
 ]);

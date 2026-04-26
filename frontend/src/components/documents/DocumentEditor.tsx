@@ -2013,7 +2013,9 @@ export function DocumentEditor({ content, onChange, onBlur, placeholder: _placeh
         />
       )}
 
+      {/* Phase 2.6 — 문서 본문은 사용자의 density 토글과 무관하게 항상 comfortable 강제 */}
       <div className="flex-1 overflow-y-auto px-6 py-4 cursor-text"
+        data-density="comfortable"
         onClick={() => { if (!editor.isFocused) editor.chain().focus().run(); }}>
         <EditorContent editor={editor} />
       </div>

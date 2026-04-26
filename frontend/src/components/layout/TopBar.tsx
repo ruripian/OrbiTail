@@ -20,6 +20,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { CommandSearchDialog } from "@/components/search/CommandSearchDialog";
+import { EmptyState } from "@/components/ui/empty-state";
 import type { Notification, NotificationType } from "@/types";
 
 export function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
@@ -219,10 +220,11 @@ export function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
               {/* 알림 목록 */}
               <div className="max-h-80 overflow-y-auto">
                 {notifications.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-                    <Bell className="h-8 w-8 mb-2 opacity-30" />
-                    <p className="text-xs">{t("notifications.empty")}</p>
-                  </div>
+                  <EmptyState
+                    icon={<Bell className="h-8 w-8" />}
+                    title={t("notifications.empty")}
+                    className="py-8"
+                  />
                 ) : (
                   notifications.slice(0, 20).map((n: Notification) => (
                     <div
