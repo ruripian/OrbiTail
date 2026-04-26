@@ -1338,13 +1338,14 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
                     (() => {
                       const TypeIcon = EVENT_TYPES[row.event.event_type]?.icon ?? EVENT_TYPES.other.icon;
                       return (
+                        /* 이벤트 row LEFT — 텍스트 100% 불투명 (이전 /85 → 가독성 강화) */
                         <div className="flex items-center gap-2 w-full pl-4 pr-3 overflow-hidden">
                           <span
                             className="h-2 w-2 rounded-full shrink-0"
                             style={{ background: row.event.color }}
                           />
                           <TypeIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" strokeWidth={2.2} />
-                          <span className="text-sm truncate text-foreground/85 font-medium" title={row.event.title}>
+                          <span className="text-sm truncate text-foreground font-medium" title={row.event.title}>
                             {row.event.title}
                           </span>
                         </div>

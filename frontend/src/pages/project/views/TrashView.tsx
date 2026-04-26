@@ -1,22 +1,18 @@
 /**
- * 휴지통 뷰 — 소프트 삭제된 이슈 목록 + 복구
- * 30일 후 자동 영구 삭제 (백엔드 Celery 태스크)
+ * 휴지통 뷰 — 소프트 삭제된 이슈 + 복구/영구삭제 (PASS5-B: RestorableListView 베이스).
+ * 30일 후 자동 영구 삭제 (백엔드 Celery 태스크).
  */
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Trash2, RotateCcw } from "lucide-react";
+import { toast } from "sonner";
 import { issuesApi } from "@/api/issues";
 import { useProjectPerms } from "@/hooks/useProjectPerms";
-import { Button } from "@/components/ui/button";
-import { toast } from "sonner";
+import { RestorableListView, type Column, type Action } from "@/components/views/RestorableListView";
+import { PriorityChip } from "@/components/issues/chips/PriorityChip";
 import { cn } from "@/lib/utils";
-import { EmptyState } from "@/components/ui/empty-state";
-
-/* 우선순위 색상 */
-const PRIORITY_COLORS: Record<string, string> = {
-  urgent: "text-red-500", high: "text-orange-500", medium: "text-yellow-500", low: "text-blue-500", none: "text-muted-foreground",
-};
+import type { Issue } from "@/types";
 
 const TRASH_RETENTION_DAYS = 30;
 
@@ -44,112 +40,86 @@ export function TrashView({ workspaceSlug, projectId }: Props) {
     mutationFn: (issueId: string) => issuesApi.restore(workspaceSlug, projectId, issueId),
     onSuccess: () => { invalidate(); toast.success(t("views.trash.restored")); },
   });
-
   const purgeMutation = useMutation({
     mutationFn: (issueId: string) => issuesApi.hardDelete(workspaceSlug, projectId, issueId),
     onSuccess: () => { invalidate(); toast.success(t("views.trash.purged")); },
   });
 
-  /* 잔여 일수 계산 */
   const daysLeft = (deletedAt: string) => {
     const elapsed = Math.floor((Date.now() - new Date(deletedAt).getTime()) / 86400000);
     return Math.max(TRASH_RETENTION_DAYS - elapsed, 0);
   };
 
-  if (isLoading) {
-    return <div className="flex items-center justify-center h-64 text-muted-foreground text-sm">Loading...</div>;
-  }
+  const columns: Column<Issue>[] = [
+    {
+      id: "title",
+      label: t("issues.table.cols.title"),
+      width: "flex-1",
+      render: (i) => (
+        <div className="flex items-center gap-2">
+          <span className="text-2xs text-muted-foreground font-mono shrink-0">{i.sequence_id}</span>
+          <span className="text-sm truncate">{i.title}</span>
+        </div>
+      ),
+    },
+    {
+      id: "priority",
+      label: t("issues.table.cols.priority"),
+      width: "w-20",
+      align: "center",
+      render: (i) => <PriorityChip priority={i.priority} />,
+    },
+    {
+      id: "daysLeft",
+      label: t("views.trash.autoDelete"),
+      width: "w-28",
+      align: "center",
+      render: (i) => {
+        const remaining = i.deleted_at ? daysLeft(i.deleted_at) : TRASH_RETENTION_DAYS;
+        return (
+          <span className={cn("text-xs font-medium", remaining <= 7 ? "text-destructive" : "text-muted-foreground")}>
+            {t("views.trash.daysLeft", { count: remaining })}
+          </span>
+        );
+      },
+    },
+  ];
 
-  if (deletedIssues.length === 0) {
-    return (
-      <EmptyState
-        icon={<Trash2 className="h-10 w-10" />}
-        title={t("views.trash.empty")}
-        description={t("views.trash.emptyDescription")}
-      />
-    );
-  }
+  const actions: Action<Issue>[] = [
+    {
+      id: "restore",
+      label: t("views.trash.restore"),
+      icon: <RotateCcw className="h-3 w-3" />,
+      variant: "outline",
+      onClick: (i) => restoreMutation.mutate(i.id),
+      disabled: () => restoreMutation.isPending,
+    },
+    {
+      id: "purge",
+      label: t("views.trash.purge"),
+      icon: <Trash2 className="h-3 w-3" />,
+      variant: "destructive",
+      onClick: (i) => purgeMutation.mutate(i.id),
+      disabled: () => purgeMutation.isPending,
+      visible: () => Boolean(perms.can_purge),
+      confirmMessage: t("views.trash.purgeConfirm"),
+    },
+  ];
 
   return (
-    <div className="p-4 space-y-3">
-      {/* 안내 문구 */}
-      <p className="text-xs text-muted-foreground">
-        {t("views.trash.retentionNotice", { days: TRASH_RETENTION_DAYS })}
-      </p>
-
-      <div className="rounded-xl border overflow-hidden">
-        {/* 헤더 */}
-        <div className="flex items-center gap-4 px-4 py-2.5 border-b bg-muted/20 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-          <span className="flex-1">{t("issues.table.cols.title")}</span>
-          <span className="w-20 text-center">{t("issues.table.cols.priority")}</span>
-          <span className="w-28 text-center">{t("views.trash.autoDelete")}</span>
-          <span className="w-44" />
-        </div>
-
-        {/* 이슈 목록 */}
-        {deletedIssues.map((issue) => {
-          const remaining = issue.deleted_at ? daysLeft(issue.deleted_at) : TRASH_RETENTION_DAYS;
-          return (
-            <div
-              key={issue.id}
-              className="flex items-center gap-4 px-4 py-3 border-b last:border-0 hover:bg-muted/10 transition-colors"
-            >
-              {/* 제목 */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-2xs text-muted-foreground font-mono shrink-0">
-                    {issue.sequence_id}
-                  </span>
-                  <span className="text-sm truncate">{issue.title}</span>
-                </div>
-              </div>
-
-              {/* 우선순위 */}
-              <span className={cn("w-20 text-center text-xs font-medium", PRIORITY_COLORS[issue.priority] ?? "text-muted-foreground")}>
-                {issue.priority === "none" ? "—" : issue.priority}
-              </span>
-
-              {/* 잔여 일수 */}
-              <span className={cn(
-                "w-28 text-center text-xs font-medium",
-                remaining <= 7 ? "text-destructive" : "text-muted-foreground"
-              )}>
-                {t("views.trash.daysLeft", { count: remaining })}
-              </span>
-
-              {/* 복구/영구삭제 버튼 */}
-              <div className="w-44 flex items-center justify-end gap-1.5">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 text-xs"
-                  onClick={() => restoreMutation.mutate(issue.id)}
-                  disabled={restoreMutation.isPending}
-                >
-                  <RotateCcw className="h-3 w-3 mr-1" />
-                  {t("views.trash.restore")}
-                </Button>
-                {perms.can_purge && (
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    className="h-7 text-xs"
-                    onClick={() => {
-                      if (window.confirm(t("views.trash.purgeConfirm"))) {
-                        purgeMutation.mutate(issue.id);
-                      }
-                    }}
-                    disabled={purgeMutation.isPending}
-                  >
-                    <Trash2 className="h-3 w-3 mr-1" />
-                    {t("views.trash.purge")}
-                  </Button>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
+    <RestorableListView<Issue>
+      rows={deletedIssues}
+      isLoading={isLoading}
+      rowKey={(i) => i.id}
+      columns={columns}
+      actions={actions}
+      actionsWidth="w-44"
+      hint={t("views.trash.retentionNotice", { days: TRASH_RETENTION_DAYS })}
+      emptyState={{
+        icon: <Trash2 className="h-10 w-10" />,
+        title: t("views.trash.empty"),
+        description: t("views.trash.emptyDescription"),
+      }}
+    />
   );
 }
