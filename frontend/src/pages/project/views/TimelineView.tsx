@@ -12,7 +12,7 @@
 
 import { useState, useMemo, useRef, useEffect, useCallback, Fragment } from "react";
 import { createPortal } from "react-dom";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useIssueRefresh } from "@/hooks/useIssueMutations";
 import { useUndoStore } from "@/stores/undoStore";
 import { useTranslation } from "react-i18next";
@@ -311,6 +311,8 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
     queryKey: ["states", projectId],
     queryFn:  () => projectsApi.states.list(workspaceSlug, projectId),
   });
+
+  const qc = useQueryClient();
 
   /* 캘린더와 공유: 프로젝트 이벤트 — settings.showEvents 활성 시 타임라인 상단에 별도 그룹으로 표시 */
   const { data: events = [] } = useQuery({
@@ -653,6 +655,24 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
     currentX: number;
   } | null>(null);
 
+  /* K1 — 이벤트 막대 drag/resize. 이슈와 동일 패턴, eventId 로 분리. */
+  const [eventDragState, setEventDragState] = useState<{
+    eventId: string;
+    type: "start" | "end" | "both";
+    initialStart: Date;
+    initialEnd: Date;
+    startX: number;
+    currentX: number;
+  } | null>(null);
+
+  const eventUpdateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Partial<ProjectEvent> }) =>
+      projectsApi.events.update(workspaceSlug, projectId, id, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["events", workspaceSlug, projectId] });
+    },
+  });
+
   /* 드래그 직후 click 이벤트 억제 — mouseup 다음 tick에서 자동 해제 */
   const suppressClickRef = useRef(false);
 
@@ -695,6 +715,69 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
     window.addEventListener("mousemove", handleMove);
     return () => window.removeEventListener("mousemove", handleMove);
   }, [scheduleMode, colW, columns]);
+
+  /* K1 — 이벤트 drag handler. 이슈와 동일한 RAF throttle + start/end/both. */
+  useEffect(() => {
+    if (!eventDragState) return;
+    let rafId: number | null = null;
+    let lastX = eventDragState.currentX;
+    let lastTick = 0;
+    const MIN_INTERVAL = 33;
+    const handleMove = (e: MouseEvent) => {
+      lastX = e.clientX;
+      if (rafId !== null) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        const now = performance.now();
+        if (now - lastTick < MIN_INTERVAL) return;
+        lastTick = now;
+        setEventDragState((prev) => prev ? { ...prev, currentX: lastX } : null);
+      });
+    };
+    const handleUp = (e: MouseEvent) => {
+      if (!eventDragState) return;
+      const deltaPx = e.clientX - eventDragState.startX;
+      if (Math.abs(deltaPx) > 3) {
+        suppressClickRef.current = true;
+        setTimeout(() => { suppressClickRef.current = false; }, 100);
+      }
+      const deltaDays = Math.round(deltaPx / pxPerDay);
+
+      let newStart = new Date(eventDragState.initialStart);
+      let newEnd = new Date(eventDragState.initialEnd);
+
+      if (eventDragState.type === "start") {
+        newStart = addDays(newStart, deltaDays);
+        if (newStart > newEnd) newStart = new Date(newEnd);
+      } else if (eventDragState.type === "end") {
+        newEnd = addDays(newEnd, deltaDays);
+        if (newEnd < newStart) newEnd = new Date(newStart);
+      } else if (eventDragState.type === "both") {
+        newStart = addDays(newStart, deltaDays);
+        newEnd = addDays(newEnd, deltaDays);
+      }
+
+      const eventId = eventDragState.eventId;
+      setEventDragState(null);
+
+      if (deltaDays !== 0) {
+        eventUpdateMutation.mutate({
+          id: eventId,
+          data: {
+            date: toIso(newStart),
+            end_date: toIso(newEnd),
+          },
+        });
+      }
+    };
+    window.addEventListener("mousemove", handleMove);
+    window.addEventListener("mouseup", handleUp);
+    return () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      window.removeEventListener("mousemove", handleMove);
+      window.removeEventListener("mouseup", handleUp);
+    };
+  }, [eventDragState, pxPerDay, eventUpdateMutation]);
 
   useEffect(() => {
     if (!dragState) return;
@@ -1527,19 +1610,36 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
                     />
                   )}
 
-                  {/* 이벤트 바 — K2: 이슈 막대와 동일한 솔리드 + 외곽선 + shadow 로 시인성 강화 */}
+                  {/* 이벤트 바 — K1+K2: 이슈와 동일한 drag/resize + 솔리드 시인성 */}
                   {row.type === "event" && (() => {
                     if (!row.event.date) return null;
-                    const evtStart = parseLocalDate(row.event.date);
-                    const evtEnd   = row.event.end_date ? parseLocalDate(row.event.end_date) : evtStart;
-                    const bs = getBarBounds(evtStart, evtEnd);
+                    let renderStart = parseLocalDate(row.event.date);
+                    let renderEnd = row.event.end_date ? parseLocalDate(row.event.end_date) : new Date(renderStart);
+                    const isDragging = eventDragState?.eventId === row.event.id;
+                    if (isDragging) {
+                      const deltaPx = eventDragState.currentX - eventDragState.startX;
+                      const deltaDays = Math.round(deltaPx / pxPerDay);
+                      if (eventDragState.type === "start") {
+                        renderStart = addDays(eventDragState.initialStart, deltaDays);
+                        if (renderStart > renderEnd) renderStart = new Date(renderEnd);
+                      } else if (eventDragState.type === "end") {
+                        renderEnd = addDays(eventDragState.initialEnd, deltaDays);
+                        if (renderEnd < renderStart) renderEnd = new Date(renderStart);
+                      } else if (eventDragState.type === "both") {
+                        renderStart = addDays(eventDragState.initialStart, deltaDays);
+                        renderEnd = addDays(eventDragState.initialEnd, deltaDays);
+                      }
+                    }
+                    const bs = getBarBounds(renderStart, renderEnd);
                     const barColor = row.event.color;
                     const barH = ROW_H - 18;
+                    const initialStart = parseLocalDate(row.event.date);
+                    const initialEnd = row.event.end_date ? parseLocalDate(row.event.end_date) : new Date(initialStart);
                     return (
                       <div
                         data-no-pan
                         title={row.event.title}
-                        className="absolute flex items-center overflow-hidden"
+                        className="absolute flex items-center overflow-visible group/evtbar"
                         style={{
                           left:      bs.left + 3,
                           width:     Math.max(bs.width - 6, 8),
@@ -1549,24 +1649,67 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
                           opacity:         1,
                           border:          `1px solid ${barColor}`,
                           borderLeft:      `3px solid ${barColor}`,
-                          boxShadow:       `0 1px 2px rgba(0,0,0,0.15)`,
+                          boxShadow:       isDragging ? `0 4px 16px ${barColor}60` : `0 1px 2px rgba(0,0,0,0.15)`,
                           color:           "#fff",
                           borderRadius:    5,
-                          cursor:          "pointer",
-                          transition:      "filter 0.15s, box-shadow 0.15s",
+                          cursor:          isDragging ? "grabbing" : "pointer",
+                          transition:      isDragging ? "none" : "filter 0.15s, box-shadow 0.15s",
                         }}
                         onMouseEnter={(e) => {
-                          (e.currentTarget as HTMLDivElement).style.filter = "brightness(1.08)";
-                          (e.currentTarget as HTMLDivElement).style.boxShadow = `0 4px 12px ${barColor}60`;
+                          if (!eventDragState) (e.currentTarget as HTMLDivElement).style.filter = "brightness(1.08)";
                         }}
                         onMouseLeave={(e) => {
-                          (e.currentTarget as HTMLDivElement).style.filter = "none";
-                          (e.currentTarget as HTMLDivElement).style.boxShadow = "0 1px 2px rgba(0,0,0,0.15)";
+                          if (!eventDragState) (e.currentTarget as HTMLDivElement).style.filter = "none";
                         }}
                       >
-                        <span className="text-xs font-semibold truncate px-3 pointer-events-none">
-                          {row.event.title}
-                        </span>
+                        {/* 좌측 리사이즈 핸들 */}
+                        <div
+                          className="absolute left-0 top-0 bottom-0 w-2.5 cursor-ew-resize hover:bg-black/15 transition-colors z-20 rounded-l-[5px]"
+                          onMouseDown={(e) => {
+                            e.stopPropagation();
+                            setEventDragState({
+                              eventId: row.event.id,
+                              type: "start",
+                              initialStart,
+                              initialEnd,
+                              startX: e.clientX,
+                              currentX: e.clientX,
+                            });
+                          }}
+                        />
+                        {/* 본문 — 이동 */}
+                        <div
+                          className="flex-1 h-full flex items-center px-3 cursor-grab active:cursor-grabbing overflow-hidden z-10"
+                          onMouseDown={(e) => {
+                            setEventDragState({
+                              eventId: row.event.id,
+                              type: "both",
+                              initialStart,
+                              initialEnd,
+                              startX: e.clientX,
+                              currentX: e.clientX,
+                            });
+                          }}
+                        >
+                          <span className="text-xs font-semibold truncate pointer-events-none">
+                            {row.event.title}
+                          </span>
+                        </div>
+                        {/* 우측 리사이즈 핸들 */}
+                        <div
+                          className="absolute right-0 top-0 bottom-0 w-2.5 cursor-ew-resize hover:bg-black/15 transition-colors z-20 rounded-r-[5px]"
+                          onMouseDown={(e) => {
+                            e.stopPropagation();
+                            setEventDragState({
+                              eventId: row.event.id,
+                              type: "end",
+                              initialStart,
+                              initialEnd,
+                              startX: e.clientX,
+                              currentX: e.clientX,
+                            });
+                          }}
+                        />
                       </div>
                     );
                   })()}

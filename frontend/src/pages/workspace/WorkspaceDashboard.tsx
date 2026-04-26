@@ -106,6 +106,7 @@ function formatDateRange(start: string | null, end: string | null): string | nul
 }
 
 function IssueRow({ issue, workspaceSlug }: { issue: Issue; workspaceSlug: string }) {
+  const { t } = useTranslation();
   const dateRange = formatDateRange(issue.start_date, issue.due_date);
   // Phase 3.4 — 5초 동안 strip 표시. selector로 구독해서 만료 시 자동 리렌더.
   const isRecent = useRecentChangesStore((s) => !!s.recent[issue.id]);
@@ -124,7 +125,9 @@ function IssueRow({ issue, workspaceSlug }: { issue: Issue; workspaceSlug: strin
       <span className="text-xs text-muted-foreground/60 shrink-0 font-mono">
         {issue.project_identifier ? `${issue.project_identifier}-${issue.sequence_id}` : `#${issue.sequence_id}`}
       </span>
-      <PriorityGlyph priority={issue.priority} size={10} className="shrink-0" />
+      <span title={t(PRIORITY_LABEL_KEY[issue.priority])} className="inline-flex shrink-0">
+        <PriorityGlyph priority={issue.priority} size={10} />
+      </span>
       <span className="flex-1 truncate text-sm text-foreground group-hover:text-primary transition-colors font-medium">
         {issue.title}
       </span>

@@ -20,6 +20,7 @@ import { motion } from "framer-motion";
 import { useMotion, EASE_ORBIT } from "@/lib/motion-provider";
 import { useRecentChangesStore } from "@/stores/recentChangesStore";
 import { PriorityGlyph } from "@/components/ui/priority-glyph";
+import { PRIORITY_LABEL_KEY } from "@/constants/priority";
 import type { Issue, State } from "@/types";
 
 interface Props {
@@ -234,7 +235,9 @@ export function BoardView({ workspaceSlug, projectId, onIssueClick, issueFilter,
                       ) : (
                         <span className="text-2xs text-muted-foreground/50">{t("issues.picker.none")}</span>
                       )}
-                      <PriorityGlyph priority={issue.priority} size={12} />
+                      <span title={t(PRIORITY_LABEL_KEY[issue.priority])} className="inline-flex">
+                        <PriorityGlyph priority={issue.priority} size={12} />
+                      </span>
                     </div>
                   </div>
                   </HoverLift>
