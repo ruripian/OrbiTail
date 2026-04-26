@@ -2,10 +2,12 @@
  * 이슈 선택 다이얼로그 — 검색 + 프로젝트별 이슈 트리 둘러보기.
  *
  * 정책:
- *  - 본인이 멤버인 프로젝트만 노출 (Project.is_member). public 프로젝트라도 미가입이면 제외.
- *  - 프로젝트 노드 펼치면 sub-issue 까지 트리 형태로 들여쓰기 표시.
- *  - 이슈 옆엔 PriorityGlyph (Hash 아이콘 X).
- *  - 검색 시: 멤버 프로젝트 안의 이슈만 필터해서 평면 결과로.
+ *  - projectId 가 주어지면 (project 스페이스 문서) 그 프로젝트의 이슈만 노출.
+ *    이 경우 트리는 자동 펼친 단일 프로젝트, 검색은 그 프로젝트로 한정.
+ *  - projectId 가 없으면 (personal/shared 스페이스) 본인이 멤버인 프로젝트들의
+ *    트리. 검색은 모든 멤버 프로젝트의 이슈.
+ *  - 이슈 옆엔 state 아이콘 + PriorityGlyph.
+ *  - sub-issue 까지 트리 형태로 들여쓰기 표시.
  */
 import { useEffect, useMemo, useState } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -23,11 +25,13 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   workspaceSlug: string;
+  /** 단일 프로젝트로 제한 (project 스페이스 문서). null 이면 멤버 프로젝트 전체. */
+  projectId?: string | null;
   excludeIds?: string[];
   onSelect: (issue: { id: string; title: string; project: string; project_identifier: string; sequence_id: number }) => void | Promise<void>;
 }
 
-export function IssuePickerDialog({ open, onOpenChange, workspaceSlug, excludeIds = [], onSelect }: Props) {
+export function IssuePickerDialog({ open, onOpenChange, workspaceSlug, projectId = null, excludeIds = [], onSelect }: Props) {
   const [q, setQ] = useState("");
   const [debounced, setDebounced] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
@@ -37,31 +41,48 @@ export function IssuePickerDialog({ open, onOpenChange, workspaceSlug, excludeId
     const t = setTimeout(() => setDebounced(q.trim()), 200);
     return () => clearTimeout(t);
   }, [q]);
-  useEffect(() => { if (!open) { setQ(""); setExpanded(new Set()); } }, [open]);
+  useEffect(() => {
+    if (!open) {
+      setQ(""); setExpanded(new Set());
+    } else if (projectId) {
+      // project 스페이스: 단일 프로젝트를 자동 펼침
+      setExpanded(new Set([projectId]));
+    }
+  }, [open, projectId]);
 
   const isSearching = debounced.length > 0;
 
-  const { data: searchResults = [], isFetching: searching } = useQuery({
-    queryKey: ["issue-search-ws", workspaceSlug, debounced],
-    queryFn: () => issuesApi.searchByWorkspace(workspaceSlug, debounced),
-    enabled: open && isSearching,
-  });
-
-  /* 본인이 멤버인 프로젝트만 — 백엔드의 ?member_only=true 로 서버단 필터.
-     별도 캐시 키("projects-member") 로 일반 list 와 충돌 안 함. */
-  const { data: projects = [] } = useQuery({
+  /* 본인이 멤버인 프로젝트 — projectId 있으면 그것 하나만, 없으면 워크스페이스의 멤버 프로젝트 전체. */
+  const { data: allMemberProjects = [] } = useQuery({
     queryKey: ["projects-member", workspaceSlug],
     queryFn: () => projectsApi.list(workspaceSlug, { member_only: "true" }),
     enabled: open,
     ...QUERY_TIERS.meta,
   });
+  const projects = useMemo(
+    () => (projectId ? allMemberProjects.filter((p) => p.id === projectId) : allMemberProjects),
+    [allMemberProjects, projectId],
+  );
   const memberProjectIds = useMemo(() => new Set(projects.map((p) => p.id)), [projects]);
 
-  /* 검색 결과를 멤버 프로젝트로 한정 */
-  const filteredSearchResults = useMemo(
-    () => searchResults.filter((r) => memberProjectIds.has(r.project)),
-    [searchResults, memberProjectIds],
-  );
+  /* 검색 — projectId 가 있으면 그 프로젝트 안에서만, 아니면 워크스페이스 검색 후 멤버 프로젝트로 한정.
+     Issue 와 IssueSearchResult 는 SearchResults 가 쓰는 필드(priority/state_detail/project/identifier/sequence_id/title)
+     가 같으므로 IssueSearchResult[] 로 통일해 다룬다. */
+  const { data: searchResults = [], isFetching: searching } = useQuery<IssueSearchResult[]>({
+    queryKey: ["issue-search", workspaceSlug, projectId ?? "ws", debounced],
+    queryFn: async () => {
+      if (projectId) {
+        const issues = await issuesApi.list(workspaceSlug, projectId, { include_sub_issues: "true", search: debounced });
+        return issues as unknown as IssueSearchResult[];
+      }
+      return issuesApi.searchByWorkspace(workspaceSlug, debounced);
+    },
+    enabled: open && isSearching,
+  });
+  const filteredSearchResults = useMemo(() => {
+    if (projectId) return searchResults;
+    return searchResults.filter((r) => memberProjectIds.has(r.project));
+  }, [searchResults, memberProjectIds, projectId]);
 
   /* 확장된 프로젝트별 이슈 — sub_issue 포함해서 트리 가능하게 */
   const projectIssueQueries = useQueries({
@@ -80,6 +101,8 @@ export function IssuePickerDialog({ open, onOpenChange, workspaceSlug, excludeId
   }, [expanded, projectIssueQueries]);
 
   const toggle = (pid: string) => {
+    /* projectId 모드에선 단일 프로젝트라 토글 의미 없음 — 항상 펼친 상태 유지 */
+    if (projectId) return;
     setExpanded((prev) => {
       const next = new Set(prev);
       if (next.has(pid)) next.delete(pid); else next.add(pid);

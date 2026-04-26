@@ -724,13 +724,15 @@ function DocumentEditorView({
               </div>
             </div>
 
-            {/* 연결된 이슈 — 프레임 바깥. 사용자가 추가/제거. 인쇄 제외 */}
+            {/* 연결된 이슈 — 프레임 바깥. 사용자가 추가/제거. 인쇄 제외.
+                projectId: project 스페이스면 그 프로젝트로만 제한, 아니면 null(워크스페이스 전체). */}
             <div data-print-hide>
               <LinkedIssuesSection
                 workspaceSlug={workspaceSlug!}
                 spaceId={spaceId!}
                 docId={doc.id}
                 editable={editMode}
+                projectId={projectId ?? null}
               />
             </div>
 
@@ -1200,8 +1202,10 @@ function MoveDocumentDialog({
 
 /* ── 연결된 이슈 섹션 — 문서 ↔ 이슈 양방향 링크 표시 + 추가/제거 ── */
 
-function LinkedIssuesSection({ workspaceSlug, spaceId, docId, editable }: {
+function LinkedIssuesSection({ workspaceSlug, spaceId, docId, editable, projectId }: {
   workspaceSlug: string; spaceId: string; docId: string; editable: boolean;
+  /** 문서가 project 스페이스에 속하면 해당 프로젝트 id. personal/shared 면 null. */
+  projectId: string | null;
 }) {
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -1276,6 +1280,7 @@ function LinkedIssuesSection({ workspaceSlug, spaceId, docId, editable }: {
         open={pickerOpen}
         onOpenChange={setPickerOpen}
         workspaceSlug={workspaceSlug}
+        projectId={projectId}
         excludeIds={links.map((l) => l.issue)}
         onSelect={async (issue) => { await linkMut.mutateAsync(issue.id); }}
       />
