@@ -1,16 +1,21 @@
 /**
  * 이슈 선택 다이얼로그 — 검색 + 프로젝트별 이슈 트리 둘러보기.
  *
- * 검색이 비어 있으면 프로젝트별 이슈 그룹을 펼쳐 볼 수 있고,
- * 검색어가 있으면 워크스페이스 전체 결과로 전환.
+ * 정책:
+ *  - 본인이 멤버인 프로젝트만 노출 (Project.is_member). public 프로젝트라도 미가입이면 제외.
+ *  - 프로젝트 노드 펼치면 sub-issue 까지 트리 형태로 들여쓰기 표시.
+ *  - 이슈 옆엔 PriorityGlyph (Hash 아이콘 X).
+ *  - 검색 시: 멤버 프로젝트 안의 이슈만 필터해서 평면 결과로.
  */
 import { useEffect, useMemo, useState } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { Search, Loader2, Hash, ChevronRight, ChevronDown, Folder } from "lucide-react";
+import { Search, Loader2, ChevronRight, ChevronDown, Folder } from "lucide-react";
 import { issuesApi } from "@/api/issues";
 import { projectsApi } from "@/api/projects";
-import type { IssueSearchResult, Issue, Project } from "@/types";
+import { PriorityGlyph } from "@/components/ui/priority-glyph";
+import { QUERY_TIERS } from "@/lib/query-defaults";
+import type { IssueSearchResult, Issue, Project, Priority } from "@/types";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -41,17 +46,28 @@ export function IssuePickerDialog({ open, onOpenChange, workspaceSlug, excludeId
     enabled: open && isSearching,
   });
 
-  const { data: projects = [] } = useQuery({
+  const { data: allProjects = [] } = useQuery({
     queryKey: ["projects", workspaceSlug],
     queryFn: () => projectsApi.list(workspaceSlug),
-    enabled: open && !isSearching,
+    enabled: open,
+    ...QUERY_TIERS.meta,
   });
 
-  /* 확장된 프로젝트별 이슈 목록 */
+  /* 본인이 멤버인 프로젝트만 — public 노출 X */
+  const projects = useMemo(() => allProjects.filter((p) => p.is_member), [allProjects]);
+  const memberProjectIds = useMemo(() => new Set(projects.map((p) => p.id)), [projects]);
+
+  /* 검색 결과를 멤버 프로젝트로 한정 */
+  const filteredSearchResults = useMemo(
+    () => searchResults.filter((r) => memberProjectIds.has(r.project)),
+    [searchResults, memberProjectIds],
+  );
+
+  /* 확장된 프로젝트별 이슈 — sub_issue 포함해서 트리 가능하게 */
   const projectIssueQueries = useQueries({
     queries: Array.from(expanded).map((pid) => ({
-      queryKey: ["issues", workspaceSlug, pid, undefined] as const,
-      queryFn: () => issuesApi.list(workspaceSlug, pid),
+      queryKey: ["issues", workspaceSlug, pid, { include_sub_issues: "true" }] as const,
+      queryFn: () => issuesApi.list(workspaceSlug, pid, { include_sub_issues: "true" }),
       enabled: open && !isSearching,
     })),
   });
@@ -66,7 +82,7 @@ export function IssuePickerDialog({ open, onOpenChange, workspaceSlug, excludeId
   const toggle = (pid: string) => {
     setExpanded((prev) => {
       const next = new Set(prev);
-      next.has(pid) ? next.delete(pid) : next.add(pid);
+      if (next.has(pid)) next.delete(pid); else next.add(pid);
       return next;
     });
   };
@@ -103,7 +119,7 @@ export function IssuePickerDialog({ open, onOpenChange, workspaceSlug, excludeId
         <div className="max-h-96 overflow-y-auto">
           {isSearching ? (
             <SearchResults
-              results={searchResults}
+              results={filteredSearchResults}
               excludeIds={excludeIds}
               busy={busy}
               onSelect={async (i) => {
@@ -156,7 +172,9 @@ function SearchResults({ results, excludeIds, busy, onSelect, setBusy }: {
               <span className="font-mono text-2xs text-muted-foreground shrink-0">
                 {i.project_identifier}-{i.sequence_id}
               </span>
-              <Hash className="h-3 w-3 text-muted-foreground shrink-0" />
+              <span className="inline-flex shrink-0">
+                <PriorityGlyph priority={i.priority as Priority} size={10} />
+              </span>
               <span className="truncate">{i.title}</span>
               <span className="text-2xs text-muted-foreground/70 shrink-0 ml-auto">{i.project_name}</span>
               {excluded && <span className="text-2xs text-muted-foreground">(연결됨)</span>}
@@ -169,6 +187,27 @@ function SearchResults({ results, excludeIds, busy, onSelect, setBusy }: {
   );
 }
 
+/* 프로젝트의 이슈 목록을 parent → child 순회로 평탄화하면서 depth 부여. */
+function flattenTree(issues: Issue[]): Array<Issue & { depth: number }> {
+  const byParent: Record<string, Issue[]> = {};
+  for (const i of issues) {
+    const k = i.parent ?? "__root__";
+    (byParent[k] ??= []).push(i);
+  }
+  for (const arr of Object.values(byParent)) {
+    arr.sort((a, b) => a.sort_order - b.sort_order || a.sequence_id - b.sequence_id);
+  }
+  const out: Array<Issue & { depth: number }> = [];
+  const walk = (parentId: string, depth: number) => {
+    for (const c of byParent[parentId] ?? []) {
+      out.push({ ...c, depth });
+      walk(c.id, depth + 1);
+    }
+  };
+  walk("__root__", 0);
+  return out;
+}
+
 function ProjectTree({ projects, expanded, issuesMap, excludeIds, busy, onToggle, onSelect }: {
   projects: Project[];
   expanded: Set<string>;
@@ -179,13 +218,14 @@ function ProjectTree({ projects, expanded, issuesMap, excludeIds, busy, onToggle
   onSelect: (i: Issue, p: Project) => void;
 }) {
   if (projects.length === 0) {
-    return <div className="px-4 py-6 text-center text-xs text-muted-foreground">접근 가능한 프로젝트 없음</div>;
+    return <div className="px-4 py-6 text-center text-xs text-muted-foreground">참여 중인 프로젝트가 없습니다</div>;
   }
   return (
     <div className="py-1">
       {projects.map((p) => {
         const isOpen = expanded.has(p.id);
         const issues = issuesMap[p.id] ?? [];
+        const tree = isOpen ? flattenTree(issues) : [];
         return (
           <div key={p.id}>
             <button
@@ -196,24 +236,30 @@ function ProjectTree({ projects, expanded, issuesMap, excludeIds, busy, onToggle
               <Folder className="h-3.5 w-3.5 text-amber-500" />
               <span className="font-mono text-2xs text-muted-foreground shrink-0">{p.identifier}</span>
               <span className="truncate">{p.name}</span>
-              {isOpen && <span className="ml-auto text-2xs text-muted-foreground/60">{issues.length}</span>}
+              {isOpen && <span className="ml-auto text-2xs text-muted-foreground/60">{tree.length}</span>}
             </button>
             {isOpen && (
               <div>
-                {issues.length === 0 ? (
+                {tree.length === 0 ? (
                   <div className="pl-9 py-2 text-2xs text-muted-foreground/60">이슈 없음 또는 로딩 중</div>
                 ) : (
-                  issues.map((i) => {
+                  tree.map((i) => {
                     const excluded = excludeIds.includes(i.id);
                     return (
                       <div
                         key={i.id}
                         className={cn(
-                          "flex items-center gap-1 hover:bg-muted/40 transition-colors pl-9 pr-3 py-1",
+                          "flex items-center gap-1 hover:bg-muted/40 transition-colors pr-3 py-1",
                           excluded && "opacity-50",
                         )}
+                        style={{ paddingLeft: 36 + i.depth * 14 }}
                       >
-                        <Hash className="h-3 w-3 text-muted-foreground shrink-0" />
+                        {i.depth > 0 && (
+                          <span className="text-muted-foreground/40 shrink-0">↳</span>
+                        )}
+                        <span className="inline-flex shrink-0">
+                          <PriorityGlyph priority={i.priority} size={10} />
+                        </span>
                         <span className="font-mono text-2xs text-muted-foreground shrink-0">
                           {p.identifier}-{i.sequence_id}
                         </span>
@@ -223,7 +269,7 @@ function ProjectTree({ projects, expanded, issuesMap, excludeIds, busy, onToggle
                           className={cn(
                             "flex-1 text-left text-xs truncate",
                             !excluded && "hover:text-primary",
-                            (excluded) && "cursor-default",
+                            excluded && "cursor-default",
                           )}
                           title={i.title}
                         >
