@@ -21,6 +21,8 @@ INSTALLED_APPS = [
     "corsheaders",
     "django_filters",
     "drf_spectacular",
+    # 로그인 brute-force 방어 — 5회 실패 시 IP+계정 조합 잠금
+    "axes",
     # Local
     "apps.accounts",
     "apps.workspaces",
@@ -40,7 +42,31 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    # axes — 마지막에 위치해야 정상 동작 (다른 미들웨어가 request 처리 후)
+    "axes.middleware.AxesMiddleware",
 ]
+
+# axes — 인증 backend 추가 (가장 앞). 실패 시 record + lockout.
+AUTHENTICATION_BACKENDS = [
+    "axes.backends.AxesStandaloneBackend",
+    "django.contrib.auth.backends.ModelBackend",
+]
+
+# axes — 로그인 brute-force 방어
+AXES_FAILURE_LIMIT = 5
+AXES_COOLOFF_TIME = timedelta(minutes=15)
+# 계정 단위 잠금 — credential stuffing(여러 IP에서 같은 계정 시도)도 자동 방어.
+# IP 기반 단순 brute-force 는 DRF AnonRateThrottle (60/min) 이 막는다.
+AXES_LOCKOUT_PARAMETERS = ["username"]
+# OrbiTail 의 login 필드명은 "email" 이므로 axes 가 이를 username 으로 매핑해야 카운터가 정상 증가
+AXES_USERNAME_FORM_FIELD = "email"
+# JWT 응답 메시지(403 Forbidden + JSON) 반환
+AXES_LOCKOUT_RESPONSE = "apps.accounts.lockout.lockout_response"
+# 로그인 성공 시 카운터 리셋
+AXES_RESET_ON_SUCCESS = True
+# 프록시 뒤일 때 IP 신뢰 — axes 7.x 는 IPWARE_META_PRECEDENCE_ORDER 사용 권장.
+# nginx → X-Forwarded-For 헤더로 클라이언트 IP 추출.
+AXES_IPWARE_PROXY_COUNT = config("AXES_IPWARE_PROXY_COUNT", default=0, cast=int)
 
 ROOT_URLCONF = "config.urls"
 

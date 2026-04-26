@@ -123,10 +123,48 @@ class RegisterView(generics.CreateAPIView):
 
 
 class CustomTokenObtainPairView(TokenObtainPairView):
-    """로그인 — 분당 5회 제한 (대입 공격 방어)"""
+    """로그인 — 분당 5회 throttle + django-axes lockout(5회 실패 시 15분 잠금).
+
+    SimpleJWT 가 자체 인증 로직을 쓰는 탓에 axes 의 미들웨어/백엔드 자동 잠금이
+    적용되지 않아, 진입 시점에 직접 is_locked 체크 + 실패 시 user_login_failed
+    signal 발화로 axes 카운터를 갱신한다.
+    """
     serializer_class = CustomTokenObtainPairSerializer
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = "auth"
+
+    def post(self, request, *args, **kwargs):
+        from axes.handlers.proxy import AxesProxyHandler
+        from .lockout import lockout_response
+
+        username = request.data.get("email") or request.data.get("username") or ""
+        credentials = {"username": username}
+
+        # 진입 시점 잠금 확인 — credentials 명시 안 함. axes 가 AXES_USERNAME_FORM_FIELD(email)로
+        # request.POST 에서 직접 추출해 lookup 한다. 명시 전달 시 fallback lookup 이 안 매칭되는 이슈 회피.
+        if AxesProxyHandler.is_locked(request):
+            return lockout_response(request, credentials)
+
+        response = super().post(request, *args, **kwargs)
+
+        # 실패면 axes handler 직접 호출 — signal 우회로 카운터 확실히 증가
+        if response.status_code != 200 and username:
+            AxesProxyHandler.user_login_failed(
+                sender=self.__class__,
+                credentials=credentials,
+                request=request,
+            )
+            if AxesProxyHandler.is_locked(request):
+                return lockout_response(request, credentials)
+        elif response.status_code == 200 and username:
+            # 성공 시 카운터 리셋
+            AxesProxyHandler.user_logged_in(
+                sender=self.__class__,
+                request=request,
+                user=getattr(request, "user", None),
+            )
+
+        return response
 
 
 class MeView(generics.RetrieveUpdateAPIView):

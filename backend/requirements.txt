@@ -13,6 +13,7 @@ channels-redis==4.2.1
 daphne==4.1.2
 gunicorn==23.0.0
 python-decouple==3.8
+django-axes==7.0.2
 Pillow==11.1.0
 pycrdt>=0.10
 pycrdt-websocket>=0.15
