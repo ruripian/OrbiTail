@@ -22,6 +22,9 @@ class Notification(models.Model):
         COMMENT_REPLIED = "comment_replied", "Comment Replied"
         ISSUE_CREATED = "issue_created", "Issue Created"
         MENTIONED = "mentioned", "Mentioned"
+        JOIN_REQUESTED = "join_requested", "Workspace Join Requested"   # 어드민에게
+        JOIN_APPROVED  = "join_approved",  "Workspace Join Approved"    # 신청자에게
+        JOIN_REJECTED  = "join_rejected",  "Workspace Join Rejected"    # 신청자에게
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 

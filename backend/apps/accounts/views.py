@@ -15,6 +15,51 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 
 from .models import Announcement, EmailChangeToken, EmailVerificationToken, PasswordResetToken, User
+
+
+def _create_join_request(user, workspace, notify_admins=True):
+    """PENDING 가입 신청 생성 + (옵션) 워크스페이스 어드민에게 알림.
+    이미 멤버이거나 PENDING 신청이 있으면 무시. 반환: workspace.slug 또는 None.
+    """
+    from apps.workspaces.models import WorkspaceMember, WorkspaceJoinRequest
+    from apps.workspaces.views import _notify_workspace_admins_join_request
+
+    if WorkspaceMember.objects.filter(workspace=workspace, member=user).exists():
+        return None
+    existing = WorkspaceJoinRequest.objects.filter(
+        workspace=workspace, user=user,
+        status=WorkspaceJoinRequest.Status.PENDING,
+    ).first()
+    if existing:
+        return workspace.slug
+    jr = WorkspaceJoinRequest.objects.create(workspace=workspace, user=user)
+    if notify_admins:
+        try:
+            _notify_workspace_admins_join_request(jr)
+        except Exception:
+            pass
+    return workspace.slug
+
+
+def _maybe_auto_request_join(user, requested_slug=None):
+    """가입 신청 자동 생성.
+    1) `requested_slug` 가 주어지면 해당 워크스페이스로 신청 (사용자가 폼에서 직접 선택한 경우)
+    2) 안 주어졌고 후보가 정확히 1개면 그 워크스페이스로 자동 신청
+    3) 그 외엔 None — 사용자가 셀렉트 페이지에서 고르도록 위임
+    """
+    from apps.workspaces.models import Workspace
+
+    if requested_slug:
+        try:
+            workspace = Workspace.objects.get(slug=requested_slug)
+        except Workspace.DoesNotExist:
+            return None
+        return _create_join_request(user, workspace)
+
+    candidates = list(Workspace.objects.exclude(members__member=user)[:2])
+    if len(candidates) != 1:
+        return None
+    return _create_join_request(user, candidates[0])
 from .permissions import IsSuperUser, IsWorkspaceAdminOrSuperUser
 from .serializers import (
     AdminUserSerializer,
@@ -83,13 +128,37 @@ class RegisterView(generics.CreateAPIView):
                 user.is_approved = True
                 user.is_active = True
                 user.save(update_fields=["is_email_verified", "is_approved", "is_active"])
+                # 초대 토큰으로 가입 = 이메일 소유 증명 + 관리자 승인의 증거.
+                # 멤버 생성을 accept 엔드포인트로 미루면 이메일 케이스 미스매치 등으로
+                # 가입은 됐는데 멤버가 안 만들어지는 사고가 난다. 여기서 즉시 처리.
+                from apps.workspaces.models import WorkspaceMember
+                WorkspaceMember.objects.get_or_create(
+                    workspace=invite.workspace,
+                    member=user,
+                    defaults={"role": invite.role},
+                )
+                invite.status = WorkspaceInvitation.Status.ACCEPTED
+                invite.save(update_fields=["status"])
                 return Response(
-                    {"detail": "초대 수락 완료. 바로 로그인할 수 있습니다.", "email_verification_required": False, "auto_activated": True},
+                    {
+                        "detail": "초대 수락 완료. 바로 로그인할 수 있습니다.",
+                        "email_verification_required": False,
+                        "auto_activated": True,
+                        # 프론트가 로그인 후 /invite/{token} 대신 워크스페이스로 직진하도록 응답에 포함.
+                        # 초대는 이미 ACCEPTED 상태라 다시 /invite/{token} 으로 가면 만료 에러가 난다.
+                        "workspace_slug": invite.workspace.slug,
+                    },
                     status=status.HTTP_201_CREATED,
                 )
 
+        # 사용자가 폼에서 직접 고른 워크스페이스 (있으면 등록 시점부터 가입 신청 + 어드민 알림 발송)
+        requested_slug = request.data.get("workspace_slug") or None
+
         if self._is_smtp_configured():
-            # SMTP 설정됨 → 인증 메일 발송
+            # 등록 시점에 가입 신청을 미리 만들어두고 어드민에 알림 — 사용자가 이메일 인증을
+            # 마치는 동안 어드민이 승인 큐에서 보고 결정할 수 있도록.
+            requested_workspace_slug = _maybe_auto_request_join(user, requested_slug)
+
             token_obj = EmailVerificationToken.objects.create(
                 user=user,
                 expires_at=timezone.now() + timedelta(hours=24),
@@ -102,22 +171,31 @@ class RegisterView(generics.CreateAPIView):
                     f"OrbiTail 에 가입하신 것을 환영합니다.\n"
                     f"아래 링크를 클릭하여 이메일 인증을 완료해주세요.\n\n"
                     f"{verify_url}\n\n"
-                    f"인증 완료 후 관리자 승인을 거쳐 계정이 활성화됩니다.\n"
+                    f"인증을 완료하면 워크스페이스 관리자의 가입 승인을 기다리게 됩니다.\n"
+                    f"승인이 완료되면 워크스페이스에 입장할 수 있습니다.\n"
                     f"이 링크는 24시간 후 만료됩니다."
                 ),
                 from_email=settings.DEFAULT_FROM_EMAIL,
                 recipient_list=[user.email],
             )
             return Response(
-                {"detail": "가입 완료. 이메일을 확인하여 인증을 완료해주세요.", "email_verification_required": True},
+                {"detail": "가입 완료. 이메일을 확인하여 인증을 완료해주세요.",
+                 "email_verification_required": True,
+                 "requested_workspace": requested_workspace_slug},
                 status=status.HTTP_201_CREATED,
             )
         else:
-            # SMTP 미설정 → 이메일 인증 자동 완료, 관리자 승인만 대기
+            # SMTP 미설정 → 이메일 인증 자동 완료. 승인 절차는 워크스페이스 단위에서만 수행.
             user.is_email_verified = True
-            user.save(update_fields=["is_email_verified"])
+            user.is_approved = True
+            user.is_active = True
+            user.save(update_fields=["is_email_verified", "is_approved", "is_active"])
+            requested_workspace_slug = _maybe_auto_request_join(user, requested_slug)
             return Response(
-                {"detail": "가입 완료. 관리자 승인 후 로그인할 수 있습니다.", "email_verification_required": False},
+                {"detail": "가입 완료. 바로 로그인할 수 있습니다.",
+                 "email_verification_required": False, "auto_activated": True,
+                 "requested_workspace": requested_workspace_slug,
+                 "auto_requested_workspace": requested_workspace_slug},  # 호환
                 status=status.HTTP_201_CREATED,
             )
 
@@ -398,15 +476,25 @@ class VerifyEmailView(APIView):
             return Response({"detail": "만료된 토큰입니다."}, status=status.HTTP_400_BAD_REQUEST)
 
         user = token_obj.user
+        # 이메일 인증 = 본인 확인 + 활성화. 시스템 단위 관리자 승인 단계 제거,
+        # 승인은 워크스페이스 단위(WorkspaceJoinRequest)에서만 수행한다.
         user.is_email_verified = True
-        user.save()
+        user.is_approved = True
+        user.is_active = True
+        user.save(update_fields=["is_email_verified", "is_approved", "is_active"])
 
         token_obj.is_used = True
-        token_obj.save()
+        token_obj.save(update_fields=["is_used"])
 
-        # 어드민에게 알림을 보낼 수도 있음 (현재는 생략)
-
-        return Response({"detail": "이메일 인증이 완료되었습니다. 관리자 승인 후 이용 가능합니다."})
+        auto_requested = _maybe_auto_request_join(user)
+        if auto_requested:
+            detail = "이메일 인증이 완료되었습니다. 워크스페이스 관리자 승인을 기다려 주세요."
+        else:
+            detail = "이메일 인증이 완료되었습니다. 로그인 후 워크스페이스에 가입 신청해 주세요."
+        return Response({
+            "detail": detail,
+            "auto_requested_workspace": auto_requested,
+        })
 
 
 class PasswordResetRequestView(APIView):

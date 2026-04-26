@@ -9,7 +9,38 @@ import type {
 
 export const workspacesApi = {
   list: () =>
-    api.get<PaginatedResponse<Workspace>>("/workspaces/").then((r) => r.data.results),
+    api.get<PaginatedResponse<Workspace>>("/workspaces/").then((r) => r.data?.results ?? []),
+
+  /** 공개 워크스페이스 목록 — 비로그인 회원가입 폼용 (인증 불필요) */
+  publicList: () =>
+    api.get<Workspace[]>("/workspaces/public/").then((r) => r.data ?? []),
+
+  /** 초대 없이 가입할 수 있는 워크스페이스 후보 (현재 멤버가 아닌 것) */
+  joinable: () =>
+    api.get<PaginatedResponse<Workspace>>("/workspaces/joinable/").then((r) => r.data?.results ?? []),
+
+  /** 가입 신청 관련 — 사용자 측 */
+  joinRequests: {
+    /** 워크스페이스에 가입 신청 (PENDING 생성) — 이미 멤버면 already_member=true 응답 */
+    create: (slug: string, message?: string) =>
+      api.post<any>(`/workspaces/${slug}/join-request/`, message ? { message } : {}).then((r) => r.data),
+
+    /** 내가 보낸 신청 목록 (모든 상태) */
+    listMine: () =>
+      api.get<PaginatedResponse<any>>(`/workspaces/join-requests/mine/`).then((r) => r.data?.results ?? []),
+
+    /** 내 PENDING 신청 취소 */
+    cancel: (requestId: string) =>
+      api.post(`/workspaces/join-requests/${requestId}/cancel/`).then((r) => r.data),
+  },
+
+  /** 가입 신청 관련 — 워크스페이스 어드민 측 */
+  joinRequestsAdmin: {
+    list: (slug: string, statusFilter: "pending" | "all" = "pending") =>
+      api.get<PaginatedResponse<any>>(`/workspaces/${slug}/join-requests/?status=${statusFilter}`).then((r) => r.data?.results ?? []),
+    decide: (slug: string, requestId: string, action: "approve" | "reject") =>
+      api.post(`/workspaces/${slug}/join-requests/${requestId}/decision/`, { action }).then((r) => r.data),
+  },
 
   create: (data: { name: string; slug: string }) =>
     api.post<Workspace>("/workspaces/", data).then((r) => r.data),

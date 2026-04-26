@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from apps.accounts.serializers import UserSerializer
-from .models import Workspace, WorkspaceMember, WorkspaceInvitation
+from .models import Workspace, WorkspaceMember, WorkspaceInvitation, WorkspaceJoinRequest
 
 
 class WorkspaceMemberSerializer(serializers.ModelSerializer):
@@ -56,3 +56,23 @@ class WorkspaceInvitationCreateSerializer(serializers.Serializer):
         choices=WorkspaceMember.Role.choices, default=WorkspaceMember.Role.MEMBER
     )
     message = serializers.CharField(required=False, default="")
+
+
+class WorkspaceJoinRequestSerializer(serializers.ModelSerializer):
+    """가입 신청 — 사용자 본인 조회 + 어드민 조회 공용"""
+    user = UserSerializer(read_only=True)
+    decided_by = UserSerializer(read_only=True)
+    workspace_name = serializers.CharField(source="workspace.name", read_only=True)
+    workspace_slug = serializers.CharField(source="workspace.slug", read_only=True)
+
+    class Meta:
+        model = WorkspaceJoinRequest
+        fields = [
+            "id", "workspace", "workspace_name", "workspace_slug",
+            "user", "status", "message",
+            "decided_by", "decided_at", "created_at",
+        ]
+        read_only_fields = [
+            "id", "workspace", "user", "status",
+            "decided_by", "decided_at", "created_at",
+        ]

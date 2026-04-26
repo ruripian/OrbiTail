@@ -13,11 +13,13 @@ export function VerifyEmailPage() {
   const { t } = useTranslation();
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
   const [errorMessage, setErrorMessage] = useState("");
+  const [autoRequested, setAutoRequested] = useState<string | null>(null);
 
   const verifyMutation = useMutation({
     mutationFn: authApi.verifyEmail,
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       setStatus("success");
+      setAutoRequested(data?.auto_requested_workspace ?? null);
     },
     onError: (err: any) => {
       setStatus("error");
@@ -55,7 +57,9 @@ export function VerifyEmailPage() {
               {t("auth.verifyEmail.successTitle")}
             </p>
             <p className="text-xs text-muted-foreground">
-              {t("auth.verifyEmail.successDesc")}
+              {autoRequested
+                ? t("auth.verifyEmail.successAutoRequested", "워크스페이스 가입 신청이 자동으로 등록되었습니다. 워크스페이스 관리자의 승인을 기다려 주세요.")
+                : t("auth.verifyEmail.successDesc")}
             </p>
             <Button onClick={() => navigate("/auth/login")} className="mt-4" variant="outline">
               {t("auth.verifyEmail.toLogin")}

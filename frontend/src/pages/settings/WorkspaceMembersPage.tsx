@@ -53,6 +53,7 @@ export function WorkspaceMembersPage() {
     enabled: !!workspaceSlug,
   });
 
+
   /* 초대 폼 state */
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole]   = useState<number>(15); // 기본값: Member

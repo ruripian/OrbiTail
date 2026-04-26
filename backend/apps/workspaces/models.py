@@ -9,9 +9,12 @@ class Workspace(models.Model):
     name = models.CharField(max_length=255)
     slug = models.SlugField(unique=True, max_length=255)
     logo = models.ImageField(upload_to="workspace_logos/", blank=True, null=True)
+    # owner 가 계정 삭제될 수 있으므로 SET_NULL — 워크스페이스는 다른 어드민이 운영 지속.
+    # 운영상 마지막 owner 가 사라지면 다른 멤버를 owner 로 승격해야 함.
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
         related_name="owned_workspaces",
     )
     # 우선순위별 색상 커스터마이징 (워크스페이스 단위)
@@ -77,7 +80,8 @@ class WorkspaceInvitation(models.Model):
     )
     invited_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
         related_name="sent_invitations",
     )
     status = models.CharField(
@@ -104,3 +108,56 @@ class WorkspaceInvitation(models.Model):
 
     def __str__(self):
         return f"Invite {self.email} → {self.workspace.name} ({self.status})"
+
+
+class WorkspaceJoinRequest(models.Model):
+    """초대 없이 사용자가 직접 워크스페이스 가입을 신청 — 워크스페이스 관리자 승인이 필요.
+
+    - 초대(WorkspaceInvitation)는 관리자가 먼저 발송한 후 사용자가 수락 (push)
+    - 가입 신청(WorkspaceJoinRequest)은 사용자가 먼저 신청한 후 관리자가 승인 (pull)
+    승인되면 WorkspaceMember(role=MEMBER)가 생성되고 신청은 APPROVED 상태로 마무리.
+    """
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        APPROVED = "approved", "Approved"
+        REJECTED = "rejected", "Rejected"
+        CANCELED = "canceled", "Canceled"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    workspace = models.ForeignKey(
+        Workspace, on_delete=models.CASCADE, related_name="join_requests"
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="join_requests",
+    )
+    status = models.CharField(
+        max_length=10, choices=Status.choices, default=Status.PENDING
+    )
+    message = models.TextField(blank=True, default="")
+    decided_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="decided_join_requests",
+    )
+    decided_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "workspace_join_requests"
+        # 같은 사용자가 같은 워크스페이스에 동시에 여러 pending 신청 못함
+        constraints = [
+            models.UniqueConstraint(
+                fields=["workspace", "user"],
+                condition=models.Q(status="pending"),
+                name="unique_pending_join_request",
+            )
+        ]
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"JoinRequest {self.user.email} → {self.workspace.name} ({self.status})"

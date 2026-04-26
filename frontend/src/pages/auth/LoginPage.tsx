@@ -29,6 +29,7 @@ export function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [searchParams] = useSearchParams();
   const redirectTo = searchParams.get("redirect");
+  const notice = searchParams.get("notice"); // verify-email | approval-pending
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -51,6 +52,28 @@ export function LoginPage() {
       <OrbiTailOrbit size={1200} strokeW={5} offsetY={-40} />
       <AuthCard>
         <AuthCardHeader subtitle={t("auth.login.subtitle")} />
+
+        {/* 가입 직후 안내 — 토스트는 짧게 사라지므로 페이지에 고정 배너로 추가 노출 */}
+        {notice === "verify-email" && (
+          <div className="mb-4 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-700 dark:text-amber-300">
+            <p className="font-semibold mb-0.5">
+              {t("auth.login.verifyEmailNoticeTitle", "이메일 인증이 필요합니다")}
+            </p>
+            <p className="opacity-90">
+              {t("auth.login.verifyEmailNoticeBody", "가입한 이메일 주소로 인증 링크를 보냈습니다. 메일을 확인한 뒤 로그인해 주세요.")}
+            </p>
+          </div>
+        )}
+        {notice === "approval-pending" && (
+          <div className="mb-4 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-700 dark:text-amber-300">
+            <p className="font-semibold mb-0.5">
+              {t("auth.login.approvalNoticeTitle", "관리자 승인이 필요합니다")}
+            </p>
+            <p className="opacity-90">
+              {t("auth.login.approvalNoticeBody", "가입은 완료됐습니다. 관리자가 승인하면 로그인할 수 있습니다.")}
+            </p>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit((d) => mutation.mutate(d))} className="space-y-4">
           <div className="space-y-1.5">

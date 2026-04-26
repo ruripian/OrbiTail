@@ -9,12 +9,78 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.accounts.permissions import IsSuperUser
-from .models import Workspace, WorkspaceMember, WorkspaceInvitation
+from .models import Workspace, WorkspaceMember, WorkspaceInvitation, WorkspaceJoinRequest
+
+
+def _notify_workspace_admins_join_request(join_request):
+    """가입 신청 시 해당 워크스페이스의 Admin/Owner 들에게만 알림 발송.
+    슈퍼유저(시스템 관리자)는 워크스페이스 운영 알림 흐름과 분리 — 본인이 멤버여도 제외.
+    다른 워크스페이스 어드민에게도 가지 않음.
+    """
+    from apps.notifications.models import Notification
+
+    workspace = join_request.workspace
+    user = join_request.user
+    admin_ids = list(
+        WorkspaceMember.objects
+        .filter(workspace=workspace, role__gte=WorkspaceMember.Role.ADMIN)
+        .exclude(member=user)
+        .exclude(member__is_superuser=True)   # 슈퍼유저는 워크스페이스 알림 대상 아님
+        .values_list("member_id", flat=True)
+    )
+    if not admin_ids:
+        return
+    msg = f"{user.display_name}님이 '{workspace.name}' 워크스페이스 가입을 신청했습니다."
+    Notification.objects.bulk_create([
+        Notification(
+            recipient_id=admin_id,
+            actor=user,
+            type=Notification.Type.JOIN_REQUESTED,
+            workspace=workspace,
+            message=msg,
+        )
+        for admin_id in admin_ids
+    ])
+    # WebSocket 브로드캐스트 — 어드민 클라이언트에서 즉시 뱃지 갱신
+    try:
+        from apps.notifications.signals import _broadcast_to_workspace
+        _broadcast_to_workspace(workspace.slug, {
+            "type": "notification.new",
+            "notification_type": Notification.Type.JOIN_REQUESTED,
+            "message": msg,
+            "actor_name": user.display_name,
+        })
+    except Exception:
+        pass
+
+
+def _notify_user_join_decision(join_request, approved: bool):
+    """가입 신청 처리 시 신청자에게 결과 알림."""
+    from apps.notifications.models import Notification
+
+    workspace = join_request.workspace
+    actor = join_request.decided_by
+    if not actor:
+        return
+    if approved:
+        ntype = Notification.Type.JOIN_APPROVED
+        msg = f"'{workspace.name}' 워크스페이스 가입이 승인되었습니다."
+    else:
+        ntype = Notification.Type.JOIN_REJECTED
+        msg = f"'{workspace.name}' 워크스페이스 가입 신청이 거절되었습니다."
+    Notification.objects.create(
+        recipient=join_request.user,
+        actor=actor,
+        type=ntype,
+        workspace=workspace,
+        message=msg,
+    )
 from .serializers import (
     WorkspaceSerializer,
     WorkspaceMemberSerializer,
     WorkspaceInvitationSerializer,
     WorkspaceInvitationCreateSerializer,
+    WorkspaceJoinRequestSerializer,
 )
 
 
@@ -23,6 +89,180 @@ class WorkspaceListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         return Workspace.objects.filter(members__member=self.request.user)
+
+
+class WorkspacePublicListView(generics.ListAPIView):
+    """공개 워크스페이스 목록 — 비로그인 회원가입 폼에서 가입할 워크스페이스를 고를 때 사용.
+    민감 정보 없이 id/name/slug/member_count 만 노출.
+    """
+    serializer_class = WorkspaceSerializer
+    permission_classes = [permissions.AllowAny]
+    queryset = Workspace.objects.all()
+    pagination_class = None  # 셀렉터에서 한 번에 보여줘야 함
+
+
+class WorkspaceJoinableListView(generics.ListAPIView):
+    """사용자가 아직 멤버가 아닌 워크스페이스 — 초대 없이 로그인 시 가입 후보 노출용.
+
+    프론트는 사용자가 1개 멤버십도 없는 상태에서 호출. 1개면 자동 join, 여러 개면 셀렉터 표시.
+    승인된(is_approved=True) 사용자만 노출 — 관리자 승인 우회 방지.
+    """
+    serializer_class = WorkspaceSerializer
+
+    def get_queryset(self):
+        user = self.request.user
+        # 이메일 인증을 통과한 사용자만 후보 노출. 시스템 단위 승인은 더 이상 사용하지 않음.
+        if not user.is_email_verified and not user.is_staff:
+            return Workspace.objects.none()
+        return Workspace.objects.exclude(members__member=user)
+
+
+class WorkspaceJoinRequestCreateView(APIView):
+    """초대 없이 워크스페이스 가입 신청 — 워크스페이스 관리자 승인 필요.
+
+    동작:
+    - 이미 멤버면 200 (already_member=True)
+    - 승인 대기 중이면 200 (existing 신청 반환)
+    - 그 외엔 새 PENDING 신청 생성
+    슈퍼어드민(is_staff)은 즉시 멤버 추가 — 승인 절차 우회.
+    """
+
+    def post(self, request, slug):
+        user = request.user
+        try:
+            workspace = Workspace.objects.get(slug=slug)
+        except Workspace.DoesNotExist:
+            return Response({"detail": "워크스페이스를 찾을 수 없습니다."}, status=status.HTTP_404_NOT_FOUND)
+
+        # 이미 멤버
+        if WorkspaceMember.objects.filter(workspace=workspace, member=user).exists():
+            return Response({
+                "already_member": True,
+                "workspace_slug": workspace.slug,
+                "detail": "이미 멤버입니다.",
+            })
+
+        # 이메일 미인증은 신청 차단 (이메일 본인 확인이 셀프 가입의 전제)
+        if not user.is_email_verified and not user.is_staff:
+            return Response(
+                {"detail": "이메일 인증 후 가입 신청이 가능합니다."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        message = (request.data or {}).get("message", "")[:1000]
+        existing = WorkspaceJoinRequest.objects.filter(
+            workspace=workspace, user=user,
+            status=WorkspaceJoinRequest.Status.PENDING,
+        ).first()
+        if existing:
+            return Response(WorkspaceJoinRequestSerializer(existing).data)
+
+        join_request = WorkspaceJoinRequest.objects.create(
+            workspace=workspace, user=user, message=message,
+        )
+        try:
+            _notify_workspace_admins_join_request(join_request)
+        except Exception:
+            pass
+        return Response(
+            WorkspaceJoinRequestSerializer(join_request).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class MyJoinRequestsView(generics.ListAPIView):
+    """내가 보낸 가입 신청 — 워크스페이스 셀렉트 페이지에서 진행상태 표시"""
+    serializer_class = WorkspaceJoinRequestSerializer
+
+    def get_queryset(self):
+        return WorkspaceJoinRequest.objects.select_related(
+            "workspace", "decided_by",
+        ).filter(user=self.request.user)
+
+
+class MyJoinRequestCancelView(APIView):
+    """내가 보낸 PENDING 신청 취소"""
+
+    def post(self, request, request_id):
+        try:
+            jr = WorkspaceJoinRequest.objects.get(id=request_id, user=request.user)
+        except WorkspaceJoinRequest.DoesNotExist:
+            return Response({"detail": "신청을 찾을 수 없습니다."}, status=status.HTTP_404_NOT_FOUND)
+        if jr.status != WorkspaceJoinRequest.Status.PENDING:
+            return Response({"detail": "이미 처리된 신청입니다."}, status=status.HTTP_400_BAD_REQUEST)
+        jr.status = WorkspaceJoinRequest.Status.CANCELED
+        jr.decided_at = timezone.now()
+        jr.save(update_fields=["status", "decided_at", "updated_at"])
+        return Response(WorkspaceJoinRequestSerializer(jr).data)
+
+
+class WorkspaceJoinRequestAdminListView(generics.ListAPIView):
+    """워크스페이스 어드민 — 받은 가입 신청 목록.
+    기본 필터: status=pending. ?status=all 이면 전체.
+    """
+    serializer_class = WorkspaceJoinRequestSerializer
+
+    def get_queryset(self):
+        slug = self.kwargs["slug"]
+        # 어드민 권한 확인
+        membership = WorkspaceMember.objects.filter(
+            workspace__slug=slug, member=self.request.user,
+        ).first()
+        if not membership or membership.role < WorkspaceMember.Role.ADMIN:
+            return WorkspaceJoinRequest.objects.none()
+        qs = WorkspaceJoinRequest.objects.select_related(
+            "workspace", "user", "decided_by",
+        ).filter(workspace__slug=slug)
+        status_param = self.request.query_params.get("status", "pending")
+        if status_param != "all":
+            qs = qs.filter(status=status_param)
+        return qs
+
+
+class WorkspaceJoinRequestDecisionView(APIView):
+    """어드민 — 가입 신청 승인/거절. POST body: {"action": "approve"|"reject"}"""
+
+    def post(self, request, slug, request_id):
+        membership = WorkspaceMember.objects.filter(
+            workspace__slug=slug, member=request.user,
+        ).first()
+        if not membership or membership.role < WorkspaceMember.Role.ADMIN:
+            return Response(
+                {"detail": "관리자만 가입 신청을 처리할 수 있습니다."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        try:
+            jr = WorkspaceJoinRequest.objects.select_related("workspace", "user").get(
+                id=request_id, workspace__slug=slug,
+            )
+        except WorkspaceJoinRequest.DoesNotExist:
+            return Response({"detail": "신청을 찾을 수 없습니다."}, status=status.HTTP_404_NOT_FOUND)
+
+        if jr.status != WorkspaceJoinRequest.Status.PENDING:
+            return Response({"detail": "이미 처리된 신청입니다."}, status=status.HTTP_400_BAD_REQUEST)
+
+        action = (request.data or {}).get("action")
+        if action == "approve":
+            WorkspaceMember.objects.get_or_create(
+                workspace=jr.workspace, member=jr.user,
+                defaults={"role": WorkspaceMember.Role.MEMBER},
+            )
+            jr.status = WorkspaceJoinRequest.Status.APPROVED
+        elif action == "reject":
+            jr.status = WorkspaceJoinRequest.Status.REJECTED
+        else:
+            return Response({"detail": "action 은 approve|reject 중 하나여야 합니다."},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        jr.decided_by = request.user
+        jr.decided_at = timezone.now()
+        jr.save(update_fields=["status", "decided_by", "decided_at", "updated_at"])
+
+        try:
+            _notify_user_join_decision(jr, approved=(action == "approve"))
+        except Exception:
+            pass
+        return Response(WorkspaceJoinRequestSerializer(jr).data)
 
     def create(self, request, *args, **kwargs):
         """워크스페이스 생성은 슈퍼어드민(is_staff 또는 is_superuser) 전용."""
@@ -203,7 +443,18 @@ class WorkspaceMemberDetailView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        target_user = target.member
         target.delete()
+
+        # 마지막 워크스페이스 추방 = 계정 hard-delete.
+        # 같은 이메일로 재가입을 허용하기 위해 row 를 완전히 제거한다.
+        # 작성물(이슈/문서/댓글 등) FK 는 SET_NULL 로 두었으므로 콘텐츠는 보존되고
+        # 작성자 표시만 빈 칸/익명 처리된다.
+        # is_staff(슈퍼유저)는 시스템 관리자라 워크스페이스 0개여도 살려둔다.
+        remaining = WorkspaceMember.objects.filter(member=target_user).count()
+        if remaining == 0 and not target_user.is_staff:
+            target_user.delete()
+
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -530,7 +781,9 @@ class InvitationAcceptView(APIView):
             )
 
         # 이메일 강제 매칭 — 초대 이메일과 로그인 유저의 이메일이 일치해야 함
-        if request.user.email != invitation.email:
+        # 대소문자 무시: Django normalize_email 은 도메인만 소문자화하고 local 부분은 보존하므로,
+        # 초대자가 대문자 섞어 입력했을 때 가입자 이메일과 정확히 일치하지 않을 수 있음
+        if request.user.email.lower() != invitation.email.lower():
             return Response(
                 {
                     "detail": f"이 초대는 {invitation.email} 앞으로 발송되었습니다. "
