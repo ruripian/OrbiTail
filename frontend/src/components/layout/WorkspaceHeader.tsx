@@ -22,9 +22,9 @@ export function WorkspaceHeader() {
   const { workspaceSlug } = useParams<{ workspaceSlug: string }>();
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
-  const canAccessWorkspaceSettings = Boolean(
-    user?.is_superuser || user?.is_workspace_admin,
-  );
+  // 워크스페이스 어드민(어느 워크스페이스든 Admin 이상)만 노출.
+  // 슈퍼유저(시스템 관리자)는 시스템 관리 페이지(/admin) 별개 영역.
+  const canAccessWorkspaceSettings = Boolean(user?.is_workspace_admin);
 
   /* Phase 3.1 — workspace.brand_color 를 OrbitAvatar 색으로. 캐시는 setAuth/clearAuth 가 비움. */
   const { data: workspace } = useQuery({

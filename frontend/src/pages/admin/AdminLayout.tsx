@@ -8,6 +8,7 @@ import {
   ScrollText,
   Trash2,
   Paperclip,
+  Globe,
 } from "lucide-react";
 
 import { useAuthStore } from "@/stores/authStore";
@@ -47,11 +48,25 @@ export function AdminLayout() {
 
   return (
     <div className="flex h-full">
-      <aside className="w-52 shrink-0 border-r bg-background p-4 space-y-1 flex flex-col">
-        <p className="px-2 mb-3 text-2xs font-semibold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
-          <ShieldAlert className="h-3 w-3" />
-          {t("admin.nav.section")}
-        </p>
+      <aside className="w-56 shrink-0 border-r bg-background p-4 space-y-1 flex flex-col">
+        {/* 헤더 — "시스템 관리(슈퍼어드민)" 라벨로 워크스페이스 설정과 시각적으로 구분.
+            슈퍼어드민과 워크스페이스 어드민이 모두 들어올 수 있지만 스코프는 시스템 전역. */}
+        <div className="px-2 mb-4 pb-3 border-b">
+          <div className={cn(
+            "flex items-center gap-1.5 text-2xs font-semibold uppercase tracking-widest",
+            isSuper ? "text-amber-600 dark:text-amber-400" : "text-violet-600 dark:text-violet-400",
+          )}>
+            {isSuper ? <Globe className="h-3 w-3" /> : <ShieldAlert className="h-3 w-3" />}
+            {isSuper
+              ? t("admin.nav.systemAdmin", "시스템 관리 (슈퍼어드민)")
+              : t("admin.nav.adminPanel", "관리자 패널")}
+          </div>
+          <p className="mt-1 text-sm font-bold truncate">
+            {isSuper
+              ? t("admin.nav.scopeAll", "전체 시스템")
+              : t("admin.nav.scopeWsAdmin", "워크스페이스 어드민 도구")}
+          </p>
+        </div>
         {tabs.filter((t) => t.show).map(({ to, label, icon: Icon }) => (
           <NavLink
             key={to}

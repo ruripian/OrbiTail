@@ -15,18 +15,20 @@ export function AdminSuperusersPage() {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const currentUser = useAuthStore((s) => s.user);
+  const isSuperuser = !!currentUser?.is_superuser;
 
-  if (!currentUser?.is_superuser) {
-    return <p className="text-sm text-muted-foreground">{t("admin.common.superOnly")}</p>;
-  }
-
+  // Hook 호출 순서 고정 — 조기 return 으로 useState/useQuery 가 누락되면
+  // 다음 렌더에서 hook 개수가 달라져 react-query 내부 상태가 깨진다.
   const [pickerValue, setPickerValue] = useState<string | null>(null);
   const [search, setSearch] = useState("");
 
   const { data: superusers = [], isLoading } = useQuery({
     queryKey: ["admin_users", "superusers", search],
     queryFn: () =>
-      adminApi.listUsers({ status: "superusers", search: search || undefined }).then((r) => r.results),
+      adminApi
+        .listUsers({ status: "superusers", search: search || undefined })
+        .then((r) => r?.results ?? []),
+    enabled: isSuperuser,
   });
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["admin_users"] });
@@ -46,6 +48,11 @@ export function AdminSuperusersPage() {
     onSuccess: () => { toast.success(t("admin.superusers.demoteSuccess")); invalidate(); },
     onError: (e: any) => toast.error(e.response?.data?.detail || t("admin.common.error")),
   });
+
+  // 모든 hook 호출 후 권한 게이트 — Rules of Hooks 준수
+  if (!isSuperuser) {
+    return <p className="text-sm text-muted-foreground">{t("admin.common.superOnly")}</p>;
+  }
 
   return (
     <div className="space-y-8 max-w-3xl">
@@ -103,7 +110,7 @@ export function AdminSuperusersPage() {
             </div>
           ) : (
             superusers.map((u) => {
-              const isSelf = u.id === currentUser.id;
+              const isSelf = u.id === currentUser?.id;
               return (
                 <div
                   key={u.id}
