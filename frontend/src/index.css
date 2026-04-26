@@ -33,6 +33,17 @@ html { font-size: 18px; }
   --font-sans:    "Pretendard", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono:    "JetBrains Mono", "Fira Code", "Cascadia Code", ui-monospace, monospace;
   --font-heading: "Pretendard", -apple-system, sans-serif;
+
+  /* ── Motion tokens — Phase 1 — duration 3-tier + 3 easing curves ──
+     모든 transition/animation은 이 토큰을 참조한다.
+     framer-motion 쪽은 motion-provider.tsx 가 같은 값(ms→s)으로 매핑한다. */
+  --motion-fast:  120ms;   /* hover, button, tooltip, micro */
+  --motion-base:  220ms;   /* page, modal, panel, stagger 합 */
+  --motion-slow:  360ms;   /* orbit, empty-state, brand moment */
+
+  --ease-snap:    cubic-bezier(0.2, 0, 0, 1);
+  --ease-smooth:  cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-orbit:   cubic-bezier(0.4, 0.8, 0.2, 1);
 }
 
 @layer base {
@@ -62,9 +73,11 @@ html { font-size: 18px; }
     --destructive:          18 82% 52%;   /* #e85d24 */
     --destructive-foreground: 0 0% 100%;
 
-    --border:              221 40% 72%;   /* primary 블루 계열 border — 뚜렷한 구분 */
+    /* border — Phase 1.2: 채도 낮춰 중립 슬레이트로. primary 블루 톤 제거 */
+    --border:              220  8% 80%;
     --input:               220 10% 90%;  /* input 배경용 */
-    --ring:                221 82% 58%;
+    /* ring — Phase 1.3: --primary와 같은 hue(221) but 다른 채도/명도. focus-visible 식별용 */
+    --ring:                221 60% 52%;
     --radius:              0.75rem;
 
     /* 사이드바 */
@@ -74,8 +87,8 @@ html { font-size: 18px; }
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent:      220  8% 84%;
     --sidebar-accent-foreground: 220 20% 12%;
-    --sidebar-border:      221 30% 68%;   /* 사이드바도 블루 계열 */
-    --sidebar-ring:        221 82% 58%;
+    --sidebar-border:      220  8% 78%;   /* Phase 1.2: 사이드바도 중립 톤 */
+    --sidebar-ring:        221 60% 52%;
 
     /* ── 패널 변수 — 완전 불투명 ── */
     --glass-bg:            rgb(240, 242, 250);
@@ -114,9 +127,11 @@ html { font-size: 18px; }
     --destructive:          18 82% 52%;
     --destructive-foreground: 0 0% 100%;
 
-    --border:               48 50% 28%;   /* 골드 계열 border — 뚜렷한 구분 */
+    /* border — Phase 1.2: 채도 낮춰 중립 슬레이트로. 골드 톤 제거 */
+    --border:              220  6% 24%;
     --input:               222 16% 15%;  /* input 배경용 */
-    --ring:                 48 100% 48%;
+    /* ring — Phase 1.3: 다크 --primary(골드)와 같은 hue(48) but 다른 채도. focus-visible 식별용 */
+    --ring:                 48 70% 55%;
 
     /* 사이드바 */
     --sidebar-background:  222 24%  4%;   /* #060910 */
@@ -125,8 +140,8 @@ html { font-size: 18px; }
     --sidebar-primary-foreground: 220 28% 8%;
     --sidebar-accent:      222 20% 12%;
     --sidebar-accent-foreground: 220 15% 82%;
-    --sidebar-border:       48 30% 22%;   /* 사이드바도 골드 계열 */
-    --sidebar-ring:         48 100% 48%;
+    --sidebar-border:      220  6% 22%;   /* Phase 1.2: 사이드바도 중립 톤 */
+    --sidebar-ring:         48 70% 55%;
 
     /* ── 패널 변수 — 완전 불투명 ── */
     --glass-bg:            rgb(12, 18, 34);
@@ -193,6 +208,10 @@ html { font-size: 18px; }
   }
   /* 애니메이션 끄기 — minimal 모드 */
   [data-motion="minimal"] body::before { animation: none; }
+  /* Phase 1.1 — OS 레벨 reduced-motion 우선. MotionProvider 초기화 전에도 즉시 정지 */
+  @media (prefers-reduced-motion: reduce) {
+    body::before { animation: none; }
+  }
   /* 초광폭 화면(2560px+): 도트 간격 넓혀 GPU 부하 감소 */
   @media (min-width: 2560px) {
     body::before { background-size: 32px 32px; }
