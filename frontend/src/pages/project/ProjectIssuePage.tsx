@@ -6,7 +6,7 @@
  *   ?issue=<uuid>                         — 이슈 상세 패널 열기
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -27,10 +27,12 @@ import { IssueDetailPanel } from "./IssueDetailPanel";
 import { TableView }    from "./views/TableView";
 import { BoardView }    from "./views/BoardView";
 import { CalendarView } from "./views/CalendarView";
-import { TimelineView } from "./views/TimelineView";
-import { GraphView }    from "./views/GraphView";
 import { ReportsView }   from "./views/ReportsView";
 import { BacklogView }   from "./views/BacklogView";
+
+/* PASS7-2 — heavy view 는 lazy. 사용자가 해당 뷰를 처음 열 때만 로드. */
+const TimelineView = lazy(() => import("./views/TimelineView").then((m) => ({ default: m.TimelineView })));
+const GraphView    = lazy(() => import("./views/GraphView").then((m) => ({ default: m.GraphView })));
 import { useViewSettings } from "@/hooks/useViewSettings";
 import { useProjectFeatures } from "@/hooks/useProjectFeatures";
 import { ViewTransition } from "@/components/motion";
@@ -305,6 +307,7 @@ export function ProjectIssuePage() {
       })()}
 
       <ViewTransition viewKey={currentView} className="flex-1 overflow-hidden">
+        <Suspense fallback={<div className="flex items-center justify-center h-full text-xs text-muted-foreground">Loading view…</div>}>
         {currentView === "table" && (
           <TableView
             workspaceSlug={workspaceSlug!}
@@ -374,6 +377,7 @@ export function ProjectIssuePage() {
           />
         )}
         {/* PASS4-4: archive/trash 는 사이드바 nav 의 standalone 페이지로 이동 */}
+        </Suspense>
       </ViewTransition>
 
       {/* Phase 3.3 — AnimatePresence로 모달 enter/exit 시 framer-motion이 layoutId 매칭 트윈 */}

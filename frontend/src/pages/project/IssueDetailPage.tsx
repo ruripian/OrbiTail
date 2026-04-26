@@ -17,6 +17,7 @@ import { useParentChain } from "@/hooks/useParentChain";
 import { useIssueRefresh } from "@/hooks/useIssueMutations";
 import { ParentChainBreadcrumb } from "@/components/issues/parent-chain-breadcrumb";
 import { IssueMetaSidebar } from "@/components/issues/IssueMetaSidebar";
+import { QUERY_TIERS } from "@/lib/query-defaults";
 import {
   SubIssuesTab,
   LinksTab,
@@ -68,30 +69,35 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
     queryKey: ["states", projectId],
     queryFn: () => projectsApi.states.list(workspaceSlug!, projectId!),
     enabled: !!issue,
+    ...QUERY_TIERS.meta,
   });
 
   const { data: members = [] } = useQuery({
     queryKey: ["project-members", workspaceSlug, projectId],
     queryFn: () => projectsApi.members.list(workspaceSlug!, projectId!),
     enabled: !!issue,
+    ...QUERY_TIERS.meta,
   });
 
   const { data: labels = [] } = useQuery({
     queryKey: ["labels", projectId],
     queryFn: () => issuesApi.labels.list(workspaceSlug!, projectId!),
     enabled: !!issue,
+    ...QUERY_TIERS.meta,
   });
 
   const { data: categories = [] } = useQuery({
     queryKey: ["categories", workspaceSlug, projectId],
     queryFn: () => projectsApi.categories.list(workspaceSlug!, projectId!),
     enabled: !!issue,
+    ...QUERY_TIERS.meta,
   });
 
   const { data: sprints = [] } = useQuery({
     queryKey: ["sprints", workspaceSlug, projectId],
     queryFn: () => projectsApi.sprints.list(workspaceSlug!, projectId!),
     enabled: !!issue,
+    ...QUERY_TIERS.meta,
   });
 
   const { data: subIssues = [] } = useQuery({

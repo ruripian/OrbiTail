@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useParams } from "react-router-dom";
 import { useAuthStore } from "@/stores/authStore";
 import { projectsApi } from "@/api/projects";
+import { QUERY_TIERS } from "@/lib/query-defaults";
 import type { ProjectMember } from "@/types";
 
 interface EffectivePerms {
@@ -30,6 +31,7 @@ export function useProjectPerms() {
     queryKey: ["project-members", workspaceSlug, projectId],
     queryFn: () => projectsApi.members.list(workspaceSlug!, projectId!),
     enabled: !!workspaceSlug && !!projectId,
+    ...QUERY_TIERS.meta,
   });
 
   const me = members.find((m) => m.member.id === user?.id);
