@@ -12,6 +12,7 @@ export interface NodeGraphResponse {
     labels: Array<{ id: string; name: string; color: string }>;
     external?: boolean;
     category_id?: string | null;
+    is_field?: boolean;
   }>;
   edges: Array<{
     id: string;

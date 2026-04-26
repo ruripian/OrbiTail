@@ -28,6 +28,7 @@ type Node = {
   labels: Array<{ id: string; name: string; color: string }>;
   external?: boolean;
   category_id?: string | null;
+  is_field?: boolean;
   x: number;
   y: number;
   vx: number;
@@ -1319,15 +1320,58 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick }
                       <animate attributeName="opacity" from="0.9" to="0" dur="1.2s" repeatCount="indefinite" />
                     </circle>
                   )}
-                  <circle
-                    r={baseR}
-                    fill={fill}
-                    stroke={n.external ? "#fbbf24" : "#ffffff"}
-                    strokeWidth={2}
-                    strokeDasharray={n.external ? "3 2" : undefined}
-                  />
-                  {n.labels[0] && (
+                  {/* 필드 이슈 — 다이아몬드(45° 회전 사각형) + 라벤더 외곽선 + 내부 점 + 외곽 헤일로 */}
+                  {n.is_field ? (
+                    <>
+                      <rect
+                        x={-(baseR + 4)}
+                        y={-(baseR + 4)}
+                        width={(baseR + 4) * 2}
+                        height={(baseR + 4) * 2}
+                        transform="rotate(45)"
+                        fill="#c4b5fd"
+                        opacity={0.18}
+                        rx={2}
+                      />
+                      <rect
+                        x={-baseR}
+                        y={-baseR}
+                        width={baseR * 2}
+                        height={baseR * 2}
+                        transform="rotate(45)"
+                        fill={fill}
+                        stroke={n.external ? "#fbbf24" : "#a78bfa"}
+                        strokeWidth={2}
+                        strokeDasharray={n.external ? "3 2" : undefined}
+                        rx={1.5}
+                      />
+                      <circle r={Math.max(1.5, baseR * 0.22)} fill="#ffffff" opacity={0.9} />
+                    </>
+                  ) : (
+                    <circle
+                      r={baseR}
+                      fill={fill}
+                      stroke={n.external ? "#fbbf24" : "#ffffff"}
+                      strokeWidth={2}
+                      strokeDasharray={n.external ? "3 2" : undefined}
+                    />
+                  )}
+                  {n.labels[0] && !n.is_field && (
                     <circle r={baseR + 3} fill="none" stroke={n.labels[0].color} strokeWidth={2} opacity={0.7} />
+                  )}
+                  {n.labels[0] && n.is_field && (
+                    <rect
+                      x={-(baseR + 3)}
+                      y={-(baseR + 3)}
+                      width={(baseR + 3) * 2}
+                      height={(baseR + 3) * 2}
+                      transform="rotate(45)"
+                      fill="none"
+                      stroke={n.labels[0].color}
+                      strokeWidth={2}
+                      opacity={0.7}
+                      rx={2}
+                    />
                   )}
                   <text
                     x={0}
@@ -1337,6 +1381,7 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick }
                     className="pointer-events-none"
                     style={{ fill: "currentColor", paintOrder: "stroke", stroke: "var(--background, #fff)", strokeWidth: 3, strokeLinejoin: "round" }}
                   >
+                    {n.is_field ? "✦ " : ""}
                     {showIds && n.project_identifier ? `${n.project_identifier}-${n.sequence_id} ` : ""}
                     {n.title.length > 24 ? n.title.slice(0, 24) + "…" : n.title}
                   </text>

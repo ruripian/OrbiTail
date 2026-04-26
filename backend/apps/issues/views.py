@@ -634,6 +634,7 @@ class ProjectNodeGraphView(APIView):
                 "labels": labels or [],
                 "external": str(issue.project_id) != str(project_pk),
                 "category_id": str(issue.category_id) if issue.category_id else None,
+                "is_field": bool(getattr(issue, "is_field", False)),
             }
 
         edge_data = []
@@ -745,6 +746,7 @@ class WorkspaceNodeGraphView(APIView):
                 "project_identifier": issue.project.identifier if issue.project_id else None,
                 "state_group": state_group,
                 "labels": labels or [],
+                "is_field": bool(getattr(issue, "is_field", False)),
             }
 
         # 수동 node-links
