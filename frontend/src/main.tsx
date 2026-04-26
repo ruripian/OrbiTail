@@ -22,6 +22,7 @@ import { ViewSettingsProvider } from "./lib/view-settings";
 import { setupApi } from "./api/setup";
 import { SetupPage } from "./pages/setup/SetupPage";
 import { Toaster } from "sonner";
+import { useAppVersionCheck } from "./hooks/useAppVersionCheck";
 
 type BootStatus = "loading" | "setup" | "ready";
 
@@ -33,6 +34,9 @@ type BootStatus = "loading" | "setup" | "ready";
  */
 function AppBootstrap() {
   const [status, setStatus] = useState<BootStatus>("loading");
+
+  /* 새 배포 감지 — 다른 build_id 면 토스트로 새로고침 안내 */
+  useAppVersionCheck();
 
   useEffect(() => {
     setupApi

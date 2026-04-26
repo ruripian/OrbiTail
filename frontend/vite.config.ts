@@ -25,10 +25,28 @@ export default defineConfig(({ mode }) => {
     } catch { /* try next */ }
   }
 
+  /* 빌드별 고유 ID — 새 배포 감지용. 매 빌드마다 변경. */
+  const buildId = String(Date.now());
+
   return {
-    plugins: [react()],
+    plugins: [
+      react(),
+      {
+        /* 빌드 산출물에 version.json 추가 — 프론트가 폴링해서 새 배포 감지 */
+        name: "emit-version-json",
+        apply: "build",
+        closeBundle() {
+          const out = path.resolve(__dirname, "dist", "version.json");
+          fs.writeFileSync(
+            out,
+            JSON.stringify({ version: appVersion, build_id: buildId }) + "\n",
+          );
+        },
+      },
+    ],
     define: {
       __APP_VERSION__: JSON.stringify(appVersion),
+      __BUILD_ID__: JSON.stringify(buildId),
     },
     test: {
       environment: "jsdom",
