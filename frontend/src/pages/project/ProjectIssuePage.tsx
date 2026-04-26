@@ -145,20 +145,7 @@ export function ProjectIssuePage() {
     }
   }, [workspaceSlug, projectId, sprintId, currentView, navigate]);
 
-  /* 스프린트 선택 시 URL 라우팅 */
-  const selectSprint = useCallback((id: string | null) => {
-    const base = `/${workspaceSlug}/projects/${projectId}`;
-    const viewParam = currentView !== "table" ? `?view=${currentView}` : "";
-    if (id) {
-      navigate(`${base}/sprints/${id}/issues${viewParam}`);
-    } else {
-      if (categoryId) {
-        navigate(`${base}/categories/${categoryId}/issues${viewParam}`);
-      } else {
-        navigate(`${base}/issues${viewParam}`);
-      }
-    }
-  }, [workspaceSlug, projectId, categoryId, currentView, navigate]);
+  /* 스프린트 선택은 사이드바의 스프린트 메뉴에서만 — 본 헤더 필터 제거됨 */
 
   /* 뷰 전환 */
   const setView = useCallback((v: ViewId) => {
@@ -249,57 +236,7 @@ export function ProjectIssuePage() {
           </DropdownMenuContent>
         </DropdownMenu>
 
-        {/* 스프린트 필터 */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              className={cn(
-                "inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md border transition-all duration-fast",
-                sprintId
-                  ? "bg-primary/10 text-primary border-primary/30"
-                  : "text-muted-foreground border-border hover:bg-muted/40"
-              )}
-            >
-              <Zap className="h-3 w-3" />
-              {activeSprint ? activeSprint.name : t("views.cycleFilter.label")}
-              <ChevronDown className="h-3 w-3" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-52">
-            <DropdownMenuItem
-              className={cn("text-xs", !sprintId && "bg-muted/60")}
-              onClick={() => selectSprint(null)}
-            >
-              {t("views.cycleFilter.all")}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            {sprints.length === 0 ? (
-              <DropdownMenuItem disabled className="text-xs text-muted-foreground">
-                {t("cycles.empty")}
-              </DropdownMenuItem>
-            ) : (
-              sprints.map((sprint: Sprint) => (
-                <DropdownMenuItem
-                  key={sprint.id}
-                  className={cn("text-xs flex items-center gap-2", sprintId === sprint.id && "bg-muted/60")}
-                  onClick={() => selectSprint(sprint.id)}
-                >
-                  <span className="flex-1 truncate">{sprint.name}</span>
-                  <span className="text-2xs text-muted-foreground shrink-0">
-                    {t("cycles.issueCount", { count: sprint.issue_count })}
-                  </span>
-                </DropdownMenuItem>
-              ))
-            )}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              className="text-xs text-primary"
-              onClick={() => navigate(`/${workspaceSlug}/projects/${projectId}/sprints`)}
-            >
-              {t("views.cycleFilter.manage")}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {/* 스프린트 필터는 제거됨 — 스프린트 컨텍스트는 사이드바의 스프린트 메뉴 / Reports 뷰에서 다룸 */}
 
         <div className="flex-1" />
 
