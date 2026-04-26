@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { CommandSearchDialog } from "@/components/search/CommandSearchDialog";
 import { EmptyState } from "@/components/ui/empty-state";
+import { PresenceStack } from "./PresenceStack";
 import type { Notification, NotificationType } from "@/types";
 
 export function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
@@ -171,8 +172,10 @@ export function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
       {/* 전역 검색 다이얼로그 */}
       <CommandSearchDialog open={searchOpen} onOpenChange={setSearchOpen} documentMode={isDocumentMode} />
 
-      {/* 우측 패널 — 알림 + 테마 토글 + 프로필 */}
+      {/* 우측 패널 — 접속자 + 알림 + 테마 토글 + 프로필 */}
       <div className="flex items-center gap-2">
+        {/* PASS10 — 워크스페이스 presence stack */}
+        {workspaceSlug && <PresenceStack />}
         {/* 알림 벨 */}
         {workspaceSlug && (
           <DropdownMenu>

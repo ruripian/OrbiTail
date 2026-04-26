@@ -9,12 +9,60 @@
   - issue.created:      이슈 생성됨
   - issue.deleted:      이슈 삭제됨
   - notification.new:   새 알림 발생
+  - presence.update:    워크스페이스에 접속 중인 사용자 목록 변경 (PASS10)
 """
 
-import json
+import time
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from channels.db import database_sync_to_async
+from django_redis import get_redis_connection
 from apps.workspaces.models import WorkspaceMember
+from apps.accounts.models import User
+
+# Presence TTL — 이 시간 동안 heartbeat 없으면 offline 으로 간주.
+# Frontend 는 30s 마다 heartbeat 보내야 함 (consumer 가 각 메시지마다 score refresh).
+PRESENCE_TTL_SEC = 60
+
+
+def _presence_key(workspace_slug):
+    return f"presence:{workspace_slug}"
+
+
+def _presence_add(workspace_slug, user_id):
+    """사용자를 presence ZSET 에 추가 (score=만료 시각)."""
+    conn = get_redis_connection("default")
+    key = _presence_key(workspace_slug)
+    expires_at = time.time() + PRESENCE_TTL_SEC
+    conn.zadd(key, {str(user_id): expires_at})
+    conn.expire(key, PRESENCE_TTL_SEC * 2)  # ZSET 자체 garbage collection 안전망
+
+
+def _presence_remove(workspace_slug, user_id):
+    conn = get_redis_connection("default")
+    conn.zrem(_presence_key(workspace_slug), str(user_id))
+
+
+def _presence_list_ids(workspace_slug):
+    """현재 접속 중인 user_id 리스트. 만료된 항목은 ZSET 에서 즉시 제거."""
+    conn = get_redis_connection("default")
+    key = _presence_key(workspace_slug)
+    now = time.time()
+    conn.zremrangebyscore(key, 0, now)
+    raw = conn.zrange(key, 0, -1)
+    return [m.decode() if isinstance(m, bytes) else m for m in raw]
+
+
+@database_sync_to_async
+def _presence_users(workspace_slug):
+    """presence 사용자 상세 — display_name + avatar 만 가볍게 반환."""
+    ids = _presence_list_ids(workspace_slug)
+    if not ids:
+        return []
+    users = User.objects.filter(id__in=ids).only("id", "display_name", "avatar")
+    return [
+        {"id": str(u.id), "display_name": u.display_name, "avatar": u.avatar.url if u.avatar else None}
+        for u in users
+    ]
 
 
 @database_sync_to_async
@@ -49,14 +97,40 @@ class WorkspaceConsumer(AsyncJsonWebsocketConsumer):
         await self.channel_layer.group_add(self.group_name, self.channel_name)
         await self.accept()
 
+        # Presence: 본인 등록 + 워크스페이스 전체에 갱신된 목록 broadcast
+        self.user_id = str(user.id)
+        await database_sync_to_async(_presence_add)(self.workspace_slug, self.user_id)
+        await self._broadcast_presence()
+
     async def disconnect(self, close_code):
         if hasattr(self, "group_name"):
             await self.channel_layer.group_discard(self.group_name, self.channel_name)
+        if hasattr(self, "user_id"):
+            await database_sync_to_async(_presence_remove)(self.workspace_slug, self.user_id)
+            await self._broadcast_presence()
 
     async def receive_json(self, content, **kwargs):
-        # 클라이언트 → 서버 메시지는 현재 사용하지 않음 (ping/pong만)
-        if content.get("type") == "ping":
+        msg_type = content.get("type")
+        if msg_type == "ping":
             await self.send_json({"type": "pong"})
+            # ping 은 30s 주기 — presence heartbeat 도 동시에 갱신 (별도 메시지 줄이려고)
+            if hasattr(self, "user_id"):
+                await database_sync_to_async(_presence_add)(self.workspace_slug, self.user_id)
+        elif msg_type == "presence.heartbeat":
+            if hasattr(self, "user_id"):
+                await database_sync_to_async(_presence_add)(self.workspace_slug, self.user_id)
+
+    async def _broadcast_presence(self):
+        """현재 presence 목록을 워크스페이스 그룹에 broadcast."""
+        users = await _presence_users(self.workspace_slug)
+        await self.channel_layer.group_send(
+            self.group_name,
+            {"type": "presence.update", "users": users},
+        )
+
+    async def presence_update(self, event):
+        """presence.update 이벤트 → 클라이언트에 전달"""
+        await self.send_json(event)
 
     # ── 이벤트 핸들러 (channel_layer.group_send로 호출됨) ──
 

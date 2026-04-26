@@ -21,6 +21,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useRecentChangesStore } from "@/stores/recentChangesStore";
+import { usePresenceStore, type PresenceUser } from "@/stores/presenceStore";
 
 /* PASS10 — 토스트 노출 대상. 사용자가 종 아이콘을 안 봐도 즉시 인지해야 하는 타입. */
 const HIGH_PRIORITY_NOTIFICATION_TYPES = new Set(["mentioned", "issue_assigned"]);
@@ -176,6 +177,13 @@ export function useWebSocket(workspaceSlug: string | undefined): WsStatus {
           }
           break;
 
+        case "presence.update":
+          // PASS10 — 워크스페이스 접속자 목록 갱신
+          if (Array.isArray(event.users)) {
+            usePresenceStore.getState().setUsers(event.users as PresenceUser[]);
+          }
+          break;
+
         case "pong":
           break;
       }
@@ -196,8 +204,10 @@ export function useWebSocket(workspaceSlug: string | undefined): WsStatus {
         wsRef.current.close(1000);
         wsRef.current = null;
       }
+      // 워크스페이스 전환 시 presence 초기화 — 다음 연결의 update 가 다시 채워준다
+      usePresenceStore.getState().clear();
     };
-  }, [workspaceSlug, qc, getAccessToken]);
+  }, [workspaceSlug, qc, getAccessToken, navigate]);
 
   return status;
 }
