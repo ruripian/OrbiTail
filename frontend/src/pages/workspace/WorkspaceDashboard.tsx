@@ -266,7 +266,8 @@ export function WorkspaceDashboard() {
     return Array.from(map.values());
   }, [filtered]);
 
-  const totalCount = myIssues.length;
+  // Field 이슈는 "내 할 일" 성격이 아니라 본문에서 제외 — 헤더 카운트도 동일 기준
+  const totalCount = useMemo(() => myIssues.filter((i) => !i.is_field).length, [myIssues]);
   const hasFilters = projectFilter.size > 0 || priorityFilter.size > 0 || stateGroupFilter.size > 0;
 
   const toggleSet = (set: Set<string>, value: string): Set<string> => {
