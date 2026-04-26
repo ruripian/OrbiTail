@@ -212,6 +212,7 @@
       "emptyDesc": "No description — click to add",
       "noAssignee": "None",
       "tabs": {
+        "label": "Issue detail tabs",
         "subIssues": "Sub-issues",
         "links": "Links",
         "attachments": "Attachments",

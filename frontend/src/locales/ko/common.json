@@ -212,6 +212,7 @@
       "emptyDesc": "설명 없음 — 클릭하여 입력",
       "noAssignee": "없음",
       "tabs": {
+        "label": "이슈 상세 탭",
         "subIssues": "하위 이슈",
         "links": "링크",
         "comments": "댓글",

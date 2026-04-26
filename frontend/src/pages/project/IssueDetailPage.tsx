@@ -383,8 +383,21 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
           />
         </div>
 
+        {/* PASS8-1 — WAI-ARIA tablist pattern. ↑↓/Home/End 지원 + tabIndex roving. */}
         <div className="border-b mb-4">
-          <div className="flex gap-0.5">
+          <div
+            role="tablist"
+            aria-label={t("issues.detail.tabs.label", "이슈 상세 탭")}
+            className="flex gap-0.5"
+            onKeyDown={(e) => {
+              const order: TabId[] = ["sub-issues", "links", "nodes", "attachments", "comments", "activity"];
+              const i = order.indexOf(activeTab);
+              if (e.key === "ArrowRight") { setActiveTab(order[(i + 1) % order.length]); e.preventDefault(); }
+              else if (e.key === "ArrowLeft")  { setActiveTab(order[(i - 1 + order.length) % order.length]); e.preventDefault(); }
+              else if (e.key === "Home")       { setActiveTab(order[0]); e.preventDefault(); }
+              else if (e.key === "End")        { setActiveTab(order[order.length - 1]); e.preventDefault(); }
+            }}
+          >
             {(
               [
                 { id: "sub-issues" as TabId, label: `${t("issues.detail.tabs.subIssues")} (${subIssues.length})`, icon: GitBranch },
@@ -397,6 +410,11 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
             ).map(({ id, label, icon: Icon }) => (
               <button
                 key={id}
+                role="tab"
+                id={`tab-${id}`}
+                aria-selected={activeTab === id}
+                aria-controls={`tabpanel-${id}`}
+                tabIndex={activeTab === id ? 0 : -1}
                 onClick={() => setActiveTab(id)}
                 className={cn(
                   "inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 -mb-px transition-colors",
@@ -412,6 +430,7 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
           </div>
         </div>
 
+        <div role="tabpanel" id={`tabpanel-${activeTab}`} aria-labelledby={`tab-${activeTab}`}>
         {activeTab === "sub-issues" && (
           <SubIssuesTab
             workspaceSlug={workspaceSlug!}
@@ -474,6 +493,7 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
         {activeTab === "activity" && (
           <ActivityTab activities={activities} />
         )}
+        </div>
       </div>
 
       {/* PASS5-C — 사이드바 추출. picker 들은 onUpdate 콜백 한 번으로 통일, footer 액션은 children 으로 주입 */}

@@ -26,4 +26,13 @@ i18n
     },
   });
 
+/* PASS8-1 — <html lang> 을 현재 i18n 언어와 동기화. 스크린리더 발음/한자 처리 정확도. */
+function syncHtmlLang(lng: string) {
+  if (typeof document !== "undefined") {
+    document.documentElement.lang = lng;
+  }
+}
+syncHtmlLang(i18n.language || "ko");
+i18n.on("languageChanged", syncHtmlLang);
+
 export default i18n;
