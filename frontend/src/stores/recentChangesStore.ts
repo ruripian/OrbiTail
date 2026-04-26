@@ -1,16 +1,16 @@
 /**
- * 최근 변경 이슈 store (Phase 3.4 — WebSocket pulse strip).
+ * 최근 변경 이슈 store (Phase 3.4 — WebSocket pulse).
  *
- * 다른 사용자가 이슈를 변경하면 useWebSocket이 markChanged()를 호출.
- * 5초간 해당 issueId가 "최근 변경" 상태로 유지되고, IssueRow/보드 카드는
- * data-recently-changed 속성을 받아 좌측 strip + 펄스 애니메이션을 표시.
+ * 다른 사용자가 이슈를 변경/이동하면 useWebSocket이 markChanged()를 호출.
+ * 2초간 해당 issueId가 "최근 변경" 상태로 유지되고, IssueRow/보드 카드는
+ * data-recently-changed 속성을 받아 은은한 외곽 하이라이트로 표시.
  *
- * 5초 후 자동으로 store에서 제거 → 컴포넌트 리렌더 → strip 자연스럽게 사라짐.
+ * 2초 후 자동으로 store에서 제거 — 사용자 피드백("너무 밝고 뜬금없음")으로 5s → 2s + 강도 완화.
  */
 
 import { create } from "zustand";
 
-const TTL_MS = 5_000;
+const TTL_MS = 2_000;
 
 interface RecentEntry {
   /** 변경자 색상(hsl/hex/css color) — strip 색상으로 사용. 미상이면 var(--accent) fallback */

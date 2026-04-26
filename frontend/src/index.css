@@ -1588,28 +1588,19 @@ body.hide-dots::before { display: none; }
 [data-motion="minimal"] .orbitail-orbit circle { animation: none !important; }
 [data-motion="minimal"] .orbitail-orbit animateMotion { display: none; }
 
-/* Phase 3.4 — 실시간 변경 strip
-   다른 사용자가 이슈를 수정하면 useWebSocket이 recentChangesStore에 5초 등록.
-   해당 row/카드는 data-recently-changed 속성을 받아 좌측 4px strip + scaleY 펄스. */
+/* Phase 3.4 — 실시간 변경 하이라이트
+   다른 사용자가 이슈를 수정/이동하면 useWebSocket 이 recentChangesStore 에 2초 등록.
+   해당 row/카드는 data-recently-changed 속성을 받아 은은한 외곽 하이라이트로 표시.
+   2026-04-26: 좌측 4px strip + 펄스 → 부드러운 outer ring + fade out 으로 변경
+                ("너무 밝고 뜬금없음" 피드백). */
 [data-recently-changed] {
-  position: relative;
+  --recent-soft: color-mix(in srgb, var(--recent-color, hsl(var(--primary))) 45%, transparent);
+  animation: recent-fade 2s ease-out forwards;
+  border-radius: 6px;
 }
-[data-recently-changed]::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 4px;
-  background: var(--recent-color, hsl(var(--primary)));
-  border-radius: 99px;
-  transform-origin: center;
-  animation: pulse-strip 0.4s var(--ease-smooth) forwards;
-  pointer-events: none;
-}
-@keyframes pulse-strip {
-  from { opacity: 0; transform: scaleY(0.3); }
-  to   { opacity: 1; transform: scaleY(1); }
+@keyframes recent-fade {
+  from { box-shadow: inset 0 0 0 1px var(--recent-soft); }
+  to   { box-shadow: inset 0 0 0 1px transparent; }
 }
 
 /* 활성 탭 하단 그라데이션 라인 */

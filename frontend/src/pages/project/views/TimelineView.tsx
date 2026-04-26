@@ -1314,7 +1314,10 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
                   "flex group/row transition-colors duration-100 relative",
                   isGroup
                     ? "border-y-2 border-border bg-muted/20"
-                    : "border-b border-border hover:bg-primary/[0.04]"
+                    /* event 행은 불투명 muted 톤 — 뒤 타임라인 grid 가 비쳐 산만함 방지 */
+                    : row.type === "event"
+                      ? "border-b border-border bg-muted/30 hover:bg-muted/40"
+                      : "border-b border-border hover:bg-primary/[0.04]"
                 )}
                 style={{ height: ROW_H }}
               >
