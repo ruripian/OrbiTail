@@ -1,16 +1,15 @@
 import { NavLink, Outlet, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Settings, Circle, Tag, Users, Archive, FileText, Bell } from "lucide-react";
+import { Settings, Users, Zap, Cpu } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+/* PASS4-3: 7→4 탭. states/labels → workflow, auto-archive/notifications → automation.
+   templates 는 3-bis 에서 contextual(이슈 생성 다이얼로그) 로 옮김. */
 const TABS = [
-  { to: "general",       tKey: "project.settings.tabs.general",       icon: Settings },
-  { to: "members",       tKey: "project.settings.tabs.members",       icon: Users },
-  { to: "states",        tKey: "project.settings.tabs.states",        icon: Circle },
-  { to: "labels",        tKey: "project.settings.tabs.labels",        icon: Tag },
-  { to: "templates",     tKey: "project.settings.tabs.templates",     icon: FileText },
-  { to: "auto-archive",  tKey: "project.settings.tabs.autoArchive",   icon: Archive },
-  { to: "notifications", tKey: "project.settings.tabs.notifications", icon: Bell },
+  { to: "general",    tKey: "project.settings.tabs.general",    icon: Settings },
+  { to: "members",    tKey: "project.settings.tabs.members",    icon: Users },
+  { to: "workflow",   tKey: "project.settings.tabs.workflow",   icon: Zap },
+  { to: "automation", tKey: "project.settings.tabs.automation", icon: Cpu },
 ];
 
 export function ProjectSettingsLayout() {

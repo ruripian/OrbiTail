@@ -25,13 +25,12 @@ import { AdminAuditLogPage } from "@/pages/admin/AdminAuditLogPage";
 import { ProjectSettingsLayout } from "@/pages/project/settings/ProjectSettingsLayout";
 import { GeneralPage } from "@/pages/project/settings/GeneralPage";
 import { MembersPage } from "@/pages/project/settings/MembersPage";
-import { StatesPage } from "@/pages/project/settings/StatesPage";
-import { LabelsPage } from "@/pages/project/settings/LabelsPage";
-import { AutoArchivePage } from "@/pages/project/settings/AutoArchivePage";
-import { TemplatesPage } from "@/pages/project/settings/TemplatesPage";
-import { NotificationsPage as ProjectNotificationsPage } from "@/pages/project/settings/NotificationsPage";
+import { WorkflowPage } from "@/pages/project/settings/WorkflowPage";
+import { AutomationPage } from "@/pages/project/settings/AutomationPage";
 import { CategoriesPage } from "@/pages/project/CategoriesPage";
 import { SprintsPage } from "@/pages/project/SprintsPage";
+import { ProjectArchivePage } from "@/pages/project/ProjectArchivePage";
+import { ProjectTrashPage } from "@/pages/project/ProjectTrashPage";
 import { DiscoverProjectsPage } from "@/pages/project/DiscoverProjectsPage";
 import { ArchivedProjectsPage } from "@/pages/project/ArchivedProjectsPage";
 import { InviteAcceptPage } from "@/pages/invite/InviteAcceptPage";
@@ -170,6 +169,9 @@ export const router = createBrowserRouter([
       { path: "projects/:projectId/sprints", element: <SprintsPage /> },
       /* 스프린트별 이슈 뷰 — ProjectIssuePage가 sprintId URL 파라미터로 필터 */
       { path: "projects/:projectId/sprints/:sprintId/issues", element: <ProjectIssuePage /> },
+      /* PASS4-4 — Archive/Trash 사이드바 진입점 (standalone 페이지) */
+      { path: "projects/:projectId/archive", element: <ProjectArchivePage /> },
+      { path: "projects/:projectId/trash",   element: <ProjectTrashPage /> },
 
       // 개인 / 워크스페이스 설정
       {
@@ -197,19 +199,22 @@ export const router = createBrowserRouter([
         ],
       },
 
-      // 프로젝트 설정
+      // 프로젝트 설정 — PASS4-3: 7→4 탭 + legacy redirects
       {
         path: "projects/:projectId/settings",
         element: <ProjectSettingsLayout />,
         children: [
           { index: true, element: <Navigate to="general" replace /> },
-          { path: "general",       element: <GeneralPage /> },
-          { path: "members",       element: <MembersPage /> },
-          { path: "states",        element: <StatesPage /> },
-          { path: "labels",        element: <LabelsPage /> },
-          { path: "auto-archive",  element: <AutoArchivePage /> },
-          { path: "templates",     element: <TemplatesPage /> },
-          { path: "notifications", element: <ProjectNotificationsPage /> },
+          { path: "general",    element: <GeneralPage /> },
+          { path: "members",    element: <MembersPage /> },
+          { path: "workflow",   element: <WorkflowPage /> },
+          { path: "automation", element: <AutomationPage /> },
+          /* legacy redirects — 외부 링크/북마크 보존 (6개월 후 PASS5 에서 제거) */
+          { path: "states",        element: <Navigate to="../workflow#states" replace /> },
+          { path: "labels",        element: <Navigate to="../workflow#labels" replace /> },
+          { path: "templates",     element: <Navigate to="../workflow" replace /> },
+          { path: "auto-archive",  element: <Navigate to="../automation#auto-archive" replace /> },
+          { path: "notifications", element: <Navigate to="../automation#integrations" replace /> },
         ],
       },
     ],

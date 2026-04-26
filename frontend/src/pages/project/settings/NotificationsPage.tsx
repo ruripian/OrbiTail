@@ -58,9 +58,13 @@ export function NotificationsPage() {
   return (
     <div className="space-y-8 max-w-2xl">
       <div>
-        <h1 className="text-lg font-semibold">{t("project.settings.notifications.title")}</h1>
+        {/* PASS4-1: 책임 분리 — 이 페이지는 이 프로젝트가 외부로 발신하는 알림만 다룸 */}
+        <h1 className="text-lg font-semibold">{t("project.settings.integrations.title")}</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          {t("project.settings.notifications.subtitle")}
+          {t("project.settings.integrations.subtitle")}
+        </p>
+        <p className="text-xs text-muted-foreground mt-2">
+          {t("project.settings.integrations.userHint")}
         </p>
       </div>
 

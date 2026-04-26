@@ -242,11 +242,18 @@ function ProjectItem({
               active={location.pathname === `${base}/request`}
             />
           )}
+          {/* PASS4-4: archive/trash 는 standalone 페이지 — 일상 작업 view 와 분리 */}
           <SubLink
-            to={`${base}/issues?view=trash`}
+            to={`${base}/archive`}
+            icon={Archive}
+            label={t("project.nav.archive", "보관함")}
+            active={location.pathname === `${base}/archive`}
+          />
+          <SubLink
+            to={`${base}/trash`}
             icon={Trash2}
-            label={t("views.tabs.trash")}
-            active={location.search.includes("view=trash")}
+            label={t("project.nav.trash", "휴지통")}
+            active={location.pathname === `${base}/trash`}
           />
           <SubLink
             to={`${base}/settings`}

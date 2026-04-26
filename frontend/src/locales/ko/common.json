@@ -125,7 +125,8 @@
       "deleted": "템플릿이 삭제되었습니다",
       "deleteConfirm": "이 템플릿을 삭제하시겠습니까?",
       "empty": "등록된 템플릿이 없습니다",
-      "titleLabel": "제목:"
+      "titleLabel": "제목:",
+      "manage": "템플릿 관리"
     },
     "table": {
       "addIssue": "이슈 추가",
@@ -324,6 +325,10 @@
     }
   },
   "project": {
+    "nav": {
+      "archive": "보관함",
+      "trash": "휴지통"
+    },
     "create": {
       "title": "프로젝트 생성",
       "subtitle": "이슈와 보드로 작업을 구성하세요",
@@ -360,11 +365,14 @@
       "tabs": {
         "general": "일반",
         "members": "멤버",
-        "states": "상태",
-        "labels": "라벨",
-        "autoArchive": "자동 보관",
-        "templates": "이슈 템플릿",
-        "notifications": "알림"
+        "workflow": "워크플로우",
+        "automation": "자동화",
+        "notifications": "통합"
+      },
+      "integrations": {
+        "title": "통합",
+        "subtitle": "이 프로젝트의 변경 사항을 외부로 발신합니다 (메일·웹훅 등).",
+        "userHint": "내가 받는 알림은 사용자 환경설정에서 관리하세요."
       },
       "notifications": {
         "title": "알림 설정",
@@ -898,10 +906,11 @@
       "calendar": "캘린더",
       "timeline": "타임라인",
       "graph": "그래프",
-      "cycles": "스프린트",
-      "analytics": "분석",
-      "trash": "휴지통",
-      "archive": "보관함"
+      "reports": "리포트"
+    },
+    "reports": {
+      "current": "현재 스프린트",
+      "history": "히스토리"
     },
     "addIssue": "이슈 추가",
     "backlog": {

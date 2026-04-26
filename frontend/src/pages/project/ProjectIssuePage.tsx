@@ -6,11 +6,11 @@
  *   ?issue=<uuid>                         — 이슈 상세 패널 열기
  */
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { List, LayoutGrid, Calendar, GanttChart, Zap, Layers, ChevronDown, CheckCircle2, Circle, BarChart3, Archive, Inbox, Share2 } from "lucide-react";
+import { List, LayoutGrid, Calendar, GanttChart, Zap, Layers, ChevronDown, CheckCircle2, Circle, BarChart3, Inbox, Share2 } from "lucide-react";
 import { issuesApi } from "@/api/issues";
 import { projectsApi } from "@/api/projects";
 import { cn } from "@/lib/utils";
@@ -29,28 +29,24 @@ import { BoardView }    from "./views/BoardView";
 import { CalendarView } from "./views/CalendarView";
 import { TimelineView } from "./views/TimelineView";
 import { GraphView }    from "./views/GraphView";
-import { SprintView }      from "./views/SprintView";
-import { AnalyticsView }  from "./views/AnalyticsView";
-import { ArchiveView }    from "./views/ArchiveView";
-import { TrashView }      from "./views/TrashView";
+import { ReportsView }   from "./views/ReportsView";
 import { BacklogView }   from "./views/BacklogView";
 import { useViewSettings } from "@/hooks/useViewSettings";
 import { useProjectFeatures } from "@/hooks/useProjectFeatures";
 import { ViewTransition } from "@/components/motion";
 import type { Category, Sprint } from "@/types";
 
-type ViewId = "table" | "board" | "backlog" | "calendar" | "timeline" | "graph" | "sprints" | "analytics" | "archive" | "trash";
+/* PASS4-2/4: sprints+analytics → reports, archive/trash → 사이드바 */
+type ViewId = "table" | "board" | "backlog" | "calendar" | "timeline" | "graph" | "reports";
 
 const VIEW_IDS: { id: ViewId; key: string; Icon: React.ElementType }[] = [
-  { id: "table",     key: "views.tabs.table",     Icon: List        },
-  { id: "board",     key: "views.tabs.board",      Icon: LayoutGrid  },
-  { id: "backlog",   key: "views.tabs.backlog",    Icon: Inbox       },
-  { id: "calendar",  key: "views.tabs.calendar",   Icon: Calendar    },
-  { id: "timeline",  key: "views.tabs.timeline",   Icon: GanttChart  },
-  { id: "graph",     key: "views.tabs.graph",      Icon: Share2      },
-  { id: "sprints",    key: "views.tabs.cycles",     Icon: Zap   },
-  { id: "analytics", key: "views.tabs.analytics",  Icon: BarChart3   },
-  { id: "archive",   key: "views.tabs.archive",    Icon: Archive     },
+  { id: "table",    key: "views.tabs.table",    Icon: List       },
+  { id: "board",    key: "views.tabs.board",    Icon: LayoutGrid },
+  { id: "backlog",  key: "views.tabs.backlog",  Icon: Inbox      },
+  { id: "calendar", key: "views.tabs.calendar", Icon: Calendar   },
+  { id: "timeline", key: "views.tabs.timeline", Icon: GanttChart },
+  { id: "graph",    key: "views.tabs.graph",    Icon: Share2     },
+  { id: "reports",  key: "views.tabs.reports",  Icon: BarChart3  },
 ];
 
 export function ProjectIssuePage() {
@@ -72,14 +68,29 @@ export function ProjectIssuePage() {
   const { settings, updateCalendar, updateTimeline } = useViewSettings();
   const { isEnabled } = useProjectFeatures();
 
-  /* 기능 on/off 에 따른 뷰 탭 필터 — core(table/archive) 항상 표시 */
+  /* 기능 on/off 에 따른 뷰 탭 필터 — core(table) 항상 표시. archive/trash 는 사이드바로 이동(PASS4-4). */
   const visibleViews = VIEW_IDS.filter((v) => {
-    if (v.id === "table" || v.id === "archive") return true;
+    if (v.id === "table") return true;
     return isEnabled(v.id as Parameters<typeof isEnabled>[0]);
   });
 
   const currentView   = (searchParams.get("view") as ViewId | null) ?? "table";
   const selectedIssue = searchParams.get("issue");
+
+  /* PASS4: legacy ?view= 4종 redirect — 외부 링크/북마크 보존 */
+  useEffect(() => {
+    const v = searchParams.get("view");
+    if (v === "sprints" || v === "analytics") {
+      const next = new URLSearchParams(searchParams);
+      next.set("view", "reports");
+      setSearchParams(next, { replace: true });
+    } else if (v === "archive") {
+      navigate(`/${workspaceSlug}/projects/${projectId}/archive`, { replace: true });
+    } else if (v === "trash") {
+      navigate(`/${workspaceSlug}/projects/${projectId}/trash`, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const [createOpen, setCreateOpen] = useState(false);
 
@@ -166,7 +177,7 @@ export function ProjectIssuePage() {
 
   return (
     <div className="flex flex-col h-full overflow-hidden relative">
-      {currentView !== "trash" && (
+      {/* PASS4: trash 는 별도 페이지로 이동했으므로 항상 view 탭 표시 */}
       <div className="flex items-center gap-2 px-3 sm:px-5 h-10 border-b border-border shrink-0 overflow-x-auto">
         <div className="flex items-center gap-0.5 bg-muted/40 rounded-lg p-0.5 border border-border shrink-0">
           {visibleViews.map(({ id, key, Icon }) => (
@@ -293,7 +304,6 @@ export function ProjectIssuePage() {
         <div className="flex-1" />
 
       </div>
-      )}
 
       {activeSprint && sprintIssues.length > 0 && (() => {
         // 필드(Field) 는 상태 없는 컨테이너 → 스프린트 집계에서 제외.
@@ -419,34 +429,14 @@ export function ProjectIssuePage() {
           />
         )}
 
-        {currentView === "sprints" && (
-          <SprintView
+        {currentView === "reports" && (
+          <ReportsView
             workspaceSlug={workspaceSlug!}
             projectId={projectId!}
             onIssueClick={openIssue}
           />
         )}
-
-        {currentView === "analytics" && (
-          <AnalyticsView
-            workspaceSlug={workspaceSlug!}
-            projectId={projectId!}
-          />
-        )}
-        {currentView === "archive" && (
-          <ArchiveView
-            workspaceSlug={workspaceSlug!}
-            projectId={projectId!}
-            onIssueClick={openIssue}
-            issueFilter={issueFilter}
-          />
-        )}
-        {currentView === "trash" && (
-          <TrashView
-            workspaceSlug={workspaceSlug!}
-            projectId={projectId!}
-          />
-        )}
+        {/* PASS4-4: archive/trash 는 사이드바 nav 의 standalone 페이지로 이동 */}
       </ViewTransition>
 
       {/* Phase 3.3 — AnimatePresence로 모달 enter/exit 시 framer-motion이 layoutId 매칭 트윈 */}

@@ -125,7 +125,8 @@
       "deleted": "Template deleted",
       "deleteConfirm": "Delete this template?",
       "empty": "No templates yet",
-      "titleLabel": "Title:"
+      "titleLabel": "Title:",
+      "manage": "Manage templates"
     },
     "table": {
       "addIssue": "Add Issue",
@@ -324,6 +325,10 @@
     }
   },
   "project": {
+    "nav": {
+      "archive": "Archive",
+      "trash": "Trash"
+    },
     "create": {
       "title": "Create Project",
       "subtitle": "Organize your work into issues and boards",
@@ -360,11 +365,14 @@
       "tabs": {
         "general": "General",
         "members": "Members",
-        "states": "States",
-        "labels": "Labels",
-        "autoArchive": "Auto Archive",
-        "templates": "Issue Templates",
-        "notifications": "Notifications"
+        "workflow": "Workflow",
+        "automation": "Automation",
+        "notifications": "Integrations"
+      },
+      "integrations": {
+        "title": "Integrations",
+        "subtitle": "Send updates from this project to external destinations (email, webhooks).",
+        "userHint": "Manage notifications you receive in your personal preferences."
       },
       "notifications": {
         "title": "Notification settings",
@@ -898,10 +906,11 @@
       "calendar": "Calendar",
       "timeline": "Timeline",
       "graph": "Graph",
-      "cycles": "Sprints",
-      "analytics": "Analytics",
-      "trash": "Trash",
-      "archive": "Archive"
+      "reports": "Reports"
+    },
+    "reports": {
+      "current": "Current sprint",
+      "history": "History"
     },
     "addIssue": "Add Issue",
     "backlog": {

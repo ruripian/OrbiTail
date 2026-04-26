@@ -26,6 +26,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { TemplatePicker } from "./template-picker";
 import type { State, Category, Sprint, ProjectMember, IssueTemplate } from "@/types";
 
 const schema = z.object({
@@ -97,13 +98,7 @@ export function IssueCreateDialog({
     enabled: open,
   });
 
-  const { data: templates = [] } = useQuery({
-    queryKey: ["templates", workspaceSlug, projectId],
-    queryFn: () => issuesApi.templates.list(workspaceSlug, projectId),
-    enabled: open,
-  });
-
-  /* 템플릿 적용 — 선택 시 폼 필드 자동 채움 */
+  /* PASS4-3bis: 템플릿 fetch 와 applyTemplate 만 남기고 chip UI 는 TemplatePicker 가 대체. */
   const applyTemplate = (tmpl: IssueTemplate) => {
     if (tmpl.title_template) setValue("title", tmpl.title_template);
     if (tmpl.description_html) setValue("description_html", tmpl.description_html);
@@ -218,22 +213,15 @@ export function IssueCreateDialog({
           onKeyDown={(e) => { if (e.key === "Enter" && (e.target as HTMLElement).tagName !== "TEXTAREA") e.preventDefault(); }}
           className="space-y-4"
         >
-          {/* 템플릿 선택 (있을 때만 표시) */}
-          {templates.length > 0 && (
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs text-muted-foreground">{t("issues.create.template")}:</span>
-              {templates.map((tmpl: IssueTemplate) => (
-                <button
-                  key={tmpl.id}
-                  type="button"
-                  onClick={() => applyTemplate(tmpl)}
-                  className="text-xs bg-muted hover:bg-muted/80 px-2.5 py-1 rounded-md transition-colors"
-                >
-                  {tmpl.name}
-                </button>
-              ))}
-            </div>
-          )}
+          {/* PASS4-3bis: TemplatePicker — 검색 가능한 dropdown + "관리" 진입 */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">{t("issues.create.template")}:</span>
+            <TemplatePicker
+              workspaceSlug={workspaceSlug}
+              projectId={projectId}
+              onApply={applyTemplate}
+            />
+          </div>
 
           {/* 제목 */}
           <div className="space-y-1">
