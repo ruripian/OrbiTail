@@ -39,7 +39,10 @@ class DocumentSerializer(serializers.ModelSerializer):
         model = Document
         fields = [
             "id", "space", "parent", "title", "icon_prop",
-            "cover_image", "cover_image_url", "cover_offset_y",
+            "cover_image", "cover_image_url",
+            "cover_offset_x", "cover_offset_y", "cover_zoom", "cover_height",
+            "preferred_width",
+            "font_size_body", "font_size_h3", "font_size_h2", "font_size_h1",
             "content_html", "is_folder",
             "created_by", "created_by_detail",
             "sort_order", "children_count",

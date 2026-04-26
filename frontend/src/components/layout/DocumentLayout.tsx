@@ -4,6 +4,7 @@
  */
 
 import { useState, useMemo, useEffect } from "react";
+import { ResizableAside } from "@/components/ui/resizable-aside";
 import { Outlet, useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -11,7 +12,7 @@ import { toast } from "sonner";
 import {
   FileText, FolderOpen, FilePlus, FolderPlus,
   ChevronRight, ChevronDown,
-  MoreHorizontal, Trash2, Pencil, Link as LinkIcon,
+  MoreHorizontal, Trash2, Pencil, Link as LinkIcon, Settings,
 } from "lucide-react";
 import { documentsApi } from "@/api/documents";
 import { TopBar } from "./TopBar";
@@ -166,7 +167,14 @@ export function DocumentLayout() {
   });
 
   const sidebarContent = (
-    <aside className="w-64 border-r glass-sidebar flex flex-col shrink-0 h-full">
+    <ResizableAside
+      storageKey="sidebar_doc_width"
+      defaultWidth={256}
+      minWidth={256}
+      maxWidth={520}
+      handleSide="right"
+      className="border-r glass-sidebar flex flex-col"
+    >
         <WorkspaceHeader />
         <AppSwitcher />
 
@@ -205,6 +213,16 @@ export function DocumentLayout() {
             </span>
           )}
 
+          {/* 스페이스 설정 */}
+          {activeSpaceId && (
+            <Button
+              variant="ghost" size="icon" className="h-7 w-7 shrink-0"
+              title="스페이스 설정"
+              onClick={() => navigate(`/${workspaceSlug}/documents/space/${activeSpaceId}/settings`)}
+            >
+              <Settings className="h-3.5 w-3.5" />
+            </Button>
+          )}
           {/* + 새 문서 — 템플릿 선택 다이얼로그 */}
           <Button
             variant="ghost"
@@ -343,7 +361,7 @@ export function DocumentLayout() {
           {t("documents.dropToRoot", "여기에 끌어 놓으면 최상위로")}
         </div>
 
-      </aside>
+      </ResizableAside>
   );
 
   return (

@@ -38,6 +38,8 @@ import { common, createLowlight } from "lowlight";
 import { Collaboration } from "@tiptap/extension-collaboration";
 import { yCursorPlugin, defaultSelectionBuilder } from "@tiptap/y-tiptap";
 import type { DocCollab } from "@/hooks/useDocumentWebSocket";
+import { IssueViewEmbed } from "./IssueViewEmbed";
+import { BookmarkCard, ImageGallery } from "./RichBlocks";
 
 /*
  * CollaborationCaret — @tiptap/extension-collaboration-cursor는 v3.0.0에서
@@ -121,7 +123,7 @@ import {
   Info, AlertTriangle, CheckCircle2, XCircle, ListChecks, Table as TableIcon,
   SquareChevronDown, Calendar, Smile,
   Search, X, ArrowUp, ArrowDown, Replace,
-  Sigma, Workflow, Columns2, Columns3, Columns4, Tag, FolderTree,
+  Tag, FolderTree, Kanban, Calendar as CalendarOutline, Link2, ImagePlus,
   AtSign, User as UserIcon, Hash,
   Merge, Split, Trash2,
   ArrowLeftToLine, ArrowRightToLine, ArrowUpToLine, ArrowDownToLine,
@@ -670,8 +672,8 @@ const AttachmentNode = Node.create({
   },
 });
 
-/* ── 문서 컨텍스트 (Subpages, Mention에서 사용) ── */
-const DocEditorContext = createContext<{
+/* ── 문서 컨텍스트 (Subpages, Mention, IssueViewEmbed 등에서 사용) ── */
+export const DocEditorContext = createContext<{
   workspaceSlug?: string;
   spaceId?: string;
   docId?: string;
@@ -1305,39 +1307,46 @@ interface Props {
 }
 
 /* ── 슬래시 명령어 ── */
-interface SlashCmd { title: string; icon: React.ElementType; cmd: (e: any) => void; }
+interface SlashCmd {
+  title: string;
+  icon: React.ElementType;
+  cmd: (e: any) => void;
+  category: "기본" | "리스트" | "블록" | "삽입" | "이슈";
+  description?: string;
+  keywords?: string;  // 검색 매칭 (별칭/영문)
+}
 const CMDS: SlashCmd[] = [
-  { title: "Heading 1", icon: Heading1, cmd: (e) => e.chain().focus().toggleHeading({ level: 1 }).run() },
-  { title: "Heading 2", icon: Heading2, cmd: (e) => e.chain().focus().toggleHeading({ level: 2 }).run() },
-  { title: "Heading 3", icon: Heading3, cmd: (e) => e.chain().focus().toggleHeading({ level: 3 }).run() },
-  { title: "Bullet List", icon: List, cmd: (e) => e.chain().focus().toggleBulletList().run() },
-  { title: "Numbered List", icon: ListOrdered, cmd: (e) => e.chain().focus().toggleOrderedList().run() },
-  { title: "Task List", icon: ListChecks, cmd: (e) => e.chain().focus().toggleTaskList().run() },
-  { title: "Quote", icon: Quote, cmd: (e) => e.chain().focus().toggleBlockquote().run() },
-  { title: "Code Block", icon: CodeSquare, cmd: (e) => e.chain().focus().toggleCodeBlock().run() },
-  { title: "Table", icon: TableIcon, cmd: (e) => e.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run() },
-  { title: "Callout", icon: Info, cmd: (e) => e.chain().focus().setCallout("info").run() },
-  { title: "Toggle", icon: SquareChevronDown, cmd: (e) => e.chain().focus().setToggle().run() },
-  { title: "Divider", icon: Minus, cmd: (e) => e.chain().focus().setHorizontalRule().run() },
-  { title: "Date", icon: Calendar, cmd: (e) => {
+  { title: "Heading 1", icon: Heading1, category: "기본", description: "큰 제목", keywords: "h1 헤더 제목", cmd: (e) => e.chain().focus().toggleHeading({ level: 1 }).run() },
+  { title: "Heading 2", icon: Heading2, category: "기본", description: "중간 제목", keywords: "h2 헤더 제목", cmd: (e) => e.chain().focus().toggleHeading({ level: 2 }).run() },
+  { title: "Heading 3", icon: Heading3, category: "기본", description: "작은 제목", keywords: "h3 헤더 제목", cmd: (e) => e.chain().focus().toggleHeading({ level: 3 }).run() },
+  { title: "Bullet List", icon: List, category: "리스트", description: "글머리 기호 목록", keywords: "bullet 목록 점", cmd: (e) => e.chain().focus().toggleBulletList().run() },
+  { title: "Numbered List", icon: ListOrdered, category: "리스트", description: "번호 매기기 목록", keywords: "numbered 번호 목록", cmd: (e) => e.chain().focus().toggleOrderedList().run() },
+  { title: "Task List", icon: ListChecks, category: "리스트", description: "체크 가능한 할 일", keywords: "task todo 할일 체크", cmd: (e) => e.chain().focus().toggleTaskList().run() },
+  { title: "Quote", icon: Quote, category: "블록", description: "인용문", keywords: "quote 인용", cmd: (e) => e.chain().focus().toggleBlockquote().run() },
+  { title: "Code Block", icon: CodeSquare, category: "블록", description: "코드 블록 (구문 강조)", keywords: "code 코드", cmd: (e) => e.chain().focus().toggleCodeBlock().run() },
+  { title: "Table", icon: TableIcon, category: "블록", description: "표 삽입 (3×3)", keywords: "table 표", cmd: (e) => e.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run() },
+  { title: "Callout", icon: Info, category: "블록", description: "강조 박스", keywords: "callout 강조", cmd: (e) => e.chain().focus().setCallout("info").run() },
+  { title: "Toggle", icon: SquareChevronDown, category: "블록", description: "접기/펼치기", keywords: "toggle 접기", cmd: (e) => e.chain().focus().setToggle().run() },
+  { title: "Divider", icon: Minus, category: "블록", description: "가로 구분선", keywords: "divider hr 구분선", cmd: (e) => e.chain().focus().setHorizontalRule().run() },
+  { title: "Status", icon: Tag, category: "블록", description: "상태 태그", keywords: "status 상태 태그", cmd: (e) => e.chain().focus().insertContent({ type: "status", attrs: { label: "Status", color: "gray" } }).run() },
+  { title: "Subpages", icon: FolderTree, category: "블록", description: "하위 문서 목록", keywords: "subpages 하위문서", cmd: (e) => e.chain().focus().insertContent({ type: "subpages" }).run() },
+  { title: "Date", icon: Calendar, category: "삽입", description: "오늘 날짜", keywords: "date 날짜", cmd: (e) => {
       const d = new Date();
       const locale = (typeof navigator !== "undefined" && navigator.language) || "en-US";
       const txt = d.toLocaleDateString(locale, { year: "numeric", month: "short", day: "numeric" });
       e.chain().focus().insertContent(txt + " ").run();
     }
   },
-  { title: "Emoji", icon: Smile, cmd: (e) => e.chain().focus().insertContent(":").run() },
-  { title: "Mention user", icon: AtSign, cmd: (e) => e.chain().focus().insertContent("@").run() },
-  { title: "Reference doc", icon: FileText, cmd: (e) => e.chain().focus().insertContent("#").run() },
-  { title: "Reference issue", icon: Hash, cmd: (e) => e.chain().focus().insertContent("$").run() },
-  { title: "Math (inline)", icon: Sigma, cmd: (e) => e.chain().focus().insertContent("$x$").run() },
-  { title: "Math (block)",  icon: Sigma, cmd: (e) => e.chain().focus().insertContent("$$x$$").run() },
-  { title: "Mermaid",       icon: Workflow, cmd: (e) => e.chain().focus().insertContent({ type: "mermaid",  attrs: { code: "" } }).run() },
-  { title: "2 Columns",     icon: Columns2, cmd: (e) => (e as any).chain().focus().setColumns(2).run() },
-  { title: "3 Columns",     icon: Columns3, cmd: (e) => (e as any).chain().focus().setColumns(3).run() },
-  { title: "4 Columns",     icon: Columns4, cmd: (e) => (e as any).chain().focus().setColumns(4).run() },
-  { title: "Status",        icon: Tag, cmd: (e) => e.chain().focus().insertContent({ type: "status", attrs: { label: "Status", color: "gray" } }).run() },
-  { title: "Subpages",      icon: FolderTree, cmd: (e) => e.chain().focus().insertContent({ type: "subpages" }).run() },
+  { title: "Emoji", icon: Smile, category: "삽입", description: "이모지 선택", keywords: "emoji 이모지", cmd: (e) => e.chain().focus().insertContent(":").run() },
+  { title: "Mention user", icon: AtSign, category: "삽입", description: "@사용자 멘션", keywords: "mention 멘션 사용자 user", cmd: (e) => e.chain().focus().insertContent("@").run() },
+  { title: "Reference doc", icon: FileText, category: "삽입", description: "#문서 참조", keywords: "doc 문서 참조 reference", cmd: (e) => e.chain().focus().insertContent("#").run() },
+  { title: "Reference issue", icon: Hash, category: "삽입", description: "$이슈 참조", keywords: "issue 이슈 참조 reference", cmd: (e) => e.chain().focus().insertContent("$").run() },
+  { title: "북마크", icon: Link2, category: "삽입", description: "URL을 카드로 표시", keywords: "bookmark link 링크 url", cmd: (e) => e.chain().focus().insertContent({ type: "bookmarkCard", attrs: { url: "" } }).run() },
+  { title: "이미지 갤러리", icon: ImagePlus, category: "블록", description: "여러 이미지를 그리드로", keywords: "gallery image 갤러리 이미지", cmd: (e) => e.chain().focus().insertContent({ type: "imageGallery", attrs: { items: [], columns: 3 } }).run() },
+  /* 이슈 뷰 임베드 */
+  { title: "이슈 보드",    icon: Kanban, category: "이슈", description: "칸반 보드 임베드", keywords: "board kanban 보드", cmd: (e) => e.chain().focus().insertContent({ type: "issueViewEmbed", attrs: { projectId: "", viewMode: "board",    filters: {}, height: 480 } }).run() },
+  { title: "이슈 표",      icon: TableIcon, category: "이슈", description: "이슈 표 임베드", keywords: "table 표", cmd: (e) => e.chain().focus().insertContent({ type: "issueViewEmbed", attrs: { projectId: "", viewMode: "table",    filters: {}, height: 480 } }).run() },
+  { title: "이슈 캘린더",  icon: CalendarOutline, category: "이슈", description: "이슈 캘린더 임베드", keywords: "calendar 캘린더", cmd: (e) => e.chain().focus().insertContent({ type: "issueViewEmbed", attrs: { projectId: "", viewMode: "calendar", filters: {}, height: 560 } }).run() },
 ];
 
 /* ── 이모지 사전 ── */
@@ -1387,8 +1396,15 @@ export function DocumentEditor({ content, onChange, onBlur, placeholder: _placeh
   const [replaceShown, setReplaceShown] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
+  /* 파일 업로드 함수를 노드뷰에 노출 — editor.storage.fileUpload.uploadFn 으로 접근 */
+  const FileUploadStore = useMemo(() => Extension.create({
+    name: "fileUpload",
+    addStorage() { return { uploadFn: onFileUpload }; },
+  }), [onFileUpload]);
+
   const editor = useEditor({
     extensions: [
+      FileUploadStore,
       /* Collaboration 사용 시 StarterKit의 undoRedo를 비활성화 —
          Yjs UndoManager(Collaboration extension 내장)가 이 역할 담당. 중복되면 히스토리 깨짐. */
       StarterKit.configure({
@@ -1427,12 +1443,16 @@ export function DocumentEditor({ content, onChange, onBlur, placeholder: _placeh
         searchResultClass: "doc-search-hit",
         disableRegex: false,
       }),
+      /* Math/Mermaid/Columns: 슬래시에서는 제거했지만 기존 문서 호환을 위해 노드/익스텐션은 유지 */
       MathExtension.configure({ evaluation: false, addInlineMath: true }),
       Mermaid,
       ColumnList,
       Column,
       Status,
       Subpages,
+      IssueViewEmbed,
+      BookmarkCard,
+      ImageGallery,
       Mention,
       IssueCard,
       CommentMark,
@@ -1612,7 +1632,12 @@ export function DocumentEditor({ content, onChange, onBlur, placeholder: _placeh
     return () => { editor.off("transaction", apply); };
   }, [editor, resolvedThreadIds]);
 
-  const filtered = CMDS.filter((c) => !slashFilter || c.title.toLowerCase().includes(slashFilter));
+  /* 검색 매칭: title + keywords (별칭/영문) 모두 사용 */
+  const filtered = CMDS.filter((c) => {
+    if (!slashFilter) return true;
+    const f = slashFilter.toLowerCase();
+    return c.title.toLowerCase().includes(f) || (c.keywords ?? "").toLowerCase().includes(f);
+  });
   const emojiFiltered = EMOJIS.filter((em) => !emojiFilter || em.name.toLowerCase().includes(emojiFilter));
 
   const runSlash = useCallback((cmd: SlashCmd) => {
@@ -2023,18 +2048,46 @@ export function DocumentEditor({ content, onChange, onBlur, placeholder: _placeh
       </div>
 
       {slashOpen && slashPos && filtered.length > 0 && (
-        <div className="fixed z-50 w-56 rounded-xl border bg-popover shadow-xl overflow-hidden" style={{top:slashPos.top,left:slashPos.left}}>
-          <div className="p-1 max-h-64 overflow-y-auto">
-            {filtered.map((c,i) => {
-              const Icon = c.icon;
-              return <button key={c.title}
-                data-slash-item={i}
-                className={cn("flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm text-left transition-colors",
-                  i===slashIdx?"bg-accent text-foreground":"text-muted-foreground hover:bg-accent/50")}
-                onMouseEnter={()=>setSlashIdx(i)}
-                onMouseDown={(e)=>{e.preventDefault();runSlash(c);}}
-              ><Icon className="h-4 w-4 shrink-0"/><span>{c.title}</span></button>;
-            })}
+        <div className="fixed z-50 w-72 rounded-xl border bg-popover shadow-xl overflow-hidden" style={{top:slashPos.top,left:slashPos.left}}>
+          <div className="p-1 max-h-80 overflow-y-auto">
+            {(() => {
+              /* 카테고리 헤더 + 항목 — 검색 중이면 헤더 숨기고 평면 렌더 */
+              const showHeaders = !slashFilter;
+              const out: JSX.Element[] = [];
+              let lastCat: string | null = null;
+              filtered.forEach((c, i) => {
+                if (showHeaders && c.category !== lastCat) {
+                  out.push(
+                    <div key={`h-${c.category}`} className="px-2 pt-2 pb-0.5 text-3xs font-semibold uppercase tracking-wider text-muted-foreground/70">
+                      {c.category}
+                    </div>,
+                  );
+                  lastCat = c.category;
+                }
+                const Icon = c.icon;
+                out.push(
+                  <button
+                    key={c.title}
+                    data-slash-item={i}
+                    className={cn(
+                      "flex items-start gap-2.5 w-full px-3 py-2 rounded-lg text-left transition-colors",
+                      i === slashIdx ? "bg-accent text-foreground" : "text-foreground hover:bg-accent/50",
+                    )}
+                    onMouseEnter={() => setSlashIdx(i)}
+                    onMouseDown={(e) => { e.preventDefault(); runSlash(c); }}
+                  >
+                    <Icon className="h-4 w-4 shrink-0 mt-0.5 text-muted-foreground" />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm">{c.title}</div>
+                      {c.description && (
+                        <div className="text-2xs text-muted-foreground truncate">{c.description}</div>
+                      )}
+                    </div>
+                  </button>,
+                );
+              });
+              return out;
+            })()}
           </div>
         </div>
       )}

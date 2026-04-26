@@ -6,7 +6,8 @@ import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { FileText, FolderOpen, Plus, Loader2, Users, User as UserIcon, Layers } from "lucide-react";
+import { FileText, FolderOpen, Plus, Loader2, Users, User as UserIcon, Layers, Star, Clock, FileSearch } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { documentsApi } from "@/api/documents";
 import { Button } from "@/components/ui/button";
@@ -124,23 +125,26 @@ export default function DocumentsHomePage() {
           </Button>
         </div>
 
-        {isLoading ? (
-          <div className="flex justify-center py-12">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-          </div>
-        ) : spaces.length === 0 ? (
-          <div className="rounded-2xl border border-dashed p-12 text-center">
-            <FolderOpen className="h-12 w-12 text-muted-foreground/30 mx-auto mb-3" />
-            <p className="text-lg text-muted-foreground">{t("documents.empty")}</p>
-            <p className="text-sm text-muted-foreground mt-1">{t("documents.emptyHint")}</p>
-          </div>
-        ) : (
-          <div className="space-y-8">
-            <SpaceSection title={t("documents.projectSpaces")} items={projectSpaces} />
-            <SpaceSection title={t("documents.sharedSpaces")} items={sharedSpaces} />
-            <SpaceSection title={t("documents.personalSpaces")} items={personalSpaces} />
-          </div>
-        )}
+        {/* 탭 */}
+        <DocumentTabs workspaceSlug={workspaceSlug!}>
+          {isLoading ? (
+            <div className="flex justify-center py-12">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : spaces.length === 0 ? (
+            <div className="rounded-2xl border border-dashed p-12 text-center">
+              <FolderOpen className="h-12 w-12 text-muted-foreground/30 mx-auto mb-3" />
+              <p className="text-lg text-muted-foreground">{t("documents.empty")}</p>
+              <p className="text-sm text-muted-foreground mt-1">{t("documents.emptyHint")}</p>
+            </div>
+          ) : (
+            <div className="space-y-8">
+              <SpaceSection title={t("documents.projectSpaces")} items={projectSpaces} />
+              <SpaceSection title={t("documents.sharedSpaces")} items={sharedSpaces} />
+              <SpaceSection title={t("documents.personalSpaces")} items={personalSpaces} />
+            </div>
+          )}
+        </DocumentTabs>
       </div>
 
       {/* 스페이스 생성 다이얼로그 */}
@@ -216,5 +220,111 @@ export default function DocumentsHomePage() {
         </DialogContent>
       </Dialog>
     </PageTransition>
+  );
+}
+
+/* ── 탐색 탭 — 전체 스페이스 / 내가 만든 / 즐겨찾기 / 최근 ── */
+
+type TabKey = "spaces" | "mine" | "bookmarks" | "recent";
+
+function DocumentTabs({ workspaceSlug, children }: { workspaceSlug: string; children: React.ReactNode }) {
+  const navigate = useNavigate();
+  const [tab, setTab] = useState<TabKey>("spaces");
+
+  const { data: mine = [], isLoading: loadingMine } = useQuery({
+    queryKey: ["doc-mine", workspaceSlug],
+    queryFn: () => documentsApi.mine(workspaceSlug),
+    enabled: tab === "mine",
+  });
+  const { data: recent = [], isLoading: loadingRecent } = useQuery({
+    queryKey: ["doc-recent", workspaceSlug],
+    queryFn: () => documentsApi.recent(workspaceSlug),
+    enabled: tab === "recent",
+  });
+  const { data: bookmarks = [], isLoading: loadingBm } = useQuery({
+    queryKey: ["doc-bookmarks", workspaceSlug],
+    queryFn: () => documentsApi.bookmarks.list(workspaceSlug),
+    enabled: tab === "bookmarks",
+  });
+
+  const TABS: { key: TabKey; label: string; icon: typeof FileText }[] = [
+    { key: "spaces", label: "전체 스페이스", icon: FolderOpen },
+    { key: "mine", label: "내가 만든", icon: UserIcon },
+    { key: "bookmarks", label: "즐겨찾기", icon: Star },
+    { key: "recent", label: "최근", icon: Clock },
+  ];
+
+  return (
+    <div>
+      <div className="flex items-center gap-1 mb-6 border-b">
+        {TABS.map(({ key, label, icon: Icon }) => (
+          <button
+            key={key}
+            onClick={() => setTab(key)}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-2 text-sm border-b-2 transition-colors -mb-px",
+              tab === key
+                ? "border-primary text-primary font-medium"
+                : "border-transparent text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <Icon className="h-3.5 w-3.5" />
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "spaces" && children}
+      {tab === "mine" && (
+        <DocList workspaceSlug={workspaceSlug} docs={mine} loading={loadingMine}
+          emptyText="아직 작성한 문서가 없습니다." onNavigate={(d) => navigate(`/${workspaceSlug}/documents/space/${d.space}/${d.id}`)} />
+      )}
+      {tab === "recent" && (
+        <DocList workspaceSlug={workspaceSlug} docs={recent} loading={loadingRecent}
+          emptyText="최근 문서가 없습니다." onNavigate={(d) => navigate(`/${workspaceSlug}/documents/space/${d.space}/${d.id}`)} />
+      )}
+      {tab === "bookmarks" && (
+        <DocList workspaceSlug={workspaceSlug} docs={bookmarks} loading={loadingBm}
+          emptyText="즐겨찾기한 문서가 없습니다. 문서 페이지에서 별 아이콘으로 추가하세요." onNavigate={(d) => navigate(`/${workspaceSlug}/documents/space/${d.space}/${d.id}`)} />
+      )}
+    </div>
+  );
+}
+
+function DocList({ docs, loading, emptyText, onNavigate }: {
+  workspaceSlug: string;
+  docs: Array<{ id: string; title: string; space: string; updated_at: string }>;
+  loading: boolean;
+  emptyText: string;
+  onNavigate: (d: { id: string; space: string }) => void;
+}) {
+  if (loading) {
+    return <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
+  }
+  if (docs.length === 0) {
+    return (
+      <div className="rounded-xl border border-dashed p-10 text-center">
+        <FileSearch className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
+        <p className="text-sm text-muted-foreground">{emptyText}</p>
+      </div>
+    );
+  }
+  return (
+    <ul className="rounded-xl border bg-card divide-y">
+      {docs.map((d) => (
+        <li key={d.id}>
+          <button
+            onClick={() => onNavigate(d)}
+            className="flex items-center gap-3 w-full px-4 py-2.5 text-left hover:bg-accent/40 transition-colors"
+          >
+            <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+            <span className="flex-1 text-sm truncate">{d.title || "제목 없음"}</span>
+            <span className="text-2xs text-muted-foreground tabular-nums">
+              {new Date(d.updated_at).toLocaleDateString()}
+            </span>
+          </button>
+        </li>
+      ))}
+    </ul>
   );
 }

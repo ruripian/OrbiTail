@@ -65,9 +65,12 @@ def check_document_access(user, doc_id: str) -> bool:
     space = doc.space
     if space.space_type == "project" and space.project_id:
         from apps.projects.models import ProjectMember
-        return ProjectMember.objects.filter(
+        if ProjectMember.objects.filter(
             project_id=space.project_id, member=user,
-        ).exists()
+        ).exists():
+            return True
+        # 프로젝트 멤버가 아니어도 space.members 추가 인원이면 허용
+        return space.members.filter(pk=user.pk).exists()
 
     if space.space_type == "personal":
         return space.owner_id == user.id

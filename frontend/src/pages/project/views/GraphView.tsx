@@ -427,10 +427,8 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick }
         const damp = 0.91;
         const fx_ = (tx - n.x) * k;
         const fy_ = (ty - n.y) * k;
-        // "별 띄우기" — 아주 작은 무작위 부유
-        const jitter = (dragRef.current ? 0 : 0.03);
-        n.vx = (n.vx + fx_) * damp + (Math.random() - 0.5) * jitter;
-        n.vy = (n.vy + fy_) * damp + (Math.random() - 0.5) * jitter;
+        n.vx = (n.vx + fx_) * damp;
+        n.vy = (n.vy + fy_) * damp;
         n.x += n.vx;
         n.y += n.vy;
       }
@@ -468,10 +466,10 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick }
     const IDEAL_LEN = 115;
     const SPRING = 0.045;
     const CENTER_PULL = 0.0008 * (5.0 - r * 4.98);   // 0: 0.004 / 100: ~0.000016
-    const DAMPING = 0.84;            // 감쇠 살짝 ↓ → 출렁임 유지
-    const MIN_TEMP = 0.03;
-    const MAX_STEP = 14;             // 한 프레임 이동 폭 ↑ → 드래그/릴리즈 반응 강화
-    const ORBIT_SWIRL = 0.008;
+    const DAMPING = 0.84;
+    const MIN_TEMP = 0;              // 정착 시 완전 정지 — 잔류 떨림 제거
+    const MAX_STEP = 14;
+    const ORBIT_SWIRL = 0;           // 접선 드리프트 제거 — 가만히 있을 때 떨리는 원인
 
     // 질량 — 차이 완화(r^2). 20px ≈ 8.2, 7px = 1 → 8배 정도. 너무 극단적이지 않게.
     const massOf = (id: string): number => {
@@ -565,7 +563,11 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick }
       }
       forceTick((x) => (x + 1) % 1000);
       if (!animating && performance.now() > stopAt) {
-        return; // 루프 중단 → 정지
+        return;
+      }
+      // 충분히 식어 더 이상 움직임이 없으면 — animating 모드여도 루프 종료(헛 프레임 방지).
+      if (!dragRef.current && temperature < 0.001) {
+        return;
       }
       rafRef.current = requestAnimationFrame(step);
     };

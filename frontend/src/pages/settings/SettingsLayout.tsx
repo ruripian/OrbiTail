@@ -1,7 +1,7 @@
 import { NavLink, Outlet, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { User, Lock, SlidersHorizontal, UsersRound, Github, Heart, ExternalLink } from "lucide-react";
+import { User, Lock, SlidersHorizontal, UsersRound, Github, Heart, ExternalLink, FileText, FolderKanban, ShieldAlert } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { workspacesApi } from "@/api/workspaces";
 import { api } from "@/lib/axios";
@@ -66,28 +66,58 @@ export function SettingsLayout() {
           </NavLink>
         ))}
 
+        {/* 워크스페이스 — 모든 사용자에게 보임. 권한 없으면 페이지에서 안내 */}
+        <div className="pt-4 pb-2">
+          <p className="px-2 text-2xs font-semibold uppercase tracking-widest text-muted-foreground">
+            {t("settings.layout.workspace")}
+          </p>
+        </div>
         {canManageWorkspace && (
-          <>
-            <div className="pt-4 pb-2">
-              <p className="px-2 text-2xs font-semibold uppercase tracking-widest text-muted-foreground">
-                {t("settings.layout.workspace")}
-              </p>
-            </div>
-            <NavLink
-              to={`${base}/workspace-members`}
-              className={({ isActive }) =>
-                cn(
-                  "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
-                  isActive
-                    ? "bg-accent text-foreground font-medium"
-                    : "text-muted-foreground hover:bg-accent hover:text-foreground"
-                )
-              }
-            >
-              <UsersRound className="h-4 w-4 shrink-0" />
-              {t("settings.layout.workspaceMembers")}
-            </NavLink>
-          </>
+          <NavLink
+            to={`${base}/workspace-members`}
+            className={({ isActive }) =>
+              cn(
+                "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
+                isActive
+                  ? "bg-accent text-foreground font-medium"
+                  : "text-muted-foreground hover:bg-accent hover:text-foreground"
+              )
+            }
+          >
+            <UsersRound className="h-4 w-4 shrink-0" />
+            {t("settings.layout.workspaceMembers")}
+          </NavLink>
+        )}
+
+        {/* 빠른 이동 — 문서 / 프로젝트 / 관리자. 페이지가 아닌 워크스페이스 영역으로 이동. */}
+        <div className="pt-4 pb-2">
+          <p className="px-2 text-2xs font-semibold uppercase tracking-widest text-muted-foreground">
+            바로 가기
+          </p>
+        </div>
+        <NavLink
+          to={`/${workspaceSlug}/documents`}
+          className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
+        >
+          <FileText className="h-4 w-4 shrink-0" />
+          문서 관리
+        </NavLink>
+        <NavLink
+          to={`/${workspaceSlug}`}
+          end
+          className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
+        >
+          <FolderKanban className="h-4 w-4 shrink-0" />
+          프로젝트 목록
+        </NavLink>
+        {(user?.is_workspace_admin || user?.is_superuser) && (
+          <NavLink
+            to={`/${workspaceSlug}/admin/users`}
+            className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
+          >
+            <ShieldAlert className="h-4 w-4 shrink-0" />
+            관리자 패널
+          </NavLink>
         )}
 
         {/* 하단 — 프로젝트 링크 + 버전 정보 */}

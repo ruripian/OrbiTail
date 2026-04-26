@@ -20,6 +20,8 @@ import { WorkspaceMembersPage } from "@/pages/settings/WorkspaceMembersPage";
 import { AdminLayout } from "@/pages/admin/AdminLayout";
 import { AdminUsersPage } from "@/pages/admin/AdminUsersPage";
 import { AdminWorkspacesPage } from "@/pages/admin/AdminWorkspacesPage";
+import { AdminOrphanSpacesPage } from "@/pages/admin/AdminOrphanSpacesPage";
+import { AdminAttachmentsPage } from "@/pages/admin/AdminAttachmentsPage";
 import { AdminSuperusersPage } from "@/pages/admin/AdminSuperusersPage";
 import { AdminAuditLogPage } from "@/pages/admin/AdminAuditLogPage";
 import { ProjectSettingsLayout } from "@/pages/project/settings/ProjectSettingsLayout";
@@ -42,6 +44,7 @@ import { lazy, Suspense } from "react";
 const DocumentsHomePage = lazy(() => import("@/pages/documents/DocumentsHomePage"));
 const DocumentSpacePage = lazy(() => import("@/pages/documents/DocumentSpacePage"));
 const DocumentExplorerPage = lazy(() => import("@/pages/documents/DocumentExplorerPage"));
+const DocumentSpaceSettingsPage = lazy(() => import("@/pages/documents/DocumentSpaceSettingsPage"));
 const PublicDocumentPage = lazy(() => import("@/pages/public/PublicDocumentPage"));
 
 /**
@@ -192,10 +195,12 @@ export const router = createBrowserRouter([
         element: <AdminLayout />,
         children: [
           { index: true, element: <Navigate to="users" replace /> },
-          { path: "users",      element: <AdminUsersPage /> },
-          { path: "workspaces", element: <AdminWorkspacesPage /> },
-          { path: "superusers", element: <AdminSuperusersPage /> },
-          { path: "audit",      element: <AdminAuditLogPage /> },
+          { path: "users",          element: <AdminUsersPage /> },
+          { path: "orphan-spaces",  element: <AdminOrphanSpacesPage /> },
+          { path: "attachments",    element: <AdminAttachmentsPage /> },
+          { path: "workspaces",     element: <AdminWorkspacesPage /> },
+          { path: "superusers",     element: <AdminSuperusersPage /> },
+          { path: "audit",          element: <AdminAuditLogPage /> },
         ],
       },
 
@@ -231,6 +236,7 @@ export const router = createBrowserRouter([
       { index: true, element: <LazyPage Component={DocumentsHomePage} /> },
       { path: "space/:spaceId", element: <LazyPage Component={DocumentSpacePage} /> },
       { path: "space/:spaceId/explorer", element: <LazyPage Component={DocumentExplorerPage} /> },
+      { path: "space/:spaceId/settings", element: <LazyPage Component={DocumentSpaceSettingsPage} /> },
       { path: "space/:spaceId/:docId", element: <LazyPage Component={DocumentSpacePage} /> },
     ],
   },

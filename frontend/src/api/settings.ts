@@ -12,6 +12,9 @@ export interface UpdatePreferencesPayload {
   language?: string;
   first_day_of_week?: number;
   theme?: "light" | "dark" | "system";
+  ui_font_scale?: number;
+  ui_font_family?: string;
+  ui_font_mono?: string;
 }
 
 export interface ChangePasswordPayload {

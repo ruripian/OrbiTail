@@ -8,6 +8,13 @@ from .views import (
     DocumentIssueLinkListCreateView,
     DocumentIssueLinkDeleteView,
     DocumentSearchView,
+    MyDocumentsView,
+    RecentDocumentsView,
+    BookmarkedDocumentsView,
+    DocumentBookmarkToggleView,
+    OrphanSpaceListView,
+    OrphanSpaceDeleteView,
+    AttachmentSearchView,
     DocumentVersionListCreateView,
     DocumentVersionDetailView,
     DocumentCommentListCreateView,
@@ -73,6 +80,45 @@ urlpatterns = [
         "workspaces/<slug:workspace_slug>/documents/search/",
         DocumentSearchView.as_view(),
         name="document-search",
+    ),
+
+    # 탐색 탭 — 내가 만든 / 최근 / 즐겨찾기
+    path(
+        "workspaces/<slug:workspace_slug>/documents/mine/",
+        MyDocumentsView.as_view(),
+        name="document-mine",
+    ),
+    path(
+        "workspaces/<slug:workspace_slug>/documents/recent/",
+        RecentDocumentsView.as_view(),
+        name="document-recent",
+    ),
+    path(
+        "workspaces/<slug:workspace_slug>/documents/bookmarks/",
+        BookmarkedDocumentsView.as_view(),
+        name="document-bookmarks",
+    ),
+    path(
+        "workspaces/<slug:workspace_slug>/documents/bookmarks/<uuid:doc_id>/",
+        DocumentBookmarkToggleView.as_view(),
+        name="document-bookmark-toggle",
+    ),
+
+    # 워크스페이스 관리자 — 탈퇴자 개인 스페이스 + 첨부 검색
+    path(
+        "workspaces/<slug:workspace_slug>/documents/admin/orphan-spaces/",
+        OrphanSpaceListView.as_view(),
+        name="document-orphan-spaces",
+    ),
+    path(
+        "workspaces/<slug:workspace_slug>/documents/admin/orphan-spaces/<uuid:pk>/",
+        OrphanSpaceDeleteView.as_view(),
+        name="document-orphan-space-delete",
+    ),
+    path(
+        "workspaces/<slug:workspace_slug>/documents/admin/attachments/",
+        AttachmentSearchView.as_view(),
+        name="document-attachment-search",
     ),
 
     # 버전

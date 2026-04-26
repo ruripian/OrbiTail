@@ -6,6 +6,8 @@ import {
   FolderKanban,
   Crown,
   ScrollText,
+  Trash2,
+  Paperclip,
 } from "lucide-react";
 
 import { useAuthStore } from "@/stores/authStore";
@@ -35,10 +37,12 @@ export function AdminLayout() {
   }
 
   const tabs = [
-    { to: "users",       label: t("admin.nav.users"),       icon: UsersIcon,    show: true },
-    { to: "workspaces",  label: t("admin.nav.workspaces"),  icon: FolderKanban, show: isSuper },
-    { to: "superusers",  label: t("admin.nav.superusers"),  icon: Crown,        show: isSuper },
-    { to: "audit",       label: t("admin.nav.audit"),       icon: ScrollText,   show: isSuper },
+    { to: "users",          label: t("admin.nav.users"),        icon: UsersIcon,    show: true },
+    { to: "orphan-spaces",  label: "탈퇴자 스페이스",            icon: Trash2,       show: true },
+    { to: "attachments",    label: "첨부 검색",                  icon: Paperclip,    show: true },
+    { to: "workspaces",     label: t("admin.nav.workspaces"),    icon: FolderKanban, show: isSuper },
+    { to: "superusers",     label: t("admin.nav.superusers"),    icon: Crown,        show: isSuper },
+    { to: "audit",          label: t("admin.nav.audit"),         icon: ScrollText,   show: isSuper },
   ];
 
   return (

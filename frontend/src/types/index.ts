@@ -16,6 +16,9 @@ export interface User {
   language: string;
   first_day_of_week: number;
   theme: "light" | "dark" | "system";
+  ui_font_scale?: number;
+  ui_font_family?: string;
+  ui_font_mono?: string;
   created_at: string;
 }
 
@@ -232,7 +235,15 @@ export interface Document {
   title: string;
   icon_prop: Record<string, unknown> | null;
   cover_image_url?: string | null;
+  cover_offset_x?: number;
   cover_offset_y?: number;
+  cover_zoom?: number;
+  cover_height?: number;
+  preferred_width?: "narrow" | "wide";
+  font_size_body?: number;
+  font_size_h3?: number;
+  font_size_h2?: number;
+  font_size_h1?: number;
   content_html: string;
   is_folder: boolean;
   created_by: string | null;
