@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight, Plus, Trash2, GitBranch, MessageSquare, Activity, Send, Link2, ExternalLink, X, AlertTriangle, Paperclip, Upload, FileText, Image as ImageIcon, Copy, Archive, RotateCcw, Share2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, GitBranch, MessageSquare, Activity, Link2, X, AlertTriangle, Paperclip, Copy, Archive, RotateCcw, Share2 } from "lucide-react";
 import { toast } from "sonner";
 import { issuesApi } from "@/api/issues";
 import { projectsApi } from "@/api/projects";
@@ -13,23 +13,18 @@ import { useProjectPerms } from "@/hooks/useProjectPerms";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { RichTextEditor } from "@/components/editor/RichTextEditor";
-import { AvatarInitials } from "@/components/ui/avatar-initials";
-import { formatLongDate } from "@/utils/date-format";
 import { useParentChain } from "@/hooks/useParentChain";
 import { useIssueRefresh } from "@/hooks/useIssueMutations";
 import { ParentChainBreadcrumb } from "@/components/issues/parent-chain-breadcrumb";
 import { IssueMetaSidebar } from "@/components/issues/IssueMetaSidebar";
-import { PRIORITY_LABEL_KEY } from "@/constants/priority";
-import type { Issue, IssueAttachment } from "@/types";
-
-const fmtDate = (iso: string) => formatLongDate(iso);
-
-/* 파일 크기 포맷 (bytes → 읽기 쉬운 단위) */
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
+import {
+  SubIssuesTab,
+  LinksTab,
+  AttachmentsTab,
+  CommentsTab,
+  ActivityTab,
+} from "./issue-detail/tabs";
+import type { Issue } from "@/types";
 
 type TabId = "sub-issues" | "links" | "nodes" | "attachments" | "comments" | "activity";
 
@@ -45,7 +40,7 @@ interface Props {
 export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: Props = {}) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [, setSearchParams] = useSearchParams();
   const { workspaceSlug, projectId, issueId: paramIssueId } = useParams<{
     workspaceSlug: string;
     projectId: string;
@@ -236,51 +231,7 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
     }
   };
 
-  const [commentText, setCommentText] = useState("");
-
-  const createCommentMutation = useMutation({
-    mutationFn: () =>
-      issuesApi.comments.create(workspaceSlug!, projectId!, issueId!, {
-        comment_html: commentText,
-      }),
-    onSuccess: () => {
-      setCommentText("");
-      qc.invalidateQueries({ queryKey: ["comments", issueId] });
-    },
-    onError: () => toast.error(t("issues.detail.toast.commentCreateFailed")),
-  });
-
-  const deleteCommentMutation = useMutation({
-    mutationFn: (commentId: string) =>
-      issuesApi.comments.delete(workspaceSlug!, projectId!, issueId!, commentId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["comments", issueId] }),
-    onError: () => toast.error(t("issues.detail.toast.commentDeleteFailed")),
-  });
-
-  const [addingLink, setAddingLink] = useState(false);
-  const [linkForm, setLinkForm] = useState({ title: "", url: "" });
-
-  const createLinkMutation = useMutation({
-    mutationFn: () =>
-      issuesApi.links.create(workspaceSlug!, projectId!, issueId!, linkForm),
-    onSuccess: () => {
-      setLinkForm({ title: "", url: "" });
-      setAddingLink(false);
-      qc.invalidateQueries({ queryKey: ["links", issueId] });
-      qc.invalidateQueries({ queryKey: ["issue", issueId] });
-    },
-    onError: () => toast.error(t("issues.detail.toast.linkCreateFailed")),
-  });
-
-  const deleteLinkMutation = useMutation({
-    mutationFn: (linkId: string) =>
-      issuesApi.links.delete(workspaceSlug!, projectId!, issueId!, linkId),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["links", issueId] });
-      qc.invalidateQueries({ queryKey: ["issue", issueId] });
-    },
-    onError: () => toast.error(t("issues.detail.toast.linkDeleteFailed")),
-  });
+  /* PASS5-D — Comments / Links / Attachments / SubIssues mutation 은 각 탭으로 이동 */
 
   /* ── Node link 추가/삭제 ── */
   const [nodeLinkSearch, setNodeLinkSearch] = useState("");
@@ -307,54 +258,7 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
     },
   });
 
-  const uploadAttachmentMutation = useMutation({
-    mutationFn: (file: File) =>
-      issuesApi.attachments.upload(workspaceSlug!, projectId!, issueId!, file),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["attachments", issueId] });
-      qc.invalidateQueries({ queryKey: ["issue", issueId] });
-    },
-    onError: () => toast.error(t("issues.detail.toast.attachmentUploadFailed")),
-  });
-
-  const deleteAttachmentMutation = useMutation({
-    mutationFn: (attachmentId: string) =>
-      issuesApi.attachments.delete(workspaceSlug!, projectId!, issueId!, attachmentId),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["attachments", issueId] });
-      qc.invalidateQueries({ queryKey: ["issue", issueId] });
-    },
-    onError: () => toast.error(t("issues.detail.toast.attachmentDeleteFailed")),
-  });
-
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files) return;
-    Array.from(files).forEach((file) => uploadAttachmentMutation.mutate(file));
-    e.target.value = ""; // 같은 파일 재업로드 허용
-  };
-
-  const [addingSubIssue, setAddingSubIssue] = useState(false);
-  const [subIssueTitle, setSubIssueTitle] = useState("");
-
-  const createSubIssueMutation = useMutation({
-    mutationFn: () => {
-      /* Todo(unstarted) 우선 선택 → default → 첫 번째 */
-      const defaultState = states.find((s) => s.group === "unstarted") ?? states.find((s) => s.default) ?? states[0];
-      return issuesApi.subIssues.create(workspaceSlug!, projectId!, issueId!, {
-        title: subIssueTitle.trim(),
-        priority: "none",
-        ...(defaultState ? { state: defaultState.id } : {}),
-      });
-    },
-    onSuccess: () => {
-      setSubIssueTitle("");
-      setAddingSubIssue(false);
-      refresh(issueId);
-      refreshIssue(issueId!);
-    },
-    onError: () => toast.error(t("issues.detail.toast.subIssueCreateFailed")),
-  });
+  /* PASS5-D — Attachments / SubIssues mutation 은 각 탭으로 이동 */
 
   const [activeTab, setActiveTab] = useState<TabId>("sub-issues");
 
@@ -503,173 +407,25 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
         </div>
 
         {activeTab === "sub-issues" && (
-          <div className="space-y-1.5">
-            {subIssues.map((sub) => (
-              <div
-                key={sub.id}
-                role="button"
-                tabIndex={0}
-                onClick={() => {
-                  if (inPanel) {
-                    setSearchParams((p) => { p.set("issue", sub.id); return p; });
-                  } else {
-                    const viewParam = searchParams.get("view");
-                    const qs = new URLSearchParams();
-                    if (viewParam) qs.set("view", viewParam);
-                    qs.set("issue", sub.id);
-                    navigate(`/${workspaceSlug}/projects/${projectId}/issues?${qs.toString()}`);
-                  }
-                }}
-                className="flex items-center gap-3 px-3 py-2.5 rounded-md border hover:bg-muted/30 transition-colors cursor-pointer"
-              >
-                <span
-                  className="h-2.5 w-2.5 rounded-full shrink-0"
-                  style={{ background: sub.state_detail?.color ?? "#9ca3af" }}
-                />
-                <span className="text-xs font-mono text-muted-foreground shrink-0 w-16">
-                  {workspaceSlug?.toUpperCase().slice(0, 3)}-{sub.sequence_id}
-                </span>
-                <span className="text-sm flex-1 truncate">{sub.title}</span>
-                <span
-                  className="text-xs shrink-0"
-                  style={{ color: `var(--priority-${sub.priority})` }}
-                >
-                  {t(PRIORITY_LABEL_KEY[sub.priority])}
-                </span>
-              </div>
-            ))}
-
-            {readOnly ? null : addingSubIssue ? (
-              <div className="flex items-center gap-2 px-3 py-2.5 border rounded-md">
-                <input
-                  className="flex-1 text-sm bg-transparent outline-none placeholder:text-muted-foreground"
-                  value={subIssueTitle}
-                  onChange={(e) => setSubIssueTitle(e.target.value)}
-                  placeholder={t("issues.detail.subIssues.addPlaceholder")}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && subIssueTitle.trim()) {
-                      createSubIssueMutation.mutate();
-                    }
-                    if (e.key === "Escape") {
-                      setAddingSubIssue(false);
-                      setSubIssueTitle("");
-                    }
-                  }}
-                  onBlur={() => {
-                    /* 바깥 클릭 시 입력값 있으면 생성, 없으면 닫기 */
-                    if (subIssueTitle.trim()) {
-                      createSubIssueMutation.mutate();
-                    } else {
-                      setAddingSubIssue(false);
-                      setSubIssueTitle("");
-                    }
-                  }}
-                  ref={(el) => { if (el) el.focus({ preventScroll: true }); }}
-                />
-                <button
-                  className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-                  onClick={() => {
-                    setAddingSubIssue(false);
-                    setSubIssueTitle("");
-                  }}
-                >
-                  {t("issues.detail.subIssues.cancel")}
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={() => setAddingSubIssue(true)}
-                className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors py-1.5 mt-1"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                {t("issues.detail.subIssues.add")}
-              </button>
-            )}
-          </div>
+          <SubIssuesTab
+            workspaceSlug={workspaceSlug!}
+            projectId={projectId!}
+            issueId={issueId!}
+            subIssues={subIssues}
+            states={states}
+            inPanel={inPanel}
+            readOnly={readOnly}
+          />
         )}
 
         {activeTab === "links" && (
-          <div className="space-y-3">
-            {links.length === 0 && !addingLink && (
-              <p className="text-xs text-muted-foreground py-2">{t("issues.detail.links.empty")}</p>
-            )}
-
-            {links.map((link) => (
-              <div
-                key={link.id}
-                className="flex items-center gap-3 px-3 py-2.5 rounded-md border hover:bg-muted/20 transition-colors group"
-              >
-                <Link2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                <div className="flex-1 min-w-0">
-                  {link.title && (
-                    <p className="text-xs font-medium truncate">{link.title}</p>
-                  )}
-                  <a
-                    href={link.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    className="text-xs text-primary hover:underline flex items-center gap-1 truncate"
-                  >
-                    {link.url}
-                    <ExternalLink className="h-3 w-3 shrink-0" />
-                  </a>
-                </div>
-                <button
-                  className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
-                  onClick={() => deleteLinkMutation.mutate(link.id)}
-                  title={t("common.delete")}
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            ))}
-
-            {readOnly ? null : addingLink ? (
-              <div className="border rounded-md p-3 space-y-2">
-                <input
-                  className="w-full text-xs bg-transparent border-b border-border outline-none pb-1 placeholder:text-muted-foreground"
-                  placeholder={t("issues.detail.links.titlePlaceholder")}
-                  value={linkForm.title}
-                  onChange={(e) => setLinkForm((p) => ({ ...p, title: e.target.value }))}
-                />
-                <input
-                  className="w-full text-xs bg-transparent border-b border-border outline-none pb-1 placeholder:text-muted-foreground"
-                  placeholder={t("issues.detail.links.urlPlaceholder")}
-                  value={linkForm.url}
-                  onChange={(e) => setLinkForm((p) => ({ ...p, url: e.target.value }))}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && linkForm.url.trim()) createLinkMutation.mutate();
-                    if (e.key === "Escape") { setAddingLink(false); setLinkForm({ title: "", url: "" }); }
-                  }}
-                  autoFocus
-                />
-                <div className="flex gap-2 justify-end">
-                  <button
-                    className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-                    onClick={() => { setAddingLink(false); setLinkForm({ title: "", url: "" }); }}
-                  >
-                    {t("issues.detail.links.cancel")}
-                  </button>
-                  <button
-                    className="text-xs text-primary hover:underline disabled:opacity-40"
-                    disabled={!linkForm.url.trim() || createLinkMutation.isPending}
-                    onClick={() => createLinkMutation.mutate()}
-                  >
-                    {t("issues.detail.links.submit")}
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <button
-                onClick={() => setAddingLink(true)}
-                className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors py-1.5"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                {t("issues.detail.links.add")}
-              </button>
-            )}
-          </div>
+          <LinksTab
+            workspaceSlug={workspaceSlug!}
+            projectId={projectId!}
+            issueId={issueId!}
+            links={links}
+            readOnly={readOnly}
+          />
         )}
 
         {activeTab === "nodes" && (
@@ -689,157 +445,28 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
         )}
 
         {activeTab === "attachments" && (
-          <div className="space-y-3">
-            {attachments.length === 0 && (
-              <p className="text-xs text-muted-foreground py-2">{t("issues.detail.attachments.empty")}</p>
-            )}
-
-            {attachments.map((att: IssueAttachment) => {
-              const isImage = att.mime_type.startsWith("image/");
-              return (
-                <div
-                  key={att.id}
-                  className="flex items-center gap-3 px-3 py-2.5 rounded-md border hover:bg-muted/20 transition-colors group"
-                >
-                  {isImage ? (
-                    <ImageIcon className="h-4 w-4 text-blue-500 shrink-0" />
-                  ) : (
-                    <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <a
-                      href={att.file}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs font-medium text-primary hover:underline truncate block"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {att.filename}
-                    </a>
-                    <p className="text-2xs text-muted-foreground">
-                      {formatFileSize(att.size)} · {att.uploaded_by_detail?.display_name} · {fmtDate(att.created_at)}
-                    </p>
-                  </div>
-                  {isImage && (
-                    <a href={att.file} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
-                      <img
-                        src={att.file}
-                        alt={att.filename}
-                        className="h-10 w-10 rounded object-cover border shrink-0"
-                      />
-                    </a>
-                  )}
-                  <button
-                    className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive shrink-0"
-                    onClick={() => deleteAttachmentMutation.mutate(att.id)}
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              );
-            })}
-
-            {!readOnly && (
-              <label className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors py-1.5 cursor-pointer">
-                <Upload className="h-3.5 w-3.5" />
-                {uploadAttachmentMutation.isPending ? t("issues.detail.attachments.uploading") : t("issues.detail.attachments.upload")}
-                <input
-                  type="file"
-                  multiple
-                  className="hidden"
-                  onChange={handleFileUpload}
-                  disabled={uploadAttachmentMutation.isPending}
-                />
-              </label>
-            )}
-          </div>
+          <AttachmentsTab
+            workspaceSlug={workspaceSlug!}
+            projectId={projectId!}
+            issueId={issueId!}
+            attachments={attachments}
+            readOnly={readOnly}
+          />
         )}
 
         {activeTab === "comments" && (
-          <div className="space-y-5">
-            {comments.length === 0 && (
-              <p className="text-xs text-muted-foreground py-2">{t("issues.detail.comments.empty")}</p>
-            )}
-
-            {comments.map((comment) => (
-              <div key={comment.id} className="flex gap-3">
-                <AvatarInitials name={comment.actor_detail?.display_name} avatar={comment.actor_detail?.avatar} size="md" />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-xs font-medium">{comment.actor_detail?.display_name}</span>
-                    <span className="text-xs text-muted-foreground">{fmtDate(comment.created_at)}</span>
-                    {/* 본인 댓글만 삭제 가능 */}
-                    {comment.actor === user?.id && (
-                      <button
-                        className="ml-auto text-muted-foreground hover:text-destructive transition-colors"
-                        onClick={() => deleteCommentMutation.mutate(comment.id)}
-                        title={t("common.delete")}
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </button>
-                    )}
-                  </div>
-                  <p className="text-sm whitespace-pre-wrap">{comment.comment_html}</p>
-                </div>
-              </div>
-            ))}
-
-            {!readOnly && (
-              <div className="flex gap-2 pt-1">
-                <textarea
-                  className="flex-1 text-sm bg-muted/20 border border-border rounded-md px-3 py-2 outline-none resize-none focus:border-primary transition-colors min-h-[72px]"
-                  value={commentText}
-                  onChange={(e) => setCommentText(e.target.value)}
-                  placeholder={t("issues.detail.comments.placeholder")}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && commentText.trim()) {
-                      createCommentMutation.mutate();
-                    }
-                  }}
-                />
-                <Button
-                  size="sm"
-                  disabled={!commentText.trim() || createCommentMutation.isPending}
-                  onClick={() => createCommentMutation.mutate()}
-                  className="self-end"
-                  title={t("issues.detail.comments.submit")}
-                >
-                  <Send className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            )}
-          </div>
+          <CommentsTab
+            workspaceSlug={workspaceSlug!}
+            projectId={projectId!}
+            issueId={issueId!}
+            comments={comments}
+            currentUserId={user?.id}
+            readOnly={readOnly}
+          />
         )}
 
         {activeTab === "activity" && (
-          <div className="space-y-3">
-            {activities.length === 0 && (
-              <p className="text-xs text-muted-foreground py-2">{t("issues.detail.activity.empty")}</p>
-            )}
-            {activities.map((act) => (
-              <div key={act.id} className="flex gap-2 items-start text-xs">
-                <div className="h-5 w-5 rounded-full bg-muted flex items-center justify-center text-2xs font-semibold shrink-0 mt-0.5">
-                  {act.actor_detail?.display_name?.[0]?.toUpperCase() ?? "?"}
-                </div>
-                <div className="flex-1 leading-relaxed">
-                  <span className="font-medium">{act.actor_detail?.display_name}</span>
-                  {" "}
-                  <span className="text-muted-foreground">
-                    <span className="font-medium text-foreground/70">{act.field}</span>
-                    {act.old_value
-                      ? ` ${t("issues.detail.activity.changed")} ${t("issues.detail.activity.from")} "${act.old_value}" `
-                      : ` ${t("issues.detail.activity.changed")} `}
-                    {act.new_value
-                      ? `${t("issues.detail.activity.to")} "${act.new_value}"`
-                      : `(${t("issues.detail.activity.deleted")})`}
-                  </span>
-                  <span className="text-muted-foreground/60 ml-1">
-                    · {fmtDate(act.created_at)}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
+          <ActivityTab activities={activities} />
         )}
       </div>
 
