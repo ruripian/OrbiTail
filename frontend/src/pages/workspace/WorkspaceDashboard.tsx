@@ -23,7 +23,6 @@ import { PageTransition } from "@/components/motion";
 import { Skeleton } from "@/components/ui/skeleton";
 import { OrbiTailOrbit } from "@/components/auth/OrbiTailOrbit";
 import { PriorityGlyph } from "@/components/ui/priority-glyph";
-import { GettingStarted } from "@/components/onboarding/GettingStarted";
 import { useRecentChangesStore } from "@/stores/recentChangesStore";
 import { PRIORITY_LIST, PRIORITY_LABEL_KEY } from "@/constants/priority";
 import type { Issue, State } from "@/types";
@@ -299,13 +298,6 @@ export function WorkspaceDashboard() {
           )}
         </p>
       </div>
-
-      {/* PASS9-1 — 신규 사용자 체크리스트. 모두 완료 또는 dismiss 시 자동 숨김. */}
-      {!isLoading && workspaceSlug && (
-        <div className="mb-5 relative z-10 max-w-xl">
-          <GettingStarted workspaceSlug={workspaceSlug} myIssuesCount={totalCount} />
-        </div>
-      )}
 
       {/* 필터 바 */}
       {!isLoading && totalCount > 0 && (

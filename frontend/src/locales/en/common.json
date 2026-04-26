@@ -1415,13 +1415,5 @@
       "description": "Add a document or sub-folder to get started.",
       "cta": "+ New document"
     }
-  },
-  "onboarding": {
-    "gettingStarted": {
-      "title": "Getting started",
-      "createProject": "Create your first project",
-      "createIssue": "Create your first issue",
-      "inviteMember": "Invite a teammate"
-    }
   }
 }

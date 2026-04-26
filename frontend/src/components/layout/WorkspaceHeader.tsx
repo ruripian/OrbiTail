@@ -8,7 +8,7 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronDown, Layers, Settings, User as UserIcon } from "lucide-react";
+import { ChevronDown, Layers, Settings } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuSeparator, DropdownMenuTrigger,
@@ -55,17 +55,13 @@ export function WorkspaceHeader() {
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-56">
-        <DropdownMenuItem onClick={() => navigate(`/${workspaceSlug}/settings`)}>
-          <UserIcon className="h-3.5 w-3.5 mr-2" />
-          {t("sidebar.personalSettings")}
-        </DropdownMenuItem>
         {canAccessWorkspaceSettings && (
-          <DropdownMenuItem onClick={() => navigate(`/${workspaceSlug}/settings/workspace-members`)}>
+          <DropdownMenuItem onClick={() => navigate(`/${workspaceSlug}/workspace-settings/members`)}>
             <Settings className="h-3.5 w-3.5 mr-2" />
-            {t("sidebar.settings")}
+            {t("sidebar.workspaceSettings", "워크스페이스 설정")}
           </DropdownMenuItem>
         )}
-        <DropdownMenuSeparator />
+        {canAccessWorkspaceSettings && <DropdownMenuSeparator />}
         {/* ?switch=1 쿼리 — 워크스페이스 1개여도 WorkspaceSelectPage 가 자동진입 안 하도록 신호 */}
         <DropdownMenuItem onClick={() => navigate("/?switch=1")}>
           <Layers className="h-3.5 w-3.5 mr-2" />

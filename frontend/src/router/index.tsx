@@ -13,6 +13,7 @@ import { WorkspaceDashboard } from "@/pages/workspace/WorkspaceDashboard";
 import { CreateProjectPage } from "@/pages/project/CreateProjectPage";
 import { ProjectIssuePage } from "@/pages/project/ProjectIssuePage";
 import { SettingsLayout } from "@/pages/settings/SettingsLayout";
+import { WorkspaceSettingsLayout } from "@/pages/settings/WorkspaceSettingsLayout";
 import { ProfilePage } from "@/pages/settings/ProfilePage";
 import { PreferencesPage } from "@/pages/settings/PreferencesPage";
 import { SecurityPage } from "@/pages/settings/SecurityPage";
@@ -176,7 +177,7 @@ export const router = createBrowserRouter([
       { path: "projects/:projectId/archive", element: <ProjectArchivePage /> },
       { path: "projects/:projectId/trash",   element: <ProjectTrashPage /> },
 
-      // 개인 / 워크스페이스 설정
+      // 계정 설정 — 워크스페이스 설정과 분리된 패널
       {
         path: "settings",
         element: <SettingsLayout />,
@@ -185,7 +186,18 @@ export const router = createBrowserRouter([
           { path: "profile",     element: <ProfilePage /> },
           { path: "preferences", element: <PreferencesPage /> },
           { path: "security",    element: <SecurityPage /> },
-          { path: "workspace-members", element: <WorkspaceMembersPage /> },
+          /* legacy redirect — 옛 링크/북마크 보존 */
+          { path: "workspace-members", element: <Navigate to="../../workspace-settings/members" replace /> },
+        ],
+      },
+
+      // 워크스페이스 설정 — 계정 설정과 분리. 멤버 관리, 추후 brand color/integrations 등.
+      {
+        path: "workspace-settings",
+        element: <WorkspaceSettingsLayout />,
+        children: [
+          { index: true, element: <Navigate to="members" replace /> },
+          { path: "members", element: <WorkspaceMembersPage /> },
         ],
       },
 

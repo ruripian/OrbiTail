@@ -1415,13 +1415,5 @@
       "description": "문서나 하위 폴더를 추가해 보세요.",
       "cta": "+ 새 문서"
     }
-  },
-  "onboarding": {
-    "gettingStarted": {
-      "title": "시작하기",
-      "createProject": "첫 프로젝트 만들기",
-      "createIssue": "첫 이슈 만들기",
-      "inviteMember": "팀원 초대하기"
-    }
   }
 }

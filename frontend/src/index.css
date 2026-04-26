@@ -254,6 +254,12 @@
     outline-offset: 2px;
     border-radius: var(--radius);
   }
+  /* 문서 에디터(.ProseMirror)는 contenteditable 이라 [tabindex] 매처에 걸림 →
+     글로벌 포커스 ring 이 콘텐츠 외곽에 그려져 산만해 보임. 명시적으로 제거. */
+  .ProseMirror:focus-visible,
+  .ProseMirror-focused {
+    outline: none !important;
+  }
 }
 
 /* 글라스 유틸리티 */

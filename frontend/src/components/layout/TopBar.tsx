@@ -2,8 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Search, Settings, LogOut, User, Sun, Moon, Bell, CheckCheck, MessageSquare, UserPlus, RefreshCw, Menu, ShieldAlert, ChevronsUpDown, Check, Type } from "lucide-react";
-import { ViewSettingsPopover } from "./ViewSettingsPopover";
+import { Search, Settings, LogOut, User, Sun, Moon, Bell, CheckCheck, MessageSquare, UserPlus, RefreshCw, Menu, ShieldAlert, ChevronsUpDown, Check } from "lucide-react";
 import { motion } from "framer-motion";
 import { useMotion } from "@/lib/motion-provider";
 import { useAuthStore } from "@/stores/authStore";
@@ -34,7 +33,6 @@ export function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
   const location = useLocation();
   const isDocumentMode = location.pathname.includes("/documents");
   const [searchOpen, setSearchOpen] = useState(false);
-  const [viewSettingsOpen, setViewSettingsOpen] = useState(false);
   const qc = useQueryClient();
   const { isRich } = useMotion();
 
@@ -339,14 +337,6 @@ export function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
                 <Settings className="h-4 w-4" />
                 {t("topbar.preferences")}
               </DropdownMenuItem>
-              <DropdownMenuItem
-                onSelect={(e) => { e.preventDefault(); setViewSettingsOpen(true); }}
-                className="cursor-pointer rounded-lg gap-2.5 px-3 py-2"
-              >
-                <Type className="h-4 w-4" />
-                보기 설정
-              </DropdownMenuItem>
-
               {(user.is_superuser || user.is_workspace_admin) && (
                 <>
                   <DropdownMenuSeparator className="my-1" />
@@ -373,7 +363,6 @@ export function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
           </DropdownMenu>
         )}
       </div>
-      <ViewSettingsPopover open={viewSettingsOpen} onOpenChange={setViewSettingsOpen} />
     </header>
   );
 }
