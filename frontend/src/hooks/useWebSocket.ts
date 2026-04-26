@@ -18,12 +18,15 @@
 
 import { useEffect, useRef, useCallback, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useRecentChangesStore } from "@/stores/recentChangesStore";
 
 interface WebSocketEvent {
   type: string;
   issue_id?: string;
   project_id?: string;
   doc_id?: string;
+  /** Phase 3.4 — 변경자 표시 색 (백엔드가 보내면 strip 색으로 사용) */
+  actor_color?: string;
   [key: string]: unknown;
 }
 
@@ -104,8 +107,14 @@ export function useWebSocket(workspaceSlug: string | undefined): WsStatus {
       switch (event.type) {
         case "issue.updated":
         case "issue.created":
-        case "issue.deleted":
         case "issue.archived":
+          invalidateIssueQueries(event);
+          // Phase 3.4 — 5초간 strip 표시. 변경자 색은 backend payload에서.
+          if (event.issue_id) {
+            useRecentChangesStore.getState().markChanged(event.issue_id, event.actor_color);
+          }
+          break;
+        case "issue.deleted":
         case "issue.bulk_updated":
         case "issue.bulk_deleted":
           invalidateIssueQueries(event);

@@ -104,6 +104,8 @@ const config: Config = {
         sans:    ["var(--font-sans)"],
         mono:    ["var(--font-mono)"],
         heading: ["var(--font-heading)"],
+        /* Phase 3.2 — display serif. font-display 클래스로 사용 (auth/dashboard/empty/onboarding hero) */
+        display: ["var(--font-display)"],
       },
       fontSize: {
         /*

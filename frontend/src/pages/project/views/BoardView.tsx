@@ -209,9 +209,13 @@ export function BoardView({ workspaceSlug, projectId, onIssueClick, issueFilter,
                       ) : (
                         <span className="text-2xs text-muted-foreground/50">{t("issues.picker.none")}</span>
                       )}
-                      <span className="text-2xs text-muted-foreground/60 font-mono">
+                      {/* Phase 3.3 — IssueDetailPage의 issueRef와 같은 layoutId. 모달 열림 시 시각적으로 이어짐. */}
+                      <motion.span
+                        layoutId={`issue-ref-${issue.id}`}
+                        className="text-2xs text-muted-foreground/60 font-mono"
+                      >
                         {issue.sequence_id}
-                      </span>
+                      </motion.span>
                     </div>
                   </div>
                   </HoverLift>

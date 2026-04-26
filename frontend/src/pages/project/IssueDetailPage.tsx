@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
+import { motion } from "framer-motion";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight, Plus, Trash2, GitBranch, MessageSquare, Activity, Send, Link2, ExternalLink, X, AlertTriangle, Paperclip, Upload, FileText, Image as ImageIcon, Copy, Archive, RotateCcw, Share2 } from "lucide-react";
 import { toast } from "sonner";
@@ -418,7 +419,10 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
           />
         )}
 
-        <p className="text-xs font-mono text-muted-foreground mb-2">{issueRef}</p>
+        {/* Phase 3.3 — shared layoutId. 리스트/카드의 sequence_id span과 매칭되어 자연스럽게 이어짐 */}
+        <motion.p layoutId={`issue-ref-${issue.id}`} className="text-xs font-mono text-muted-foreground mb-2">
+          {issueRef}
+        </motion.p>
 
         {isArchived && (
           <div className="flex items-center gap-2 mb-3 px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-600 dark:text-amber-400">

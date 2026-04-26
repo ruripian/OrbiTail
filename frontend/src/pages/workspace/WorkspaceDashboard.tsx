@@ -22,6 +22,8 @@ import {
 import { PageTransition } from "@/components/motion";
 import { Skeleton } from "@/components/ui/skeleton";
 import { OrbiTailOrbit } from "@/components/auth/OrbiTailOrbit";
+import { SprintProgressOrbit } from "@/components/ui/orbit-glyph";
+import { useRecentChangesStore } from "@/stores/recentChangesStore";
 import { PRIORITY_COLOR, PRIORITY_LIST, PRIORITY_LABEL_KEY } from "@/constants/priority";
 import type { Issue, State } from "@/types";
 
@@ -104,10 +106,15 @@ function formatDateRange(start: string | null, end: string | null): string | nul
 
 function IssueRow({ issue, workspaceSlug }: { issue: Issue; workspaceSlug: string }) {
   const dateRange = formatDateRange(issue.start_date, issue.due_date);
+  // Phase 3.4 — 5초 동안 strip 표시. selector로 구독해서 만료 시 자동 리렌더.
+  const isRecent = useRecentChangesStore((s) => !!s.recent[issue.id]);
+  const recentColor = useRecentChangesStore((s) => s.recent[issue.id]?.color);
 
   return (
     <Link
       to={`/${workspaceSlug}/projects/${issue.project}/issues?issue=${issue.id}`}
+      data-recently-changed={isRecent ? "true" : undefined}
+      style={isRecent && recentColor ? ({ ["--recent-color" as never]: recentColor } as React.CSSProperties) : undefined}
       className="flex items-center gap-3 px-4 sm:px-5 py-3.5 hover:bg-accent/50 transition-colors group"
     >
       <span className="text-2xs font-semibold text-muted-foreground shrink-0 bg-muted/60 px-2 py-0.5 rounded-md truncate max-w-[120px]">
@@ -285,19 +292,34 @@ export function WorkspaceDashboard() {
         <OrbiTailOrbit size={1000} strokeW={4} offsetY={-60} position="absolute" idPrefix="home-orb" canvasMultiplier={2.2} />
       </div>
 
-      {/* 인사 섹션 */}
-      <div className="mb-8 relative z-10">
-        <h1 className="text-3xl sm:text-4xl font-bold text-foreground tracking-tight">
-          {t(getGreetingKey())}, <span className="text-primary">{user?.display_name ?? t("dashboard.there")}</span>
-        </h1>
-        <p className="mt-2 text-base text-muted-foreground">
-          {formatDate()} · {formatTime()}
-          {!isLoading && totalCount > 0 && (
-            <span className="ml-3 text-foreground font-medium">
-              · {t("dashboard.assignedCount", { count: totalCount })}
-            </span>
-          )}
-        </p>
+      {/* 인사 섹션 — Phase 3.2 display serif + 3.1 SprintProgressOrbit */}
+      <div className="mb-8 relative z-10 flex items-start justify-between gap-6">
+        <div>
+          <h1 className="font-display text-3xl sm:text-4xl font-semibold text-foreground tracking-tight">
+            {t(getGreetingKey())}, <span className="text-primary">{user?.display_name ?? t("dashboard.there")}</span>
+          </h1>
+          <p className="mt-2 text-base text-muted-foreground">
+            {formatDate()} · {formatTime()}
+            {!isLoading && totalCount > 0 && (
+              <span className="ml-3 text-foreground font-medium">
+                · {t("dashboard.assignedCount", { count: totalCount })}
+              </span>
+            )}
+          </p>
+        </div>
+        {/* 진행 중 비율 시각화 — started / totalCount */}
+        {!isLoading && totalCount > 0 && (() => {
+          const started = myIssues.filter((i) => (i.state_detail as State | null)?.group === "started").length;
+          const ratio = started / totalCount;
+          return (
+            <div className="hidden sm:flex flex-col items-center text-primary">
+              <SprintProgressOrbit ratio={ratio} size={88} label={t("dashboard.assignedCount", { count: totalCount })} />
+              <span className="text-2xs uppercase tracking-widest text-muted-foreground mt-1">
+                {Math.round(ratio * 100)}% in progress
+              </span>
+            </div>
+          );
+        })()}
       </div>
 
       {/* 필터 바 */}

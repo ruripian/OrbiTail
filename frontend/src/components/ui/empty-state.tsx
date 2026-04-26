@@ -1,5 +1,6 @@
 import { type ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import { OrbitGlyph } from "./orbit-glyph";
 
 /**
  * EmptyState — 리스트/뷰가 비어있을 때 보여주는 표준 패턴 (Phase 2.7).
@@ -24,10 +25,11 @@ export function EmptyState({ icon, title, description, cta, className }: EmptySt
   return (
     <div className={cn("flex flex-col items-center justify-center text-center px-6 py-12 gap-4", className)}>
       <div className="text-muted-foreground/70">
-        {icon ?? <OrbitGlyph />}
+        {icon ?? <OrbitGlyph size={44} />}
       </div>
       <div className="space-y-1.5 max-w-sm">
-        <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+        {/* Phase 3.2 — display serif (Fraunces fallback Georgia) */}
+        <h3 className="font-display text-base font-semibold text-foreground">{title}</h3>
         {description && (
           <p className="text-xs text-muted-foreground leading-relaxed">{description}</p>
         )}
@@ -37,23 +39,3 @@ export function EmptyState({ icon, title, description, cta, className }: EmptySt
   );
 }
 
-/** 작은 정적 행성 — 큰 OrbitTail 애니메이션의 "조용한" variant */
-function OrbitGlyph() {
-  return (
-    <svg width="44" height="44" viewBox="0 0 44 44" fill="none" aria-hidden>
-      {/* outer orbit ring */}
-      <ellipse
-        cx="22" cy="22" rx="18" ry="7"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1"
-        opacity="0.5"
-        transform="rotate(-20 22 22)"
-      />
-      {/* planet */}
-      <circle cx="22" cy="22" r="6" fill="currentColor" opacity="0.85" />
-      {/* moon */}
-      <circle cx="36" cy="18" r="2" fill="currentColor" opacity="0.7" />
-    </svg>
-  );
-}

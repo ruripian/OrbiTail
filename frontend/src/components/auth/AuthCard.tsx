@@ -84,7 +84,8 @@ export function AuthCardHeader({ subtitle }: { subtitle: string }) {
             className="opacity-15"
           />
         </svg>
-        <h1 className="text-xl font-bold tracking-widest text-foreground">
+        {/* Phase 3.2 — display serif */}
+        <h1 className="font-display text-xl font-semibold tracking-wide text-foreground">
           {t("brand.name")}
         </h1>
       </div>

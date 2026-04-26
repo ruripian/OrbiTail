@@ -33,6 +33,9 @@
   --font-sans:    "Pretendard", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono:    "JetBrains Mono", "Fira Code", "Cascadia Code", ui-monospace, monospace;
   --font-heading: "Pretendard", -apple-system, sans-serif;
+  /* Phase 3.2 — Display serif. Fraunces variable 파일을 frontend/font/에 추가하면
+     자동으로 활성화. 없으면 system serif로 fallback (Georgia / Times). */
+  --font-display: "Fraunces", "Georgia", "Cambria", "Times New Roman", serif;
 
   /* ── Motion tokens — Phase 1 — duration 3-tier + 3 easing curves ──
      모든 transition/animation은 이 토큰을 참조한다.
@@ -1530,6 +1533,30 @@ body.hide-dots::before { display: none; }
 [data-motion="minimal"] body::before { animation: none !important; }
 [data-motion="minimal"] .orbitail-orbit circle { animation: none !important; }
 [data-motion="minimal"] .orbitail-orbit animateMotion { display: none; }
+
+/* Phase 3.4 — 실시간 변경 strip
+   다른 사용자가 이슈를 수정하면 useWebSocket이 recentChangesStore에 5초 등록.
+   해당 row/카드는 data-recently-changed 속성을 받아 좌측 4px strip + scaleY 펄스. */
+[data-recently-changed] {
+  position: relative;
+}
+[data-recently-changed]::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--recent-color, hsl(var(--primary)));
+  border-radius: 99px;
+  transform-origin: center;
+  animation: pulse-strip 0.4s var(--ease-smooth) forwards;
+  pointer-events: none;
+}
+@keyframes pulse-strip {
+  from { opacity: 0; transform: scaleY(0.3); }
+  to   { opacity: 1; transform: scaleY(1); }
+}
 
 /* 활성 탭 하단 그라데이션 라인 */
 .tab-active-line {

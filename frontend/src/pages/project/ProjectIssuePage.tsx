@@ -21,6 +21,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { AnimatePresence } from "framer-motion";
 import { IssueCreateDialog } from "@/components/issues/IssueCreateDialog";
 import { IssueDetailPanel } from "./IssueDetailPanel";
 import { TableView }    from "./views/TableView";
@@ -443,9 +444,12 @@ export function ProjectIssuePage() {
         )}
       </ViewTransition>
 
-      {selectedIssue && (
-        <IssueDetailPanel issueId={selectedIssue} onClose={closeIssue} />
-      )}
+      {/* Phase 3.3 — AnimatePresence로 모달 enter/exit 시 framer-motion이 layoutId 매칭 트윈 */}
+      <AnimatePresence>
+        {selectedIssue && (
+          <IssueDetailPanel key={selectedIssue} issueId={selectedIssue} onClose={closeIssue} />
+        )}
+      </AnimatePresence>
 
       <IssueCreateDialog
         open={createOpen}
