@@ -38,6 +38,18 @@ interface WebSocketEvent {
 
 export type WsStatus = "connecting" | "connected" | "disconnected";
 
+/* 모듈 단위 WS 참조 — useProjectPresence 같이 외부에서 메시지를 보내야 할 때 사용.
+   여러 곳에서 동시에 useWebSocket 을 호출하지 않는다는 가정(앱당 1개) 하에 안전. */
+let activeWs: WebSocket | null = null;
+
+export function sendWsMessage(payload: unknown): boolean {
+  if (activeWs && activeWs.readyState === WebSocket.OPEN) {
+    activeWs.send(JSON.stringify(payload));
+    return true;
+  }
+  return false;
+}
+
 export function useWebSocket(workspaceSlug: string | undefined): WsStatus {
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -59,6 +71,7 @@ export function useWebSocket(workspaceSlug: string | undefined): WsStatus {
       setStatus("connecting");
       const ws = new WebSocket(url);
       wsRef.current = ws;
+      activeWs = ws;
 
       ws.onopen = () => {
         setStatus("connected");
@@ -79,6 +92,7 @@ export function useWebSocket(workspaceSlug: string | undefined): WsStatus {
 
       ws.onclose = (e) => {
         wsRef.current = null;
+        if (activeWs === ws) activeWs = null;
         setStatus("disconnected");
         if (e.code !== 1000) {
           reconnectTimer.current = setTimeout(connect, 5000);
@@ -178,9 +192,10 @@ export function useWebSocket(workspaceSlug: string | undefined): WsStatus {
           break;
 
         case "presence.update":
-          // PASS10 — 워크스페이스 접속자 목록 갱신
+          // scope 별 접속자 갱신. event.scope 는 null(전역) 또는 'project:<id>' 등.
           if (Array.isArray(event.users)) {
-            usePresenceStore.getState().setUsers(event.users as PresenceUser[]);
+            const scope = (event.scope ?? null) as string | null;
+            usePresenceStore.getState().setScopeUsers(scope, event.users as PresenceUser[]);
           }
           break;
 
@@ -202,6 +217,7 @@ export function useWebSocket(workspaceSlug: string | undefined): WsStatus {
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
       if (wsRef.current) {
         wsRef.current.close(1000);
+        if (activeWs === wsRef.current) activeWs = null;
         wsRef.current = null;
       }
       // 워크스페이스 전환 시 presence 초기화 — 다음 연결의 update 가 다시 채워준다

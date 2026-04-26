@@ -1,19 +1,19 @@
 import { useAuthStore } from "@/stores/authStore";
-import { usePresenceStore } from "@/stores/presenceStore";
+import { usePresenceStore, selectScopeUsers } from "@/stores/presenceStore";
 import { AvatarInitials } from "@/components/ui/avatar-initials";
 
 /**
- * PresenceStack — 워크스페이스에 현재 접속 중인 다른 사용자 아바타 stack (PASS10).
+ * PresenceStack — 특정 scope (예: 프로젝트) 에 현재 접속 중인 다른 사용자 아바타 stack.
  *
- * useWebSocket 이 서버 presence.update 를 받으면 store 갱신 → 자동 리렌더.
- * 본인은 표시 X. 최대 5명 + "+N more".
+ * scope prop 으로 어느 페이지의 presence 를 보여줄지 지정.
+ * 본인 제외, 최대 5명 + "+N more".
  */
 
 const MAX_VISIBLE = 5;
 
-export function PresenceStack() {
+export function PresenceStack({ scope }: { scope: string | null }) {
   const me = useAuthStore((s) => s.user);
-  const users = usePresenceStore((s) => s.users);
+  const users = usePresenceStore(selectScopeUsers(scope));
 
   /* 본인 제외 */
   const others = users.filter((u) => u.id !== me?.id);

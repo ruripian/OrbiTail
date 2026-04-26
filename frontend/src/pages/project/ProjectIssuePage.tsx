@@ -36,6 +36,8 @@ const GraphView    = lazy(() => import("./views/GraphView").then((m) => ({ defau
 import { useViewSettings } from "@/hooks/useViewSettings";
 import { useProjectFeatures } from "@/hooks/useProjectFeatures";
 import { ViewTransition } from "@/components/motion";
+import { usePresenceScope } from "@/hooks/usePresenceScope";
+import { PresenceStack } from "@/components/layout/PresenceStack";
 import type { Category, Sprint } from "@/types";
 
 /* PASS4-2/4: sprints+analytics → reports, archive/trash → 사이드바 */
@@ -60,6 +62,9 @@ export function ProjectIssuePage() {
     categoryId?:   string;
     sprintId?:     string;
   }>();
+
+  /* 이 프로젝트를 보고 있다는 신호를 서버에 전달 — 다른 멤버에게 presence stack 으로 보임 */
+  usePresenceScope(projectId ? `project:${projectId}` : null);
 
   /* 카테고리/스프린트 컨텍스트 — 하위 뷰에 필터로 전달 */
   const issueFilter = {
@@ -241,6 +246,9 @@ export function ProjectIssuePage() {
         {/* 스프린트 필터는 제거됨 — 스프린트 컨텍스트는 사이드바의 스프린트 메뉴 / Reports 뷰에서 다룸 */}
 
         <div className="flex-1" />
+
+        {/* 이 프로젝트를 보고 있는 다른 멤버 — 본인 제외 */}
+        {projectId && <PresenceStack scope={`project:${projectId}`} />}
 
       </div>
 

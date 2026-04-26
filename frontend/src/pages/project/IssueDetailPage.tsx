@@ -18,6 +18,7 @@ import { useIssueRefresh } from "@/hooks/useIssueMutations";
 import { ParentChainBreadcrumb } from "@/components/issues/parent-chain-breadcrumb";
 import { IssueMetaSidebar } from "@/components/issues/IssueMetaSidebar";
 import { QUERY_TIERS } from "@/lib/query-defaults";
+import { usePresenceScope } from "@/hooks/usePresenceScope";
 import {
   SubIssuesTab,
   LinksTab,
@@ -48,6 +49,11 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
     issueId: string;
   }>();
   const issueId = issueIdOverride ?? paramIssueId;
+
+  /* 이슈 상세도 같은 프로젝트의 presence 에 잡히도록 같은 scope 사용.
+     이슈별 별도 scope 가 아닌 프로젝트 단위로 합쳐 노출 — 프로젝트 활동의 일부로 보임. */
+  usePresenceScope(projectId ? `project:${projectId}` : null);
+
   const user = useAuthStore((s) => s.user);
   const { perms } = useProjectPerms();
   const pushUndo = useUndoStore((s) => s.push);

@@ -24,28 +24,31 @@ from apps.accounts.models import User
 PRESENCE_TTL_SEC = 60
 
 
-def _presence_key(workspace_slug):
+def _presence_key(workspace_slug, scope=None):
+    """scope 가 None 이면 워크스페이스 전역, 아니면 'project:{id}' 같은 서브스코프."""
+    if scope:
+        return f"presence:{workspace_slug}:{scope}"
     return f"presence:{workspace_slug}"
 
 
-def _presence_add(workspace_slug, user_id):
+def _presence_add(workspace_slug, user_id, scope=None):
     """사용자를 presence ZSET 에 추가 (score=만료 시각)."""
     conn = get_redis_connection("default")
-    key = _presence_key(workspace_slug)
+    key = _presence_key(workspace_slug, scope)
     expires_at = time.time() + PRESENCE_TTL_SEC
     conn.zadd(key, {str(user_id): expires_at})
     conn.expire(key, PRESENCE_TTL_SEC * 2)  # ZSET 자체 garbage collection 안전망
 
 
-def _presence_remove(workspace_slug, user_id):
+def _presence_remove(workspace_slug, user_id, scope=None):
     conn = get_redis_connection("default")
-    conn.zrem(_presence_key(workspace_slug), str(user_id))
+    conn.zrem(_presence_key(workspace_slug, scope), str(user_id))
 
 
-def _presence_list_ids(workspace_slug):
+def _presence_list_ids(workspace_slug, scope=None):
     """현재 접속 중인 user_id 리스트. 만료된 항목은 ZSET 에서 즉시 제거."""
     conn = get_redis_connection("default")
-    key = _presence_key(workspace_slug)
+    key = _presence_key(workspace_slug, scope)
     now = time.time()
     conn.zremrangebyscore(key, 0, now)
     raw = conn.zrange(key, 0, -1)
@@ -53,9 +56,9 @@ def _presence_list_ids(workspace_slug):
 
 
 @database_sync_to_async
-def _presence_users(workspace_slug):
+def _presence_users(workspace_slug, scope=None):
     """presence 사용자 상세 — display_name + avatar 만 가볍게 반환."""
-    ids = _presence_list_ids(workspace_slug)
+    ids = _presence_list_ids(workspace_slug, scope)
     if not ids:
         return []
     users = User.objects.filter(id__in=ids).only("id", "display_name", "avatar")
@@ -99,15 +102,22 @@ class WorkspaceConsumer(AsyncJsonWebsocketConsumer):
 
         # Presence: 본인 등록 + 워크스페이스 전체에 갱신된 목록 broadcast
         self.user_id = str(user.id)
+        # current_scope: 사용자가 현재 보고 있는 서브 페이지 (예: 'project:<id>').
+        # None 이면 전역 워크스페이스(=특정 페이지 안 봄). 프론트가 페이지 mount 시 scope 셋.
+        self.current_scope = None
         await database_sync_to_async(_presence_add)(self.workspace_slug, self.user_id)
-        await self._broadcast_presence()
+        await self._broadcast_presence(None)
 
     async def disconnect(self, close_code):
         if hasattr(self, "group_name"):
             await self.channel_layer.group_discard(self.group_name, self.channel_name)
         if hasattr(self, "user_id"):
             await database_sync_to_async(_presence_remove)(self.workspace_slug, self.user_id)
-            await self._broadcast_presence()
+            await self._broadcast_presence(None)
+            scope = getattr(self, "current_scope", None)
+            if scope:
+                await database_sync_to_async(_presence_remove)(self.workspace_slug, self.user_id, scope)
+                await self._broadcast_presence(scope)
 
     async def receive_json(self, content, **kwargs):
         msg_type = content.get("type")
@@ -116,16 +126,47 @@ class WorkspaceConsumer(AsyncJsonWebsocketConsumer):
             # ping 은 30s 주기 — presence heartbeat 도 동시에 갱신 (별도 메시지 줄이려고)
             if hasattr(self, "user_id"):
                 await database_sync_to_async(_presence_add)(self.workspace_slug, self.user_id)
+                if self.current_scope:
+                    await database_sync_to_async(_presence_add)(
+                        self.workspace_slug, self.user_id, self.current_scope,
+                    )
         elif msg_type == "presence.heartbeat":
             if hasattr(self, "user_id"):
                 await database_sync_to_async(_presence_add)(self.workspace_slug, self.user_id)
+                if self.current_scope:
+                    await database_sync_to_async(_presence_add)(
+                        self.workspace_slug, self.user_id, self.current_scope,
+                    )
+        elif msg_type == "presence.scope":
+            # 프론트가 페이지에 들어가거나 떠날 때 scope 변경 알림.
+            # body: {"scope": "project:<id>"} 또는 {"scope": null} (clear).
+            new_scope = content.get("scope") or None
+            if not hasattr(self, "user_id"):
+                return
+            old_scope = self.current_scope
+            if old_scope == new_scope:
+                return
+            if old_scope:
+                await database_sync_to_async(_presence_remove)(
+                    self.workspace_slug, self.user_id, old_scope,
+                )
+                await self._broadcast_presence(old_scope)
+            self.current_scope = new_scope
+            if new_scope:
+                await database_sync_to_async(_presence_add)(
+                    self.workspace_slug, self.user_id, new_scope,
+                )
+                await self._broadcast_presence(new_scope)
 
-    async def _broadcast_presence(self):
-        """현재 presence 목록을 워크스페이스 그룹에 broadcast."""
-        users = await _presence_users(self.workspace_slug)
+    async def _broadcast_presence(self, scope):
+        """presence 목록을 워크스페이스 그룹에 broadcast.
+        scope=None 이면 전역 (현재 프론트는 안 쓰지만 호환 유지).
+        scope='project:<id>' 등이면 클라이언트가 자기 scope 와 매칭해서 표시.
+        """
+        users = await _presence_users(self.workspace_slug, scope)
         await self.channel_layer.group_send(
             self.group_name,
-            {"type": "presence.update", "users": users},
+            {"type": "presence.update", "scope": scope, "users": users},
         )
 
     async def presence_update(self, event):
