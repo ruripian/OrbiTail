@@ -44,6 +44,8 @@ export function CategoryPicker({ categories, currentId, onChange, className, dis
           onClick={(e) => e.stopPropagation()}
           disabled={disabled}
           title={disabled ? disabledReason : undefined}
+          aria-label={`${t("issues.create.category", "카테고리")}: ${cur?.name ?? "—"}`}
+          aria-haspopup="menu"
           className={cn(
             "flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs hover:bg-muted/60 transition-colors w-full min-h-[28px]",
             disabled && "opacity-60 cursor-not-allowed hover:bg-transparent",

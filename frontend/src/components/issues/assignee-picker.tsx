@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { ChevronDown, Check } from "lucide-react";
 import {
   DropdownMenu,
@@ -38,6 +39,7 @@ interface Props {
 export function AssigneePicker({
   members, currentIds, currentDetails, onChange, className, showChevron = true,
 }: Props) {
+  const { t } = useTranslation();
   /* 담당자 이름을 표시용으로 조회 — currentIds가 undefined면 빈 배열로 방어 */
   const ids = currentIds ?? [];
   const details: User[] = currentDetails ?? members
@@ -50,6 +52,8 @@ export function AssigneePicker({
         <button
           type="button"
           onClick={(e) => e.stopPropagation()}
+          aria-label={`${t("issues.detail.meta.assignee")} (${details.length})`}
+          aria-haspopup="menu"
           className={cn(
             "flex items-center gap-2 rounded-lg px-2 py-1 text-xs hover:bg-muted/60 transition-colors w-full min-h-[28px] overflow-hidden",
             className,

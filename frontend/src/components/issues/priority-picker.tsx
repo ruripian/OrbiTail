@@ -37,6 +37,8 @@ export function PriorityPicker({ currentPriority, onChange, className }: Props) 
       <DropdownMenuTrigger asChild>
         <button
           onClick={(e) => e.stopPropagation()}
+          aria-label={`${t("issues.detail.meta.priority")}: ${t(PRIORITY_LABEL_KEY[currentPriority])}`}
+          aria-haspopup="menu"
           className={cn(
             "flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs hover:bg-muted/60 transition-colors w-full",
             className,

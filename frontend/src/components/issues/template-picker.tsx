@@ -50,6 +50,8 @@ export function TemplatePicker({ workspaceSlug, projectId, onApply, className }:
         <DropdownMenuTrigger asChild>
           <button
             type="button"
+            aria-label={`${t("issues.create.template", "템플릿")}: ${appliedName ?? "—"}`}
+            aria-haspopup="menu"
             className={cn(
               "inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-md border border-border bg-muted/30 hover:bg-muted/60 transition-colors text-foreground",
               className,

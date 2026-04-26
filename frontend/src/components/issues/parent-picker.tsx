@@ -70,6 +70,8 @@ export function ParentPicker({
       <DropdownMenuTrigger asChild>
         <button
           type="button"
+          aria-label={`${t("issues.detail.meta.parentIssue")}: ${current?.title ?? t("issues.picker.none")}`}
+          aria-haspopup="menu"
           className={cn(
             "flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs border border-border hover:bg-muted/60 transition-colors w-full min-h-[30px]",
             className,

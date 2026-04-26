@@ -43,6 +43,8 @@ export function LabelPicker({ labels, currentIds, currentDetails, onChange, clas
         <button
           type="button"
           onClick={(e) => e.stopPropagation()}
+          aria-label={`${t("issues.detail.meta.label")} (${details.length})`}
+          aria-haspopup="menu"
           className={cn(
             "flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs hover:bg-muted/60 transition-colors w-full min-h-[28px] overflow-hidden",
             className,

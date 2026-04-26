@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { ChevronDown, Check, Circle } from "lucide-react";
 import {
   DropdownMenu,
@@ -34,6 +35,7 @@ interface Props {
 }
 
 export function StatePicker({ states, currentStateId, currentState, onChange, className }: Props) {
+  const { t } = useTranslation();
   /* currentState가 없으면 states 배열에서 조회 */
   const cur = currentState ?? states.find((s) => s.id === currentStateId) ?? null;
   const StateIcon = getStateIcon(cur?.group);
@@ -44,6 +46,8 @@ export function StatePicker({ states, currentStateId, currentState, onChange, cl
       <DropdownMenuTrigger asChild>
         <button
           onClick={(e) => e.stopPropagation()}
+          aria-label={`${t("issues.detail.meta.state")}: ${cur?.name ?? "—"}`}
+          aria-haspopup="menu"
           className={cn(
             "flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs hover:bg-muted/60 transition-colors w-full",
             className,
