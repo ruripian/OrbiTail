@@ -10,7 +10,11 @@ import "./index.css";
 import "./styles/tokens.css"; // 시맨틱 색상 토큰 (priority, state group)
 import "./styles/patterns.css"; // 기하학적 배경 패턴 (페이지별 멤피스/네오-지오 스타일)
 import "./lib/i18n"; // i18n 초기화 (side-effect import)
+import { runLocalStorageMigrations } from "./lib/migrations";
 import { router } from "./router";
+
+// PASS5-A: localStorage 키 namespace 마이그레이션 — render 전에 한 번
+runLocalStorageMigrations();
 import { ThemeProvider } from "./lib/theme-provider";
 import { MotionProvider } from "./lib/motion-provider";
 import { DensityProvider } from "./lib/density-provider";

@@ -13,6 +13,7 @@
 import { useState, useMemo, useRef, useEffect, useCallback, Fragment } from "react";
 import { createPortal } from "react-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useLocalState } from "@/hooks/useLocalState";
 import { useIssueRefresh } from "@/hooks/useIssueMutations";
 import { useUndoStore } from "@/stores/undoStore";
 import { useTranslation } from "react-i18next";
@@ -380,29 +381,24 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
 
   const stateMap = useMemo(() => Object.fromEntries(states.map((s) => [s.id, s])), [states]);
 
-  /* 좌측 서브컬럼 너비 (리사이즈 가능, localStorage 저장) */
-  const [colWidths, setColWidths] = useState(() => {
-    try {
-      const saved = localStorage.getItem("orbitail_timeline_col_widths");
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        /* min/max 범위 검증 후 사용 */
+  /* 좌측 서브컬럼 너비 — useLocalState 가 저장/복원, parse 에서 min/max 클램프 (PASS5-A) */
+  const [colWidths, setColWidths] = useLocalState(
+    "timeline.colWidths",
+    DEFAULT_COL_WIDTHS,
+    (raw) => {
+      try {
+        const parsed = JSON.parse(raw);
         if (typeof parsed.issue === "number" && typeof parsed.state === "number" && typeof parsed.assignee === "number") {
           return {
-            issue: Math.max(COL_MIN.issue, Math.min(COL_MAX.issue, parsed.issue)),
-            state: Math.max(COL_MIN.state, Math.min(COL_MAX.state, parsed.state)),
+            issue:    Math.max(COL_MIN.issue,    Math.min(COL_MAX.issue,    parsed.issue)),
+            state:    Math.max(COL_MIN.state,    Math.min(COL_MAX.state,    parsed.state)),
             assignee: Math.max(COL_MIN.assignee, Math.min(COL_MAX.assignee, parsed.assignee)),
           };
         }
-      }
-    } catch {}
-    return DEFAULT_COL_WIDTHS;
-  });
-
-  /* colWidths 변경 시 localStorage에 저장 */
-  useEffect(() => {
-    localStorage.setItem("orbitail_timeline_col_widths", JSON.stringify(colWidths));
-  }, [colWidths]);
+      } catch {/* fall through */}
+      return DEFAULT_COL_WIDTHS;
+    },
+  );
   const LEFT_W = colWidths.issue + colWidths.state + colWidths.assignee;
   const COL_ISSUE = colWidths.issue;
   const COL_STATE = colWidths.state;

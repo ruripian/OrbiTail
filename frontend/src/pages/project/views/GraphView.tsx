@@ -13,6 +13,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { issuesApi } from "@/api/issues";
 import { projectsApi } from "@/api/projects";
+import { useLocalState } from "@/hooks/useLocalState";
 import { ProjectIcon } from "@/components/ui/project-icon-picker";
 import { Button } from "@/components/ui/button";
 import { Loader2, Sliders, Link2, X, Unlink2, ArrowRight, Layers } from "lucide-react";
@@ -83,48 +84,24 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick }
   const orbitStartTimeRef = useRef<number>(0);
   const galaxyOmegaRef = useRef<number>(0);
 
-  // 뷰 옵션 — localStorage 지속
-  const [showIds, setShowIds] = useState<boolean>(() => {
-    try { return localStorage.getItem("orbitail_graph_showIds") !== "0"; } catch { return true; }
-  });
-  const [labelSize, setLabelSize] = useState<number>(() => {
-    try { return Number(localStorage.getItem("orbitail_graph_labelSize")) || 11; } catch { return 11; }
-  });
-  const [animating, setAnimating] = useState<boolean>(() => {
-    try { return localStorage.getItem("orbitail_graph_animating") !== "0"; } catch { return true; }
-  });
-  const [layoutMode, setLayoutMode] = useState<"force" | "orbit">(() => {
-    try { return localStorage.getItem("orbitail_graph_layout") === "orbit" ? "orbit" : "force"; } catch { return "force"; }
-  });
-  // 포스 모드 반발력 — 0(서로 잘 붙음) ~ 100(확 퍼짐). localStorage.
-  const [repulsionLevel, setRepulsionLevel] = useState<number>(() => {
-    try {
-      // 이전 키(cohesion) 가 있으면 마이그레이션해 반전 (100 - 값)
-      const legacy = localStorage.getItem("orbitail_graph_cohesion");
-      if (legacy != null) {
-        const v = 100 - Number(legacy);
-        localStorage.setItem("orbitail_graph_repulsion", String(v));
-        localStorage.removeItem("orbitail_graph_cohesion");
-        return Number.isFinite(v) ? v : 50;
-      }
-      return Number(localStorage.getItem("orbitail_graph_repulsion") ?? 50);
-    } catch { return 50; }
-  });
-  useEffect(() => { try { localStorage.setItem("orbitail_graph_repulsion", String(repulsionLevel)); } catch {/*ignore*/} }, [repulsionLevel]);
-
+  // 뷰 옵션 — useLocalState 로 통일 (PASS5-A)
+  // 키 namespace 는 "orbitail." prefix 자동 부여, snake_case → 옛 키는 migrations 가 흡수.
+  const [showIds, setShowIds]       = useLocalState<boolean>("graph.showIds", true);
+  const [labelSize, setLabelSize]   = useLocalState<number>("graph.labelSize", 11);
+  const [animating, setAnimating]   = useLocalState<boolean>("graph.animating", true);
+  const [layoutMode, setLayoutMode] = useLocalState<"force" | "orbit">(
+    "graph.layout", "force",
+    (raw) => raw === "orbit" ? "orbit" : "force",
+  );
+  // 포스 모드 반발력 — 0(서로 잘 붙음) ~ 100(확 퍼짐).
+  // legacy "cohesion" 키는 migrations.ts 에서 제거. 본 컴포넌트는 새 키만 다룬다.
+  const [repulsionLevel, setRepulsionLevel] = useLocalState<number>("graph.repulsion", 50);
   // 태양계 궤도 속도 배율 — 0(정지) ~ 200(%).
-  const [orbitSpeed, setOrbitSpeed] = useState<number>(() => {
-    try { return Number(localStorage.getItem("orbitail_graph_orbitSpeed") ?? 100); } catch { return 100; }
-  });
-  useEffect(() => { try { localStorage.setItem("orbitail_graph_orbitSpeed", String(orbitSpeed)); } catch {/*ignore*/} }, [orbitSpeed]);
-
-  const [linkType, setLinkType] = useState<LinkTypeValue>(() => {
-    try {
-      const v = localStorage.getItem("orbitail_graph_linkType");
-      if (v === "relates_to" || v === "blocks") return v;
-      return "relates_to";
-    } catch { return "relates_to"; }
-  });
+  const [orbitSpeed, setOrbitSpeed]   = useLocalState<number>("graph.orbitSpeed", 100);
+  const [linkType, setLinkType]       = useLocalState<LinkTypeValue>(
+    "graph.linkType", "relates_to",
+    (raw) => raw === "relates_to" || raw === "blocks" ? raw : "relates_to",
+  );
 
   // 편집 모드 — null / 연결 추가 / 연결 해제
   const [editMode, setEditMode] = useState<null | "connect" | "disconnect">(null);
@@ -136,12 +113,7 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick }
   const togglePanel = (p: "settings" | "layer" | "help") => setOpenPanel((cur) => (cur === p ? null : p));
   const qc = useQueryClient();
 
-  // 상태 변경 시 자동 저장
-  useEffect(() => { try { localStorage.setItem("orbitail_graph_showIds", showIds ? "1" : "0"); } catch {/*ignore*/} }, [showIds]);
-  useEffect(() => { try { localStorage.setItem("orbitail_graph_labelSize", String(labelSize)); } catch {/*ignore*/} }, [labelSize]);
-  useEffect(() => { try { localStorage.setItem("orbitail_graph_animating", animating ? "1" : "0"); } catch {/*ignore*/} }, [animating]);
-  useEffect(() => { try { localStorage.setItem("orbitail_graph_layout", layoutMode); } catch {/*ignore*/} }, [layoutMode]);
-  useEffect(() => { try { localStorage.setItem("orbitail_graph_linkType", linkType); } catch {/*ignore*/} }, [linkType]);
+  // 자동 저장은 useLocalState 가 처리 (PASS5-A)
 
   // 프로젝트 메타 (태양계 중심 라벨)
   const { data: project } = useQuery({
