@@ -106,6 +106,10 @@ class Issue(models.Model):
             last = Issue.objects.filter(project=self.project).order_by("-sequence_id").first()
             self.sequence_id = (last.sequence_id + 1) if last else 1
 
+        # 필드는 상태 없음 — 일반 이슈 ↔ 필드 전환 시 state 자동 정리
+        if self.is_field and self.state_id is not None:
+            self.state_id = None
+
         # ── 카테고리 상속 규칙 ────────────────────────────────
         # 1) 부모가 있는 하위 이슈는 부모의 카테고리를 강제 상속 — 다른 카테고리로 편입 불가
         # 2) 최상위 이슈의 카테고리가 변경되면 저장 후 자손 전체에 전파
@@ -239,6 +243,7 @@ class IssueAttachment(models.Model):
         related_name="uploaded_attachments",
     )
     created_at = models.DateTimeField(auto_now_add=True)
+    deleted_at = models.DateTimeField(null=True, blank=True)  # 소프트 삭제 — 휴지통 30일 후 영구 삭제
 
     class Meta:
         db_table = "issue_attachments"

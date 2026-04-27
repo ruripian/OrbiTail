@@ -33,7 +33,7 @@ export function ProjectArchivePage() {
         <h1 className="text-sm font-semibold">{t("project.nav.archive", "보관함")}</h1>
       </header>
 
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 overflow-y-auto">
         <ArchiveView
           workspaceSlug={workspaceSlug!}
           projectId={projectId!}

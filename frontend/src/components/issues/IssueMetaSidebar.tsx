@@ -35,6 +35,7 @@ export interface IssueMetaSidebarProps {
   issue: Issue;
   workspaceSlug: string;
   projectId: string;
+  projectIdentifier?: string;
   states: State[];
   members: ProjectMember[];
   labels: Label[];
@@ -57,6 +58,7 @@ export function IssueMetaSidebar({
   issue,
   workspaceSlug,
   projectId,
+  projectIdentifier,
   states,
   members,
   labels,
@@ -201,7 +203,7 @@ export function IssueMetaSidebar({
             currentIssueId={issue.id}
             excludeIds={parentChain.map((p) => p.id)}
             currentParentId={issue.parent}
-            refPrefix={workspaceSlug?.toUpperCase().slice(0, 3) ?? ""}
+            refPrefix={projectIdentifier ?? workspaceSlug?.toUpperCase().slice(0, 3) ?? ""}
             onChange={(pid) => onUpdate({ parent: pid })}
           />
         </div>

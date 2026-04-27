@@ -13,7 +13,7 @@ map $uri $media_disposition {
 server {
     listen 80;
     server_name _;
-    client_max_body_size 10M;
+    client_max_body_size ${MAX_UPLOAD_SIZE_MB}M;
 
     # Docker 내장 DNS — recreate 후 IP 갱신 자동 추종
     resolver 127.0.0.11 valid=5s ipv6=off;

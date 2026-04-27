@@ -25,6 +25,7 @@ type Node = {
   project_id: string | null;
   project_identifier: string | null;
   state_group: string | null;
+  state_color?: string | null;
   labels: Array<{ id: string; name: string; color: string }>;
   external?: boolean;
   category_id?: string | null;
@@ -1183,9 +1184,9 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick }
                 <g key={e.id} opacity={dimByDepth ? 0.1 : 1}>
                   {isRelates ? (
                     (() => {
-                      // 양 끝 노드의 상태 색을 끌어다 씀 — 이중선이 자연스레 두 색을 이음.
-                      const sColor = s.state_group ? (STATE_COLOR[s.state_group] ?? "#6b7280") : "#6b7280";
-                      const tColor = tgt.state_group ? (STATE_COLOR[tgt.state_group] ?? "#6b7280") : "#6b7280";
+                      // 양 끝 노드의 상태 색을 끌어다 씀 — 사용자 지정 state.color 우선, 없으면 group 기본값.
+                      const sColor = s.state_color ?? (s.state_group ? (STATE_COLOR[s.state_group] ?? "#6b7280") : "#6b7280");
+                      const tColor = tgt.state_color ?? (tgt.state_group ? (STATE_COLOR[tgt.state_group] ?? "#6b7280") : "#6b7280");
                       const gradId = `rel-${e.id.replace(/[^a-zA-Z0-9]/g, "_")}`;
                       const gradRev = `${gradId}r`;
                       return (
@@ -1235,7 +1236,11 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick }
               );
             })}
             {nodes.map((n) => {
-              const fill = n.state_group ? STATE_COLOR[n.state_group] ?? "#6b7280" : "#6b7280";
+              /* 노드 색상 — 필드는 통일된 라벤더, 그 외는 사용자 지정 state.color (테이블과 동일).
+                 state_color 가 없으면 group 기본값으로 폴백. */
+              const fill = n.is_field
+                ? "#a78bfa"
+                : (n.state_color ?? (n.state_group ? STATE_COLOR[n.state_group] ?? "#6b7280" : "#6b7280"));
               const isHover = hoverId === n.id;
               const nDepth = depthMap.get(n.id) ?? 0;
               // 깊이별 크기 — 로그 감소로 10계층 넘어도 일정 하한 유지. 상한 20px, 하한 7px.

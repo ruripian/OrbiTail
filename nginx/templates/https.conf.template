@@ -31,7 +31,7 @@ server {
 server {
     listen 443 ssl http2;
     server_name ${DOMAIN};
-    client_max_body_size 10M;
+    client_max_body_size ${MAX_UPLOAD_SIZE_MB}M;
 
     # --- SSL 인증서 ---
     ssl_certificate     /etc/letsencrypt/live/${DOMAIN}/fullchain.pem;

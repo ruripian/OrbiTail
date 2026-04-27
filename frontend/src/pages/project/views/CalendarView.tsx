@@ -12,7 +12,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useIssueRefresh } from "@/hooks/useIssueMutations";
 import { useUndoStore } from "@/stores/undoStore";
 import { useTranslation } from "react-i18next";
-import { ChevronLeft, ChevronRight, Settings2, Maximize2, Minimize2, Plus, User as UserIcon, Users } from "lucide-react";
+import { ChevronLeft, ChevronRight, Settings2, Maximize2, Minimize2, Plus, User as UserIcon, Users, Inbox, GripVertical, X as XIcon, ChevronDown } from "lucide-react";
+import { useProjectPerms } from "@/hooks/useProjectPerms";
 import { issuesApi } from "@/api/issues";
 import { projectsApi } from "@/api/projects";
 import { cn } from "@/lib/utils";
@@ -96,10 +97,11 @@ function getBarsForWeek(issues: Issue[], weekStart: Date, weekEnd: Date, expande
   for (const issue of issues) {
     /* 확장된 이슈만 bar로 그림 — 기본은 chip으로 표시됨 */
     if (!expandedIds.has(issue.id)) continue;
-    if (!issue.start_date || !issue.due_date) continue;
+    /* start 또는 due 둘 중 하나만 있어도 표시 — 한쪽만 있으면 1일짜리 bar */
+    if (!issue.start_date && !issue.due_date) continue;
 
-    const start = parseLocalDate(issue.start_date);
-    const end   = parseLocalDate(issue.due_date);
+    const start = parseLocalDate(issue.start_date ?? issue.due_date!);
+    const end   = parseLocalDate(issue.due_date   ?? issue.start_date!);
 
     if (end < weekStart || start > weekEnd) continue;
 
@@ -236,7 +238,6 @@ function SettingsPanel({ settings, onChange, onClose, triggerRef }: SettingsPane
           { key: "hideWeekends"  as const, label: t("calendar.settings.hideWeekends") },
           { key: "showEvents"    as const, label: t("calendar.settings.showEvents") },
           { key: "alwaysExpand"  as const, label: t("calendar.settings.alwaysExpand") },
-          { key: "showFields"    as const, label: t("calendar.settings.showFields", "필드 표시") },
         ] as const).map(({ key, label }) => (
           <label key={key} className="flex items-center gap-3 cursor-pointer group">
             {/* 토글 트랙 */}
@@ -287,6 +288,41 @@ export function CalendarView({ workspaceSlug, projectId, onIssueClick, issueFilt
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsBtnRef = useRef<HTMLButtonElement>(null);
   const qc = useQueryClient();
+  const { perms } = useProjectPerms();
+  const canSchedule = !!perms.can_schedule;
+
+  /* ── 백로그 Drawer 상태 — 일정 없는 이슈를 끌어와서 캘린더에 드롭 ── */
+  const DRAWER_KEY = `orbitail_cal_drawer_${projectId}`;
+  const loadDrawerPrefs = (): { stateIds: string[] | null; meOnly: boolean; open: boolean } => {
+    try {
+      const raw = localStorage.getItem(DRAWER_KEY);
+      if (raw) return JSON.parse(raw);
+    } catch {}
+    return { stateIds: null, meOnly: false, open: false };
+  };
+  const initialDrawer = useMemo(() => loadDrawerPrefs(), [projectId]);
+  const [drawerOpen, setDrawerOpen] = useState(initialDrawer.open);
+  const [drawerStateIds, setDrawerStateIds] = useState<Set<string> | null>(
+    initialDrawer.stateIds ? new Set(initialDrawer.stateIds) : null,
+  );
+  const [drawerMeOnly, setDrawerMeOnly] = useState(initialDrawer.meOnly);
+  const [drawerStateOpen, setDrawerStateOpen] = useState(false);
+  const drawerDragIdRef = useRef<string | null>(null);
+  /* 드래그 중 시각 피드백 — 드래그 시작/종료 + 호버 중인 셀 dayKey */
+  const [drawerDraggingId, setDrawerDraggingId] = useState<string | null>(null);
+  const [drawerDropDayKey, setDrawerDropDayKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(DRAWER_KEY, JSON.stringify({
+        stateIds: drawerStateIds ? Array.from(drawerStateIds) : null,
+        meOnly: drawerMeOnly,
+        open: drawerOpen,
+      }));
+    } catch {}
+  }, [DRAWER_KEY, drawerStateIds, drawerMeOnly, drawerOpen]);
+
+
   const pushUndo = useUndoStore((s) => s.push);
   const { refresh, refreshIssue } = useIssueRefresh(workspaceSlug, projectId);
 
@@ -369,6 +405,16 @@ export function CalendarView({ workspaceSlug, projectId, onIssueClick, issueFilt
     queryFn:  () => projectsApi.states.list(workspaceSlug, projectId),
   });
 
+  /* drawerStateIds 가 null(첫 진입) 이면 default — backlog/unstarted/started state 들을 자동 선택 */
+  useEffect(() => {
+    if (drawerStateIds === null && states.length > 0) {
+      const defaults = new Set(
+        states.filter((s) => ["backlog", "unstarted", "started"].includes(s.group)).map((s) => s.id),
+      );
+      setDrawerStateIds(defaults);
+    }
+  }, [states, drawerStateIds]);
+
   /* 사용자 필터: null=전체, "me"=내 일정, userId=특정 사용자 */
   const currentUserId = useAuthStore((s) => s.user?.id);
   const [userFilter, setUserFilter] = useState<string | null>(null);
@@ -415,6 +461,26 @@ export function CalendarView({ workspaceSlug, projectId, onIssueClick, issueFilt
   });
 
   /* 완료/취소 상태 ID 집합 */
+  /* ── 백로그 drawer 표시 대상 — 일정(due_date) 없는 이슈 ── */
+  const drawerItems = useMemo(() => {
+    return issues
+      .filter((i) => !i.is_field)
+      .filter((i) => !i.due_date)
+      .filter((i) => (drawerStateIds && drawerStateIds.size > 0 ? drawerStateIds.has(i.state) : true))
+      .filter((i) => (drawerMeOnly && currentUserId ? (i.assignees ?? []).includes(currentUserId) : true))
+      .sort((a, b) => a.sequence_id - b.sequence_id);
+  }, [issues, drawerStateIds, drawerMeOnly, currentUserId]);
+
+  /* 드롭 — 카드의 일정(시작/마감) 동일 날짜로 설정 */
+  const handleDrawerDrop = (dayKey: string) => {
+    if (!canSchedule) return;
+    const dragId = drawerDragIdRef.current;
+    drawerDragIdRef.current = null;
+    if (!dragId) return;
+    /* 드래그한 카드의 due_date 만 설정. start_date 도 동일 날짜로 — 기존 날짜 이슈와 동일하게 동작(확장 등) */
+    updateMutation.mutate({ id: dragId, data: { start_date: dayKey, due_date: dayKey } });
+  };
+
   const completedStateIds = useMemo(
     () => new Set(states.filter((s) => s.group === "completed" || s.group === "cancelled").map((s) => s.id)),
     [states]
@@ -426,7 +492,7 @@ export function CalendarView({ workspaceSlug, projectId, onIssueClick, issueFilt
   /* 설정 필터 + 드래그 중 가상 날짜 반영 */
   const renderIssues = useMemo(() => {
     const arr = issues.filter((issue) => {
-      if (!settings.showFields && issue.is_field) return false; // 필드(Field) 표시 옵션이 꺼져 있으면 제외
+      if (issue.is_field) return false; // 필드는 상태 기반 뷰에서 전역 제외 — 값은 보존
       if (!settings.showCompleted && completedStateIds.has(issue.state)) return false;
       // 캘린더는 날짜가 있는 이슈만 의미가 있음 — 둘 다 없으면 항상 제외
       if (!issue.start_date && !issue.due_date) return false;
@@ -605,8 +671,8 @@ export function CalendarView({ workspaceSlug, projectId, onIssueClick, issueFilt
     : -1;
 
   return (
-    <div className="p-3 h-full flex flex-col overflow-hidden">
-      <div className="flex-1 flex flex-col glass rounded-xl border overflow-hidden select-none shadow-sm">
+    <div className="p-3 h-full flex gap-3 overflow-hidden">
+      <div className="flex-1 flex flex-col glass rounded-xl border overflow-hidden select-none shadow-sm min-w-0">
 
         <div className="flex items-center justify-between px-4 py-2.5 border-b border-border shrink-0">
           <div className="flex items-center gap-0.5">
@@ -698,6 +764,23 @@ export function CalendarView({ workspaceSlug, projectId, onIssueClick, issueFilt
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
+
+          {/* 백로그 Drawer 토글 */}
+          <button
+            onClick={() => setDrawerOpen((v) => !v)}
+            className={cn(
+              "h-8 px-2.5 rounded-full flex items-center gap-1.5 text-xs font-medium transition-colors",
+              drawerOpen
+                ? "bg-primary/10 text-primary"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+            )}
+            title={t("calendar.drawer.toggle", "이슈 패널")}
+          >
+            <Inbox className="h-4 w-4" />
+            {drawerItems.length > 0 && (
+              <span className="text-2xs font-semibold">{drawerItems.length}</span>
+            )}
+          </button>
 
           <div className="relative">
             <button
@@ -1077,6 +1160,28 @@ export function CalendarView({ workspaceSlug, projectId, onIssueClick, issueFilt
                     return (
                       <div
                         key={di}
+                        onDragEnter={(e) => {
+                          if (!drawerDragIdRef.current || !canSchedule) return;
+                          e.preventDefault();
+                          setDrawerDropDayKey(dateKey(day));
+                        }}
+                        onDragOver={(e) => {
+                          if (!drawerDragIdRef.current || !canSchedule) return;
+                          e.preventDefault();
+                          e.dataTransfer.dropEffect = "move";
+                        }}
+                        onDragLeave={(e) => {
+                          /* leave 이벤트가 자식으로 전이될 때 깜빡임 방지 — 정확히 셀을 떠난 경우만 처리 */
+                          if (!drawerDragIdRef.current) return;
+                          if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+                          setDrawerDropDayKey((prev) => (prev === dateKey(day) ? null : prev));
+                        }}
+                        onDrop={(e) => {
+                          if (!drawerDragIdRef.current || !canSchedule) return;
+                          e.preventDefault();
+                          handleDrawerDrop(dateKey(day));
+                          setDrawerDropDayKey(null);
+                        }}
                         className={cn(
                           "relative flex flex-col group transition-colors hover:bg-accent/40",
                           // 이전/다음 달 날짜: 흐린 배경
@@ -1085,6 +1190,10 @@ export function CalendarView({ workspaceSlug, projectId, onIssueClick, issueFilt
                           isToday && "bg-primary/[0.08] ring-2 ring-primary/40 ring-inset z-[1]",
                           // 주말: 더 뚜렷한 tint (오늘이 아닐 때만)
                           isWeekend && !isToday && "bg-muted/[0.15]",
+                          // drawer 에서 드래그 중인 셀 — 강한 강조
+                          drawerDropDayKey === dateKey(day) && "!bg-primary/15 ring-2 ring-primary ring-inset z-[2]",
+                          // drawer 드래그 중 모든 셀 — 드롭 가능 표시 (살짝 dashed)
+                          drawerDraggingId && drawerDropDayKey !== dateKey(day) && "ring-1 ring-primary/20 ring-inset",
                         )}
                       >
                         {/* 날짜 숫자 영역 — 고정 높이 36px (top-9과 일치) */}
@@ -1218,6 +1327,26 @@ export function CalendarView({ workspaceSlug, projectId, onIssueClick, issueFilt
 
       </div>
 
+      {/* 백로그 Drawer — 일정 없는 이슈를 끌어와서 캘린더 셀로 드롭하면 due_date 설정 */}
+      {drawerOpen && (
+        <BacklogDrawer
+          items={drawerItems}
+          states={states}
+          drawerStateIds={drawerStateIds}
+          setDrawerStateIds={setDrawerStateIds}
+          drawerStateOpen={drawerStateOpen}
+          setDrawerStateOpen={setDrawerStateOpen}
+          meOnly={drawerMeOnly}
+          setMeOnly={setDrawerMeOnly}
+          onClose={() => setDrawerOpen(false)}
+          onDragStart={(id) => { drawerDragIdRef.current = id; setDrawerDraggingId(id); }}
+          onDragEnd={() => { drawerDragIdRef.current = null; setDrawerDraggingId(null); setDrawerDropDayKey(null); }}
+          draggingId={drawerDraggingId}
+          onIssueClick={onIssueClick}
+          canSchedule={canSchedule}
+        />
+      )}
+
       {/* 이슈 생성 다이얼로그 — 셀 "+ 이슈 추가" 버튼에서 호출, 해당 날짜를 마감일로 프리필 */}
       <IssueCreateDialog
         open={createDialogOpen}
@@ -1235,6 +1364,164 @@ export function CalendarView({ workspaceSlug, projectId, onIssueClick, issueFilt
         event={editingEvent}
         defaultDate={eventDefaultDate}
       />
+    </div>
+  );
+}
+
+/* ── 백로그 Drawer ── */
+interface BacklogDrawerProps {
+  items: Issue[];
+  states: { id: string; name: string; color: string; group: string }[];
+  drawerStateIds: Set<string> | null;
+  setDrawerStateIds: (s: Set<string> | null) => void;
+  drawerStateOpen: boolean;
+  setDrawerStateOpen: (v: boolean) => void;
+  meOnly: boolean;
+  setMeOnly: (v: boolean) => void;
+  onClose: () => void;
+  onDragStart: (id: string) => void;
+  onDragEnd: () => void;
+  draggingId: string | null;
+  onIssueClick: (id: string) => void;
+  canSchedule: boolean;
+}
+
+function BacklogDrawer({
+  items, states, drawerStateIds, setDrawerStateIds, drawerStateOpen, setDrawerStateOpen,
+  meOnly, setMeOnly, onClose, onDragStart, onDragEnd, draggingId, onIssueClick, canSchedule,
+}: BacklogDrawerProps) {
+  const { t } = useTranslation();
+  const stateById = useMemo(() => {
+    const m = new Map<string, { name: string; color: string }>();
+    for (const s of states) m.set(s.id, { name: s.name, color: s.color });
+    return m;
+  }, [states]);
+
+  const toggleStateFilter = (sid: string) => {
+    setDrawerStateIds((() => {
+      const cur = drawerStateIds ?? new Set<string>();
+      const next = new Set(cur);
+      if (next.has(sid)) next.delete(sid);
+      else next.add(sid);
+      return next;
+    })());
+  };
+
+  return (
+    <div className="w-72 shrink-0 flex flex-col rounded-xl border bg-background shadow-sm overflow-hidden">
+      {/* 헤더 */}
+      <div className="flex items-center justify-between px-3 py-2 border-b border-border">
+        <div className="flex items-center gap-1.5">
+          <Inbox className="h-3.5 w-3.5 text-muted-foreground" />
+          <span className="text-xs font-semibold">{t("calendar.drawer.title", "이슈")}</span>
+          <span className="text-2xs text-muted-foreground">{items.length}</span>
+        </div>
+        <button
+          onClick={onClose}
+          className="text-muted-foreground hover:text-foreground p-1 rounded hover:bg-muted/50"
+        >
+          <XIcon className="h-3.5 w-3.5" />
+        </button>
+      </div>
+
+      {/* 필터 바 */}
+      <div className="px-3 py-2 border-b border-border space-y-2">
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setMeOnly(!meOnly)}
+            className={cn(
+              "text-2xs px-2 py-1 rounded-md border transition-colors flex items-center gap-1",
+              meOnly
+                ? "bg-primary/10 border-primary/40 text-primary"
+                : "border-border text-muted-foreground hover:text-foreground hover:bg-muted/40"
+            )}
+          >
+            <UserIcon className="h-3 w-3" />
+            {t("calendar.drawer.meOnly", "내 이슈만")}
+          </button>
+
+          <div className="relative flex-1">
+            <button
+              onClick={() => setDrawerStateOpen(!drawerStateOpen)}
+              className="w-full text-2xs px-2 py-1 rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-muted/40 flex items-center justify-between"
+            >
+              <span>{t("calendar.drawer.statesFilter", "상태")} · {(drawerStateIds?.size ?? 0)}</span>
+              <ChevronDown className="h-3 w-3" />
+            </button>
+            {drawerStateOpen && (
+              <div className="absolute right-0 top-full mt-1 z-10 w-44 max-h-64 overflow-y-auto rounded-md border bg-popover shadow-md p-1">
+                {states.map((s) => {
+                  const checked = drawerStateIds?.has(s.id) ?? false;
+                  return (
+                    <button
+                      key={s.id}
+                      onClick={() => toggleStateFilter(s.id)}
+                      className={cn(
+                        "w-full flex items-center gap-2 px-2 py-1 rounded text-2xs hover:bg-muted/60",
+                        checked && "bg-muted/40",
+                      )}
+                    >
+                      <input type="checkbox" checked={checked} readOnly className="h-3 w-3" />
+                      <span className="h-2 w-2 rounded-full shrink-0" style={{ background: s.color }} />
+                      <span className="truncate">{s.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+      </div>
+
+      {/* 리스트 */}
+      <div className="flex-1 overflow-y-auto p-1.5 space-y-1">
+        {items.length === 0 ? (
+          <p className="text-2xs text-muted-foreground text-center py-6">
+            {t("calendar.drawer.empty", "표시할 이슈가 없습니다")}
+          </p>
+        ) : items.map((issue) => {
+          const st = stateById.get(issue.state);
+          const isDragging = draggingId === issue.id;
+          return (
+            <div
+              key={issue.id}
+              draggable={canSchedule}
+              onDragStart={(e) => {
+                if (!canSchedule) { e.preventDefault(); return; }
+                onDragStart(issue.id);
+                e.dataTransfer.effectAllowed = "move";
+                e.dataTransfer.setData("text/plain", issue.id);
+              }}
+              onDragEnd={onDragEnd}
+              onClick={() => onIssueClick(issue.id)}
+              className={cn(
+                "group flex items-start gap-1.5 px-2 py-1.5 rounded-md border text-xs transition-all duration-fast cursor-pointer",
+                "border-transparent hover:bg-muted/40 hover:border-border",
+                !canSchedule && "cursor-not-allowed opacity-70",
+                isDragging && "opacity-30 scale-[0.97]",
+              )}
+              title={canSchedule ? t("calendar.drawer.dragHint", "드래그해서 캘린더에 놓기") : t("calendar.drawer.noPerm", "일정 수정 권한이 없습니다")}
+            >
+              {canSchedule && (
+                <GripVertical className="h-3 w-3 mt-0.5 text-muted-foreground/40 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="truncate text-foreground/90">{issue.title}</p>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  {st && (
+                    <span className="inline-flex items-center gap-1 text-2xs text-muted-foreground">
+                      <span className="h-1.5 w-1.5 rounded-full" style={{ background: st.color }} />
+                      {st.name}
+                    </span>
+                  )}
+                  <span className="text-2xs text-muted-foreground/70 font-mono">#{issue.sequence_id}</span>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

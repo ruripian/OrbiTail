@@ -65,8 +65,8 @@ export function BoardView({ workspaceSlug, projectId, onIssueClick, issueFilter,
   const [dragOverStateId, setDragOverStateId] = useState<string | null>(null);
 
   const { data: issues = [] } = useQuery({
-    queryKey: ["issues", workspaceSlug, projectId, issueFilter],
-    queryFn:  () => issuesApi.list(workspaceSlug, projectId, issueFilter),
+    queryKey: ["issues", workspaceSlug, projectId, issueFilter, "with-sub"],
+    queryFn:  () => issuesApi.list(workspaceSlug, projectId, { ...issueFilter, include_sub_issues: "true" }),
   });
 
   const { data: states = [] } = useQuery({
@@ -163,7 +163,7 @@ export function BoardView({ workspaceSlug, projectId, onIssueClick, issueFilter,
               )}
             </div>
 
-            <StaggerList className="space-y-2 flex-1 px-1">
+            <StaggerList className="space-y-2 flex-1 px-1 overflow-y-auto min-h-0">
               {(issuesByState[state.id] ?? []).map((issue) => {
                 const isDraggingThis = draggedIssueId === issue.id;
                 const recent = recentChanges[issue.id];

@@ -147,6 +147,12 @@
       "deletedWithChildren": "하위 이슈 {{count}}개도 함께 삭제됩니다",
       "undo": "되돌리기",
       "nestHere": "하위로 편입",
+      "toField": {
+        "toField": "필드로 전환",
+        "toFieldDesc": "상태가 없는 그룹 컨테이너로 변경. 보드/캘린더/타임라인에서 제외됩니다.",
+        "toIssue": "작업 이슈로 전환",
+        "toIssueDesc": "상태(진행중/완료 등)를 가지는 일반 이슈로 복귀. 모든 뷰에 표시됩니다."
+      },
       "nestHint": "2초 유지 → 하위 이슈로 편입",
       "cyclicNestError": "순환 참조가 발생합니다. 자신의 하위 이슈 안에 넣을 수 없습니다.",
       "dropToRoot": "여기에 놓으면 최상위 이슈로 이동",
@@ -163,7 +169,9 @@
         "links": "링크",
         "module": "카테고리",
         "category": "카테고리",
-        "cycle": "스프린트"
+        "cycle": "스프린트",
+        "createdAt": "생성일",
+        "updatedAt": "수정일"
       }
     },
     "bulk": {
@@ -279,7 +287,9 @@
       "attachments": {
         "empty": "첨부된 파일이 없습니다",
         "upload": "파일 첨부",
-        "uploading": "업로드 중..."
+        "uploading": "업로드 중...",
+        "includeSubs": "하위 이슈 포함",
+        "download": "다운로드"
       }
     }
   },
@@ -457,10 +467,11 @@
         "permsTitle": "세분화 권한",
         "permsHint": "관리자가 아닌 멤버에게 개별 권한을 부여합니다. 관리자는 모든 권한이 자동으로 허용됩니다.",
         "permMember": "멤버",
-        "permEdit": "수정",
+        "permEdit": "이슈 수정",
         "permArchive": "보관",
         "permDelete": "휴지통",
         "permPurge": "영구 삭제",
+        "permSchedule": "일정 수정",
         "permEmpty": "관리자가 아닌 멤버가 없습니다."
       },
       "autoArchive": {
@@ -974,7 +985,7 @@
       "showCompleted": "완료된 이슈 표시",
       "showNoDate": "날짜 없는 이슈 표시",
       "hideWeekends": "주말 숨기기",
-      "showEvents": "이벤트 표시",
+      "hidePastEvents": "지난 이벤트 숨기기",
       "eventsGroup": "이벤트",
       "today": "오늘",
       "settingsBtn": "설정",

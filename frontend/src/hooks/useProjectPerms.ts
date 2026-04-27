@@ -10,6 +10,7 @@ interface EffectivePerms {
   can_archive: boolean;
   can_delete: boolean;
   can_purge: boolean;
+  can_schedule: boolean;
 }
 
 const NO_PERMS: EffectivePerms = {
@@ -17,6 +18,7 @@ const NO_PERMS: EffectivePerms = {
   can_archive: false,
   can_delete: false,
   can_purge: false,
+  can_schedule: false,
 };
 
 /**

@@ -237,10 +237,10 @@ function SettingsPanel({
         </div>
 
         {[
-          { key: "showCompleted" as const, label: t("views.timeline.showCompleted") },
-          { key: "showNoDate"    as const, label: t("views.timeline.showNoDate") },
-          { key: "hideWeekends"  as const, label: t("views.timeline.hideWeekends") },
-          { key: "showEvents"    as const, label: t("views.timeline.showEvents") },
+          { key: "showCompleted"  as const, label: t("views.timeline.showCompleted") },
+          { key: "showNoDate"     as const, label: t("views.timeline.showNoDate") },
+          { key: "hideWeekends"   as const, label: t("views.timeline.hideWeekends") },
+          { key: "hidePastEvents" as const, label: t("views.timeline.hidePastEvents", "지난 이벤트 숨기기") },
         ].map(({ key, label }) => (
           <label key={key} className="flex items-center gap-3 cursor-pointer group">
             <div
@@ -315,12 +315,21 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
 
   const qc = useQueryClient();
 
-  /* 캘린더와 공유: 프로젝트 이벤트 — settings.showEvents 활성 시 타임라인 상단에 별도 그룹으로 표시 */
-  const { data: events = [] } = useQuery({
+  /* 프로젝트 이벤트 — 항상 fetch (이벤트 표시는 확정).
+     hidePastEvents 옵션이 true 면 종료된 이벤트만 화면에서 제외. */
+  const { data: rawEvents = [] } = useQuery({
     queryKey: ["events", workspaceSlug, projectId],
     queryFn:  () => projectsApi.events.list(workspaceSlug, projectId),
-    enabled:  !!settings.showEvents,
   });
+  const events = useMemo(() => {
+    if (!settings.hidePastEvents) return rawEvents;
+    const todayKey = new Date().toISOString().slice(0, 10);
+    return rawEvents.filter((e) => {
+      /* end_date 가 있으면 그것 기준, 없으면 date(시작일) 기준. 둘 다 today 보다 이전이면 지난 이벤트. */
+      const last = (e as { end_date?: string | null }).end_date ?? e.date;
+      return last >= todayKey;
+    });
+  }, [rawEvents, settings.hidePastEvents]);
 
   /* 카테고리/스프린트 — 이슈 행 배지 + groupBy "category"/"sprint" 옵션용 */
   const { data: projectCategories = [] } = useQuery({
@@ -519,36 +528,88 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
       return false;
     };
 
+    /* 자손 중 표시 대상이 하나라도 있는지 — 부모가 자기 필터로는 숨겨질 운명이어도
+       자식이 보이는 한 트리 맥락 유지를 위해 부모를 보존(고스트 행). */
+    const hasVisibleDescendant = (id: string): boolean => {
+      const kids = rawChildrenMap.get(id) ?? [];
+      for (const k of kids) {
+        if (k.is_field) {
+          /* 필드 자체는 안 보이지만 그 자손이 보이면 보존 */
+          if (hasVisibleDescendant(k.id)) return true;
+          continue;
+        }
+        const completedHidden = !settings.showCompleted && completedIds.has(k.state);
+        const stateExcluded   = stateFilter.size > 0 && !stateFilter.has(k.state);
+        if (!completedHidden && !stateExcluded) return true;
+        if (hasVisibleDescendant(k.id)) return true;
+      }
+      return false;
+    };
+
     return issues.filter((issue) => {
-      // 필드(Field) 는 상태가 없지만 하위 작업의 부모 행으로 보여야 하므로 유지.
-      // 바(bar) 자체는 날짜가 없으면 어차피 렌더되지 않음.
-      if (!settings.showCompleted && completedIds.has(issue.state)) return false;
+      // 자기 자신이 필터에 의해 숨겨질 조건이지만, 보일 자손이 있으면 트리 맥락 위해 고스트로 보존.
+      const keepForDescendant = hasVisibleDescendant(issue.id);
+      // 필드(Field) — 상태 기반 뷰에서 정상 노출 안 함.
+      // 단, 보일 자손이 있으면 트리 구조 유지를 위해 고스트로 남김.
+      if (issue.is_field) return keepForDescendant;
+      if (!settings.showCompleted && completedIds.has(issue.state) && !keepForDescendant) return false;
       /* showNoDate=false: 날짜 없는 root 이슈는 숨김.
-         단, dated 자손이 있으면 계층 표시를 위해 부모를 보존 */
+         단, 보일 자손이 있으면 계층 표시를 위해 부모를 고스트로 보존 (dated 여부 무관). */
       if (!settings.showNoDate && !issue.parent && !issue.start_date && !issue.due_date) {
-        if (!hasVisibleDatedDescendant(issue.id)) return false;
+        if (!keepForDescendant) return false;
       }
       /* 자식 이슈(parent 있음)는 showNoDate 필터 우회 */
-      /* 상태 필터: 선택된 state가 있으면 그것만 표시 */
-      if (stateFilter.size > 0 && !stateFilter.has(issue.state)) return false;
+      /* 상태 필터: 선택된 state가 있으면 그것만 표시 — 단, 보일 자손 있으면 고스트로 보존 */
+      if (stateFilter.size > 0 && !stateFilter.has(issue.state) && !keepForDescendant) return false;
       return true;
     });
   }, [issues, settings, completedIds, stateFilter]);
 
-  /* 루트 이슈(부모 없음)만 — 그룹핑은 루트 기준으로 */
-  const rootIssues = useMemo(() => filteredIssues.filter((i) => !i.parent), [filteredIssues]);
+  /* effective parent — 필드 포함 raw parent 그대로 사용.
+     (필드 부모는 timeline 에서 고스트로 보존되므로 트리 구조 유지를 위해 건너뛰지 않음) */
+  const effectiveParentOf = useMemo(() => {
+    const cache = new Map<string, string | null>();
+    for (const i of issues) cache.set(i.id, i.parent ?? null);
+    return cache;
+  }, [issues]);
 
-  /* parent id → 자식 이슈 목록 맵 — 전체 필터링된 이슈에서 계산 */
+  /* 고스트 이슈 — 자기 자신은 필터/필드/날짜없음 조건이지만 보일 자손이 있어서 맥락 보존 위해 남긴 부모.
+     row 렌더 시 흐리게 처리. */
+  const ghostIssueIds = useMemo(() => {
+    const set = new Set<string>();
+    for (const issue of filteredIssues) {
+      if (issue.is_field) { set.add(issue.id); continue; }
+      const completedHidden = !settings.showCompleted && completedIds.has(issue.state);
+      const stateExcluded   = stateFilter.size > 0 && !stateFilter.has(issue.state);
+      const noDateRoot      = !settings.showNoDate && !issue.parent && !issue.start_date && !issue.due_date;
+      if (completedHidden || stateExcluded || noDateRoot) set.add(issue.id);
+    }
+    return set;
+  }, [filteredIssues, settings.showCompleted, settings.showNoDate, completedIds, stateFilter]);
+
+  /* 정렬: 테이블 뷰와 동일한 기준 — sort_order, sequence_id 보조 */
+  const compareIssues = (a: Issue, b: Issue) =>
+    (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.sequence_id - b.sequence_id;
+
+  /* 루트 이슈 — effective parent 가 없는 것 */
+  const rootIssues = useMemo(
+    () => filteredIssues.filter((i) => !effectiveParentOf.get(i.id)).sort(compareIssues),
+    [filteredIssues, effectiveParentOf],
+  );
+
+  /* effective parent id → 자식 이슈 목록 맵 (각 부모 내부에서도 동일 기준 정렬) */
   const childrenByParent = useMemo(() => {
     const m = new Map<string, Issue[]>();
     for (const i of filteredIssues) {
-      if (i.parent) {
-        if (!m.has(i.parent)) m.set(i.parent, []);
-        m.get(i.parent)!.push(i);
+      const ep = effectiveParentOf.get(i.id);
+      if (ep) {
+        if (!m.has(ep)) m.set(ep, []);
+        m.get(ep)!.push(i);
       }
     }
+    for (const arr of m.values()) arr.sort(compareIssues);
     return m;
-  }, [filteredIssues]);
+  }, [filteredIssues, effectiveParentOf]);
 
   type Group = { label: string; color: string; issues: Issue[] };
 
@@ -1022,8 +1083,8 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
   const rows: Row[] = useMemo(() => {
     const r: Row[] = [];
 
-    /* 이벤트 — 활성화 시 최상단에 "Events" 그룹으로 배치 */
-    if (settings.showEvents && events.length > 0) {
+    /* 이벤트 — 항상 최상단 "Events" 그룹으로 배치 (hidePastEvents 는 events 배열 필터에서 처리됨) */
+    if (events.length > 0) {
       const eventsGroup: Group = { label: t("views.timeline.eventsGroup"), color: "#a855f7", issues: [] };
       r.push({ type: "group", group: eventsGroup });
       if (!collapsedGroups.has(eventsGroup.label)) {
@@ -1052,7 +1113,7 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
       for (const root of group.issues) walk(root, 0);
     }
     return r;
-  }, [groups, settings.groupBy, settings.showEvents, events, stateMap, collapsedIds, collapsedGroups, childrenByParent, t]);
+  }, [groups, settings.groupBy, events, stateMap, collapsedIds, collapsedGroups, childrenByParent, t]);
 
   const today = useMemo(() => { const d = new Date(); d.setHours(0,0,0,0); return d; }, []);
 
@@ -1306,6 +1367,7 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
           {rows.map((row, ri) => {
             const isGroup = row.type === "group";
             const isEven  = ri % 2 === 0;
+            const isGhost = row.type === "issue" && ghostIssueIds.has(row.issue.id);
 
             return (
               <Fragment key={ri}>
@@ -1314,10 +1376,11 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
                   "flex group/row transition-colors duration-100 relative",
                   isGroup
                     ? "border-y-2 border-border bg-muted/20"
-                    /* event 행은 muted 톤 100% 불투명 — 원본 디자인 유지하되 배경만 비치지 않도록 */
                     : row.type === "event"
                       ? "border-b border-border bg-muted hover:bg-muted/90"
-                      : "border-b border-border hover:bg-primary/[0.04]"
+                      : "border-b border-border hover:bg-primary/[0.04]",
+                  /* 고스트 행 — 자기는 필터로 숨겨질 운명이지만 자손 맥락 위해 유지된 부모 */
+                  isGhost && "opacity-45 saturate-50",
                 )}
                 style={{ height: ROW_H }}
               >
@@ -1384,10 +1447,13 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
                     </button>
                   ) : (
                     row.type === "issue" && <>
-                      {/* 상태 색상 stripe — 행 좌측 전체 높이 */}
+                      {/* 상태 색상 stripe — 행 좌측 전체 높이. 필드는 그래프 뷰와 동일한 라벤더. */}
                       <div
                         className="absolute left-0 top-0 bottom-0 w-1"
-                        style={{ background: row.stateObj?.color ?? "#888", opacity: 0.7 }}
+                        style={{
+                          background: row.issue.is_field ? "#a78bfa" : (row.stateObj?.color ?? "#888"),
+                          opacity: 0.7,
+                        }}
                       />
 
                       {/* 서브컬럼 1: 이슈 제목 + 모듈/사이클 배지 + 우측 chevron (depth 들여쓰기) */}
@@ -1400,7 +1466,7 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
                         }}
                       >
                         <span
-                          className="text-sm truncate cursor-pointer text-foreground/85 hover:text-foreground transition-colors leading-none font-medium"
+                          className="text-sm truncate cursor-pointer text-foreground/85 hover:text-foreground transition-colors leading-none font-medium flex-1 min-w-0"
                           onClick={() => { if (!dragState && !suppressClickRef.current) onIssueClick(row.issue.id); }}
                         >
                           {row.issue.title}
@@ -1415,7 +1481,7 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
                             {sprintMap.get(row.issue.sprint)}
                           </span>
                         )}
-                        <div className="ml-auto flex items-center gap-0.5 shrink-0">
+                        <div className="flex items-center gap-0.5 shrink-0">
                           {/* 하위 이슈 추가 버튼 — 호버 시 등장 */}
                           <button
                             type="button"

@@ -191,7 +191,7 @@ class ProjectMemberSerializer(serializers.ModelSerializer):
         model = ProjectMember
         fields = [
             "id", "member", "role",
-            "can_edit", "can_archive", "can_delete", "can_purge",
+            "can_edit", "can_archive", "can_delete", "can_purge", "can_schedule",
             "effective_perms", "created_at",
         ]
 

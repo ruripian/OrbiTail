@@ -147,12 +147,13 @@ export interface ProjectMember {
   id: string;
   member: User;
   role: 10 | 15 | 20;
-  can_edit:    boolean;
-  can_archive: boolean;
-  can_delete:  boolean;
-  can_purge:   boolean;
+  can_edit:     boolean;
+  can_archive:  boolean;
+  can_delete:   boolean;
+  can_purge:    boolean;
+  can_schedule: boolean;
   /** 백엔드 계산 — role >= ADMIN 이면 모두 true. UI 가드는 이 값을 사용 */
-  effective_perms: { can_edit: boolean; can_archive: boolean; can_delete: boolean; can_purge: boolean };
+  effective_perms: { can_edit: boolean; can_archive: boolean; can_delete: boolean; can_purge: boolean; can_schedule: boolean };
   created_at: string;
 }
 
@@ -473,6 +474,10 @@ export interface IssueAttachment {
   uploaded_by: string;
   uploaded_by_detail: User;
   created_at: string;
+  deleted_at?: string | null;
+  issue_id?: string;
+  issue_title?: string;
+  issue_sequence_id?: number;
 }
 
 /* ── 이슈 통계 (대시보드 차트용) ── */

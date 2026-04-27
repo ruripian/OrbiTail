@@ -32,9 +32,9 @@ export function SettingsLayout() {
   ];
 
   return (
-    <div className="flex h-full">
-      {/* 설정 탭 사이드바 */}
-      <aside className="w-52 shrink-0 border-r bg-background p-4 space-y-1 flex flex-col">
+    <div className="flex h-full overflow-y-auto">
+      {/* 설정 탭 사이드바 — sticky 로 화면 우측에 스크롤바 위치 */}
+      <aside className="w-52 shrink-0 border-r bg-background p-4 space-y-1 flex flex-col sticky top-0 self-start max-h-full">
         <p className="px-2 mb-3 text-2xs font-semibold uppercase tracking-widest text-muted-foreground">
           {t("settings.layout.myAccount")}
         </p>
@@ -102,7 +102,7 @@ export function SettingsLayout() {
       </aside>
 
       {/* 탭 컨텐츠 */}
-      <main className="flex-1 overflow-y-auto p-8 max-w-2xl">
+      <main className="flex-1 p-8 max-w-2xl min-w-0">
         <Outlet />
       </main>
     </div>

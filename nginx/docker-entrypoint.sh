@@ -7,8 +7,12 @@ set -e
 CONF_DIR="/etc/nginx/conf.d"
 TEMPLATE_DIR="/etc/nginx/templates"
 
+# 업로드 크기 기본값 (compose env 미주입 시)
+: "${MAX_UPLOAD_SIZE_MB:=10}"
+export MAX_UPLOAD_SIZE_MB
+
 if [ -n "$DOMAIN" ]; then
-    echo "[nginx] DOMAIN=$DOMAIN 감지 → HTTPS 모드"
+    echo "[nginx] DOMAIN=$DOMAIN 감지 → HTTPS 모드 (max upload ${MAX_UPLOAD_SIZE_MB}M)"
 
     # 인증서가 아직 없으면 임시 self-signed 생성 (certbot 발급 전 nginx 기동용)
     CERT_PATH="/etc/letsencrypt/live/$DOMAIN/fullchain.pem"
@@ -24,11 +28,11 @@ if [ -n "$DOMAIN" ]; then
             -subj "/CN=$DOMAIN" 2>/dev/null
     fi
 
-    # HTTPS 템플릿에서 도메인 치환하여 설정 생성
-    envsubst '${DOMAIN}' < "$TEMPLATE_DIR/https.conf.template" > "$CONF_DIR/default.conf"
+    # HTTPS 템플릿 — 도메인 + 업로드 크기 치환
+    envsubst '${DOMAIN} ${MAX_UPLOAD_SIZE_MB}' < "$TEMPLATE_DIR/https.conf.template" > "$CONF_DIR/default.conf"
 else
-    echo "[nginx] DOMAIN 미설정 → HTTP 모드"
-    cp "$TEMPLATE_DIR/http.conf" "$CONF_DIR/default.conf"
+    echo "[nginx] DOMAIN 미설정 → HTTP 모드 (max upload ${MAX_UPLOAD_SIZE_MB}M)"
+    envsubst '${MAX_UPLOAD_SIZE_MB}' < "$TEMPLATE_DIR/http.conf.template" > "$CONF_DIR/default.conf"
 fi
 
 # nginx 실행

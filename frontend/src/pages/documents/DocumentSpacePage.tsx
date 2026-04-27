@@ -724,8 +724,23 @@ function DocumentEditorView({
               onCommentMarksRemoved={editMode ? handleCommentMarksRemoved : undefined}
               resolvedThreadIds={resolvedThreadIds}
               onFileUpload={async (file) => {
-                const result = await documentsApi.attachments.upload(workspaceSlug!, spaceId!, doc.id, file);
-                return { url: result.file_url || result.file, filename: result.filename };
+                const maxMb = Number(import.meta.env.VITE_MAX_UPLOAD_SIZE_MB) || 10;
+                if (file.size > maxMb * 1024 * 1024) {
+                  toast.error(`파일 크기가 ${maxMb}MB를 초과해서 업로드에 실패했습니다.`);
+                  throw new Error("file too large");
+                }
+                try {
+                  const result = await documentsApi.attachments.upload(workspaceSlug!, spaceId!, doc.id, file);
+                  return { url: result.file_url || result.file, filename: result.filename };
+                } catch (e: any) {
+                  const status = e?.response?.status;
+                  if (status === 413) {
+                    toast.error(`파일 크기가 ${maxMb}MB를 초과해서 업로드에 실패했습니다.`);
+                  } else {
+                    toast.error("파일 업로드에 실패했습니다.");
+                  }
+                  throw e;
+                }
               }}
             />
             )}

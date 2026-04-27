@@ -1,6 +1,14 @@
 import { api } from "@/lib/axios";
 import type { Issue, IssueSearchResult, IssueComment, IssueActivity, IssueAttachment, IssueLink, IssueNodeLink, IssueTemplate, Label, IssueStats, PaginatedResponse } from "@/types";
 
+export interface AttachmentTreeNode {
+  id: string;
+  sequence_id: number;
+  title: string;
+  attachments: IssueAttachment[];
+  children: AttachmentTreeNode[];
+}
+
 export interface NodeGraphResponse {
   nodes: Array<{
     id: string;
@@ -9,6 +17,7 @@ export interface NodeGraphResponse {
     project_id: string | null;
     project_identifier: string | null;
     state_group: string | null;
+    state_color?: string | null;
     labels: Array<{ id: string; name: string; color: string }>;
     external?: boolean;
     category_id?: string | null;
@@ -226,6 +235,24 @@ export const issuesApi = {
 
     delete: (workspaceSlug: string, projectId: string, issueId: string, attachmentId: string) =>
       api.delete(`/workspaces/${workspaceSlug}/projects/${projectId}/issues/${issueId}/attachments/${attachmentId}/`),
+
+    /** 자기 + 하위 이슈 첨부파일 트리 (첨부 있는 노드만 포함) */
+    tree: (workspaceSlug: string, projectId: string, issueId: string) =>
+      api
+        .get<AttachmentTreeNode>(`/workspaces/${workspaceSlug}/projects/${projectId}/issues/${issueId}/attachments-tree/`)
+        .then((r) => r.data),
+
+    /** 휴지통 — 정상 이슈에 속한 삭제된 첨부 */
+    listDeleted: (workspaceSlug: string, projectId: string) =>
+      api
+        .get<IssueAttachment[]>(`/workspaces/${workspaceSlug}/projects/${projectId}/attachments-trash/`)
+        .then((r) => r.data),
+
+    restore: (workspaceSlug: string, projectId: string, attachmentId: string) =>
+      api.post(`/workspaces/${workspaceSlug}/projects/${projectId}/attachments-trash/${attachmentId}/restore/`),
+
+    hardDelete: (workspaceSlug: string, projectId: string, attachmentId: string) =>
+      api.delete(`/workspaces/${workspaceSlug}/projects/${projectId}/attachments-trash/${attachmentId}/hard-delete/`),
   },
 
   activities: (workspaceSlug: string, projectId: string, issueId: string) =>

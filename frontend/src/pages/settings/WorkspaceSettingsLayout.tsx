@@ -42,8 +42,8 @@ export function WorkspaceSettingsLayout() {
   });
 
   return (
-    <div className="flex h-full">
-      <aside className="w-56 shrink-0 border-r bg-background p-4 space-y-1 flex flex-col">
+    <div className="flex h-full overflow-y-auto">
+      <aside className="w-56 shrink-0 border-r bg-background p-4 space-y-1 flex flex-col sticky top-0 self-start max-h-full">
         {/* 헤더 — "워크스페이스 관리자" 라벨로 시스템 관리자(/admin) 와 시각적으로 구분 */}
         <div className="px-2 mb-4 pb-3 border-b">
           <div className="flex items-center gap-1.5 text-2xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400">
@@ -99,7 +99,7 @@ export function WorkspaceSettingsLayout() {
 
       </aside>
 
-      <main className="flex-1 overflow-y-auto p-8 max-w-2xl">
+      <main className="flex-1 p-8 max-w-2xl min-w-0">
         <Outlet />
       </main>
     </div>

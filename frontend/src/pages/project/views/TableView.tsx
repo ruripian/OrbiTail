@@ -21,11 +21,14 @@ import { useRecentChangesStore } from "@/stores/recentChangesStore";
 import {
   Plus, SlidersHorizontal, Check, X, Inbox,
   GitBranch, Link2, LayoutGrid, ChevronDown, ChevronRight,
-  GripVertical, MoreHorizontal, Trash2, CheckCircle2, Copy, Archive, Share2, Folder, FileText,
+  GripVertical, MoreHorizontal, Trash2, CheckCircle2, Copy, Archive, Share2, Layers, Circle,
+  ArrowUp, ArrowDown, ArrowUpDown, RotateCcw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { AvatarInitials } from "@/components/ui/avatar-initials";
 import { issuesApi } from "@/api/issues";
+import { formatDate } from "@/utils/date-format";
+import { Tooltip } from "@/components/ui/tooltip";
 import { IssueCreateDialog } from "@/components/issues/IssueCreateDialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { StatePicker } from "@/components/issues/state-picker";
@@ -59,7 +62,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 type ColId =
   | "state" | "priority" | "assignee"
   | "startDate" | "dueDate" | "label"
-  | "subIssues" | "links" | "category" | "sprint" | "id";
+  | "subIssues" | "links" | "category" | "sprint" | "id"
+  | "createdAt" | "updatedAt";
 
 interface ColDef {
   id: ColId;
@@ -80,15 +84,25 @@ const COL_DEFS: ColDef[] = [
   { id: "links",     tKey: "issues.table.cols.links",     width: 84,  defaultVisible: true },
   { id: "category",  tKey: "issues.table.cols.module",    width: 145, defaultVisible: false },
   { id: "sprint",    tKey: "issues.table.cols.cycle",     width: 145, defaultVisible: false },
+  { id: "createdAt", tKey: "issues.table.cols.createdAt", width: 130, defaultVisible: false },
+  { id: "updatedAt", tKey: "issues.table.cols.updatedAt", width: 130, defaultVisible: false },
 ];
 
 const COL_STORAGE_KEY = "orbitail_table_v2";
+
+type SortDir = "asc" | "desc";
+type SortKey = ColId | "_id" | "_title";
+interface SortBy { colId: SortKey; dir: SortDir }
 
 interface ColPrefs {
   order:   ColId[];
   visible: ColId[];
   /** 컬럼별 커스텀 너비 (px). 없으면 COL_DEFS 기본값 사용 */
   widths:  Partial<Record<ColId, number>>;
+  /** ID 컬럼 표시 여부 (헤더/행 모두) */
+  showId:  boolean;
+  /** 컬럼별 정렬 — null 이면 사용자 수동 정렬(sort_order) 따름 */
+  sortBy:  SortBy | null;
 }
 
 function loadPrefs(): ColPrefs {
@@ -120,6 +134,8 @@ function loadPrefs(): ColPrefs {
         order:   order,
         visible: visible,
         widths:  parsed.widths  ?? {},
+        showId:  parsed.showId !== undefined ? !!parsed.showId : true,
+        sortBy:  parsed.sortBy ?? null,
       };
     }
   } catch {}
@@ -127,11 +143,36 @@ function loadPrefs(): ColPrefs {
     order:   COL_DEFS.map((c) => c.id),
     visible: COL_DEFS.filter((c) => c.defaultVisible).map((c) => c.id),
     widths:  {},
+    showId:  true,
+    sortBy:  null,
   };
 }
 
 function savePrefs(prefs: ColPrefs) {
   localStorage.setItem(COL_STORAGE_KEY, JSON.stringify(prefs));
+}
+
+/** 정렬용 키 추출 — 컬럼별로 비교 가능한 string/number 반환 */
+const PRIORITY_RANK: Record<string, number> = { urgent: 0, high: 1, medium: 2, low: 3, none: 4 };
+function getSortValue(issue: Issue, key: SortKey): string | number {
+  switch (key) {
+    case "_id":
+    case "id":         return issue.sequence_id;
+    case "_title":     return (issue.title ?? "").toLowerCase();
+    case "state":      return issue.state_detail?.name ?? "";
+    case "priority":   return PRIORITY_RANK[issue.priority] ?? 99;
+    case "assignee":   return (issue.assignee_details?.[0]?.display_name ?? "").toLowerCase();
+    case "startDate":  return issue.start_date ?? "";
+    case "dueDate":    return issue.due_date ?? "";
+    case "label":      return issue.label_details?.[0]?.name ?? "";
+    case "subIssues":  return issue.sub_issues_count ?? 0;
+    case "links":      return issue.link_count ?? 0;
+    case "category":   return issue.category ?? "";
+    case "sprint":     return issue.sprint ?? "";
+    case "createdAt":  return issue.created_at ?? "";
+    case "updatedAt":  return issue.updated_at ?? "";
+    default: return "";
+  }
 }
 
 interface Filters {
@@ -328,6 +369,22 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
       ? prefs.visible.filter((v) => v !== id)
       : [...prefs.visible, id];
     updatePrefs({ ...prefs, visible });
+  };
+
+  /* 컬럼 헤더 클릭 시 정렬 사이클: none → asc → desc → none */
+  const cycleSort = (colId: SortKey) => {
+    const cur = prefs.sortBy;
+    let next: SortBy | null;
+    if (!cur || cur.colId !== colId) next = { colId, dir: "asc" };
+    else if (cur.dir === "asc")      next = { colId, dir: "desc" };
+    else                             next = null;
+    updatePrefs({ ...prefs, sortBy: next });
+  };
+
+  /* 정렬 + 수동 순서 둘 다 초기화 — 사용자가 저장해둔 sort_order 로 복귀 */
+  const resetSort = () => {
+    setLocalOrder(null);
+    updatePrefs({ ...prefs, sortBy: null });
   };
 
   /* prefs.order 순서대로 정렬된, visible 필터링된 컬럼.
@@ -593,13 +650,26 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
         return true;
       })
       .sort((a, b) => a.sort_order - b.sort_order || a.sequence_id - b.sequence_id);
+    // 컬럼 정렬이 설정되어 있으면 sort_order/localOrder 보다 우선 적용
+    if (prefs.sortBy) {
+      const { colId, dir } = prefs.sortBy;
+      const sign = dir === "asc" ? 1 : -1;
+      return [...base].sort((a, b) => {
+        const va = getSortValue(a, colId);
+        const vb = getSortValue(b, colId);
+        if (va === vb) return a.sequence_id - b.sequence_id;
+        if (va === "" || va === null || va === undefined) return 1;  // 빈 값은 항상 뒤로
+        if (vb === "" || vb === null || vb === undefined) return -1;
+        return va < vb ? -1 * sign : 1 * sign;
+      });
+    }
     // localOrder가 설정된 동안: 순서만 override, 이슈 데이터는 서버 데이터 그대로 사용
     if (localOrder) {
       const idxMap = new Map(localOrder.map((id, i) => [id, i]));
       return [...base].sort((a, b) => (idxMap.get(a.id) ?? 9999) - (idxMap.get(b.id) ?? 9999));
     }
     return base;
-  }, [issues, filters, localOrder, hideCompleted]);
+  }, [issues, filters, localOrder, hideCompleted, prefs.sortBy]);
 
   /* 전체 선택 대상 — 최상위 + 캐시에 로드된 하위 이슈 ID */
   const allSelectableIds = useMemo(() => {
@@ -893,6 +963,20 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
               {t("issues.table.columns")}
             </p>
             <div className="grid grid-cols-2 gap-1">
+              {/* ID 컬럼 토글 — 별도 처리 (COL_DEFS 외부) */}
+              <button
+                type="button"
+                onClick={(e) => { e.preventDefault(); updatePrefs({ ...prefs, showId: !prefs.showId }); }}
+                className={cn(
+                  "flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium rounded-md border transition-all",
+                  prefs.showId
+                    ? "bg-primary/10 text-primary border-primary/30"
+                    : "text-muted-foreground border-border hover:bg-muted/40 hover:text-foreground"
+                )}
+              >
+                {prefs.showId && <Check className="h-3 w-3 shrink-0" />}
+                <span className="truncate">{t("issues.table.cols.id")}</span>
+              </button>
               {prefs.order.map((id) => {
                 const col = COL_DEFS.find((c) => c.id === id);
                 if (!col) return null;
@@ -917,6 +1001,17 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
             </div>
           </DropdownMenuContent>
         </DropdownMenu>
+
+        {(prefs.sortBy || localOrder) && (
+          <button
+            onClick={resetSort}
+            className="h-8 inline-flex items-center gap-1.5 text-xs px-2.5 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
+            title={t("issues.table.resetSortHint", "수동 순서로 복귀")}
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            {t("issues.table.resetSort", "정렬 초기화")}
+          </button>
+        )}
 
         {!readOnly && (
           <Button
@@ -953,27 +1048,39 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
                 onChange={() => toggleSelectAll()}
               />
 
-              <div
-                className="text-xs font-semibold text-muted-foreground/70 uppercase tracking-wide select-none shrink-0 overflow-hidden text-ellipsis"
-                style={{ width: "var(--col-w-_id)", minWidth: "var(--col-w-_id)" }}
-              >
-                {t("issues.table.cols.id")}
-              </div>
+              {prefs.showId && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => cycleSort("_id")}
+                    className="flex items-center gap-1 text-xs font-semibold text-muted-foreground/70 hover:text-foreground uppercase tracking-wide select-none shrink-0 overflow-hidden text-ellipsis"
+                    style={{ width: "var(--col-w-_id)", minWidth: "var(--col-w-_id)" }}
+                  >
+                    <span>{t("issues.table.cols.id")}</span>
+                    <SortIndicator active={prefs.sortBy?.colId === "_id"} dir={prefs.sortBy?.dir} />
+                  </button>
 
-              <ColDropIndicator
-                active={false}
-                onResizeStart={(e) => startResize(e, "_id")}
-                isResizing={resizingCol === "_id"}
-              />
+                  <ColDropIndicator
+                    active={false}
+                    onResizeStart={(e) => startResize(e, "_id")}
+                    isResizing={resizingCol === "_id"}
+                  />
+                </>
+              )}
 
               <div
                 className="flex items-center gap-2 shrink-0 overflow-hidden"
                 style={{ width: "var(--col-w-_title)", minWidth: "var(--col-w-_title)" }}
               >
                 <div className="w-5 shrink-0" />
-                <span className="text-xs font-semibold text-muted-foreground/70 uppercase tracking-wide select-none overflow-hidden text-ellipsis">
-                  {t("issues.table.cols.title")}
-                </span>
+                <button
+                  type="button"
+                  onClick={() => cycleSort("_title")}
+                  className="flex items-center gap-1 text-xs font-semibold text-muted-foreground/70 hover:text-foreground uppercase tracking-wide select-none overflow-hidden text-ellipsis"
+                >
+                  <span>{t("issues.table.cols.title")}</span>
+                  <SortIndicator active={prefs.sortBy?.colId === "_title"} dir={prefs.sortBy?.dir} />
+                </button>
               </div>
               
               {activeCols.map((col, i) => {
@@ -1008,7 +1115,13 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
                       )}
                     >
                       <GripVertical className="h-3 w-3 opacity-0 group-hover:opacity-40 transition-opacity shrink-0" />
-                      <span className="whitespace-nowrap overflow-hidden text-ellipsis">{t(col.tKey)}</span>
+                      <span
+                        onClick={(e) => { e.stopPropagation(); cycleSort(col.id); }}
+                        className="whitespace-nowrap overflow-hidden text-ellipsis cursor-pointer hover:text-foreground inline-flex items-center gap-1"
+                      >
+                        {t(col.tKey)}
+                        <SortIndicator active={prefs.sortBy?.colId === col.id} dir={prefs.sortBy?.dir} />
+                      </span>
                     </div>
                   </Fragment>
                 );
@@ -1057,6 +1170,7 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
                   selected={selectedIds.has(issue.id)}
                   onToggleSelect={toggleSelect}
                   selectedIds={selectedIds}
+                  showId={prefs.showId}
                 />
               ))}
 
@@ -1100,9 +1214,12 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
                   type="button"
                   onClick={() => {
                     setInlineAdding(true);
-                    requestAnimationFrame(() => {
+                    /* 이중 RAF: 첫 번째는 state 적용, 두 번째는 inline add 가 실제로 그려진 뒤
+                       scrollHeight 가 갱신된 시점에 스크롤. 단발 RAF 만 쓰면 옛 height 로 스크롤되어
+                       새 입력창이 화면 밖으로 빠짐. */
+                    requestAnimationFrame(() => requestAnimationFrame(() => {
                       if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-                    });
+                    }));
                   }}
                   className="w-full flex items-center gap-2 rounded-xl border border-dashed border-border px-4 py-2.5 text-xs font-medium text-muted-foreground/50 hover:border-primary/40 hover:bg-primary/5 hover:text-primary transition-all duration-fast mb-1.5"
                 >
@@ -1362,12 +1479,14 @@ interface IssueCardProps {
   selected?:          boolean;
   onToggleSelect?:    (id: string, shiftKey: boolean) => void;
   selectedIds?:       Set<string>;
+  showId?:            boolean;
 }
 
 function IssueCard({
   issue, activeCols, states, members, labels,
   workspaceSlug, projectId, projectIdentifier, depth, onIssueClick,
   categories, sprints, hideCompleted, selected, onToggleSelect, selectedIds,
+  showId = true,
 }: IssueCardProps) {
   const { t } = useTranslation();
   const { perms } = useProjectPerms();
@@ -1543,9 +1662,14 @@ function IssueCard({
     switch (col.id) {
 
       case "state":
-        // 필드(Field) 이슈는 상태 개념 없음 → "—"
+        // 필드(Field) — 상태 없음. 그래프 뷰와 동일한 라벤더(violet) 칩으로 표시.
         if (issue.is_field) {
-          return <span className="text-xs text-muted-foreground px-2">—</span>;
+          return (
+            <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded-md bg-violet-500/15 text-violet-700 dark:text-violet-300">
+              <Layers className="h-3 w-3" />
+              {t("issues.table.fieldLabel", "필드")}
+            </span>
+          );
         }
         return (
           <StatePicker
@@ -1653,6 +1777,20 @@ function IssueCard({
           />
         );
 
+      case "createdAt":
+        return issue.created_at ? (
+          <span className="text-xs text-muted-foreground tabular-nums truncate" title={new Date(issue.created_at).toLocaleString()}>
+            {formatDate(issue.created_at)}
+          </span>
+        ) : null;
+
+      case "updatedAt":
+        return issue.updated_at ? (
+          <span className="text-xs text-muted-foreground tabular-nums truncate" title={new Date(issue.updated_at).toLocaleString()}>
+            {formatDate(issue.updated_at)}
+          </span>
+        ) : null;
+
       default: return null;
     }
   };
@@ -1694,8 +1832,8 @@ function IssueCard({
           depth >= 3 && "border-l-[3px] border-l-violet-400/40 bg-card/70",
           isDragging
             ? "opacity-30 border-dashed border-primary/60 bg-primary/[0.03] shadow-none scale-[0.99]"
-            : (isNestTarget && hasChildren && expanded)
-              // 자식이 있고 펼쳐진 상태면 "부모와 첫 자식 사이에 삽입" — ring 으로 맥락 강조
+            : isNestTarget
+              // 어느 깊이의 카드든 동일한 nest 하이라이트 — 상위/하위 구분 없이 통일
               ? "ring-2 ring-primary border-primary/50 bg-primary/[0.03] shadow-[0_0_0_4px_hsl(var(--primary)/0.08)]"
               : "hover:ring-1 hover:ring-border/40 hover:shadow-md hover:border-border",
           !isDragging && "cursor-grab active:cursor-grabbing",
@@ -1753,20 +1891,24 @@ function IssueCard({
           </span>
         )}
 
-        <div
-          className="shrink-0 flex items-center truncate overflow-hidden"
-          style={{ width: "var(--col-w-_id)", minWidth: "var(--col-w-_id)" }}
-        >
-          {/* Phase 3.3 — IssueDetailPage의 issueRef와 같은 layoutId. 모달 열림 시 자연 이어짐 */}
-          <motion.span
-            layoutId={`issue-ref-${issue.id}`}
-            className="font-mono text-xs font-semibold text-muted-foreground/70 truncate"
-          >
-            {projectIdentifier ? `${projectIdentifier}-${issue.sequence_id}` : `#${issue.sequence_id}`}
-          </motion.span>
-        </div>
+        {showId && (
+          <>
+            <div
+              className="shrink-0 flex items-center truncate overflow-hidden"
+              style={{ width: "var(--col-w-_id)", minWidth: "var(--col-w-_id)" }}
+            >
+              {/* Phase 3.3 — IssueDetailPage의 issueRef와 같은 layoutId. 모달 열림 시 자연 이어짐 */}
+              <motion.span
+                layoutId={`issue-ref-${issue.id}`}
+                className="font-mono text-xs font-semibold text-muted-foreground/70 truncate"
+              >
+                {projectIdentifier ? `${projectIdentifier}-${issue.sequence_id}` : `#${issue.sequence_id}`}
+              </motion.span>
+            </div>
 
-        <div className="w-[10px] self-stretch shrink-0 flex items-center text-transparent">|</div>
+            <div className="w-[10px] self-stretch shrink-0 flex items-center text-transparent">|</div>
+          </>
+        )}
 
         {/* 제목 영역 (인덴트를 제목 패딩으로 이동시켜 전체 컬럼 정렬 유지) */}
         <div
@@ -1826,21 +1968,33 @@ function IssueCard({
 
         {/* 작업 ↔ 필드 토글 — 3-dot 메뉴 바로 왼쪽. 테마 토글처럼 현재 상태 아이콘만 보여줌.
             연타 방지: 뮤테이션 진행 중엔 비활성화. */}
-        <button
-          type="button"
-          disabled={updateMutation.isPending}
-          onClick={(e) => {
-            e.stopPropagation();
-            if (updateMutation.isPending) return;
-            updateMutation.mutate({ is_field: !issue.is_field } as any);
-          }}
-          title={issue.is_field ? "필드 → 작업으로 전환" : "작업 → 필드로 전환"}
-          className="shrink-0 ml-auto opacity-0 group-hover:opacity-100 h-6 w-6 rounded-md flex items-center justify-center hover:bg-muted/60 transition-all disabled:opacity-40 disabled:cursor-wait"
+        <Tooltip
+          content={
+            <div className="space-y-1">
+              <p className="font-semibold">
+                {issue.is_field ? t("issues.table.toField.toIssue") : t("issues.table.toField.toField")}
+              </p>
+              <p className="opacity-80">
+                {issue.is_field ? t("issues.table.toField.toIssueDesc") : t("issues.table.toField.toFieldDesc")}
+              </p>
+            </div>
+          }
         >
-          {issue.is_field
-            ? <Folder className="h-3.5 w-3.5 text-amber-500" />
-            : <FileText className="h-3.5 w-3.5 text-muted-foreground" />}
-        </button>
+          <button
+            type="button"
+            disabled={updateMutation.isPending}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (updateMutation.isPending) return;
+              updateMutation.mutate({ is_field: !issue.is_field } as any);
+            }}
+            className="shrink-0 ml-auto opacity-0 group-hover:opacity-100 h-6 w-6 rounded-md flex items-center justify-center hover:bg-muted/60 transition-all disabled:opacity-40 disabled:cursor-wait"
+          >
+            {issue.is_field
+              ? <Layers className="h-3.5 w-3.5 text-violet-500" />
+              : <Circle className="h-3.5 w-3.5 text-muted-foreground" />}
+          </button>
+        </Tooltip>
 
         <div className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
           <DropdownMenu>
@@ -1945,6 +2099,7 @@ function IssueCard({
               selected={selectedIds?.has(sub.id)}
               onToggleSelect={onToggleSelect}
               selectedIds={selectedIds}
+              showId={showId}
             />
           ))}
         </div>
@@ -1963,6 +2118,13 @@ function IssueCard({
       />
     </div>
   );
+}
+
+function SortIndicator({ active, dir }: { active?: boolean; dir?: SortDir }) {
+  if (!active) return <ArrowUpDown className="h-3 w-3 opacity-0 group-hover:opacity-40 transition-opacity shrink-0" />;
+  return dir === "asc"
+    ? <ArrowUp className="h-3 w-3 text-primary shrink-0" />
+    : <ArrowDown className="h-3 w-3 text-primary shrink-0" />;
 }
 
 function ColDropIndicator({

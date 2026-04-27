@@ -46,10 +46,23 @@ from .serializers import (
 
 # ── 권한 헬퍼 ──
 
+def _is_workspace_admin(user, workspace):
+    """슈퍼유저 OR 워크스페이스 ADMIN 이상 — 비공개 스페이스도 우회."""
+    if user.is_superuser:
+        return True
+    return WorkspaceMember.objects.filter(
+        workspace=workspace, member=user,
+        role__gte=WorkspaceMember.Role.ADMIN,
+    ).exists()
+
+
 def _check_space_access(user, space):
     """스페이스 읽기 권한.
     프로젝트 스페이스: 프로젝트 멤버 OR space.members 추가 인원.
-    공용 스페이스: 비공개면 space.members 만, 공개면 워크스페이스 멤버 모두."""
+    공용 스페이스: 비공개면 space.members 만, 공개면 워크스페이스 멤버 모두.
+    워크스페이스 관리자/슈퍼유저는 비공개여도 우회."""
+    if _is_workspace_admin(user, space.workspace):
+        return True
     if space.space_type == "project":
         if space.project and ProjectMember.objects.filter(
             project=space.project, member=user,
@@ -68,7 +81,10 @@ def _check_space_access(user, space):
 
 def _check_space_edit(user, space):
     """스페이스 편집 권한 — 프로젝트 멤버는 can_edit, 추가 인원은 모두 편집 가능.
-    비공개 공용 스페이스는 멤버만 편집, 공개 공용은 워크스페이스 멤버 모두."""
+    비공개 공용 스페이스는 멤버만 편집, 공개 공용은 워크스페이스 멤버 모두.
+    워크스페이스 관리자/슈퍼유저는 우회."""
+    if _is_workspace_admin(user, space.workspace):
+        return True
     if space.space_type == "project":
         if space.project:
             pm = ProjectMember.objects.filter(
@@ -89,10 +105,23 @@ def _check_space_edit(user, space):
 
 def _get_accessible_spaces(user, workspace_slug):
     """유저가 접근 가능한 스페이스 queryset — 프로젝트 멤버 OR space.members 추가 인원 포함.
-    비공개 공용 스페이스는 멤버에게만, 공개 공용은 워크스페이스 멤버 모두."""
-    return DocumentSpace.objects.filter(
-        workspace__slug=workspace_slug,
-    ).filter(
+    비공개 공용 스페이스는 멤버에게만, 공개 공용은 워크스페이스 멤버 모두.
+    워크스페이스 관리자/슈퍼유저는 비공개 스페이스도 모두 노출."""
+    base = DocumentSpace.objects.filter(workspace__slug=workspace_slug)
+    is_admin = (
+        user.is_superuser
+        or WorkspaceMember.objects.filter(
+            workspace__slug=workspace_slug, member=user,
+            role__gte=WorkspaceMember.Role.ADMIN,
+        ).exists()
+    )
+    if is_admin:
+        # 관리자: 본인 personal 외 모든 스페이스 노출
+        return base.filter(
+            Q(space_type__in=["shared", "project"])
+            | Q(space_type="personal", owner=user)
+        ).distinct().select_related("project", "owner")
+    return base.filter(
         Q(space_type="shared", is_private=False)
         | Q(space_type="shared", is_private=True, members=user)
         | Q(space_type="personal", owner=user)

@@ -198,12 +198,26 @@ class IssueAttachmentSerializer(serializers.ModelSerializer):
         # 기타
         ".json", ".xml", ".yaml", ".yml", ".md", ".log",
     }
-    MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+    @property
+    def MAX_FILE_SIZE(self):
+        from django.conf import settings
+        return getattr(settings, "MAX_UPLOAD_SIZE_MB", 10) * 1024 * 1024
+
+    issue_id = serializers.UUIDField(source="issue.id", read_only=True)
+    issue_title = serializers.CharField(source="issue.title", read_only=True)
+    issue_sequence_id = serializers.IntegerField(source="issue.sequence_id", read_only=True)
 
     class Meta:
         model = IssueAttachment
-        fields = ["id", "file", "filename", "size", "mime_type", "uploaded_by", "uploaded_by_detail", "created_at"]
-        read_only_fields = ["id", "filename", "size", "mime_type", "uploaded_by", "created_at"]
+        fields = [
+            "id", "file", "filename", "size", "mime_type",
+            "uploaded_by", "uploaded_by_detail", "created_at", "deleted_at",
+            "issue_id", "issue_title", "issue_sequence_id",
+        ]
+        read_only_fields = [
+            "id", "filename", "size", "mime_type", "uploaded_by", "created_at", "deleted_at",
+            "issue_id", "issue_title", "issue_sequence_id",
+        ]
 
     def validate_file(self, file_obj):
         """파일 확장자/크기 검증 — 악성파일 업로드 방지"""

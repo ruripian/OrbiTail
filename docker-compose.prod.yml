@@ -96,6 +96,7 @@ services:
       - certbot_www:/var/www/certbot          # ACME 챌린지
     environment:
       - DOMAIN=${DOMAIN:-}                    # 비어있으면 HTTP 모드
+      - MAX_UPLOAD_SIZE_MB=${MAX_UPLOAD_SIZE_MB:-10}
     # restart: true — backend/frontend 컨테이너가 recreate 되면 nginx 도 자동 재시작
     # (upstream 컨테이너 IP 변경으로 발생하는 502 Bad Gateway 방지)
     depends_on:

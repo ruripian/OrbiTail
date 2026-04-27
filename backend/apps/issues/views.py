@@ -624,6 +624,7 @@ class ProjectNodeGraphView(APIView):
                     node_map[nid]["labels"] = labels
                 return
             state_group = getattr(issue.state, "group", None) if issue.state_id and issue.state else None
+            state_color = getattr(issue.state, "color", None) if issue.state_id and issue.state else None
             node_map[nid] = {
                 "id": nid,
                 "title": issue.title,
@@ -631,6 +632,7 @@ class ProjectNodeGraphView(APIView):
                 "project_id": str(issue.project_id) if issue.project_id else None,
                 "project_identifier": issue.project.identifier if issue.project_id else None,
                 "state_group": state_group,
+                "state_color": state_color,
                 "labels": labels or [],
                 "external": str(issue.project_id) != str(project_pk),
                 "category_id": str(issue.category_id) if issue.category_id else None,
@@ -736,8 +738,10 @@ class WorkspaceNodeGraphView(APIView):
             if nid in node_map:
                 return
             state_group = None
+            state_color = None
             if issue.state_id and issue.state:
                 state_group = getattr(issue.state, "group", None)
+                state_color = getattr(issue.state, "color", None)
             node_map[nid] = {
                 "id": nid,
                 "title": issue.title,
@@ -745,6 +749,7 @@ class WorkspaceNodeGraphView(APIView):
                 "project_id": str(issue.project_id) if issue.project_id else None,
                 "project_identifier": issue.project.identifier if issue.project_id else None,
                 "state_group": state_group,
+                "state_color": state_color,
                 "labels": labels or [],
                 "is_field": bool(getattr(issue, "is_field", False)),
             }
@@ -818,12 +823,14 @@ class WorkspaceNodeGraphView(APIView):
 
 
 class IssueAttachmentListCreateView(generics.ListCreateAPIView):
-    """이슈 첨부파일 목록 조회 및 업로드"""
+    """이슈 첨부파일 목록 조회 및 업로드 — 휴지통 제외"""
     serializer_class = IssueAttachmentSerializer
-    # multipart/form-data 업로드를 위해 parser 별도 설정 불필요 (DRF 기본 지원)
 
     def get_queryset(self):
-        return IssueAttachment.objects.filter(issue_id=self.kwargs["issue_pk"])
+        return IssueAttachment.objects.filter(
+            issue_id=self.kwargs["issue_pk"],
+            deleted_at__isnull=True,
+        )
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -831,15 +838,130 @@ class IssueAttachmentListCreateView(generics.ListCreateAPIView):
         return context
 
 
+class IssueAttachmentTreeView(APIView):
+    """이슈 + 하위 이슈 트리 — 첨부파일이 있는 노드만 재귀 반환.
+
+    응답:
+      { id, sequence_id, title, attachments: [...], children: [...] }
+    children 은 첨부가 있거나 자손 중 첨부가 있는 노드만 포함.
+    """
+    MAX_DEPTH = 8
+
+    def get(self, request, workspace_slug, project_pk, issue_pk):
+        from .models import Issue
+        from .serializers import IssueAttachmentSerializer
+
+        root = get_object_or_404(
+            Issue.objects.filter(deleted_at__isnull=True),
+            pk=issue_pk, project_id=project_pk,
+        )
+
+        def build(issue, depth):
+            attachments = list(
+                issue.attachments.filter(deleted_at__isnull=True)
+                .select_related("uploaded_by").order_by("-created_at")
+            )
+            children = []
+            if depth < self.MAX_DEPTH:
+                subs = issue.sub_issues.filter(deleted_at__isnull=True).order_by("sort_order", "sequence_id")
+                for s in subs:
+                    node = build(s, depth + 1)
+                    if node is not None:
+                        children.append(node)
+            if not attachments and not children:
+                return None
+            return {
+                "id": str(issue.id),
+                "sequence_id": issue.sequence_id,
+                "title": issue.title,
+                "attachments": IssueAttachmentSerializer(attachments, many=True, context={"request": request}).data,
+                "children": children,
+            }
+
+        # 루트는 첨부/자손 없어도 항상 반환 (UI 가 빈 상태 표시)
+        attachments = list(
+            root.attachments.filter(deleted_at__isnull=True)
+            .select_related("uploaded_by").order_by("-created_at")
+        )
+        subs = root.sub_issues.filter(deleted_at__isnull=True).order_by("sort_order", "sequence_id")
+        children = []
+        for s in subs:
+            node = build(s, 1)
+            if node is not None:
+                children.append(node)
+        from .serializers import IssueAttachmentSerializer
+        return Response({
+            "id": str(root.id),
+            "sequence_id": root.sequence_id,
+            "title": root.title,
+            "attachments": IssueAttachmentSerializer(attachments, many=True, context={"request": request}).data,
+            "children": children,
+        })
+
+
 class IssueAttachmentDetailView(generics.DestroyAPIView):
-    """이슈 첨부파일 삭제 — 업로더 본인만 가능"""
+    """이슈 첨부파일 삭제 (소프트) — 업로더 본인만 가능. 휴지통 30일 보관."""
     serializer_class = IssueAttachmentSerializer
 
     def get_queryset(self):
         return IssueAttachment.objects.filter(
             issue_id=self.kwargs["issue_pk"],
             uploaded_by=self.request.user,
+            deleted_at__isnull=True,
         )
+
+    def perform_destroy(self, instance):
+        instance.deleted_at = timezone.now()
+        instance.save(update_fields=["deleted_at"])
+
+
+class ProjectAttachmentTrashListView(generics.ListAPIView):
+    """프로젝트 휴지통 첨부파일 목록 — 정상 이슈에 속한 삭제된 첨부만.
+    부모 이슈가 휴지통/보관함이면 제외 (이슈 복구 시 첨부 따라감)."""
+    serializer_class = IssueAttachmentSerializer
+    pagination_class = None
+
+    def get_queryset(self):
+        return IssueAttachment.objects.filter(
+            issue__project_id=self.kwargs["project_pk"],
+            issue__deleted_at__isnull=True,
+            issue__archived_at__isnull=True,
+            deleted_at__isnull=False,
+        ).select_related("uploaded_by", "issue").order_by("-deleted_at")
+
+
+class IssueAttachmentRestoreView(APIView):
+    """첨부파일 복구"""
+
+    def post(self, request, workspace_slug, project_pk, pk):
+        att = get_object_or_404(
+            IssueAttachment.objects.filter(
+                issue__project_id=project_pk,
+                deleted_at__isnull=False,
+            ),
+            pk=pk,
+        )
+        att.deleted_at = None
+        att.save(update_fields=["deleted_at"])
+        return Response({"detail": "restored"})
+
+
+class IssueAttachmentHardDeleteView(APIView):
+    """첨부파일 영구 삭제 — 휴지통에 있는 항목만"""
+
+    def delete(self, request, workspace_slug, project_pk, pk):
+        att = get_object_or_404(
+            IssueAttachment.objects.filter(
+                issue__project_id=project_pk,
+                deleted_at__isnull=False,
+            ),
+            pk=pk,
+        )
+        # 파일 자체도 삭제
+        if att.file:
+            att.file.delete(save=False)
+        att.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class WorkspaceMyIssuesView(generics.ListAPIView):

@@ -29,4 +29,9 @@ app.conf.beat_schedule = {
         "task": "apps.issues.tasks.permanently_delete_trashed_issues",
         "schedule": crontab(hour=4, minute=30),
     },
+    # 휴지통 30일 경과 첨부파일 영구 삭제 — 매일 새벽 4시 45분
+    "permanently-delete-trashed-attachments": {
+        "task": "apps.issues.tasks.permanently_delete_trashed_attachments",
+        "schedule": crontab(hour=4, minute=45),
+    },
 }

@@ -147,6 +147,12 @@
       "deletedWithChildren": "{{count}} sub-issue(s) also deleted",
       "undo": "Undo",
       "nestHere": "Make child",
+      "toField": {
+        "toField": "Convert to field",
+        "toFieldDesc": "Becomes a stateless group container. Hidden from board / calendar / timeline.",
+        "toIssue": "Convert to task issue",
+        "toIssueDesc": "Restores to a normal issue with state (in-progress / done etc.). Shown in all views."
+      },
       "nestHint": "Hold 2s → nest as child",
       "cyclicNestError": "Circular reference detected. Cannot nest an issue inside its own subtree.",
       "dropToRoot": "Drop here to make top-level issue",
@@ -163,7 +169,9 @@
         "links": "Links",
         "category": "Category",
         "module": "Category",
-        "cycle": "Sprint"
+        "cycle": "Sprint",
+        "createdAt": "Created",
+        "updatedAt": "Updated"
       }
     },
     "bulk": {
@@ -279,7 +287,9 @@
       "attachments": {
         "empty": "No attachments",
         "upload": "Attach file",
-        "uploading": "Uploading..."
+        "uploading": "Uploading...",
+        "includeSubs": "Include sub-issues",
+        "download": "Download"
       }
     }
   },
@@ -457,10 +467,11 @@
         "permsTitle": "Granular permissions",
         "permsHint": "Grant individual permissions to non-admin members. Admins automatically have all permissions.",
         "permMember": "Member",
-        "permEdit": "Edit",
+        "permEdit": "Edit Issues",
         "permArchive": "Archive",
         "permDelete": "Trash",
         "permPurge": "Purge",
+        "permSchedule": "Edit Schedule",
         "permEmpty": "No non-admin members."
       },
       "autoArchive": {
@@ -974,7 +985,7 @@
       "showCompleted": "Show completed issues",
       "showNoDate": "Show issues without dates",
       "hideWeekends": "Hide weekends",
-      "showEvents": "Show events",
+      "hidePastEvents": "Hide past events",
       "eventsGroup": "Events",
       "today": "Today",
       "settingsBtn": "Settings",

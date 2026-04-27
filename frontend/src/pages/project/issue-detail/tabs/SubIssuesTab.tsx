@@ -19,6 +19,7 @@ import type { Issue, State } from "@/types";
 interface Props {
   workspaceSlug: string;
   projectId: string;
+  projectIdentifier?: string;
   issueId: string;
   subIssues: Issue[];
   states: State[];
@@ -26,7 +27,7 @@ interface Props {
   readOnly: boolean;
 }
 
-export function SubIssuesTab({ workspaceSlug, projectId, issueId, subIssues, states, inPanel, readOnly }: Props) {
+export function SubIssuesTab({ workspaceSlug, projectId, projectIdentifier, issueId, subIssues, states, inPanel, readOnly }: Props) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -80,7 +81,7 @@ export function SubIssuesTab({ workspaceSlug, projectId, issueId, subIssues, sta
             style={{ background: sub.state_detail?.color ?? "#9ca3af" }}
           />
           <span className="text-xs font-mono text-muted-foreground shrink-0 w-16">
-            {workspaceSlug?.toUpperCase().slice(0, 3)}-{sub.sequence_id}
+            {projectIdentifier ? `${projectIdentifier}-${sub.sequence_id}` : `#${sub.sequence_id}`}
           </span>
           <span className="text-sm flex-1 truncate">{sub.title}</span>
           <span className="text-xs shrink-0" style={{ color: `var(--priority-${sub.priority})` }}>

@@ -79,3 +79,21 @@ def permanently_delete_trashed_issues():
     expired.delete()
 
     return f"Permanently deleted {count} trashed issues"
+
+
+@shared_task
+def permanently_delete_trashed_attachments():
+    """소프트 삭제 후 30일 경과한 첨부파일 영구 삭제 (디스크 파일 + DB row)."""
+    from apps.issues.models import IssueAttachment
+
+    cutoff = timezone.now() - timedelta(days=TRASH_RETENTION_DAYS)
+    expired = IssueAttachment.objects.filter(
+        deleted_at__isnull=False,
+        deleted_at__lte=cutoff,
+    )
+    count = expired.count()
+    for att in expired.iterator():
+        if att.file:
+            att.file.delete(save=False)
+    expired.delete()
+    return f"Permanently deleted {count} trashed attachments"

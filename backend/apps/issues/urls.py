@@ -20,6 +20,10 @@ from .views import (
     WorkspaceNodeGraphView,
     IssueAttachmentListCreateView,
     IssueAttachmentDetailView,
+    IssueAttachmentTreeView,
+    ProjectAttachmentTrashListView,
+    IssueAttachmentRestoreView,
+    IssueAttachmentHardDeleteView,
     LabelListCreateView,
     LabelDetailView,
     IssueTemplateListCreateView,
@@ -145,6 +149,26 @@ urlpatterns = [
         "workspaces/<slug:workspace_slug>/projects/<uuid:project_pk>/issues/<uuid:issue_pk>/attachments/<uuid:pk>/",
         IssueAttachmentDetailView.as_view(),
         name="issue-attachment-detail",
+    ),
+    path(
+        "workspaces/<slug:workspace_slug>/projects/<uuid:project_pk>/issues/<uuid:issue_pk>/attachments-tree/",
+        IssueAttachmentTreeView.as_view(),
+        name="issue-attachment-tree",
+    ),
+    path(
+        "workspaces/<slug:workspace_slug>/projects/<uuid:project_pk>/attachments-trash/",
+        ProjectAttachmentTrashListView.as_view(),
+        name="project-attachment-trash",
+    ),
+    path(
+        "workspaces/<slug:workspace_slug>/projects/<uuid:project_pk>/attachments-trash/<uuid:pk>/restore/",
+        IssueAttachmentRestoreView.as_view(),
+        name="project-attachment-restore",
+    ),
+    path(
+        "workspaces/<slug:workspace_slug>/projects/<uuid:project_pk>/attachments-trash/<uuid:pk>/hard-delete/",
+        IssueAttachmentHardDeleteView.as_view(),
+        name="project-attachment-hard-delete",
     ),
     path(
         "workspaces/<slug:workspace_slug>/projects/<uuid:project_pk>/labels/",

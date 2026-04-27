@@ -27,7 +27,7 @@ export function ProjectTrashPage() {
         <h1 className="text-sm font-semibold">{t("project.nav.trash", "휴지통")}</h1>
       </header>
 
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 overflow-y-auto">
         <TrashView workspaceSlug={workspaceSlug!} projectId={projectId!} />
       </div>
 

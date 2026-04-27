@@ -76,9 +76,10 @@ class ProjectMember(models.Model):
     # 세분화 권한 — 역할이 ADMIN 미만이어도 개별 부여 가능.
     # 프론트는 effective_perms로 합쳐서 가드.
     can_edit    = models.BooleanField(default=True)   # 이슈/필드 수정
-    can_archive = models.BooleanField(default=False)  # 보관함 이동 (소프트)
-    can_delete  = models.BooleanField(default=False)  # 휴지통 이동 (소프트 삭제)
-    can_purge   = models.BooleanField(default=False)  # 휴지통에서 영구 삭제
+    can_archive = models.BooleanField(default=True)   # 보관함 이동 (소프트)
+    can_delete  = models.BooleanField(default=True)   # 휴지통 이동 (소프트 삭제)
+    can_purge   = models.BooleanField(default=False)  # 휴지통에서 영구 삭제 — 기본 비활성
+    can_schedule = models.BooleanField(default=True)  # 일정(start/due) 수정 — 캘린더/타임라인 드래그
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -89,12 +90,13 @@ class ProjectMember(models.Model):
     def effective_perms(self) -> dict:
         """역할(role)이 ADMIN이면 모든 권한 자동 허용. 그 미만은 플래그 값 사용."""
         if self.role >= self.Role.ADMIN:
-            return {"can_edit": True, "can_archive": True, "can_delete": True, "can_purge": True}
+            return {"can_edit": True, "can_archive": True, "can_delete": True, "can_purge": True, "can_schedule": True}
         return {
             "can_edit":    self.can_edit,
             "can_archive": self.can_archive,
             "can_delete":  self.can_delete,
             "can_purge":   self.can_purge,
+            "can_schedule": self.can_schedule,
         }
 
 

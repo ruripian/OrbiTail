@@ -18,7 +18,8 @@ export interface TimelineSettings {
   showCompleted: boolean;
   showNoDate:    boolean;
   hideWeekends:  boolean; // day scale에서 주말 컬럼 건너뛰기
-  showEvents:    boolean; // 프로젝트 캘린더 이벤트를 타임라인 상단에 표시
+  /** 이벤트 자체는 항상 표시. 지난 이벤트만 숨길지 여부. 기본 false (전부 표시). */
+  hidePastEvents: boolean;
   groupBy:       "none" | "state" | "priority" | "category" | "sprint"; // 그룹화 기준
 }
 
@@ -29,7 +30,7 @@ interface AllSettings {
 
 const DEFAULTS: AllSettings = {
   calendar: { showCompleted: true, hideWeekends: false, showEvents: true, alwaysExpand: false, showFields: false },
-  timeline: { scale: "day", showCompleted: false, showNoDate: false, hideWeekends: false, showEvents: true, groupBy: "none" },
+  timeline: { scale: "day", showCompleted: false, showNoDate: false, hideWeekends: false, hidePastEvents: false, groupBy: "none" },
 };
 
 const KEY = "orbitail_view_settings";

@@ -65,6 +65,12 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
     queryFn: () => issuesApi.get(workspaceSlug!, projectId!, issueId!),
   });
 
+  const { data: project } = useQuery({
+    queryKey: ["project", workspaceSlug, projectId],
+    queryFn: () => projectsApi.get(workspaceSlug!, projectId!),
+    enabled: !!workspaceSlug && !!projectId,
+  });
+
   const isArchived = !!issue?.archived_at;
   const canEdit = perms.can_edit;
   const canArchive = perms.can_archive;
@@ -291,7 +297,9 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
   }
 
   /* 프로젝트 식별자 prefix (워크스페이스 slug 앞 3자) */
-  const issueRef = `${workspaceSlug?.toUpperCase().slice(0, 3)}-${issue.sequence_id}`;
+  const issueRef = project?.identifier
+    ? `${project.identifier}-${issue.sequence_id}`
+    : `#${issue.sequence_id}`;
 
   return (
     <div className="flex h-full overflow-hidden">
@@ -441,6 +449,7 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
           <SubIssuesTab
             workspaceSlug={workspaceSlug!}
             projectId={projectId!}
+            projectIdentifier={project?.identifier}
             issueId={issueId!}
             subIssues={subIssues}
             states={states}
@@ -479,6 +488,7 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
           <AttachmentsTab
             workspaceSlug={workspaceSlug!}
             projectId={projectId!}
+            projectIdentifier={project?.identifier}
             issueId={issueId!}
             attachments={attachments}
             readOnly={readOnly}
@@ -507,6 +517,7 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
         issue={issue}
         workspaceSlug={workspaceSlug!}
         projectId={projectId!}
+        projectIdentifier={project?.identifier}
         states={states}
         members={members}
         labels={labels}

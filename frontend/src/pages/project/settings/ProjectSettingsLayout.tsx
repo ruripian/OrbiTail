@@ -21,9 +21,10 @@ export function ProjectSettingsLayout() {
   const base = `/${workspaceSlug}/projects/${projectId}/settings`;
 
   return (
-    <div className="flex h-full">
-      {/* 프로젝트 설정 탭 사이드바 */}
-      <aside className="w-52 shrink-0 border-r bg-background p-4 space-y-1">
+    <div className="flex h-full overflow-y-auto">
+      {/* 프로젝트 설정 탭 사이드바 — sticky 로 본문 스크롤해도 따라옴.
+          부모(div)가 스크롤 컨테이너이므로 화면 우측 끝에 스크롤바가 위치. */}
+      <aside className="w-52 shrink-0 border-r bg-background p-4 space-y-1 sticky top-0 self-start max-h-full">
         <p className="px-2 mb-3 text-2xs font-semibold uppercase tracking-widest text-muted-foreground">
           {t("project.settings.sidebarTitle")}
         </p>
@@ -46,7 +47,7 @@ export function ProjectSettingsLayout() {
         ))}
       </aside>
 
-      <main className="flex-1 overflow-y-auto p-6 sm:p-8">
+      <main className="flex-1 p-6 sm:p-8 min-w-0">
         <Outlet />
       </main>
     </div>

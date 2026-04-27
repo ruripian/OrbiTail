@@ -213,20 +213,48 @@ export function MembersPage() {
             <thead className="bg-muted/40 text-xs text-muted-foreground">
               <tr>
                 <th className="text-left px-3 py-2 font-semibold">{t("project.settings.members.permMember")}</th>
-                <th className="text-center px-3 py-2 font-semibold">{t("project.settings.members.permEdit")}</th>
-                <th className="text-center px-3 py-2 font-semibold">{t("project.settings.members.permArchive")}</th>
-                <th className="text-center px-3 py-2 font-semibold">{t("project.settings.members.permDelete")}</th>
-                <th className="text-center px-3 py-2 font-semibold">{t("project.settings.members.permPurge")}</th>
+                {(["can_edit", "can_archive", "can_delete", "can_purge", "can_schedule"] as const).map((k) => {
+                  const nonAdmins = members.filter((m) => m.role < 20);
+                  const allOn  = nonAdmins.length > 0 && nonAdmins.every((m) => m[k]);
+                  const someOn = !allOn && nonAdmins.some((m) => m[k]);
+                  const tKey = k === "can_edit" ? "permEdit" : k === "can_archive" ? "permArchive" : k === "can_delete" ? "permDelete" : k === "can_purge" ? "permPurge" : "permSchedule";
+                  const toggleAll = () => {
+                    /* 일부라도 켜져있으면 모두 끄고, 모두 꺼져있으면 모두 켜기 */
+                    const next = !(allOn || someOn);
+                    nonAdmins.forEach((m) => {
+                      if (m[k] !== next) permsMutation.mutate({ id: m.id, data: { [k]: next } });
+                    });
+                  };
+                  return (
+                    <th key={k} className="text-center px-3 py-2 font-semibold">
+                      <button
+                        type="button"
+                        onClick={toggleAll}
+                        className="inline-flex items-center gap-1 hover:text-foreground transition-colors"
+                        title={t("project.settings.members.toggleAllHint", "전체 토글")}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={allOn}
+                          ref={(el) => { if (el) el.indeterminate = someOn; }}
+                          readOnly
+                          className="h-3 w-3 pointer-events-none"
+                        />
+                        {t(`project.settings.members.${tKey}`)}
+                      </button>
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody>
               {members.filter((m) => m.role < 20).map((pm) => {
-                const togglePerm = (k: "can_edit" | "can_archive" | "can_delete" | "can_purge") =>
+                const togglePerm = (k: "can_edit" | "can_archive" | "can_delete" | "can_purge" | "can_schedule") =>
                   permsMutation.mutate({ id: pm.id, data: { [k]: !pm[k] } });
                 return (
                   <tr key={pm.id} className="border-t border-border">
                     <td className="px-3 py-2">{pm.member.display_name}</td>
-                    {(["can_edit", "can_archive", "can_delete", "can_purge"] as const).map((k) => (
+                    {(["can_edit", "can_archive", "can_delete", "can_purge", "can_schedule"] as const).map((k) => (
                       <td key={k} className="text-center px-3 py-2">
                         <input
                           type="checkbox"
@@ -241,7 +269,7 @@ export function MembersPage() {
               })}
               {members.filter((m) => m.role < 20).length === 0 && (
                 <tr>
-                  <td colSpan={5} className="text-center text-xs text-muted-foreground py-4">
+                  <td colSpan={6} className="text-center text-xs text-muted-foreground py-4">
                     {t("project.settings.members.permEmpty")}
                   </td>
                 </tr>
