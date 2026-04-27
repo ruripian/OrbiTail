@@ -4,7 +4,7 @@
  */
 
 import { useState } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Plus, CalendarRange } from "lucide-react";
 import { formatDate } from "@/utils/date-format";
@@ -37,6 +37,7 @@ export function BoardView({ workspaceSlug, projectId, onIssueClick, issueFilter,
   // Phase 3.4 — 카드별 recently-changed strip. dict 통째로 구독하고 row마다 lookup.
   const recentChanges = useRecentChangesStore((s) => s.recent);
   const { refresh } = useIssueRefresh(workspaceSlug, projectId);
+  const qc = useQueryClient();
   const [createOpen, setCreateOpen]       = useState(false);
   const [selectedState, setSelectedState] = useState<State | null>(null);
   const [inlineStateId, setInlineStateId] = useState<string | null>(null);
@@ -73,10 +74,25 @@ export function BoardView({ workspaceSlug, projectId, onIssueClick, issueFilter,
     queryFn:  () => projectsApi.states.list(workspaceSlug, projectId),
   });
 
+  /* 드래그-드롭 상태 변경 — optimistic.
+     refetch 왕복 동안 카드가 옛 컬럼에 머무는 딜레이를 없애기 위해
+     issues 쿼리를 즉시 갱신하고, 실패 시 롤백, 완료 후 서버값으로 동기화. */
   const updateIssue = useMutation({
     mutationFn: ({ issueId, stateId }: { issueId: string; stateId: string }) =>
       issuesApi.update(workspaceSlug, projectId, issueId, { state: stateId }),
-    onSuccess: () => {
+    onMutate: async ({ issueId, stateId }) => {
+      const filterKey = { queryKey: ["issues", workspaceSlug, projectId] };
+      await qc.cancelQueries(filterKey);
+      const snapshots = qc.getQueriesData<Issue[]>(filterKey);
+      qc.setQueriesData<Issue[]>(filterKey, (old) =>
+        old ? old.map((i) => (i.id === issueId ? { ...i, state: stateId } : i)) : old,
+      );
+      return { snapshots };
+    },
+    onError: (_err, _vars, ctx) => {
+      ctx?.snapshots?.forEach(([key, data]) => qc.setQueryData(key, data));
+    },
+    onSettled: () => {
       refresh();
     },
   });
