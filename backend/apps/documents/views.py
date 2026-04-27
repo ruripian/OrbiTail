@@ -30,7 +30,7 @@ def _broadcast_thread_event(workspace_slug: str, doc_id: str, action: str, threa
         )
     except Exception:
         pass
-from .models import DocumentSpace, Document, DocumentIssueLink, DocumentAttachment, DocumentComment, DocumentVersion, CommentThread, DocumentTemplate
+from .models import DocumentSpace, Document, DocumentIssueLink, DocumentAttachment, DocumentComment, DocumentVersion, CommentThread, DocumentTemplate, DocumentSpaceBookmark
 from .serializers import (
     DocumentSpaceSerializer,
     DocumentSerializer,
@@ -48,7 +48,8 @@ from .serializers import (
 
 def _check_space_access(user, space):
     """스페이스 읽기 권한.
-    프로젝트 스페이스: 프로젝트 멤버 OR space.members 추가 인원 모두 허용."""
+    프로젝트 스페이스: 프로젝트 멤버 OR space.members 추가 인원.
+    공용 스페이스: 비공개면 space.members 만, 공개면 워크스페이스 멤버 모두."""
     if space.space_type == "project":
         if space.project and ProjectMember.objects.filter(
             project=space.project, member=user,
@@ -58,13 +59,16 @@ def _check_space_access(user, space):
     elif space.space_type == "personal":
         return space.owner_id == user.id
     else:  # shared
+        if space.is_private:
+            return space.members.filter(pk=user.pk).exists()
         return WorkspaceMember.objects.filter(
             workspace=space.workspace, member=user,
         ).exists()
 
 
 def _check_space_edit(user, space):
-    """스페이스 편집 권한 — 프로젝트 멤버는 can_edit, 추가 인원은 모두 편집 가능."""
+    """스페이스 편집 권한 — 프로젝트 멤버는 can_edit, 추가 인원은 모두 편집 가능.
+    비공개 공용 스페이스는 멤버만 편집, 공개 공용은 워크스페이스 멤버 모두."""
     if space.space_type == "project":
         if space.project:
             pm = ProjectMember.objects.filter(
@@ -76,17 +80,21 @@ def _check_space_edit(user, space):
     elif space.space_type == "personal":
         return space.owner_id == user.id
     else:
+        if space.is_private:
+            return space.members.filter(pk=user.pk).exists()
         return WorkspaceMember.objects.filter(
             workspace=space.workspace, member=user,
         ).exists()
 
 
 def _get_accessible_spaces(user, workspace_slug):
-    """유저가 접근 가능한 스페이스 queryset — 프로젝트 멤버 OR space.members 추가 인원 포함."""
+    """유저가 접근 가능한 스페이스 queryset — 프로젝트 멤버 OR space.members 추가 인원 포함.
+    비공개 공용 스페이스는 멤버에게만, 공개 공용은 워크스페이스 멤버 모두."""
     return DocumentSpace.objects.filter(
         workspace__slug=workspace_slug,
     ).filter(
-        Q(space_type="shared")
+        Q(space_type="shared", is_private=False)
+        | Q(space_type="shared", is_private=True, members=user)
         | Q(space_type="personal", owner=user)
         | Q(space_type="project", project__members__member=user)
         | Q(space_type="project", members=user)
@@ -104,16 +112,84 @@ class SpaceListCreateView(generics.ListCreateAPIView):
         return _get_accessible_spaces(self.request.user, self.kwargs["workspace_slug"])
 
     def create(self, request, *args, **kwargs):
-        """공용 스페이스만 수동 생성 가능 (project/personal은 자동)"""
+        """공용 스페이스만 수동 생성 가능 (project/personal은 자동).
+        members는 워크스페이스 멤버로 제한. is_private 로 공개/비공개 지정."""
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         from apps.workspaces.models import Workspace
         ws = get_object_or_404(Workspace, slug=self.kwargs["workspace_slug"])
+
+        # members 가 워크스페이스 소속인지 검증 — 외부 인원 추가 차단.
+        requested_members = serializer.validated_data.get("members") or []
+        if requested_members:
+            valid_user_ids = set(
+                WorkspaceMember.objects.filter(
+                    workspace=ws, member__in=requested_members,
+                ).values_list("member_id", flat=True)
+            )
+            filtered_members = [u for u in requested_members if u.id in valid_user_ids]
+            serializer.validated_data["members"] = filtered_members
+
         serializer.save(
             workspace=ws,
             space_type=DocumentSpace.SpaceType.SHARED,
         )
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        # 본인은 항상 멤버로 추가 — 비공개로 만들 경우에도 자기 자신 접근 보장.
+        space = DocumentSpace.objects.get(pk=serializer.data["id"])
+        if not space.members.filter(pk=request.user.pk).exists():
+            space.members.add(request.user)
+        return Response(self.get_serializer(space).data, status=status.HTTP_201_CREATED)
+
+
+class DiscoverableSpacesView(generics.ListAPIView):
+    """탐색 페이지 — 본인이 멤버가 아니면서 가입할 수 있는 공개 스페이스 목록.
+    공용 스페이스 중 is_private=False, 본인이 아직 들어가있지 않은 것."""
+    serializer_class = DocumentSpaceSerializer
+    pagination_class = None
+
+    def get_queryset(self):
+        user = self.request.user
+        ws_slug = self.kwargs["workspace_slug"]
+        # 워크스페이스 멤버가 아니면 빈 결과
+        if not WorkspaceMember.objects.filter(
+            workspace__slug=ws_slug, member=user,
+        ).exists():
+            return DocumentSpace.objects.none()
+        return DocumentSpace.objects.filter(
+            workspace__slug=ws_slug,
+            space_type="shared",
+            is_private=False,
+            archived_at__isnull=True,
+        ).exclude(members=user).select_related("project", "owner").order_by("name")
+
+
+class SpaceJoinView(APIView):
+    """공개 공용 스페이스 자가 가입 — 본인을 members 에 추가."""
+
+    def post(self, request, workspace_slug, pk):
+        space = get_object_or_404(
+            DocumentSpace, pk=pk, workspace__slug=workspace_slug,
+        )
+        if space.space_type != "shared":
+            return Response(
+                {"detail": "공용 스페이스만 자가 가입 가능합니다."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if space.is_private:
+            return Response(
+                {"detail": "비공개 스페이스에는 자가 가입할 수 없습니다."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        # 워크스페이스 멤버 확인
+        if not WorkspaceMember.objects.filter(
+            workspace=space.workspace, member=request.user,
+        ).exists():
+            return Response(
+                {"detail": "워크스페이스 멤버만 가입할 수 있습니다."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        space.members.add(request.user)
+        return Response(DocumentSpaceSerializer(space).data, status=status.HTTP_200_OK)
 
 
 class SpaceDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -328,6 +404,41 @@ class BookmarkedDocumentsView(generics.ListAPIView):
             is_folder=False,
             bookmarks__user=self.request.user,
         ).order_by("-bookmarks__created_at")
+
+
+class BookmarkedSpacesView(generics.ListAPIView):
+    """내가 즐겨찾기한 스페이스"""
+    serializer_class = DocumentSpaceSerializer
+    pagination_class = None
+
+    def get_queryset(self):
+        accessible = _get_accessible_spaces(self.request.user, self.kwargs["workspace_slug"])
+        return accessible.filter(bookmarks__user=self.request.user).order_by("-bookmarks__created_at")
+
+
+class SpaceBookmarkToggleView(APIView):
+    """스페이스 즐겨찾기 토글 — POST 추가, DELETE 제거. 접근 권한 필요."""
+
+    def _get_space(self, request, workspace_slug, space_id):
+        accessible = _get_accessible_spaces(request.user, workspace_slug)
+        try:
+            return accessible.get(pk=space_id)
+        except DocumentSpace.DoesNotExist:
+            return None
+
+    def post(self, request, workspace_slug, space_id):
+        space = self._get_space(request, workspace_slug, space_id)
+        if space is None:
+            return Response({"detail": "스페이스가 없거나 접근 권한이 없습니다."}, status=status.HTTP_404_NOT_FOUND)
+        DocumentSpaceBookmark.objects.get_or_create(user=request.user, space=space)
+        return Response({"bookmarked": True})
+
+    def delete(self, request, workspace_slug, space_id):
+        space = self._get_space(request, workspace_slug, space_id)
+        if space is None:
+            return Response({"detail": "스페이스가 없거나 접근 권한이 없습니다."}, status=status.HTTP_404_NOT_FOUND)
+        DocumentSpaceBookmark.objects.filter(user=request.user, space=space).delete()
+        return Response({"bookmarked": False})
 
 
 def _require_workspace_admin(user, workspace_slug):

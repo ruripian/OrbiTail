@@ -7,6 +7,14 @@ export const documentsApi = {
     list: (workspaceSlug: string) =>
       api.get<DocumentSpace[]>(`/workspaces/${workspaceSlug}/documents/spaces/`).then((r) => r.data),
 
+    /** 탐색 — 본인이 아직 멤버가 아닌 공개 공용 스페이스 */
+    discoverable: (workspaceSlug: string) =>
+      api.get<DocumentSpace[]>(`/workspaces/${workspaceSlug}/documents/spaces/discoverable/`).then((r) => r.data),
+
+    /** 공개 공용 스페이스 자가 가입 */
+    join: (workspaceSlug: string, spaceId: string) =>
+      api.post<DocumentSpace>(`/workspaces/${workspaceSlug}/documents/spaces/${spaceId}/join/`).then((r) => r.data),
+
     create: (
       workspaceSlug: string,
       data: {
@@ -15,6 +23,7 @@ export const documentsApi = {
         identifier?: string;
         description?: string;
         members?: string[];
+        is_private?: boolean;
       },
     ) =>
       api.post<DocumentSpace>(`/workspaces/${workspaceSlug}/documents/spaces/`, data).then((r) => r.data),
@@ -94,6 +103,16 @@ export const documentsApi = {
       api.post<{ bookmarked: boolean }>(`/workspaces/${workspaceSlug}/documents/bookmarks/${docId}/`).then((r) => r.data),
     remove: (workspaceSlug: string, docId: string) =>
       api.delete<{ bookmarked: boolean }>(`/workspaces/${workspaceSlug}/documents/bookmarks/${docId}/`).then((r) => r.data),
+  },
+
+  /** 스페이스 단위 즐겨찾기 — 자주 쓰는 스페이스 핀 */
+  spaceBookmarks: {
+    list: (workspaceSlug: string) =>
+      api.get<DocumentSpace[]>(`/workspaces/${workspaceSlug}/documents/space-bookmarks/`).then((r) => r.data),
+    add: (workspaceSlug: string, spaceId: string) =>
+      api.post<{ bookmarked: boolean }>(`/workspaces/${workspaceSlug}/documents/space-bookmarks/${spaceId}/`).then((r) => r.data),
+    remove: (workspaceSlug: string, spaceId: string) =>
+      api.delete<{ bookmarked: boolean }>(`/workspaces/${workspaceSlug}/documents/space-bookmarks/${spaceId}/`).then((r) => r.data),
   },
 
   /* ─── 첨부파일 ─── */

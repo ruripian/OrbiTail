@@ -7,6 +7,7 @@ class DocumentSpaceSerializer(serializers.ModelSerializer):
     document_count = serializers.SerializerMethodField()
     project_name = serializers.CharField(source="project.name", read_only=True, default=None)
     project_identifier = serializers.CharField(source="project.identifier", read_only=True, default=None)
+    project_network = serializers.IntegerField(source="project.network", read_only=True, default=None)
     owner_detail = UserSerializer(source="owner", read_only=True)
     members_detail = UserSerializer(source="members", many=True, read_only=True)
 
@@ -14,9 +15,10 @@ class DocumentSpaceSerializer(serializers.ModelSerializer):
         model = DocumentSpace
         fields = [
             "id", "name", "icon", "icon_prop", "identifier", "description", "space_type",
-            "project", "project_name", "project_identifier",
+            "project", "project_name", "project_identifier", "project_network",
             "owner", "owner_detail",
             "members", "members_detail",
+            "is_private",
             "archived_at",
             "document_count", "created_at",
         ]

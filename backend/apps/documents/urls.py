@@ -2,6 +2,8 @@ from django.urls import path
 from .views import (
     SpaceListCreateView,
     SpaceDetailView,
+    DiscoverableSpacesView,
+    SpaceJoinView,
     DocumentListCreateView,
     DocumentDetailView,
     DocumentMoveView,
@@ -12,6 +14,8 @@ from .views import (
     RecentDocumentsView,
     BookmarkedDocumentsView,
     DocumentBookmarkToggleView,
+    BookmarkedSpacesView,
+    SpaceBookmarkToggleView,
     OrphanSpaceListView,
     OrphanSpaceDeleteView,
     AttachmentSearchView,
@@ -39,9 +43,19 @@ urlpatterns = [
         name="document-space-list",
     ),
     path(
+        "workspaces/<slug:workspace_slug>/documents/spaces/discoverable/",
+        DiscoverableSpacesView.as_view(),
+        name="document-space-discoverable",
+    ),
+    path(
         "workspaces/<slug:workspace_slug>/documents/spaces/<uuid:pk>/",
         SpaceDetailView.as_view(),
         name="document-space-detail",
+    ),
+    path(
+        "workspaces/<slug:workspace_slug>/documents/spaces/<uuid:pk>/join/",
+        SpaceJoinView.as_view(),
+        name="document-space-join",
     ),
 
     # 문서 CRUD
@@ -102,6 +116,16 @@ urlpatterns = [
         "workspaces/<slug:workspace_slug>/documents/bookmarks/<uuid:doc_id>/",
         DocumentBookmarkToggleView.as_view(),
         name="document-bookmark-toggle",
+    ),
+    path(
+        "workspaces/<slug:workspace_slug>/documents/space-bookmarks/",
+        BookmarkedSpacesView.as_view(),
+        name="document-space-bookmark-list",
+    ),
+    path(
+        "workspaces/<slug:workspace_slug>/documents/space-bookmarks/<uuid:space_id>/",
+        SpaceBookmarkToggleView.as_view(),
+        name="document-space-bookmark-toggle",
     ),
 
     # 워크스페이스 관리자 — 탈퇴자 개인 스페이스 + 첨부 검색

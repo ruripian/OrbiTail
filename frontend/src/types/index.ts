@@ -219,10 +219,14 @@ export interface DocumentSpace {
   project: string | null;
   project_name: string | null;
   project_identifier: string | null;
+  /** 0=공개, 2=비공개. project 스페이스가 아니면 null. */
+  project_network?: number | null;
   owner: string | null;
   owner_detail: User | null;
   members?: string[];
   members_detail?: User[];
+  /** 공용(shared) 스페이스 한정 — true 면 멤버만 접근. project/personal 에는 의미 없음. */
+  is_private?: boolean;
   archived_at?: string | null;
   document_count: number;
   created_at: string;

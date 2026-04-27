@@ -12,7 +12,7 @@ import {
   FileText, Loader2, Pencil, Eye, Share2, MessageSquare, Hash, Plus, Star,
   List, MoreHorizontal, Maximize2, Minimize2,
   History, FolderInput, Download, Printer, FileDown, Trash2, LayoutGrid,
-  FolderOpen, FilePlus, Image as ImageIcon,
+  FolderOpen, FilePlus, Image as ImageIcon, Lock,
 } from "lucide-react";
 import { documentsApi } from "@/api/documents";
 import { useAuthStore } from "@/stores/authStore";
@@ -82,6 +82,9 @@ export default function DocumentSpacePage() {
         workspaceSlug={workspaceSlug!}
         spaceId={spaceId!}
         spaceName={currentSpace?.name ?? ""}
+        isPrivateProject={
+          currentSpace?.space_type === "project" && currentSpace?.project_network === 2
+        }
         onInvalidate={() => ctx?.invalidate()}
       />
     );
@@ -464,6 +467,21 @@ function DocumentEditorView({
         )}
 
         {/* 우측 도구 */}
+        {/* 즐겨찾기 — 사용자별 토글. 도구 모음에서 즉시 보이도록 노출. */}
+        <Button
+          variant="ghost"
+          size="sm"
+          className={cn(
+            "h-7 text-xs gap-1.5 px-2.5",
+            isBookmarked && "text-amber-500 hover:text-amber-500",
+          )}
+          onClick={() => bookmarkMut.mutate()}
+          title={isBookmarked ? "즐겨찾기 해제" : "즐겨찾기에 추가"}
+        >
+          <Star className={cn("h-3.5 w-3.5", isBookmarked && "fill-current")} />
+          {isBookmarked ? "즐겨찾기됨" : "즐겨찾기"}
+        </Button>
+
         {/* 공유 — 공개 링크 다이얼로그 */}
         <Button variant="ghost" size="sm" className="h-7 text-xs gap-1.5 px-2.5"
           onClick={() => setShareOpen(true)}
@@ -633,17 +651,7 @@ function DocumentEditorView({
                   </>
                 )}
                 <div className="ml-auto flex items-center gap-0.5" data-print-hide>
-                  {/* 즐겨찾기 토글 — 모든 사용자 */}
-                  <button
-                    onClick={() => bookmarkMut.mutate()}
-                    className={cn(
-                      "h-6 w-6 rounded-md hover:bg-muted/50 flex items-center justify-center transition-colors",
-                      isBookmarked ? "text-amber-500" : "text-muted-foreground hover:text-foreground",
-                    )}
-                    title={isBookmarked ? "즐겨찾기 해제" : "즐겨찾기에 추가"}
-                  >
-                    <Star className={cn("h-3.5 w-3.5", isBookmarked && "fill-current")} />
-                  </button>
+                  {/* 즐겨찾기는 상단 도구 모음에서 노출 — 메타라인 중복 제거 */}
                   {editMode && (
                   <>
                     {/* 문서 글자 크기 */}
@@ -849,19 +857,36 @@ function DocumentEditorView({
 
 /* ── 스페이스 홈 (문서 미선택 상태) ── */
 function SpaceHome({
-  workspaceSlug, spaceId, spaceName, onInvalidate,
+  workspaceSlug, spaceId, spaceName, isPrivateProject, onInvalidate,
 }: {
   workspaceSlug: string;
   spaceId: string;
   spaceName: string;
+  isPrivateProject?: boolean;
   onInvalidate: () => void;
 }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const { data: docs = [] } = useQuery({
     queryKey: ["documents", workspaceSlug, spaceId, "all"],
     queryFn: () => documentsApi.list(workspaceSlug, spaceId, { all: "true" }),
     enabled: !!workspaceSlug && !!spaceId,
+  });
+
+  /* 즐겨찾기 목록 — 워크스페이스 단위. 카드별 별 토글 노출. */
+  const { data: bookmarks = [] } = useQuery({
+    queryKey: ["doc-bookmarks", workspaceSlug],
+    queryFn: () => documentsApi.bookmarks.list(workspaceSlug),
+    enabled: !!workspaceSlug,
+  });
+  const bookmarkedSet = useMemo(() => new Set(bookmarks.map((b) => b.id)), [bookmarks]);
+  const toggleBookmark = useMutation({
+    mutationFn: ({ id, currently }: { id: string; currently: boolean }) =>
+      currently
+        ? documentsApi.bookmarks.remove(workspaceSlug, id)
+        : documentsApi.bookmarks.add(workspaceSlug, id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["doc-bookmarks", workspaceSlug] }),
   });
 
   const recent = useMemo(() =>
@@ -880,6 +905,30 @@ function SpaceHome({
     navigate(`/${workspaceSlug}/documents/space/${spaceId}/${doc.id}`);
   };
 
+  /* 별 버튼 — 카드 우상단에 호버 시(또는 즐겨찾기 시 항상) 노출.
+     카드 클릭과 충돌하지 않게 stopPropagation. */
+  const BookmarkStar = ({ docId }: { docId: string }) => {
+    const isOn = bookmarkedSet.has(docId);
+    return (
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          toggleBookmark.mutate({ id: docId, currently: isOn });
+        }}
+        title={isOn ? "즐겨찾기 해제" : "즐겨찾기에 추가"}
+        className={cn(
+          "shrink-0 h-7 w-7 rounded-md flex items-center justify-center transition-all",
+          isOn
+            ? "text-amber-500 hover:bg-amber-500/10"
+            : "text-muted-foreground/60 opacity-0 group-hover:opacity-100 hover:bg-accent hover:text-foreground",
+        )}
+      >
+        <Star className={cn("h-4 w-4", isOn && "fill-current")} />
+      </button>
+    );
+  };
+
   return (
     <div className="flex-1 overflow-y-auto">
       <div className="max-w-[960px] mx-auto px-8 py-10">
@@ -888,7 +937,12 @@ function SpaceHome({
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-1">
               {t("documents.home", "홈")}
             </p>
-            <h1 className="text-3xl font-bold">{spaceName || t("documents.title")}</h1>
+            <h1 className="text-3xl font-bold flex items-center gap-2">
+              {spaceName || t("documents.title")}
+              {isPrivateProject && (
+                <Lock className="h-5 w-5 text-muted-foreground/60" aria-label="비공개 프로젝트" />
+              )}
+            </h1>
             <p className="text-sm text-muted-foreground mt-1">
               {t("documents.docCountTotal", "문서")} · {docs.filter((d) => !d.is_folder).length}
             </p>
@@ -907,9 +961,9 @@ function SpaceHome({
             </h2>
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {recent.map((d) => (
-                <button key={d.id}
+                <div key={d.id}
                   onClick={() => navigate(`/${workspaceSlug}/documents/space/${spaceId}/${d.id}`)}
-                  className="group flex items-start gap-3 px-4 py-3 rounded-xl border bg-card hover:border-border/80 hover:shadow-sm transition-all text-left"
+                  className="group flex items-start gap-3 px-4 py-3 rounded-xl border bg-card hover:border-border/80 hover:shadow-sm transition-all text-left cursor-pointer"
                 >
                   <FileText className="h-5 w-5 text-blue-400 shrink-0 mt-0.5" />
                   <div className="flex-1 min-w-0">
@@ -918,7 +972,8 @@ function SpaceHome({
                       {formatRelativeTime(d.updated_at)}
                     </p>
                   </div>
-                </button>
+                  <BookmarkStar docId={d.id} />
+                </div>
               ))}
             </div>
           </section>
@@ -932,9 +987,9 @@ function SpaceHome({
             </h2>
             <div className="grid gap-2 sm:grid-cols-2">
               {rootDocs.map((d) => (
-                <button key={d.id}
+                <div key={d.id}
                   onClick={() => navigate(`/${workspaceSlug}/documents/space/${spaceId}/${d.id}`)}
-                  className="group flex items-center gap-3 px-4 py-3 rounded-xl border bg-card hover:border-border/80 hover:shadow-sm transition-all text-left"
+                  className="group flex items-center gap-3 px-4 py-3 rounded-xl border bg-card hover:border-border/80 hover:shadow-sm transition-all text-left cursor-pointer"
                 >
                   {d.is_folder
                     ? <FolderOpen className="h-5 w-5 text-amber-500 shrink-0" />
@@ -945,7 +1000,8 @@ function SpaceHome({
                       {formatRelativeTime(d.updated_at)}
                     </p>
                   </div>
-                </button>
+                  {!d.is_folder && <BookmarkStar docId={d.id} />}
+                </div>
               ))}
             </div>
           </section>

@@ -13,8 +13,21 @@ import {
   FileText, FolderOpen, FilePlus, FolderPlus,
   ChevronRight, ChevronDown,
   MoreHorizontal, Trash2, Pencil, Link as LinkIcon, Settings,
+  Lock, Layers, User as UserIcon, Users,
 } from "lucide-react";
 import { documentsApi } from "@/api/documents";
+import { ProjectIcon } from "@/components/ui/project-icon-picker";
+import type { DocumentSpace } from "@/types";
+
+/** 사이드바/드롭다운에서 쓰는 스페이스 아이콘. project 스페이스는 프로젝트 아이콘 동기화. */
+function SpaceTypeIcon({ space, className }: { space: DocumentSpace; className?: string }) {
+  if (space.space_type === "project" && space.icon_prop) {
+    return <ProjectIcon value={space.icon_prop} size={10} className={cn("shrink-0", className)} />;
+  }
+  if (space.space_type === "project") return <Layers className={cn("h-3.5 w-3.5 text-primary shrink-0", className)} />;
+  if (space.space_type === "personal") return <UserIcon className={cn("h-3.5 w-3.5 text-amber-500 shrink-0", className)} />;
+  return <Users className={cn("h-3.5 w-3.5 text-blue-500 shrink-0", className)} />;
+}
 import { TopBar } from "./TopBar";
 import { AppSwitcher } from "./AppSwitcher";
 import { WorkspaceHeader } from "./WorkspaceHeader";
@@ -180,38 +193,56 @@ export function DocumentLayout() {
 
         {/* 스페이스 + 생성 버튼 */}
         <div className="flex items-center gap-1 px-2 pt-2 pb-1">
-          {spaces.length > 1 ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className="flex items-center gap-2 flex-1 px-2.5 py-1.5 rounded-lg text-xs font-medium hover:bg-accent/50 transition-colors min-w-0">
-                  <FileText className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                  <span className="truncate flex-1 text-left">
-                    {spaces.find((s) => s.id === activeSpaceId)?.name ?? t("documents.title")}
-                  </span>
-                  <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-56">
-                {spaces.map((s) => (
-                  <DropdownMenuItem
-                    key={s.id}
-                    className="gap-2 cursor-pointer"
-                    onClick={() => navigate(`/${workspaceSlug}/documents/space/${s.id}`)}
-                  >
-                    <FileText className="h-3.5 w-3.5 shrink-0" />
-                    <span className="flex-1 truncate text-sm">{s.name}</span>
-                    {s.id === activeSpaceId && (
-                      <span className="text-xs text-primary">●</span>
-                    )}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          ) : (
-            <span className="flex-1 text-xs font-medium px-2.5 truncate">
-              {spaces.find((s) => s.id === activeSpaceId)?.name ?? t("documents.title")}
-            </span>
-          )}
+          {(() => {
+            const activeSpace = spaces.find((s) => s.id === activeSpaceId);
+            const activePrivate = activeSpace?.space_type === "project" && activeSpace.project_network === 2;
+            if (spaces.length > 1) {
+              return (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className="flex items-center gap-2 flex-1 px-2.5 py-1.5 rounded-lg text-xs font-medium hover:bg-accent/50 transition-colors min-w-0">
+                      {activeSpace ? (
+                        <SpaceTypeIcon space={activeSpace} />
+                      ) : (
+                        <FileText className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                      )}
+                      <span className="truncate flex-1 text-left">
+                        {activeSpace?.name ?? t("documents.title")}
+                      </span>
+                      {activePrivate && <Lock className="h-3 w-3 shrink-0 text-muted-foreground/60" />}
+                      <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-56">
+                    {spaces.map((s) => {
+                      const isPrivate = s.space_type === "project" && s.project_network === 2;
+                      return (
+                        <DropdownMenuItem
+                          key={s.id}
+                          className="gap-2 cursor-pointer"
+                          onClick={() => navigate(`/${workspaceSlug}/documents/space/${s.id}`)}
+                        >
+                          <SpaceTypeIcon space={s} />
+                          <span className="flex-1 truncate text-sm">{s.name}</span>
+                          {isPrivate && <Lock className="h-3 w-3 shrink-0 text-muted-foreground/60" />}
+                          {s.id === activeSpaceId && (
+                            <span className="text-xs text-primary">●</span>
+                          )}
+                        </DropdownMenuItem>
+                      );
+                    })}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              );
+            }
+            return (
+              <span className="flex-1 flex items-center gap-1.5 text-xs font-medium px-2.5 truncate">
+                {activeSpace && <SpaceTypeIcon space={activeSpace} />}
+                <span className="truncate flex-1">{activeSpace?.name ?? t("documents.title")}</span>
+                {activePrivate && <Lock className="h-3 w-3 shrink-0 text-muted-foreground/60" />}
+              </span>
+            );
+          })()}
 
           {/* 스페이스 설정 */}
           {activeSpaceId && (

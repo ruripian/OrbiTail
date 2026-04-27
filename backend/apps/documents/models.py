@@ -55,6 +55,12 @@ class DocumentSpace(models.Model):
         blank=True,
         related_name="document_space_memberships",
     )
+    # shared 스페이스의 공개 범위.
+    #   False(기본) → 워크스페이스 모든 멤버가 접근 + 탐색 페이지 노출 + 가입 가능.
+    #   True        → space.members 추가된 사람만 접근.
+    # project 스페이스는 프로젝트 자체의 network 를 따름 (이 필드는 무시).
+    # personal 스페이스는 항상 owner 전용.
+    is_private = models.BooleanField(default=False)
 
     # 프로젝트 보관과 연동되는 스페이스 보관 — project-linked 스페이스의 경우 자동 동기화
     archived_at = models.DateTimeField(null=True, blank=True)
@@ -163,6 +169,29 @@ class DocumentBookmark(models.Model):
     class Meta:
         db_table = "document_bookmarks"
         unique_together = ("user", "document")
+        indexes = [models.Index(fields=["user", "-created_at"])]
+
+
+class DocumentSpaceBookmark(models.Model):
+    """사용자별 스페이스 즐겨찾기 — 사용자/스페이스 unique.
+    문서 단위 즐겨찾기와 별개로, 자주 쓰는 스페이스를 빠르게 진입하기 위한 핀."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="document_space_bookmarks",
+    )
+    space = models.ForeignKey(
+        DocumentSpace,
+        on_delete=models.CASCADE,
+        related_name="bookmarks",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "document_space_bookmarks"
+        unique_together = ("user", "space")
         indexes = [models.Index(fields=["user", "-created_at"])]
 
 
