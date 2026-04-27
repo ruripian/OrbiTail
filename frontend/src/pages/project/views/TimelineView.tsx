@@ -1314,9 +1314,9 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
                   "flex group/row transition-colors duration-100 relative",
                   isGroup
                     ? "border-y-2 border-border bg-muted/20"
-                    /* event 행은 불투명 muted 톤 — 뒤 타임라인 grid 가 비쳐 산만함 방지 */
+                    /* event 행은 muted 톤 100% 불투명 — 원본 디자인 유지하되 배경만 비치지 않도록 */
                     : row.type === "event"
-                      ? "border-b border-border bg-muted/30 hover:bg-muted/40"
+                      ? "border-b border-border bg-muted hover:bg-muted/90"
                       : "border-b border-border hover:bg-primary/[0.04]"
                 )}
                 style={{ height: ROW_H }}
@@ -1327,10 +1327,13 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
                   className="sticky left-0 z-20 shrink-0 flex items-stretch overflow-hidden"
                   style={{
                     width: LEFT_W,
-                    /* 완전 불투명 배경 — 뒤 타임라인 바가 비치지 않도록 */
+                    /* 완전 불투명 배경 — 뒤 타임라인 바가 비치지 않도록.
+                       event row 의 LEFT 는 부모 bg-muted 와 같은 톤으로 맞춰야 좌우 통일. */
                     background: isGroup
                       ? `linear-gradient(to right, ${row.group?.color || "hsl(var(--primary))"}18, hsl(var(--background)))`
-                      : "hsl(var(--background))",
+                      : row.type === "event"
+                        ? "hsl(var(--muted))"
+                        : "hsl(var(--background))",
                     borderRight: "2px solid hsl(var(--border))",
                     borderLeft: isGroup
                       ? `3px solid ${row.group?.color || "hsl(var(--primary))"}`
