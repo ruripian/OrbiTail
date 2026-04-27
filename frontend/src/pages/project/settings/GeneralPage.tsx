@@ -459,7 +459,6 @@ function IdentifierField({ workspaceSlug, projectId, currentValue }: {
 
 const FEATURE_DEFS: { key: ProjectFeatureKey; labelKey: string; descKey: string }[] = [
   { key: "board",     labelKey: "project.settings.features.board.label",     descKey: "project.settings.features.board.desc" },
-  { key: "backlog",   labelKey: "project.settings.features.backlog.label",   descKey: "project.settings.features.backlog.desc" },
   { key: "calendar",  labelKey: "project.settings.features.calendar.label",  descKey: "project.settings.features.calendar.desc" },
   { key: "timeline",  labelKey: "project.settings.features.timeline.label",  descKey: "project.settings.features.timeline.desc" },
   { key: "graph",     labelKey: "project.settings.features.graph.label",     descKey: "project.settings.features.graph.desc" },
@@ -470,7 +469,6 @@ const FEATURE_DEFS: { key: ProjectFeatureKey; labelKey: string; descKey: string 
 
 const DEFAULT_LABELS: Record<ProjectFeatureKey, [string, string]> = {
   board:     ["보드 뷰",       "칸반 스타일로 상태별 카드 배치"],
-  backlog:   ["백로그 뷰",     "backlog 상태 이슈 모아보기"],
   calendar:  ["캘린더 뷰",     "기간/이벤트 월/주 단위 표시"],
   timeline:  ["타임라인 뷰",   "이슈를 간트 차트로 보기"],
   graph:     ["그래프 뷰",     "이슈 연결 관계망 시각화"],

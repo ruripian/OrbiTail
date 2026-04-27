@@ -10,7 +10,7 @@ import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { List, LayoutGrid, Calendar, GanttChart, Zap, Layers, ChevronDown, CheckCircle2, Circle, BarChart3, Inbox, Share2 } from "lucide-react";
+import { List, LayoutGrid, Calendar, GanttChart, Zap, Layers, ChevronDown, CheckCircle2, Circle, BarChart3, Share2 } from "lucide-react";
 import { issuesApi } from "@/api/issues";
 import { projectsApi } from "@/api/projects";
 import { cn } from "@/lib/utils";
@@ -28,7 +28,6 @@ import { TableView }    from "./views/TableView";
 import { BoardView }    from "./views/BoardView";
 import { CalendarView } from "./views/CalendarView";
 import { ReportsView }   from "./views/ReportsView";
-import { BacklogView }   from "./views/BacklogView";
 
 /* PASS7-2 — heavy view 는 lazy. 사용자가 해당 뷰를 처음 열 때만 로드. */
 const TimelineView = lazy(() => import("./views/TimelineView").then((m) => ({ default: m.TimelineView })));
@@ -40,13 +39,13 @@ import { usePresenceScope } from "@/hooks/usePresenceScope";
 import { PresenceStack } from "@/components/layout/PresenceStack";
 import type { Category, Sprint } from "@/types";
 
-/* PASS4-2/4: sprints+analytics → reports, archive/trash → 사이드바 */
-type ViewId = "table" | "board" | "backlog" | "calendar" | "timeline" | "graph" | "reports";
+/* PASS4-2/4: sprints+analytics → reports, archive/trash → 사이드바.
+   백로그 뷰는 보드 backlog 컬럼 + 테이블 state 필터로 대체되어 제거. */
+type ViewId = "table" | "board" | "calendar" | "timeline" | "graph" | "reports";
 
 const VIEW_IDS: { id: ViewId; key: string; Icon: React.ElementType }[] = [
   { id: "table",    key: "views.tabs.table",    Icon: List       },
   { id: "board",    key: "views.tabs.board",    Icon: LayoutGrid },
-  { id: "backlog",  key: "views.tabs.backlog",  Icon: Inbox      },
   { id: "calendar", key: "views.tabs.calendar", Icon: Calendar   },
   { id: "timeline", key: "views.tabs.timeline", Icon: GanttChart },
   { id: "graph",    key: "views.tabs.graph",    Icon: Share2     },
@@ -84,12 +83,17 @@ export function ProjectIssuePage() {
   const currentView   = (searchParams.get("view") as ViewId | null) ?? "table";
   const selectedIssue = searchParams.get("issue");
 
-  /* PASS4: legacy ?view= 4종 redirect — 외부 링크/북마크 보존 */
+  /* PASS4: legacy ?view= 4종 redirect — 외부 링크/북마크 보존.
+     backlog 뷰는 제거되어 board 로 redirect — 보드 backlog 컬럼이 같은 역할. */
   useEffect(() => {
     const v = searchParams.get("view");
     if (v === "sprints" || v === "analytics") {
       const next = new URLSearchParams(searchParams);
       next.set("view", "reports");
+      setSearchParams(next, { replace: true });
+    } else if (v === "backlog") {
+      const next = new URLSearchParams(searchParams);
+      next.set("view", "board");
       setSearchParams(next, { replace: true });
     } else if (v === "archive") {
       navigate(`/${workspaceSlug}/projects/${projectId}/archive`, { replace: true });
@@ -328,16 +332,6 @@ export function ProjectIssuePage() {
 
         {currentView === "board" && (
           <BoardView
-            workspaceSlug={workspaceSlug!}
-            projectId={projectId!}
-            onIssueClick={openIssue}
-            issueFilter={issueFilter}
-            readOnly={readOnly}
-          />
-        )}
-
-        {currentView === "backlog" && (
-          <BacklogView
             workspaceSlug={workspaceSlug!}
             projectId={projectId!}
             onIssueClick={openIssue}

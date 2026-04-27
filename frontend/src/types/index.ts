@@ -132,10 +132,10 @@ export interface IssueRequest {
   updated_at: string;
 }
 
-/** 프로젝트별 toggle 가능한 기능/뷰 키 — core(table/archive/trash)는 항상 활성이라 여기 포함 안 됨 */
+/** 프로젝트별 toggle 가능한 기능/뷰 키 — core(table/archive/trash)는 항상 활성이라 여기 포함 안 됨.
+   "backlog" 키는 더 이상 뷰가 아니지만 기존 프로젝트의 features JSON 호환 위해 타입에 남겨도 무해. */
 export type ProjectFeatureKey =
   | "board"
-  | "backlog"
   | "calendar"
   | "timeline"
   | "graph"

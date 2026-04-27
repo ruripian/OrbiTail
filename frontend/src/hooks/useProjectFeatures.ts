@@ -13,7 +13,7 @@ import type { Project, ProjectFeatureKey } from "@/types";
  *
  * 사용:
  *   const { isEnabled } = useProjectFeatures();
- *   if (isEnabled("backlog")) { ... }
+ *   if (isEnabled("board")) { ... }
  */
 export function useProjectFeatures(projectIdOverride?: string) {
   const { workspaceSlug, projectId: urlProjectId } = useParams<{

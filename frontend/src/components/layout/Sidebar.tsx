@@ -15,7 +15,7 @@ import {
   Star,
   GripVertical,
   Trash2,
-  Lock, Eye, EyeOff,
+  Lock,
   Megaphone,
   MessageSquarePlus,
 } from "lucide-react";
@@ -304,19 +304,8 @@ export function Sidebar({ onNavigate, wsStatus = "connecting" }: { onNavigate?: 
     return ai - bi;
   });
 
-  /* 내가 참여한 프로젝트만 보기 — 사용자별 영구 설정 */
-  const [showAllProjects, setShowAllProjects] = useState<boolean>(() => {
-    try { return localStorage.getItem("sidebar_show_all_projects") === "1"; } catch { return false; }
-  });
-  const visibleProjects = showAllProjects ? sortedProjects : sortedProjects.filter((p) => p.is_member);
-  const hiddenCount = sortedProjects.length - visibleProjects.length;
-  const toggleShowAll = () => {
-    setShowAllProjects((v) => {
-      const next = !v;
-      try { localStorage.setItem("sidebar_show_all_projects", next ? "1" : "0"); } catch { /* noop */ }
-      return next;
-    });
-  };
+  /* 내가 참여한 프로젝트만 사이드바에 노출. 미참여 프로젝트는 /projects/discover (탐색) 에서. */
+  const visibleProjects = sortedProjects.filter((p) => p.is_member);
 
   const favoriteProjects = visibleProjects.filter((p) => favIds.has(p.id));
   const publicProjects = visibleProjects.filter((p) => !favIds.has(p.id) && p.network === 0);
@@ -438,23 +427,13 @@ export function Sidebar({ onNavigate, wsStatus = "connecting" }: { onNavigate?: 
             <span className="text-xs font-semibold uppercase tracking-widest text-sidebar-foreground/65">
               {t("sidebar.projects")}
             </span>
-            <div className="flex items-center gap-0.5">
-              {/* 내가 참여한 것만 / 전체 보기 토글 */}
-              <button
-                onClick={toggleShowAll}
-                className="rounded-lg p-1 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
-                title={showAllProjects ? `참여한 프로젝트만 보기` : `전체 보기 (숨김 ${hiddenCount}개)`}
-              >
-                {showAllProjects ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
-              </button>
-              <Link
-                to={`/${workspaceSlug}/projects/create`}
-                className="rounded-lg p-1 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
-                title={t("sidebar.newProject")}
-              >
-                <Plus className="h-3.5 w-3.5" />
-              </Link>
-            </div>
+            <Link
+              to={`/${workspaceSlug}/projects/create`}
+              className="rounded-lg p-1 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
+              title={t("sidebar.newProject")}
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </Link>
           </div>
 
           {/* PASS3-4: allFavorited 분기 제거 — 공개 프로젝트가 없으면 그냥 안 그림. */}
