@@ -15,9 +15,12 @@ import { IssueDetailPage } from "./IssueDetailPage";
 interface Props {
   issueId: string;
   onClose: () => void;
+  /** 다른 프로젝트의 이슈를 띄울 때 사용 — 미지정 시 현재 라우트 params 사용 */
+  workspaceSlug?: string;
+  projectId?: string;
 }
 
-export function IssueDetailPanel({ issueId, onClose }: Props) {
+export function IssueDetailPanel({ issueId, onClose, workspaceSlug, projectId }: Props) {
   const { t } = useTranslation();
   const { isRich, spring } = useMotion();
 
@@ -75,7 +78,13 @@ export function IssueDetailPanel({ issueId, onClose }: Props) {
 
           {/* 이슈 상세 컨텐츠 */}
           <div className="flex-1 overflow-hidden rounded-2xl">
-            <IssueDetailPage issueIdOverride={issueId} inPanel onClose={onClose} />
+            <IssueDetailPage
+              issueIdOverride={issueId}
+              workspaceSlugOverride={workspaceSlug}
+              projectIdOverride={projectId}
+              inPanel
+              onClose={onClose}
+            />
           </div>
         </Modal>
       </div>

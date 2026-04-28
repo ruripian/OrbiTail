@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight, GitBranch, MessageSquare, Activity, Link2, X, AlertTriangle, Paperclip, Copy, Archive, RotateCcw, Share2 } from "lucide-react";
+import { ChevronLeft, GitBranch, MessageSquare, Activity, Link2, X, AlertTriangle, Paperclip, Copy, Archive, RotateCcw, Share2 } from "lucide-react";
 import { toast } from "sonner";
 import { issuesApi } from "@/api/issues";
 import { projectsApi } from "@/api/projects";
@@ -33,21 +33,26 @@ type TabId = "sub-issues" | "links" | "nodes" | "attachments" | "comments" | "ac
 interface Props {
   /** 패널 모드에서 URL params 대신 직접 issueId를 주입할 때 사용 */
   issueIdOverride?: string;
+  /** 전역 다이얼로그처럼 다른 프로젝트의 이슈를 열 때 — 라우트 ws/pid 와 무관하게 동작 */
+  workspaceSlugOverride?: string;
+  projectIdOverride?: string;
   /** 패널 안에서 렌더 시 true — 브레드크럼 숨김 */
   inPanel?: boolean;
   /** 삭제나 뒤로가기 시 활용할 콜백 */
   onClose?: () => void;
 }
 
-export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: Props = {}) {
+export function IssueDetailPage({ issueIdOverride, workspaceSlugOverride, projectIdOverride, inPanel = false, onClose }: Props = {}) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [, setSearchParams] = useSearchParams();
-  const { workspaceSlug, projectId, issueId: paramIssueId } = useParams<{
+  const { workspaceSlug: paramWorkspaceSlug, projectId: paramProjectId, issueId: paramIssueId } = useParams<{
     workspaceSlug: string;
     projectId: string;
     issueId: string;
   }>();
+  const workspaceSlug = workspaceSlugOverride ?? paramWorkspaceSlug;
+  const projectId = projectIdOverride ?? paramProjectId;
   const issueId = issueIdOverride ?? paramIssueId;
 
   /* 이슈 상세도 같은 프로젝트의 presence 에 잡히도록 같은 scope 사용.
@@ -601,16 +606,18 @@ export function IssueDetailPage({ issueIdOverride, inPanel = false, onClose }: P
 /* ── 관련 이슈(node link) 패널 ───────────────────────────────
  *  트리 경계를 넘는 자유 연결. 검색 → 선택 → 연결 타입 지정.
  */
+/* 그래프 뷰와 동일한 2종만 사용 — 사용자 노출 타입은 "연결(relates_to)", "의존(blocks)".
+   기존에 저장된 blocked_by/duplicates/references/shared_label 은 표시만 fallback 으로 처리. */
 const LINK_TYPE_LABEL: Record<string, string> = {
-  relates_to: "연결",     // 기본 — 단순 "관련" 관계
-  blocks: "블록함",
+  relates_to: "연결",
+  blocks: "의존",
   blocked_by: "블록됨",
   duplicates: "중복",
   references: "참조",
   shared_label: "같은 라벨",
 };
 
-type NodeLinkType = "relates_to" | "blocks" | "blocked_by" | "duplicates" | "references";
+type NodeLinkType = "relates_to" | "blocks";
 
 function NodeLinksPane({
   workspaceSlug,
@@ -759,32 +766,24 @@ function NodeLinksPane({
             value={nodeLinkSearch}
             onChange={(e) => setNodeLinkSearch(e.target.value)}
           />
-          {/* 타입은 고급 옵션 — 기본 "연결" 로 단순화. 필요한 경우에만 펼쳐서 블록/중복/참조 선택 */}
-          <details className="group">
-            <summary className="text-2xs text-muted-foreground/70 cursor-pointer hover:text-muted-foreground list-none flex items-center gap-1">
-              <ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90" />
-              {nodeLinkType === "relates_to"
-                ? t("issues.detail.nodes.typeAdvanced", "타입 변경 (현재: 연결)")
-                : `현재 타입: ${LINK_TYPE_LABEL[nodeLinkType] ?? nodeLinkType}`}
-            </summary>
-            <div className="flex flex-wrap gap-1 mt-1.5">
-              {(["relates_to", "blocks", "blocked_by", "duplicates", "references"] as NodeLinkType[]).map((k) => (
-                <button
-                  key={k}
-                  type="button"
-                  onClick={() => setNodeLinkType(k)}
-                  className={cn(
-                    "text-2xs px-2 py-0.5 rounded border transition-colors",
-                    nodeLinkType === k
-                      ? "bg-primary/10 border-primary/40 text-primary font-medium"
-                      : "border-border text-muted-foreground hover:bg-muted/50"
-                  )}
-                >
-                  {k === "relates_to" ? "연결" : LINK_TYPE_LABEL[k] ?? k}
-                </button>
-              ))}
-            </div>
-          </details>
+          {/* 연결 타입 — 그래프 뷰와 동일하게 "연결 / 의존" 2종. 항상 평평한 토글로 노출 */}
+          <div className="flex gap-1.5">
+            {(["relates_to", "blocks"] as NodeLinkType[]).map((k) => (
+              <button
+                key={k}
+                type="button"
+                onClick={() => setNodeLinkType(k)}
+                className={cn(
+                  "text-2xs px-2.5 py-1 rounded border transition-colors flex-1",
+                  nodeLinkType === k
+                    ? "bg-primary/10 border-primary/40 text-primary font-medium"
+                    : "border-border text-muted-foreground hover:bg-muted/50"
+                )}
+              >
+                {LINK_TYPE_LABEL[k]}
+              </button>
+            ))}
+          </div>
           {/* 항상 보이는 드롭다운 리스트.
               섹션 1: 같은 프로젝트의 이슈 트리(테이블 정렬 + parent depth indent)
               섹션 2: (검색어 ≥2자일 때만) 다른 프로젝트 검색 결과 */}

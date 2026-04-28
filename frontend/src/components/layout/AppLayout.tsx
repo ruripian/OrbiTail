@@ -11,6 +11,7 @@ import { useWebSocket } from "@/hooks/useWebSocket";
 import { useIsDesktop } from "@/hooks/useMediaQuery";
 import { useUndoStore } from "@/stores/undoStore";
 import { Z_SIDEBAR_OVERLAY, Z_SIDEBAR } from "@/constants/z-index";
+import { GlobalIssueDialog } from "@/components/issues/GlobalIssueDialog";
 
 export function AppLayout() {
   const { workspaceSlug } = useParams<{ workspaceSlug: string }>();
@@ -86,6 +87,7 @@ export function AppLayout() {
         </main>
       </div>
       <SponsorButton />
+      <GlobalIssueDialog />
     </div>
   );
 }

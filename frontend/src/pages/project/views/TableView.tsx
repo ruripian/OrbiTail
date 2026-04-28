@@ -1137,7 +1137,7 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
             </div>
           </div>
 
-          {topLevelFiltered.length === 0 ? (
+          {topLevelFiltered.length === 0 && !inlineAdding ? (
             <EmptyState
               icon={<Inbox className="h-10 w-10" />}
               title={t(hasFilter ? "empty.table.titleFiltered" : "empty.table.title")}

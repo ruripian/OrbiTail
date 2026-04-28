@@ -338,6 +338,12 @@
 .ProseMirror p { margin: 0.25em 0; }
 .ProseMirror ul,
 .ProseMirror ol { padding-left: 1.5em; margin: 0.5em 0; }
+.ProseMirror ul { list-style: disc outside; }
+.ProseMirror ul ul { list-style: circle outside; }
+.ProseMirror ul ul ul { list-style: square outside; }
+.ProseMirror ol { list-style: decimal outside; }
+.ProseMirror ol ol { list-style: lower-alpha outside; }
+.ProseMirror ol ol ol { list-style: lower-roman outside; }
 .ProseMirror li { margin: 0.15em 0; }
 .ProseMirror blockquote {
   border-left: 3px solid hsl(var(--border));

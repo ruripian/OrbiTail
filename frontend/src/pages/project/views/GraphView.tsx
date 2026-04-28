@@ -40,7 +40,7 @@ type Node = {
 
 type LinkTypeValue = "relates_to" | "blocks";
 const LINK_TYPES: { value: LinkTypeValue; label: string; short: string; desc: string; icon: React.ComponentType<{ className?: string }> }[] = [
-  { value: "relates_to", label: "연관", short: "연관",
+  { value: "relates_to", label: "연결", short: "연결",
     desc: "서로 관련 있는 대등한 관계. 방향성 없음. 예: 같은 API 를 건드리는 버그 둘. — 그래프에서 이중선으로 표시.",
     icon: Link2 },
   { value: "blocks",     label: "의존", short: "선행 → 후행",

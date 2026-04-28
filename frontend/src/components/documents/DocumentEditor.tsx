@@ -9,6 +9,7 @@ import "katex/dist/katex.min.css";
 import mermaid from "mermaid";
 import { MathExtension } from "@aarkue/tiptap-math-extension";
 import { useAuthStore } from "@/stores/authStore";
+import { useIssueDialogStore } from "@/stores/issueDialogStore";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { useEditor, EditorContent, NodeViewWrapper, NodeViewContent, ReactNodeViewRenderer, type NodeViewProps, type Editor } from "@tiptap/react";
@@ -695,6 +696,15 @@ function MentionView({ node }: NodeViewProps) {
     kind === "issue" ? `/${ctx?.workspaceSlug}/projects/${ctx?.projectId}/issues?issue=${id}` :
     undefined;
 
+  /* 이슈 멘션 클릭 — 라우팅 대신 전역 모달로 띄움. Cmd/Ctrl-클릭은 새 탭으로 이동 유지. */
+  const openIssueDialog = useIssueDialogStore((s) => s.openIssue);
+  const handleMentionClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (kind !== "issue" || !ctx?.workspaceSlug || !ctx?.projectId) return;
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+    e.preventDefault();
+    openIssueDialog(ctx.workspaceSlug, ctx.projectId, id);
+  };
+
   /* 이슈 멘션에 상세 정보 hover card */
   const [hoverCard, setHoverCard] = useState(false);
   const [details, setDetails] = useState<any>(null);
@@ -742,7 +752,7 @@ function MentionView({ node }: NodeViewProps) {
       onMouseEnter={() => kind === "issue" && setHoverCard(true)}
       onMouseLeave={() => setHoverCard(false)}
     >
-      {href ? <a href={href} className="no-underline" onMouseDown={(e) => e.stopPropagation()}>{Body}</a> : Body}
+      {href ? <a href={href} className="no-underline" onMouseDown={(e) => e.stopPropagation()} onClick={handleMentionClick}>{Body}</a> : Body}
       {hoverCard && kind === "issue" && details && (
         <span className="doc-mention-card" contentEditable={false}>
           <span className="doc-mention-card-header">
@@ -788,6 +798,12 @@ function MentionView({ node }: NodeViewProps) {
                       href={`/${ctx?.workspaceSlug}/projects/${ctx?.projectId}/issues?issue=${s.id}`}
                       className="doc-mention-card-sub-item"
                       onMouseDown={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        if (!ctx?.workspaceSlug || !ctx?.projectId) return;
+                        if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+                        e.preventDefault();
+                        openIssueDialog(ctx.workspaceSlug, ctx.projectId, s.id);
+                      }}
                     >
                       <span className="doc-mention-card-id">{s.identifier || `${s.project_identifier ?? ""}-${s.sequence_id ?? ""}`}</span>
                       <span className="truncate">{s.title}</span>
@@ -857,11 +873,19 @@ function IssueCardView({ node }: NodeViewProps) {
   const href = `/${ctx?.workspaceSlug}/projects/${ctx?.projectId}/issues?issue=${id}`;
   const hasSubs = (data?.sub_issues_count ?? 0) > 0;
 
+  const openIssueDialog = useIssueDialogStore((s) => s.openIssue);
+  const handleIssueLinkClick = (e: React.MouseEvent<HTMLAnchorElement>, targetId: string) => {
+    if (!ctx?.workspaceSlug || !ctx?.projectId) return;
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+    e.preventDefault();
+    openIssueDialog(ctx.workspaceSlug, ctx.projectId, targetId);
+  };
+
   return (
     <NodeViewWrapper as="div" contentEditable={false} data-drag-handle className="doc-issue-card">
       <div className="doc-issue-card-head">
         <span className="doc-issue-card-id">{identifier || "…"}</span>
-        <a href={href} className="doc-issue-card-title" onMouseDown={(e) => e.stopPropagation()}>
+        <a href={href} className="doc-issue-card-title" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => handleIssueLinkClick(e, id)}>
           {title || "이슈"}
         </a>
         {data?.state_detail && (
@@ -917,6 +941,7 @@ function IssueCardView({ node }: NodeViewProps) {
                   href={`/${ctx?.workspaceSlug}/projects/${ctx?.projectId}/issues?issue=${s.id}`}
                   className="doc-issue-card-sub-item"
                   onMouseDown={(e) => e.stopPropagation()}
+                  onClick={(e) => handleIssueLinkClick(e, s.id)}
                 >
                   <span className="doc-issue-card-id">{s.identifier || `${s.project_identifier ?? ""}-${s.sequence_id ?? ""}`}</span>
                   <span className="truncate">{s.title}</span>

@@ -39,6 +39,7 @@ import { Z_SIDEBAR_OVERLAY, Z_SIDEBAR } from "@/constants/z-index";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { TemplatePickerDialog } from "@/components/documents/TemplatePickerDialog";
+import { GlobalIssueDialog } from "@/components/issues/GlobalIssueDialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -444,6 +445,7 @@ export function DocumentLayout() {
           }}
         />
       )}
+      <GlobalIssueDialog />
     </div>
   );
 }
