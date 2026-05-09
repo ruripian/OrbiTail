@@ -236,21 +236,20 @@ class IssueActivityListView(generics.ListAPIView):
 
 
 class WorkspaceRecentIssuesView(generics.ListAPIView):
-    """워크스페이스 전체에서 최근 수정된 이슈 10개 — 대시보드용"""
+    """본인이 담당자인 이슈 중 최근 수정된 10개 — 대시보드 우측 위젯용.
+
+    좌측 'WorkspaceMyIssuesView' 는 미완료(=할 일) 한정이고, 여기는 완료/취소 포함
+    전체에서 최근 수정 순으로 보여 두 위젯이 차별화된다.
+    """
     serializer_class = IssueSerializer
 
     def get_queryset(self):
-        from apps.projects.models import Project
         return (
             Issue.objects.filter(
                 workspace__slug=self.kwargs["workspace_slug"],
-                parent=None,
+                assignees=self.request.user,
                 deleted_at__isnull=True,
                 archived_at__isnull=True,
-            )
-            .filter(
-                Q(project__members__member=self.request.user) |
-                Q(project__network=Project.Network.PUBLIC)
             )
             .distinct()
             .prefetch_related("assignees", "label")
