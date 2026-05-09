@@ -79,6 +79,23 @@ def is_workspace_member(user, workspace_slug):
     ).exists()
 
 
+@database_sync_to_async
+def _user_secret_project_ids(user, workspace_slug):
+    """사용자가 멤버로 속한 SECRET 프로젝트 id 목록.
+
+    이 프로젝트들의 broadcast 는 워크스페이스 전체 그룹이 아니라 별도 그룹
+    `workspace_{slug}_project_{id}` 로 보내지므로, consumer 가 추가로 join 해야 받음.
+    """
+    from apps.projects.models import Project, ProjectMember
+    return [
+        str(pid) for pid in ProjectMember.objects.filter(
+            member=user,
+            project__workspace__slug=workspace_slug,
+            project__network=Project.Network.SECRET,
+        ).values_list("project_id", flat=True)
+    ]
+
+
 class WorkspaceConsumer(AsyncJsonWebsocketConsumer):
     """워크스페이스별 실시간 이벤트 Consumer"""
 
@@ -98,6 +115,16 @@ class WorkspaceConsumer(AsyncJsonWebsocketConsumer):
 
         # 워크스페이스 그룹에 참가
         await self.channel_layer.group_add(self.group_name, self.channel_name)
+
+        # SECRET 프로젝트 멤버십 그룹 join — 멤버인 SECRET 프로젝트의 이벤트만 추가로 받는다.
+        # 멤버십이 connect 이후 변경되면 reconnect(=새로고침) 시 반영됨.
+        secret_ids = await _user_secret_project_ids(user, self.workspace_slug)
+        self.secret_project_groups = [
+            f"workspace_{self.workspace_slug}_project_{pid}" for pid in secret_ids
+        ]
+        for group in self.secret_project_groups:
+            await self.channel_layer.group_add(group, self.channel_name)
+
         await self.accept()
 
         # Presence: 본인 등록 + 워크스페이스 전체에 갱신된 목록 broadcast
@@ -111,6 +138,8 @@ class WorkspaceConsumer(AsyncJsonWebsocketConsumer):
     async def disconnect(self, close_code):
         if hasattr(self, "group_name"):
             await self.channel_layer.group_discard(self.group_name, self.channel_name)
+        for group in getattr(self, "secret_project_groups", []):
+            await self.channel_layer.group_discard(group, self.channel_name)
         if hasattr(self, "user_id"):
             await database_sync_to_async(_presence_remove)(self.workspace_slug, self.user_id)
             await self._broadcast_presence(None)

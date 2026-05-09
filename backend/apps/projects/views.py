@@ -436,14 +436,22 @@ class StateDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 # ── 프로젝트 캘린더 이벤트 ──
 
-def _ws_broadcast_event(workspace_slug, event):
-    """프로젝트 이벤트 변경을 WebSocket으로 브로드캐스트"""
+def _ws_broadcast_event(project_id, event):
+    """프로젝트 이벤트 변경 broadcast — SECRET 프로젝트는 멤버 한정 그룹.
+
+    project_id 로 한 번 조회해 network 와 workspace 결정.
+    """
+    from apps.notifications.signals import _broadcast_to_project
     try:
-        layer = get_channel_layer()
-        if layer:
-            async_to_sync(layer.group_send)(f"workspace_{workspace_slug}", event)
-    except Exception:
-        pass
+        project = (
+            Project.objects
+            .select_related("workspace")
+            .only("id", "network", "workspace__slug")
+            .get(id=project_id)
+        )
+    except Project.DoesNotExist:
+        return
+    _broadcast_to_project(project, event)
 
 
 class ProjectEventListCreateView(generics.ListCreateAPIView):
@@ -470,7 +478,7 @@ class ProjectEventListCreateView(generics.ListCreateAPIView):
             project_id=self.kwargs["project_pk"],
             created_by=self.request.user,
         )
-        _ws_broadcast_event(self.kwargs["workspace_slug"], {
+        _ws_broadcast_event(self.kwargs["project_pk"], {
             "type": "event.created",
             "project_id": str(self.kwargs["project_pk"]),
         })
@@ -489,7 +497,7 @@ class ProjectEventDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def perform_update(self, serializer):
         serializer.save()
-        _ws_broadcast_event(self.kwargs["workspace_slug"], {
+        _ws_broadcast_event(self.kwargs["project_pk"], {
             "type": "event.updated",
             "project_id": str(self.kwargs["project_pk"]),
         })
@@ -497,7 +505,7 @@ class ProjectEventDetailView(generics.RetrieveUpdateDestroyAPIView):
     def perform_destroy(self, instance):
         project_pk = str(instance.project_id)
         instance.delete()
-        _ws_broadcast_event(self.kwargs["workspace_slug"], {
+        _ws_broadcast_event(project_pk, {
             "type": "event.deleted",
             "project_id": project_pk,
         })

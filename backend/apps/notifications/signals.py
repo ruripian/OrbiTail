@@ -51,7 +51,11 @@ def _get_channel_layer():
 
 
 def _broadcast_to_workspace(workspace_slug, event):
-    """워크스페이스 그룹에 WebSocket 이벤트 브로드캐스트"""
+    """워크스페이스 전체 그룹 브로드캐스트.
+
+    프로젝트 무관 이벤트(워크스페이스 가입/공지 등)에만 사용한다.
+    이슈/프로젝트 관련 이벤트는 `_broadcast_to_project` 를 써서 SECRET 누수를 차단한다.
+    """
     channel_layer = _get_channel_layer()
     if not channel_layer:
         return
@@ -62,6 +66,26 @@ def _broadcast_to_workspace(workspace_slug, event):
         )
     except Exception:
         # Redis 연결 실패 등 — 알림 생성은 계속 진행
+        pass
+
+
+def _broadcast_to_project(project, event):
+    """프로젝트 단위 브로드캐스트 — SECRET 은 멤버 한정 그룹, PUBLIC 은 워크스페이스 전체.
+
+    Why: SECRET 프로젝트의 issue_id/메타데이터가 워크스페이스 비멤버에게 노출되지 않도록 차단.
+    호출자는 project 와 함께 project.workspace 를 prefetch 한 상태로 넘긴다(추가 쿼리 회피).
+    """
+    from apps.projects.models import Project
+    channel_layer = _get_channel_layer()
+    if not channel_layer:
+        return
+    if project.network == Project.Network.SECRET:
+        group = f"workspace_{project.workspace.slug}_project_{project.id}"
+    else:
+        group = f"workspace_{project.workspace.slug}"
+    try:
+        async_to_sync(channel_layer.group_send)(group, event)
+    except Exception:
         pass
 
 
@@ -114,8 +138,8 @@ def _create_notifications(recipients, actor, issue, ntype, message):
         for user in targets
     ])
 
-    # WebSocket 알림 브로드캐스트
-    _broadcast_to_workspace(issue.workspace.slug, {
+    # WebSocket 알림 브로드캐스트 — SECRET 프로젝트는 멤버 한정 그룹으로 차단
+    _broadcast_to_project(issue.project, {
         "type": "notification.new",
         "notification_type": ntype,
         "message": message,
@@ -155,8 +179,8 @@ def notify_on_issue_activity(sender, instance, created, **kwargs):
     if not actor:
         return
 
-    # WebSocket: 이슈 업데이트 이벤트 (모든 워크스페이스 멤버에게)
-    _broadcast_to_workspace(issue.workspace.slug, {
+    # WebSocket: 이슈 업데이트 이벤트 — SECRET 프로젝트 멤버 한정
+    _broadcast_to_project(issue.project, {
         "type": "issue.updated",
         "issue_id": str(issue.id),
         "project_id": str(issue.project_id),
@@ -205,8 +229,8 @@ def notify_on_comment(sender, instance, created, **kwargs):
     issue = comment.issue
     actor = comment.actor
 
-    # 댓글 실시간 갱신 — 같은 이슈를 보고 있는 유저에게 즉시 반영
-    _broadcast_to_workspace(issue.workspace.slug, {
+    # 댓글 실시간 갱신 — SECRET 프로젝트 멤버 한정
+    _broadcast_to_project(issue.project, {
         "type": "issue.commented",
         "issue_id": str(issue.id),
         "project_id": str(issue.project_id),
@@ -289,7 +313,7 @@ def broadcast_issue_change(sender, instance, created, **kwargs):
     event_type = "issue.created" if created else "issue.updated"
     # bulk update 등은 actor를 직접 알 수 없어 created_by(=처음 작성자) 색을 일단 사용.
     # IssueActivity 시그널 핸들러가 동일 변경에 대해 더 정확한 actor_color 를 또 보낸다.
-    _broadcast_to_workspace(issue.workspace.slug, {
+    _broadcast_to_project(issue.project, {
         "type": event_type,
         "issue_id": str(issue.id),
         "project_id": str(issue.project_id),

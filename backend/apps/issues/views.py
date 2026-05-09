@@ -25,15 +25,23 @@ from .serializers import (
 )
 
 
-def _ws_broadcast(workspace_slug, event):
-    """이슈 변경 사항을 워크스페이스 WebSocket 그룹에 브로드캐스트.
+def _ws_broadcast(project_id, event):
+    """이슈/프로젝트 이벤트 WebSocket broadcast — SECRET 프로젝트는 멤버 한정 그룹.
+
+    project_id 로 한 번 조회해 network 와 workspace 를 받아 그룹 키 결정.
     queryset.update() 등 post_save 시그널을 타지 않는 작업에서 직접 호출."""
+    from apps.projects.models import Project
+    from apps.notifications.signals import _broadcast_to_project
     try:
-        layer = get_channel_layer()
-        if layer:
-            async_to_sync(layer.group_send)(f"workspace_{workspace_slug}", event)
-    except Exception:
-        pass
+        project = (
+            Project.objects
+            .select_related("workspace")
+            .only("id", "network", "workspace__slug")
+            .get(id=project_id)
+        )
+    except Project.DoesNotExist:
+        return
+    _broadcast_to_project(project, event)
 
 
 def _actor_color(user) -> str:
@@ -414,7 +422,7 @@ class IssueArchiveView(APIView):
         descendant_ids = self._collect_descendant_ids(issue.id)
         if descendant_ids:
             Issue.objects.filter(id__in=descendant_ids, archived_at__isnull=True).update(archived_at=now)
-        _ws_broadcast(workspace_slug, {
+        _ws_broadcast(project_pk, {
             "type": "issue.archived",
             "issue_id": str(pk),
             "project_id": str(project_pk),
@@ -440,7 +448,7 @@ class IssueArchiveView(APIView):
         descendant_ids = self._collect_descendant_ids(issue.id)
         if descendant_ids:
             Issue.objects.filter(id__in=descendant_ids, archived_at=saved_at).update(archived_at=None)
-        _ws_broadcast(workspace_slug, {
+        _ws_broadcast(project_pk, {
             "type": "issue.archived",
             "issue_id": str(pk),
             "project_id": str(project_pk),
@@ -1042,7 +1050,7 @@ class IssueBulkUpdateView(APIView):
         if activities:
             IssueActivity.objects.bulk_create(activities)
 
-        _ws_broadcast(workspace_slug, {
+        _ws_broadcast(project_pk, {
             "type": "issue.bulk_updated",
             "project_id": str(project_pk),
             "actor_color": _actor_color(request.user),
@@ -1080,7 +1088,7 @@ class IssueBulkDeleteView(APIView):
             deleted_at__isnull=True,
         ).update(deleted_at=now)
 
-        _ws_broadcast(workspace_slug, {
+        _ws_broadcast(project_pk, {
             "type": "issue.bulk_deleted",
             "project_id": str(project_pk),
             "actor_color": _actor_color(request.user),
