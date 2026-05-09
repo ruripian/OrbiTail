@@ -409,6 +409,8 @@ export interface IssueComment {
   id: string;
   comment_html: string;
   comment_json: unknown;
+  /** 답글의 부모 댓글 id. 최상위 댓글은 null. 1단계 트리만 사용. */
+  parent: string | null;
   actor: string;
   actor_detail: User;
   created_at: string;

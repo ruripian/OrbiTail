@@ -7,6 +7,8 @@
   3. Issue m2m_changed (assignees) → 새로 배정된 담당자에게 알림
 """
 
+import re
+
 from django.db.models.signals import post_save, m2m_changed
 from django.dispatch import receiver
 from channels.layers import get_channel_layer
@@ -14,6 +16,30 @@ from asgiref.sync import async_to_sync
 
 from apps.issues.models import Issue, IssueActivity, IssueComment
 from .models import Notification
+
+
+# `@displayname` 형태 멘션 추출 — 한글/영문/숫자/.-_ 토큰만, 공백/구두점 전까지.
+# Why: 사용자 username 필드가 없으므로 display_name 으로 매칭. 워크스페이스 멤버에 한정해 외부 누출 방지.
+_MENTION_RE = re.compile(r"@([\wㄱ-힝\.\-]+)", re.UNICODE)
+
+
+def _extract_mentioned_users(text: str, workspace):
+    """댓글 본문에서 `@displayname` 토큰을 뽑아 워크스페이스 멤버와 매칭한다.
+
+    Why: 멘션 알림은 같은 워크스페이스 멤버로 한정한다(다른 워크스페이스 사용자 누출 방지).
+    매칭 단위: display_name 정확 일치(대소문자 무시). 같은 이름이 여러 명이면 모두 매칭.
+    """
+    if not text:
+        return []
+    tokens = set(_MENTION_RE.findall(text))
+    if not tokens:
+        return []
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+    return list(User.objects.filter(
+        display_name__in=tokens,
+        workspace_memberships__workspace=workspace,
+    ).distinct())
 
 
 def _get_channel_layer():
@@ -164,7 +190,14 @@ def notify_on_issue_activity(sender, instance, created, **kwargs):
 
 @receiver(post_save, sender=IssueComment)
 def notify_on_comment(sender, instance, created, **kwargs):
-    """댓글 작성 시 이슈 담당자 + 생성자에게 알림 + 실시간 댓글 갱신"""
+    """댓글/답글 작성 시 알림 분기 + 실시간 댓글 갱신.
+
+    분기 규칙:
+      - 답글(parent 있음): 부모 작성자에게 COMMENT_REPLIED. 담당자/생성자 알림 없음(부모와의 대화로 한정).
+      - 새 댓글(parent 없음): 담당자 + 생성자에게 COMMENT_ADDED.
+      - 어느 경우든 본문의 `@displayname` 멘션은 MENTIONED 로 별도 발송.
+      - 같은 사용자에게는 한 댓글당 하나의 알림만(우선순위: MENTIONED > COMMENT_REPLIED > COMMENT_ADDED).
+    """
     if not created:
         return
 
@@ -180,18 +213,60 @@ def notify_on_comment(sender, instance, created, **kwargs):
         "actor_color": _actor_color(actor),
     })
 
-    # 알림 대상: 이슈 담당자 + 이슈 생성자 (중복 제거)
+    if not actor:
+        return
+
+    breadcrumb = _issue_breadcrumb(issue)
+    project_name = issue.project.name
+
+    # 1) 멘션 — 본문에서 @displayname 토큰 추출 후 발송 (actor 본인은 _create_notifications 가 제외)
+    mentioned_users = _extract_mentioned_users(comment.comment_html, issue.workspace)
+    mentioned_ids = {u.id for u in mentioned_users}
+    if mentioned_users:
+        _create_notifications(
+            recipients=mentioned_users,
+            actor=actor,
+            issue=issue,
+            ntype=Notification.Type.MENTIONED,
+            message=(
+                f"{actor.display_name}님이 {project_name}에서 "
+                f"'{breadcrumb}' 댓글에서 회원님을 멘션했습니다."
+            ),
+        )
+
+    # 2) 답글 vs 새 댓글 분기
+    if comment.parent_id and comment.parent and comment.parent.actor_id:
+        parent_actor = comment.parent.actor
+        # 부모 작성자가 멘션에 이미 포함됐으면 답글 알림은 생략(중복 방지)
+        if parent_actor and parent_actor.id not in mentioned_ids:
+            _create_notifications(
+                recipients=[parent_actor],
+                actor=actor,
+                issue=issue,
+                ntype=Notification.Type.COMMENT_REPLIED,
+                message=(
+                    f"{actor.display_name}님이 {project_name}에서 "
+                    f"'{breadcrumb}' 회원님 댓글에 답글을 남겼습니다."
+                ),
+            )
+        return
+
+    # 3) 새 댓글 — 담당자 + 생성자 (멘션 받은 사용자는 제외해 이중 알림 방지)
     recipients_ids = set(issue.assignees.values_list("id", flat=True))
     if issue.created_by_id:
         recipients_ids.add(issue.created_by_id)
+    recipients_ids -= mentioned_ids
+
+    if not recipients_ids:
+        return
 
     from django.contrib.auth import get_user_model
     User = get_user_model()
     recipients = list(User.objects.filter(id__in=recipients_ids))
 
     message = (
-        f"{actor.display_name}님이 {issue.project.name}에서 "
-        f"'{_issue_breadcrumb(issue)}'에 댓글을 남겼습니다."
+        f"{actor.display_name}님이 {project_name}에서 "
+        f"'{breadcrumb}'에 댓글을 남겼습니다."
     )
 
     _create_notifications(

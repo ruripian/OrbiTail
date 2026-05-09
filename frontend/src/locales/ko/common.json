@@ -257,9 +257,11 @@
       },
       "comments": {
         "empty": "아직 댓글이 없습니다",
-        "placeholder": "댓글을 입력하세요...",
+        "placeholder": "댓글을 입력하세요... (@이름 으로 멘션, Ctrl+Enter 등록)",
         "delete": "댓글 삭제",
-        "submit": "등록 (Ctrl+Enter)"
+        "submit": "등록 (Ctrl+Enter)",
+        "reply": "답글",
+        "replyPlaceholder": "답글... (@이름 으로 멘션, Ctrl+Enter 등록, Esc 취소)"
       },
       "deleteConfirm": "이 이슈를 삭제하시겠습니까?",
       "deleteIssue": "이슈 삭제",

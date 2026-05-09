@@ -116,8 +116,27 @@ class IssueCommentSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = IssueComment
-        fields = ["id", "comment_html", "comment_json", "actor", "actor_detail", "created_at", "updated_at"]
+        fields = [
+            "id", "comment_html", "comment_json", "parent",
+            "actor", "actor_detail", "created_at", "updated_at",
+        ]
         read_only_fields = ["id", "actor", "created_at", "updated_at"]
+
+    def validate_parent(self, value):
+        """답글 트리는 1단계만 허용 — 답글의 답글은 같은 부모로 평탄화(서버 강제).
+
+        Why: UI 도 1단계만 렌더링하므로 깊은 트리는 발생 시 표시 누락됨.
+        """
+        if value is None:
+            return value
+        # 같은 이슈 안의 댓글이어야 함
+        issue_id = self.context.get("issue_id")
+        if issue_id and str(value.issue_id) != str(issue_id):
+            raise serializers.ValidationError("parent 댓글이 같은 이슈에 속하지 않습니다.")
+        # parent 자체가 답글이면 그 부모를 사용 (1단계 평탄화)
+        if value.parent_id is not None:
+            return value.parent
+        return value
 
     def create(self, validated_data):
         return IssueComment.objects.create(
