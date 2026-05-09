@@ -20,6 +20,7 @@ urlpatterns = [
     path("api/", include("apps.issues.urls")),
     path("api/", include("apps.notifications.urls")),
     path("api/", include("apps.documents.urls")),
+    path("api/me/", include("apps.me.urls")),
     # 초대 수락 — 워크스페이스 slug 없이 토큰으로 직접 접근
     path("api/invitations/<uuid:token>/", InvitationDetailView.as_view(), name="invitation-detail"),
     path("api/invitations/<uuid:token>/accept/", InvitationAcceptView.as_view(), name="invitation-accept"),
