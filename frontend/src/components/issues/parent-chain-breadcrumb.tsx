@@ -2,6 +2,7 @@ import { Fragment } from "react";
 import { Link } from "react-router-dom";
 import { ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useOpenIssue } from "@/hooks/useOpenIssue";
 import type { Issue } from "@/types";
 
 /**
@@ -29,6 +30,7 @@ interface Props {
 export function ParentChainBreadcrumb({
   chain, workspaceSlug, projectId, refPrefix, onNavigate, className,
 }: Props) {
+  const openIssue = useOpenIssue();
   if (chain.length === 0) return null;
 
   const prefix = refPrefix ?? workspaceSlug.toUpperCase().slice(0, 3);
@@ -67,6 +69,7 @@ export function ParentChainBreadcrumb({
             ) : (
               <Link
                 to={`/${workspaceSlug}/projects/${projectId}/issues?issue=${item.id}`}
+                onClick={(e) => openIssue(e, workspaceSlug, projectId, item.id)}
                 className={cn(
                   "inline-flex items-center rounded px-1.5 py-0.5 hover:bg-muted/60 hover:text-foreground transition-colors",
                   isLast && "text-foreground/80",

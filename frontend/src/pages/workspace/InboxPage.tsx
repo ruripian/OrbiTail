@@ -1,9 +1,10 @@
 import { useMemo } from "react";
-import { useNavigate, useParams, useSearchParams, Link } from "react-router-dom";
+import { useParams, useSearchParams, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Bell, CheckCheck, MessageSquare, UserPlus, UserMinus, AtSign, RefreshCw, FilePlus, Reply, Archive, ArchiveRestore } from "lucide-react";
 import { notificationsApi } from "@/api/notifications";
+import { useIssueDialogStore } from "@/stores/issueDialogStore";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { AvatarInitials } from "@/components/ui/avatar-initials";
@@ -39,7 +40,6 @@ function classify(n: Notification, now: number): "today" | "week" | "earlier" {
 export function InboxPage() {
   const { t } = useTranslation();
   const { workspaceSlug } = useParams<{ workspaceSlug: string }>();
-  const navigate = useNavigate();
   const qc = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const filter = (searchParams.get("filter") as Filter | null) ?? "all";
@@ -100,8 +100,8 @@ export function InboxPage() {
 
   const handleClick = (n: Notification) => {
     if (!n.read) markRead.mutate(n.id);
-    if (n.issue && n.project_id) {
-      navigate(`/${workspaceSlug}/projects/${n.project_id}/issues?issue=${n.issue}`);
+    if (n.issue && n.project_id && workspaceSlug) {
+      useIssueDialogStore.getState().openIssue(workspaceSlug, n.project_id, n.issue);
     }
   };
 

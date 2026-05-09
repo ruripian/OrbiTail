@@ -95,6 +95,7 @@ class DocumentIssueLinkSerializer(serializers.ModelSerializer):
     issue_sequence_id = serializers.IntegerField(source="issue.sequence_id", read_only=True)
     issue_state = serializers.CharField(source="issue.state_id", read_only=True)
     issue_priority = serializers.CharField(source="issue.priority", read_only=True)
+    project_id = serializers.UUIDField(source="issue.project_id", read_only=True)
     project_identifier = serializers.CharField(source="issue.project.identifier", read_only=True)
 
     class Meta:
@@ -102,7 +103,7 @@ class DocumentIssueLinkSerializer(serializers.ModelSerializer):
         fields = [
             "id", "document", "issue",
             "issue_title", "issue_sequence_id", "issue_state", "issue_priority",
-            "project_identifier",
+            "project_id", "project_identifier",
             "created_at",
         ]
         read_only_fields = ["id", "document", "created_at"]

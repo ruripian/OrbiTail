@@ -15,7 +15,7 @@
  *  - "all" (기본) → 멤버 누구나 승인/거절
  */
 import { useState, useMemo } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -26,6 +26,7 @@ import {
 import { projectsApi } from "@/api/projects";
 import { requestsApi } from "@/api/requests";
 import { useAuthStore } from "@/stores/authStore";
+import { useIssueDialogStore } from "@/stores/issueDialogStore";
 import { useProjectPerms } from "@/hooks/useProjectPerms";
 import { Button } from "@/components/ui/button";
 import {
@@ -83,7 +84,6 @@ function buildDescriptionHtml(kind: RequestKind, v: {
 export function RequestSubmitPage() {
   const { t } = useTranslation();
   const { workspaceSlug, projectId = "" } = useParams<{ workspaceSlug: string; projectId: string }>();
-  const navigate = useNavigate();
   const qc = useQueryClient();
   const currentUser = useAuthStore((s) => s.user);
   const { perms } = useProjectPerms();
@@ -452,7 +452,7 @@ export function RequestSubmitPage() {
                       workspaceSlug={workspaceSlug!}
                       projectId={projectId}
                       onClick={r.approved_issue
-                        ? () => navigate(`/${workspaceSlug}/projects/${projectId}/issues?issue=${r.approved_issue}`)
+                        ? () => useIssueDialogStore.getState().openIssue(workspaceSlug!, projectId!, r.approved_issue!)
                         : undefined
                       }
                     />

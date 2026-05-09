@@ -9,6 +9,7 @@ import { issuesApi } from "@/api/issues";
 import { projectsApi } from "@/api/projects";
 import { useAuthStore } from "@/stores/authStore";
 import { useUndoStore } from "@/stores/undoStore";
+import { useIssueDialogStore } from "@/stores/issueDialogStore";
 import { useProjectPerms } from "@/hooks/useProjectPerms";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -486,6 +487,7 @@ export function IssueDetailPage({ issueIdOverride, workspaceSlugOverride, projec
             createNodeLinkMutation={createNodeLinkMutation}
             deleteNodeLinkMutation={deleteNodeLinkMutation}
             readOnly={readOnly}
+            inPanel={inPanel}
           />
         )}
 
@@ -631,6 +633,7 @@ function NodeLinksPane({
   createNodeLinkMutation,
   deleteNodeLinkMutation,
   readOnly,
+  inPanel,
 }: {
   workspaceSlug: string;
   projectId: string;
@@ -643,6 +646,7 @@ function NodeLinksPane({
   createNodeLinkMutation: { mutate: (id: string) => void; isPending: boolean };
   deleteNodeLinkMutation: { mutate: (id: string) => void };
   readOnly: boolean;
+  inPanel: boolean;
 }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -731,8 +735,10 @@ function NodeLinksPane({
               onClick={() => {
                 const otherId = isOutgoing ? nl.target : nl.source;
                 const otherProjectId = isOutgoing ? nl.target_project_id : nl.source_project_id;
-                // 같은 프로젝트면 현재 패널 내에서 이슈 전환, 다른 프로젝트면 해당 프로젝트로 이동
-                if (otherProjectId && otherProjectId !== projectId) {
+                const targetProjectId = otherProjectId && otherProjectId !== projectId ? otherProjectId : projectId;
+                if (inPanel && workspaceSlug && targetProjectId) {
+                  useIssueDialogStore.getState().openIssue(workspaceSlug, targetProjectId, otherId);
+                } else if (otherProjectId && otherProjectId !== projectId) {
                   navigate(`/${workspaceSlug}/projects/${otherProjectId}/issues?issue=${otherId}`);
                 } else {
                   setSearchParams((sp) => { sp.set("issue", otherId); return sp; });

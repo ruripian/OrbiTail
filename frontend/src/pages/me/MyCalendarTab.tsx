@@ -7,6 +7,7 @@ import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { meApi } from "@/api/me";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useOpenIssue } from "@/hooks/useOpenIssue";
 import type { Issue, ProjectEvent, PersonalEvent } from "@/types";
 import { PersonalEventDialog } from "./PersonalEventDialog";
 
@@ -24,7 +25,7 @@ function startOfMonthGrid(year: number, month: number): Date {
 }
 
 type CellItem =
-  | { kind: "issue"; id: string; title: string; color: string; href: string }
+  | { kind: "issue"; id: string; title: string; color: string; href: string; workspaceSlug: string; projectId: string }
   | { kind: "project_event"; id: string; title: string; color: string; href: string }
   | { kind: "personal"; id: string; title: string; color: string; event: PersonalEvent };
 
@@ -36,6 +37,7 @@ function inRange(d: string, start: string, end: string | null): boolean {
 
 export function MyCalendarTab() {
   const { t } = useTranslation();
+  const openIssue = useOpenIssue();
   const today = new Date();
   const [cursor, setCursor] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1));
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -88,7 +90,7 @@ export function MyCalendarTab() {
       for (const day of gridDays) {
         const dk = dateKey(day);
         if (inRange(dk, s, e)) {
-          const ws = (issue as Issue & { workspace_slug?: string }).workspace_slug;
+          const ws = issue.workspace_slug;
           const href = ws
             ? `/${ws}/projects/${issue.project}/issues?issue=${issue.id}`
             : "#";
@@ -98,6 +100,8 @@ export function MyCalendarTab() {
             title: issue.title,
             color: issue.state_detail?.color ?? "#9ca3af",
             href,
+            workspaceSlug: ws ?? "",
+            projectId: issue.project,
           });
         }
       }
@@ -107,7 +111,7 @@ export function MyCalendarTab() {
       for (const day of gridDays) {
         const dk = dateKey(day);
         if (inRange(dk, ev.date, ev.end_date)) {
-          const wsLink = (ev as ProjectEvent & { project_workspace_slug?: string }).project_workspace_slug;
+          const wsLink = ev.project_workspace_slug;
           push(dk, {
             kind: "project_event",
             id: ev.id,
@@ -237,6 +241,20 @@ export function MyCalendarTab() {
                           >
                             {content}
                           </button>
+                        );
+                      }
+                      if (it.kind === "issue") {
+                        return (
+                          <Link
+                            key={`${it.kind}-${it.id}-${idx}`}
+                            to={it.href}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openIssue(e, it.workspaceSlug, it.projectId, it.id);
+                            }}
+                          >
+                            {content}
+                          </Link>
                         );
                       }
                       return (

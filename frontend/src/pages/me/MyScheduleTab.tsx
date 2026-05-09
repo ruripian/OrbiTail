@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PriorityGlyph } from "@/components/ui/priority-glyph";
 import { formatLongDate } from "@/utils/date-format";
+import { useOpenIssue } from "@/hooks/useOpenIssue";
 import type { Issue, ProjectEvent, PersonalEvent, Priority } from "@/types";
 import { PersonalEventDialog } from "./PersonalEventDialog";
 
@@ -21,12 +22,15 @@ interface UnifiedRow {
   priority?: Priority;
   badge?: string;
   href?: string;
+  /** 이슈일 때 팝업 오픈에 필요한 컨텍스트 */
+  issueContext?: { workspaceSlug: string; projectId: string };
   /** PersonalEvent 클릭 시 편집 다이얼로그 오픈용 원본 데이터 */
   personal?: PersonalEvent;
 }
 
 export function MyScheduleTab() {
   const { t } = useTranslation();
+  const openIssue = useOpenIssue();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editEvent, setEditEvent] = useState<PersonalEvent | null>(null);
 
@@ -49,8 +53,7 @@ export function MyScheduleTab() {
 
   const rows = useMemo<UnifiedRow[]>(() => {
     const out: UnifiedRow[] = [];
-    type Issue2 = Issue & { workspace_slug?: string };
-    for (const issue of issues as Issue2[]) {
+    for (const issue of issues as Issue[]) {
       const date = issue.due_date ?? issue.start_date;
       if (!date) continue;
       const ws = issue.workspace_slug;
@@ -65,10 +68,10 @@ export function MyScheduleTab() {
           ? `${issue.project_identifier}-${issue.sequence_id}`
           : undefined,
         href: ws ? `/${ws}/projects/${issue.project}/issues?issue=${issue.id}` : "#",
+        issueContext: ws ? { workspaceSlug: ws, projectId: issue.project } : undefined,
       });
     }
-    type ProjEv = ProjectEvent & { project_workspace_slug?: string };
-    for (const ev of projEvents as ProjEv[]) {
+    for (const ev of projEvents as ProjectEvent[]) {
       out.push({
         kind: "project_event",
         id: ev.id,
@@ -165,6 +168,11 @@ export function MyScheduleTab() {
                     <li key={`${r.kind}-${r.id}`}>
                       <Link
                         to={r.href ?? "#"}
+                        onClick={(e) => {
+                          if (r.kind === "issue" && r.issueContext) {
+                            openIssue(e, r.issueContext.workspaceSlug, r.issueContext.projectId, r.id);
+                          }
+                        }}
                         className="flex items-center gap-2.5 px-5 py-3 hover:bg-accent/40 transition-colors"
                       >
                         {inner}

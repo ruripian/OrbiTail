@@ -15,6 +15,7 @@ import { useTranslation } from "react-i18next";
 import { Search, FileText, ArrowRight, X, StickyNote } from "lucide-react";
 import { issuesApi } from "@/api/issues";
 import { documentsApi } from "@/api/documents";
+import { useIssueDialogStore } from "@/stores/issueDialogStore";
 import { cn } from "@/lib/utils";
 import { Z_SEARCH } from "@/constants/z-index";
 import type { IssueSearchResult, Document as DocType } from "@/types";
@@ -133,7 +134,7 @@ export function CommandSearchDialog({ open, onOpenChange, documentMode = false }
 
   const navigateToIssue = (issue: IssueSearchResult) => {
     onOpenChange(false);
-    navigate(`/${workspaceSlug}/projects/${issue.project}/issues?issue=${issue.id}`);
+    useIssueDialogStore.getState().openIssue(workspaceSlug!, issue.project, issue.id);
   };
 
   const navigateToDoc = (doc: DocType) => {

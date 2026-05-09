@@ -11,13 +11,14 @@
 import { Node, mergeAttributes } from "@tiptap/core";
 import { ReactNodeViewRenderer, NodeViewWrapper, type NodeViewProps } from "@tiptap/react";
 import { useState, useEffect, useContext } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
   Kanban, Table as TableIcon, Calendar as CalendarIcon, Filter, X, ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { projectsApi } from "@/api/projects";
+import { useIssueDialogStore } from "@/stores/issueDialogStore";
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
@@ -64,7 +65,6 @@ const DEFAULT_CAL_SETTINGS: CalendarSettings = {
 
 function IssueViewEmbedView({ node, updateAttributes }: NodeViewProps) {
   const attrs = node.attrs as EmbedAttrs;
-  const navigate = useNavigate();
   const { workspaceSlug } = useParams<{ workspaceSlug: string }>();
   const docCtx = useContext(DocEditorContext);
   const [filterOpen, setFilterOpen] = useState(false);
@@ -112,7 +112,7 @@ function IssueViewEmbedView({ node, updateAttributes }: NodeViewProps) {
 
   const onIssueClick = (issueId: string) => {
     if (!workspaceSlug || !effectiveProjectId) return;
-    navigate(`/${workspaceSlug}/projects/${effectiveProjectId}/issues?issue=${issueId}`);
+    useIssueDialogStore.getState().openIssue(workspaceSlug, effectiveProjectId, issueId);
   };
 
   const filterParams: Record<string, string> = {};

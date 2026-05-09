@@ -9,10 +9,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { issuesApi } from "@/api/issues";
 import { projectsApi } from "@/api/projects";
+import { useIssueDialogStore } from "@/stores/issueDialogStore";
 import { useLocalState } from "@/hooks/useLocalState";
 import { ProjectIcon } from "@/components/ui/project-icon-picker";
 import { Button } from "@/components/ui/button";
@@ -65,8 +65,6 @@ interface Props {
 
 export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick }: Props) {
   const { t } = useTranslation();
-  const navigate = useNavigate();
-  const [, setSearchParams] = useSearchParams();
 
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -789,11 +787,10 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick }
   const openIssue = (id: string) => {
     if (onIssueClick) return onIssueClick(id);
     const node = nodesRef.current.get(id);
-    // 다른 프로젝트 이슈면 해당 프로젝트 URL 로 이동해야 패널이 열림
-    if (node && node.project_id && node.project_id !== projectId) {
-      navigate(`/${workspaceSlug}/projects/${node.project_id}/issues?issue=${id}`);
-    } else {
-      setSearchParams((sp) => { sp.set("issue", id); return sp; });
+    // 다른 프로젝트 이슈도 전역 다이얼로그로 같은 자리에서 표시
+    const targetProjectId = node?.project_id && node.project_id !== projectId ? node.project_id : projectId;
+    if (workspaceSlug && targetProjectId) {
+      useIssueDialogStore.getState().openIssue(workspaceSlug, targetProjectId, id);
     }
   };
 

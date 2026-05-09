@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { documentsApi } from "@/api/documents";
 import { useAuthStore } from "@/stores/authStore";
+import { useIssueDialogStore } from "@/stores/issueDialogStore";
 import { DocumentEditor } from "@/components/documents/DocumentEditor";
 import { CommentsPanel as BlockCommentsPanel, type NewThreadRequest } from "@/components/documents/CommentsPanel";
 import { SaveAsTemplateDialog } from "@/components/documents/TemplatePickerDialog";
@@ -1278,7 +1279,6 @@ function LinkedIssuesSection({ workspaceSlug, spaceId, docId, editable, projectI
   /** 문서가 project 스페이스에 속하면 해당 프로젝트 id. personal/shared 면 null. */
   projectId: string | null;
 }) {
-  const navigate = useNavigate();
   const qc = useQueryClient();
   const [pickerOpen, setPickerOpen] = useState(false);
 
@@ -1324,7 +1324,7 @@ function LinkedIssuesSection({ workspaceSlug, spaceId, docId, editable, projectI
             <li key={link.id} className="group flex items-center gap-2 text-sm">
               <Hash className="h-3 w-3 text-muted-foreground shrink-0" />
               <button
-                onClick={() => navigate(`/${workspaceSlug}/projects/${link.issue}/issues?issue=${link.issue}`)}
+                onClick={() => link.project_id && useIssueDialogStore.getState().openIssue(workspaceSlug, link.project_id, link.issue)}
                 className="flex-1 text-left text-xs hover:text-primary transition-colors min-w-0"
                 title={link.issue_title}
               >

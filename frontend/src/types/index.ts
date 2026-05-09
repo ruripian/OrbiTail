@@ -330,6 +330,7 @@ export interface DocumentIssueLink {
   issue_sequence_id: number;
   issue_state: string | null;
   issue_priority: string;
+  project_id: string;
   project_identifier: string;
   created_at: string;
 }

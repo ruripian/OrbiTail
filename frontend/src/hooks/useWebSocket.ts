@@ -22,6 +22,7 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useRecentChangesStore } from "@/stores/recentChangesStore";
 import { usePresenceStore, type PresenceUser } from "@/stores/presenceStore";
+import { useIssueDialogStore } from "@/stores/issueDialogStore";
 
 /* PASS10 — 토스트 노출 대상. 사용자가 종 아이콘을 안 봐도 즉시 인지해야 하는 타입. */
 const HIGH_PRIORITY_NOTIFICATION_TYPES = new Set(["mentioned", "issue_assigned"]);
@@ -176,7 +177,7 @@ export function useWebSocket(workspaceSlug: string | undefined): WsStatus {
               duration: 6000,
               action: issueId && projectId ? {
                 label: "보기",
-                onClick: () => navigate(`/${workspaceSlug}/projects/${projectId}/issues?issue=${issueId}`),
+                onClick: () => useIssueDialogStore.getState().openIssue(workspaceSlug!, projectId, issueId),
               } : undefined,
             });
           }

@@ -6,6 +6,7 @@ import { Link } from "react-router-dom";
 import { meApi } from "@/api/me";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PriorityGlyph } from "@/components/ui/priority-glyph";
+import { useOpenIssue } from "@/hooks/useOpenIssue";
 import type { Issue } from "@/types";
 
 interface ProjectGroup {
@@ -19,6 +20,7 @@ interface ProjectGroup {
 
 export function MyGraphTab() {
   const { t } = useTranslation();
+  const openIssue = useOpenIssue();
   const { data: issues = [], isLoading } = useQuery({
     queryKey: ["me", "issues", "graph"],
     queryFn: () => meApi.issues({ include_completed: true }),
@@ -26,9 +28,8 @@ export function MyGraphTab() {
 
   // 워크스페이스 → 프로젝트 → 이슈 트리 구성
   const wsBuckets = useMemo(() => {
-    type Issue2 = Issue & { workspace_slug?: string; workspace_name?: string; project_name?: string; project_identifier?: string };
     const wsMap = new Map<string, { name: string; slug: string | null; projects: Map<string, ProjectGroup> }>();
-    for (const issue of issues as Issue2[]) {
+    for (const issue of issues as Issue[]) {
       const wsSlug = issue.workspace_slug ?? "(unknown)";
       const wsName = issue.workspace_name ?? wsSlug;
       if (!wsMap.has(wsSlug)) wsMap.set(wsSlug, { name: wsName, slug: issue.workspace_slug ?? null, projects: new Map() });
@@ -91,6 +92,9 @@ export function MyGraphTab() {
                         key={issue.id}
                         to={href}
                         title={issue.title}
+                        onClick={(e) => {
+                          if (p.workspaceSlug) openIssue(e, p.workspaceSlug, p.projectId, issue.id);
+                        }}
                         className="group inline-flex items-center gap-1 max-w-[140px] rounded-full border border-border bg-background px-2 py-1 text-2xs hover:border-primary transition-colors"
                       >
                         <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: stateColor }} />

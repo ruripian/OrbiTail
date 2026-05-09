@@ -10,6 +10,7 @@ import { useTheme } from "@/lib/theme-provider";
 import { api } from "@/lib/axios";
 import { notificationsApi } from "@/api/notifications";
 import { workspacesApi } from "@/api/workspaces";
+import { useIssueDialogStore } from "@/stores/issueDialogStore";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -77,13 +78,13 @@ export function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
     },
   });
 
-  /* 알림 클릭 → 해당 이슈로 이동 + 읽음 처리 */
+  /* 알림 클릭 → 해당 이슈 다이얼로그 + 읽음 처리 */
   const handleNotificationClick = useCallback((n: Notification) => {
     if (!n.read) markReadMutation.mutate(n.id);
-    if (n.project_id && n.issue) {
-      navigate(`/${workspaceSlug}/projects/${n.project_id}/issues?issue=${n.issue}`);
+    if (n.project_id && n.issue && workspaceSlug) {
+      useIssueDialogStore.getState().openIssue(workspaceSlug, n.project_id, n.issue);
     }
-  }, [workspaceSlug, navigate, markReadMutation]);
+  }, [workspaceSlug, markReadMutation]);
 
   // Cmd+K / Ctrl+K 글로벌 단축키
   useEffect(() => {

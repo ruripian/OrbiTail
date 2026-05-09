@@ -24,6 +24,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { OrbiTailOrbit } from "@/components/auth/OrbiTailOrbit";
 import { PriorityGlyph } from "@/components/ui/priority-glyph";
 import { useRecentChangesStore } from "@/stores/recentChangesStore";
+import { useOpenIssue } from "@/hooks/useOpenIssue";
 import { PRIORITY_LIST, PRIORITY_LABEL_KEY } from "@/constants/priority";
 import type { Issue, State } from "@/types";
 
@@ -107,6 +108,7 @@ function formatDateRange(start: string | null, end: string | null): string | nul
 
 function IssueRow({ issue, workspaceSlug }: { issue: Issue; workspaceSlug: string }) {
   const { t } = useTranslation();
+  const openIssue = useOpenIssue();
   const dateRange = formatDateRange(issue.start_date, issue.due_date);
   // Phase 3.4 — 5초 동안 strip 표시. selector로 구독해서 만료 시 자동 리렌더.
   const isRecent = useRecentChangesStore((s) => !!s.recent[issue.id]);
@@ -115,6 +117,7 @@ function IssueRow({ issue, workspaceSlug }: { issue: Issue; workspaceSlug: strin
   return (
     <Link
       to={`/${workspaceSlug}/projects/${issue.project}/issues?issue=${issue.id}`}
+      onClick={(e) => openIssue(e, workspaceSlug, issue.project, issue.id)}
       data-recently-changed={isRecent ? "true" : undefined}
       style={isRecent && recentColor ? ({ ["--recent-color" as never]: recentColor } as React.CSSProperties) : undefined}
       className="flex items-center gap-3 px-4 sm:px-5 py-3.5 hover:bg-accent/50 transition-colors group"
