@@ -123,10 +123,7 @@ class IssueCommentSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "actor", "created_at", "updated_at"]
 
     def validate_parent(self, value):
-        """답글 트리는 1단계만 허용 — 답글의 답글은 같은 부모로 평탄화(서버 강제).
-
-        Why: UI 도 1단계만 렌더링하므로 깊은 트리는 발생 시 표시 누락됨.
-        """
+        """답글 트리는 1단계만 허용 — 답글의 답글은 같은 부모로 평탄화(서버 강제)."""
         if value is None:
             return value
         # 같은 이슈 안의 댓글이어야 함

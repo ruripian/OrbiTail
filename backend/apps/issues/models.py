@@ -146,7 +146,6 @@ class IssueComment(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     issue = models.ForeignKey(Issue, on_delete=models.CASCADE, related_name="comments")
     # 답글 트리 — 1단계만 사용. 부모 삭제 시 답글도 함께 삭제(트리 일관성).
-    # 2단계 이상의 nesting 은 frontend 에서 막음(평면 1단계 reply UI).
     parent = models.ForeignKey(
         "self",
         on_delete=models.CASCADE,
@@ -196,7 +195,6 @@ class IssueNodeLink(models.Model):
     """이슈 간 그래프 링크 — 트리 구조와 독립된 자유 연결(node 기능 기반).
 
     사용처: 다른 트리/프로젝트의 이슈끼리 관련성 표시(블록/참조/중복 등).
-    시각화는 frontend `GraphView.tsx` 에서 처리.
     """
 
     class LinkType(models.TextChoices):

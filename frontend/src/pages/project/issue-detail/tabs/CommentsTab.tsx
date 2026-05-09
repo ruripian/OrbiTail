@@ -9,9 +9,8 @@ import { AvatarInitials } from "@/components/ui/avatar-initials";
 import { formatLongDate } from "@/utils/date-format";
 import type { IssueComment } from "@/types";
 
-/** PASS5-D — Comments tab. create/delete mutation 자체 소유.
- * 답글은 1단계 트리만 지원 — parent_id 가 있는 댓글에는 답글 버튼을 숨겨 깊은 nesting 을 막는다.
- * 멘션은 본문에 `@displayname` 토큰으로 표기 → 백엔드 signal 이 워크스페이스 멤버와 매칭해 알림 발송.
+/** 이슈 댓글 탭 — create/delete mutation 자체 소유.
+ * 답글은 1단계 트리만 지원 (parent_id 가 있는 댓글에는 답글 버튼 숨김).
  */
 interface Props {
   workspaceSlug: string;
@@ -109,7 +108,6 @@ export function CommentsTab({ workspaceSlug, projectId, issueId, comments, curre
           )}
         </div>
         <p className="text-sm whitespace-pre-wrap">{comment.comment_html}</p>
-        {/* 답글 버튼은 1단계 댓글에만, readOnly 가 아닐 때만 노출 */}
         {!isReply && !readOnly && (
           <button
             className="mt-1 inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
@@ -137,7 +135,6 @@ export function CommentsTab({ workspaceSlug, projectId, issueId, comments, curre
         <div key={node.id} className="space-y-3">
           {renderComment(node, false)}
 
-          {/* 답글 입력창 — 부모 바로 아래, 답글 목록 위에 위치 */}
           {replyTo === node.id && !readOnly && (
             <div className="ml-11 flex gap-2">
               <textarea
@@ -172,7 +169,6 @@ export function CommentsTab({ workspaceSlug, projectId, issueId, comments, curre
             </div>
           )}
 
-          {/* 답글 목록 — 들여쓰기 + 좌측 라인 */}
           {node.replies.length > 0 && (
             <div className="ml-11 pl-4 border-l border-border space-y-3">
               {node.replies.map((reply) => (

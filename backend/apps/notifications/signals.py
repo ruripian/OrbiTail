@@ -19,7 +19,6 @@ from .models import Notification
 
 
 # `@displayname` 형태 멘션 추출 — 한글/영문/숫자/.-_ 토큰만, 공백/구두점 전까지.
-# Why: 사용자 username 필드가 없으므로 display_name 으로 매칭. 워크스페이스 멤버에 한정해 외부 누출 방지.
 _MENTION_RE = re.compile(r"@([\wㄱ-힝\.\-]+)", re.UNICODE)
 
 
@@ -51,11 +50,7 @@ def _get_channel_layer():
 
 
 def _broadcast_to_workspace(workspace_slug, event):
-    """워크스페이스 전체 그룹 브로드캐스트.
-
-    프로젝트 무관 이벤트(워크스페이스 가입/공지 등)에만 사용한다.
-    이슈/프로젝트 관련 이벤트는 `_broadcast_to_project` 를 써서 SECRET 누수를 차단한다.
-    """
+    """워크스페이스 전체 그룹 브로드캐스트 — 프로젝트 무관 이벤트(가입/공지 등) 전용."""
     channel_layer = _get_channel_layer()
     if not channel_layer:
         return
@@ -138,7 +133,6 @@ def _create_notifications(recipients, actor, issue, ntype, message):
         for user in targets
     ])
 
-    # WebSocket 알림 브로드캐스트 — SECRET 프로젝트는 멤버 한정 그룹으로 차단
     _broadcast_to_project(issue.project, {
         "type": "notification.new",
         "notification_type": ntype,
@@ -179,7 +173,6 @@ def notify_on_issue_activity(sender, instance, created, **kwargs):
     if not actor:
         return
 
-    # WebSocket: 이슈 업데이트 이벤트 — SECRET 프로젝트 멤버 한정
     _broadcast_to_project(issue.project, {
         "type": "issue.updated",
         "issue_id": str(issue.id),
@@ -229,7 +222,6 @@ def notify_on_comment(sender, instance, created, **kwargs):
     issue = comment.issue
     actor = comment.actor
 
-    # 댓글 실시간 갱신 — SECRET 프로젝트 멤버 한정
     _broadcast_to_project(issue.project, {
         "type": "issue.commented",
         "issue_id": str(issue.id),
@@ -243,7 +235,6 @@ def notify_on_comment(sender, instance, created, **kwargs):
     breadcrumb = _issue_breadcrumb(issue)
     project_name = issue.project.name
 
-    # 1) 멘션 — 본문에서 @displayname 토큰 추출 후 발송 (actor 본인은 _create_notifications 가 제외)
     mentioned_users = _extract_mentioned_users(comment.comment_html, issue.workspace)
     mentioned_ids = {u.id for u in mentioned_users}
     if mentioned_users:
@@ -258,7 +249,6 @@ def notify_on_comment(sender, instance, created, **kwargs):
             ),
         )
 
-    # 2) 답글 vs 새 댓글 분기
     if comment.parent_id and comment.parent and comment.parent.actor_id:
         parent_actor = comment.parent.actor
         # 부모 작성자가 멘션에 이미 포함됐으면 답글 알림은 생략(중복 방지)
@@ -275,7 +265,6 @@ def notify_on_comment(sender, instance, created, **kwargs):
             )
         return
 
-    # 3) 새 댓글 — 담당자 + 생성자 (멘션 받은 사용자는 제외해 이중 알림 방지)
     recipients_ids = set(issue.assignees.values_list("id", flat=True))
     if issue.created_by_id:
         recipients_ids.add(issue.created_by_id)
