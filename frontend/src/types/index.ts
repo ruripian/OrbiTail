@@ -194,6 +194,8 @@ export interface Sprint {
 export interface ProjectEvent {
   id: string;
   project: string;
+  project_workspace_slug?: string;
+  project_name?: string;
   title: string;
   date: string;               // YYYY-MM-DD — 시작일
   end_date: string | null;    // YYYY-MM-DD | null — 기간 이벤트
@@ -207,6 +209,34 @@ export interface ProjectEvent {
   created_by_detail: User | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface PersonalEvent {
+  id: string;
+  title: string;
+  date: string;            // YYYY-MM-DD
+  end_date: string | null; // YYYY-MM-DD | null
+  event_type: "task" | "meeting" | "deadline" | "reminder" | "other";
+  color: string;
+  description: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/** 마이 페이지 종합 탭 카드 + 분포 차트용 응답 */
+export interface MeSummary {
+  active_count: number;
+  due_today: number;
+  due_this_week: number;
+  overdue: number;
+  by_priority: Array<{ priority: string; count: number }>;
+  by_project: Array<{
+    project_id: string | null;
+    project_name: string | null;
+    project_identifier: string | null;
+    workspace_slug: string | null;
+    count: number;
+  }>;
 }
 
 export interface DocumentSpace {
@@ -354,6 +384,8 @@ export interface Issue {
   project_identifier?: string;
   project_name?: string;
   workspace: string;
+  workspace_slug?: string;
+  workspace_name?: string;
   assignees: string[];
   assignee_details: User[];
   label: string[];

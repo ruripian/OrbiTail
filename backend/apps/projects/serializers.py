@@ -7,11 +7,14 @@ class ProjectEventSerializer(serializers.ModelSerializer):
     """프로젝트 캘린더 이벤트 serializer — 프론트 렌더 + CRUD 공통."""
     created_by_detail = UserSerializer(source="created_by", read_only=True)
     participant_details = UserSerializer(source="participants", many=True, read_only=True)
+    project_workspace_slug = serializers.CharField(source="project.workspace.slug", read_only=True)
+    project_name = serializers.CharField(source="project.name", read_only=True)
 
     class Meta:
         model = ProjectEvent
         fields = [
-            "id", "project", "title", "date", "end_date",
+            "id", "project", "project_workspace_slug", "project_name",
+            "title", "date", "end_date",
             "event_type", "color", "description",
             "is_global", "participants", "participant_details",
             "created_by", "created_by_detail",

@@ -18,6 +18,7 @@ import {
   Lock,
   Megaphone,
   MessageSquarePlus,
+  UserCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { projectsApi } from "@/api/projects";
@@ -384,6 +385,13 @@ export function Sidebar({ onNavigate, wsStatus = "connecting" }: { onNavigate?: 
           icon={Home}
           label={t("sidebar.home")}
           active={location.pathname === `/${workspaceSlug}`}
+        />
+
+        <NavItem
+          to={`/${workspaceSlug}/me`}
+          icon={UserCircle}
+          label={t("sidebar.myPage", "마이")}
+          active={location.pathname === `/${workspaceSlug}/me`}
         />
 
         <NavItem

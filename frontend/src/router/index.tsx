@@ -11,6 +11,7 @@ import { WorkspaceSelectPage } from "@/pages/WorkspaceSelectPage";
 import { CreateWorkspacePage } from "@/pages/workspace/CreateWorkspacePage";
 import { WorkspaceDashboard } from "@/pages/workspace/WorkspaceDashboard";
 import { InboxPage } from "@/pages/workspace/InboxPage";
+import { MyPage } from "@/pages/me/MyPage";
 import { CreateProjectPage } from "@/pages/project/CreateProjectPage";
 import { ProjectIssuePage } from "@/pages/project/ProjectIssuePage";
 import { SettingsLayout } from "@/pages/settings/SettingsLayout";
@@ -159,6 +160,7 @@ export const router = createBrowserRouter([
     handle: { chrome: "minimal" } satisfies RouteHandle,
     children: [
       { index: true, element: <WorkspaceDashboard />, handle: { chrome: "branded" } satisfies RouteHandle },
+      { path: "me", element: <MyPage />, handle: { chrome: "branded" } satisfies RouteHandle },
       { path: "inbox", element: <InboxPage /> },
       { path: "announcements", element: <AnnouncementsPage /> },
       { path: "projects/create", element: <CreateProjectPage /> },

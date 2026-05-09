@@ -20,13 +20,16 @@ class IssueSerializer(serializers.ModelSerializer):
     attachment_count = serializers.SerializerMethodField()
     project_identifier = serializers.CharField(source="project.identifier", read_only=True)
     project_name = serializers.CharField(source="project.name", read_only=True)
+    workspace_slug = serializers.CharField(source="workspace.slug", read_only=True)
+    workspace_name = serializers.CharField(source="workspace.name", read_only=True)
 
     class Meta:
         model = Issue
         fields = [
             "id", "title", "description", "description_html",
             "priority", "state", "state_detail",
-            "project", "project_identifier", "project_name", "workspace",
+            "project", "project_identifier", "project_name",
+            "workspace", "workspace_slug", "workspace_name",
             "assignees", "assignee_details",
             "label", "label_details",
             "category", "sprint",
