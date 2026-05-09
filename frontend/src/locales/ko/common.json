@@ -676,6 +676,7 @@
   "sidebar": {
     "workspace": "워크스페이스",
     "home": "홈",
+    "myPage": "마이",
     "myIssues": "내 이슈",
     "discover": "탐색",
     "archived": "보관함",
@@ -1435,6 +1436,59 @@
     "notifications": {
       "title": "알림이 없습니다",
       "description": "새 알림이 도착하면 여기에 표시됩니다."
+    }
+  },
+  "me": {
+    "title": "마이 페이지",
+    "subtitle": "모든 워크스페이스의 내 이슈와 일정을 한 곳에서.",
+    "tabs": {
+      "calendar": "캘린더",
+      "graph": "그래프",
+      "summary": "종합"
+    },
+    "calendar": {
+      "hint": "내가 담당한 이슈의 마감/시작일과 프로젝트 이벤트, 그리고 개인 일정을 한 캘린더에 모아 봅니다. 빈 셀을 누르면 그 날짜에 개인 일정을 추가할 수 있어요.",
+      "today": "오늘",
+      "newEvent": "새 일정",
+      "more": "개 더"
+    },
+    "graph": {
+      "hint": "내가 담당한 이슈를 워크스페이스 → 프로젝트 단위로 묶어 한눈에 봅니다. 칩을 누르면 해당 이슈가 팝업으로 열려요.",
+      "empty": "표시할 이슈가 없습니다."
+    },
+    "summary": {
+      "active": "활성 이슈",
+      "dueToday": "오늘 마감",
+      "dueThisWeek": "이번 주 마감",
+      "overdue": "지연",
+      "priorityDist": "우선순위 분포",
+      "projectDist": "프로젝트 분포",
+      "empty": "활성 이슈 없음",
+      "upcoming": "다가오는 일정 (7일)",
+      "upcomingEmpty": "예정된 일정이 없습니다",
+      "personal": "개인 일정"
+    },
+    "event": {
+      "newTitle": "새 일정",
+      "editTitle": "일정 수정",
+      "title": "제목",
+      "date": "시작일",
+      "endDate": "종료일 (선택)",
+      "type": "유형",
+      "color": "색상",
+      "description": "메모 (선택)",
+      "types": {
+        "task": "할 일",
+        "meeting": "회의",
+        "deadline": "마감",
+        "reminder": "알림",
+        "other": "기타"
+      },
+      "toast": {
+        "createFailed": "일정 생성에 실패했습니다.",
+        "updateFailed": "일정 수정에 실패했습니다.",
+        "deleteFailed": "일정 삭제에 실패했습니다."
+      }
     }
   },
   "inbox": {

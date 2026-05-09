@@ -150,6 +150,9 @@ export function MyCalendarTab() {
 
   return (
     <div>
+      <p className="text-xs text-muted-foreground mb-3">
+        {t("me.calendar.hint", "내가 담당한 이슈의 마감/시작일과 프로젝트 이벤트, 그리고 개인 일정을 한 캘린더에 모아 봅니다. 빈 셀을 누르면 그 날짜에 개인 일정을 추가할 수 있어요.")}
+      </p>
       {/* 네비 + 새 일정 */}
       <div className="flex items-center gap-2 mb-3">
         <Button
@@ -158,7 +161,7 @@ export function MyCalendarTab() {
         >
           <ChevronLeft className="h-4 w-4" />
         </Button>
-        <span className="text-base font-semibold tabular-nums">{monthLabel}</span>
+        <span className="text-lg font-semibold tabular-nums">{monthLabel}</span>
         <Button
           variant="outline" size="sm"
           onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1))}
@@ -181,18 +184,18 @@ export function MyCalendarTab() {
       ) : (
         <div className="rounded-xl border border-border bg-card overflow-hidden">
           {/* 요일 헤더 */}
-          <div className="grid grid-cols-7 border-b border-border text-xs">
+          <div className="grid grid-cols-7 border-b border-border text-sm">
             {WEEKDAYS.map((w, i) => (
               <div
                 key={w}
-                className={"px-2 py-2 text-center font-medium " + (i === 0 ? "text-red-500" : i === 6 ? "text-blue-500" : "text-muted-foreground")}
+                className={"px-2 py-2.5 text-center font-medium " + (i === 0 ? "text-red-500" : i === 6 ? "text-blue-500" : "text-muted-foreground")}
               >
                 {w}
               </div>
             ))}
           </div>
           {/* 6주 셀 */}
-          <div className="grid grid-cols-7" style={{ gridTemplateRows: "repeat(6, minmax(110px, 1fr))" }}>
+          <div className="grid grid-cols-7" style={{ gridTemplateRows: "repeat(6, minmax(160px, 1fr))" }}>
             {gridDays.map((d) => {
               const dk = dateKey(d);
               const inMonth = d.getMonth() === cursor.getMonth();
@@ -202,7 +205,7 @@ export function MyCalendarTab() {
                 <div
                   key={dk}
                   className={
-                    "relative border-r border-b border-border last-of-type:border-r-0 p-1.5 cursor-pointer hover:bg-accent/30 transition-colors " +
+                    "relative border-r border-b border-border last-of-type:border-r-0 p-2 cursor-pointer hover:bg-accent/30 transition-colors " +
                     (inMonth ? "bg-card" : "bg-muted/20")
                   }
                   onClick={(e) => {
@@ -210,24 +213,24 @@ export function MyCalendarTab() {
                     openNew(dk);
                   }}
                 >
-                  <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center justify-between mb-1.5">
                     <span className={
-                      "text-xs tabular-nums " +
-                      (isToday ? "bg-primary text-primary-foreground rounded-full px-1.5 font-semibold" :
-                        inMonth ? "text-foreground" : "text-muted-foreground/50")
+                      "text-sm tabular-nums " +
+                      (isToday ? "bg-primary text-primary-foreground rounded-full px-2 py-0.5 font-semibold" :
+                        inMonth ? "text-foreground font-medium" : "text-muted-foreground/50")
                     }>
                       {d.getDate()}
                     </span>
                   </div>
-                  <div className="space-y-0.5 max-h-[80px] overflow-hidden">
-                    {items.slice(0, 3).map((it, idx) => {
+                  <div className="space-y-1 overflow-hidden">
+                    {items.slice(0, 5).map((it, idx) => {
                       const content = (
                         <span
                           data-item
-                          className="flex items-center gap-1 text-2xs truncate rounded px-1 py-0.5 cursor-pointer hover:opacity-80"
+                          className="flex items-center gap-1.5 text-xs truncate rounded px-1.5 py-1 cursor-pointer hover:opacity-80 font-medium"
                           style={{ backgroundColor: `${it.color}22`, color: it.color }}
                         >
-                          <span className="w-1 h-1 rounded-full shrink-0" style={{ backgroundColor: it.color }} />
+                          <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: it.color }} />
                           <span className="truncate">{it.title}</span>
                         </span>
                       );
@@ -267,8 +270,8 @@ export function MyCalendarTab() {
                         </Link>
                       );
                     })}
-                    {items.length > 3 && (
-                      <span className="text-2xs text-muted-foreground px-1">+{items.length - 3}</span>
+                    {items.length > 5 && (
+                      <span className="text-2xs text-muted-foreground px-1.5">+{items.length - 5}{t("me.calendar.more", "개 더")}</span>
                     )}
                   </div>
                 </div>

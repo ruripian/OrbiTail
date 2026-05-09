@@ -676,6 +676,7 @@
   "sidebar": {
     "workspace": "Workspace",
     "home": "Home",
+    "myPage": "Me",
     "myIssues": "My Issues",
     "discover": "Discover",
     "archived": "Archived",
@@ -1435,6 +1436,59 @@
     "notifications": {
       "title": "No notifications",
       "description": "New notifications will appear here when they arrive."
+    }
+  },
+  "me": {
+    "title": "My Page",
+    "subtitle": "All my issues and events across workspaces, in one place.",
+    "tabs": {
+      "calendar": "Calendar",
+      "graph": "Graph",
+      "summary": "Overview"
+    },
+    "calendar": {
+      "hint": "Your assigned issues (start/due dates), project events, and personal events on one calendar. Click an empty cell to add a personal event for that day.",
+      "today": "Today",
+      "newEvent": "New event",
+      "more": " more"
+    },
+    "graph": {
+      "hint": "Your assigned issues grouped by workspace → project. Click a chip to open the issue dialog.",
+      "empty": "Nothing to show."
+    },
+    "summary": {
+      "active": "Active issues",
+      "dueToday": "Due today",
+      "dueThisWeek": "Due this week",
+      "overdue": "Overdue",
+      "priorityDist": "By priority",
+      "projectDist": "By project",
+      "empty": "No active issues",
+      "upcoming": "Upcoming (7 days)",
+      "upcomingEmpty": "Nothing upcoming",
+      "personal": "Personal"
+    },
+    "event": {
+      "newTitle": "New event",
+      "editTitle": "Edit event",
+      "title": "Title",
+      "date": "Start",
+      "endDate": "End (optional)",
+      "type": "Type",
+      "color": "Color",
+      "description": "Notes (optional)",
+      "types": {
+        "task": "Task",
+        "meeting": "Meeting",
+        "deadline": "Deadline",
+        "reminder": "Reminder",
+        "other": "Other"
+      },
+      "toast": {
+        "createFailed": "Failed to create event.",
+        "updateFailed": "Failed to update event.",
+        "deleteFailed": "Failed to delete event."
+      }
     }
   },
   "inbox": {

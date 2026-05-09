@@ -65,7 +65,10 @@ export function MyGraphTab() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
+      <p className="text-xs text-muted-foreground">
+        {t("me.graph.hint", "내가 담당한 이슈를 워크스페이스 → 프로젝트 단위로 묶어 한눈에 봅니다. 칩을 누르면 해당 이슈가 팝업으로 열려요.")}
+      </p>
       {wsBuckets.map((ws) => (
         <section key={ws.slug} className="rounded-xl border border-border bg-card p-5">
           <h2 className="text-base font-semibold mb-4">{ws.name}</h2>
