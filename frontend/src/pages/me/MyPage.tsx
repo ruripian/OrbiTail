@@ -32,18 +32,15 @@ export function MyPage() {
   };
 
   return (
-    <PageTransition className="px-4 sm:px-6 py-5 overflow-y-auto h-full">
-      <div className="mb-5">
-        <h1 className="font-display text-2xl sm:text-3xl font-semibold text-foreground tracking-tight">
+    <PageTransition className="px-3 sm:px-4 py-3 overflow-y-auto h-full flex flex-col">
+      <div className="flex items-center justify-between mb-3 shrink-0">
+        <h1 className="font-display text-xl font-semibold text-foreground tracking-tight">
           {t("me.title", "마이 페이지")}
         </h1>
-        <p className="mt-1.5 text-sm text-muted-foreground">
-          {t("me.subtitle", "모든 워크스페이스의 내 이슈와 일정을 한 곳에서.")}
-        </p>
       </div>
 
       {/* 탭 네비 */}
-      <div className="flex gap-1 border-b border-border mb-6 -mx-1 overflow-x-auto">
+      <div className="flex gap-1 border-b border-border mb-3 overflow-x-auto shrink-0">
         {TABS.map((id) => {
           const Icon = TAB_META[id].icon;
           const active = tab === id;
@@ -53,7 +50,7 @@ export function MyPage() {
               type="button"
               onClick={() => setTab(id)}
               className={
-                "flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px " +
+                "flex items-center gap-1.5 px-3 py-2 text-sm font-medium transition-colors border-b-2 -mb-px " +
                 (active
                   ? "text-foreground border-primary"
                   : "text-muted-foreground border-transparent hover:text-foreground")
@@ -66,10 +63,12 @@ export function MyPage() {
         })}
       </div>
 
-      {/* 탭별 컨텐츠 */}
-      {tab === "calendar" && <MyCalendarTab />}
-      {tab === "graph"    && <MyGraphTab />}
-      {tab === "summary"  && <MySummaryTab />}
+      {/* 탭별 컨텐츠 — flex-1 로 남은 공간 모두 차지 */}
+      <div className="flex-1 min-h-0">
+        {tab === "calendar" && <MyCalendarTab />}
+        {tab === "graph"    && <MyGraphTab />}
+        {tab === "summary"  && <MySummaryTab />}
+      </div>
     </PageTransition>
   );
 }

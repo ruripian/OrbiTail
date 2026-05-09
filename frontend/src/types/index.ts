@@ -216,7 +216,7 @@ export interface PersonalEvent {
   title: string;
   date: string;            // YYYY-MM-DD
   end_date: string | null; // YYYY-MM-DD | null
-  event_type: "task" | "meeting" | "deadline" | "reminder" | "other";
+  event_type: "meeting" | "trip" | "deadline" | "presentation" | "milestone" | "other";
   color: string;
   description: string;
   created_at: string;

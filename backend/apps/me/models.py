@@ -11,11 +11,12 @@ class PersonalEvent(models.Model):
     """
 
     class EventType(models.TextChoices):
-        TASK     = "task",     "할 일"
-        MEETING  = "meeting",  "회의"
-        DEADLINE = "deadline", "마감"
-        REMINDER = "reminder", "알림"
-        OTHER    = "other",    "기타"
+        MEETING      = "meeting",      "회의"
+        TRIP         = "trip",         "출장"
+        DEADLINE     = "deadline",     "마감"
+        PRESENTATION = "presentation", "발표"
+        MILESTONE    = "milestone",    "마일스톤"
+        OTHER        = "other",        "기타"
 
     id          = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user        = models.ForeignKey(

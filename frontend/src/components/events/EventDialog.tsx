@@ -12,8 +12,9 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { AssigneePicker } from "@/components/issues/assignee-picker";
 import { cn } from "@/lib/utils";
 import { projectsApi } from "@/api/projects";
+import { meApi } from "@/api/me";
 import { EVENT_TYPES, EVENT_TYPE_LIST, EVENT_COLORS, type EventType } from "@/constants/event-types";
-import type { ProjectEvent } from "@/types";
+import type { ProjectEvent, PersonalEvent } from "@/types";
 
 /**
  * EventDialog — 프로젝트 캘린더 이벤트 생성/수정
@@ -25,18 +26,26 @@ import type { ProjectEvent } from "@/types";
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  workspaceSlug: string;
-  projectId: string;
+  /** "project": 프로젝트 캘린더 이벤트(워크스페이스/프로젝트 컨텍스트 필요).
+   *  "me": 마이 페이지 개인 일정(워크스페이스/프로젝트 무관, 본인만 보고 본인만 편집). */
+  mode?: "project" | "me";
+  /** mode="project" 에서만 사용 */
+  workspaceSlug?: string;
+  projectId?: string;
   /** 수정할 이벤트 (없으면 생성 모드) */
-  event?: ProjectEvent | null;
+  event?: ProjectEvent | PersonalEvent | null;
   /** 생성 모드 시 기본 날짜 (셀에서 클릭한 날짜) */
   defaultDate?: string;
 }
 
-export function EventDialog({ open, onOpenChange, workspaceSlug, projectId, event, defaultDate }: Props) {
+export function EventDialog({
+  open, onOpenChange, mode = "project",
+  workspaceSlug, projectId, event, defaultDate,
+}: Props) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const isEdit = !!event;
+  const isMe = mode === "me";
 
   const [title, setTitle] = useState("");
   const [date, setDate] = useState<string>("");
@@ -47,11 +56,11 @@ export function EventDialog({ open, onOpenChange, workspaceSlug, projectId, even
   const [isGlobal, setIsGlobal] = useState(true);
   const [participants, setParticipants] = useState<string[]>([]);
 
-  /* 워크스페이스 멤버 — 참여자 픽커용 */
+  /* 프로젝트 모드에서만 멤버 fetch — me 모드는 참여자 개념 없음 */
   const { data: members = [] } = useQuery({
     queryKey: ["project-members", workspaceSlug, projectId],
-    queryFn:  () => projectsApi.members.list(workspaceSlug, projectId),
-    enabled:  open,
+    queryFn:  () => projectsApi.members.list(workspaceSlug!, projectId!),
+    enabled:  open && !isMe && !!workspaceSlug && !!projectId,
   });
 
   /* 다이얼로그 열릴 때 초기값 세팅, 닫힐 때 명시적 초기화 */
@@ -68,11 +77,13 @@ export function EventDialog({ open, onOpenChange, workspaceSlug, projectId, even
       setTitle(event.title);
       setDate(event.date);
       setEndDate(event.end_date);
-      setEventType(event.event_type);
+      setEventType(event.event_type as EventType);
       setColor(event.color);
       setDescription(event.description);
-      setIsGlobal(event.is_global);
-      setParticipants(event.participants ?? []);
+      /* me 모드 PersonalEvent 는 is_global/participants 가 없음 — 기본값 유지 */
+      const proj = event as ProjectEvent;
+      setIsGlobal(proj.is_global ?? true);
+      setParticipants(proj.participants ?? []);
     } else {
       const today = new Date().toISOString().slice(0, 10);
       const initial = defaultDate ?? today;
@@ -89,29 +100,46 @@ export function EventDialog({ open, onOpenChange, workspaceSlug, projectId, even
   }, [open, event, defaultDate]);
 
   const invalidate = () => {
-    qc.invalidateQueries({ queryKey: ["events", workspaceSlug, projectId] });
+    if (isMe) {
+      qc.invalidateQueries({ queryKey: ["me", "personal-events"] });
+      qc.invalidateQueries({ queryKey: ["me", "events"] });
+    } else {
+      qc.invalidateQueries({ queryKey: ["events", workspaceSlug, projectId] });
+    }
   };
 
   const createMutation = useMutation({
-    mutationFn: () => projectsApi.events.create(workspaceSlug, projectId, {
-      title, date, end_date: endDate, event_type: eventType, color, description,
-      is_global: isGlobal, participants,
-    }),
+    mutationFn: () => isMe
+      ? meApi.personalEvents.create({
+          title, date, end_date: endDate,
+          event_type: eventType, color, description,
+        })
+      : projectsApi.events.create(workspaceSlug!, projectId!, {
+          title, date, end_date: endDate, event_type: eventType, color, description,
+          is_global: isGlobal, participants,
+        }),
     onSuccess: () => { invalidate(); onOpenChange(false); toast.success(t("events.created")); },
     onError: () => toast.error(t("events.createFailed")),
   });
 
   const updateMutation = useMutation({
-    mutationFn: () => projectsApi.events.update(workspaceSlug, projectId, event!.id, {
-      title, date, end_date: endDate, event_type: eventType, color, description,
-      is_global: isGlobal, participants,
-    }),
+    mutationFn: () => isMe
+      ? meApi.personalEvents.update(event!.id, {
+          title, date, end_date: endDate,
+          event_type: eventType, color, description,
+        })
+      : projectsApi.events.update(workspaceSlug!, projectId!, event!.id, {
+          title, date, end_date: endDate, event_type: eventType, color, description,
+          is_global: isGlobal, participants,
+        }),
     onSuccess: () => { invalidate(); onOpenChange(false); toast.success(t("events.updated")); },
     onError: () => toast.error(t("events.updateFailed")),
   });
 
   const deleteMutation = useMutation({
-    mutationFn: () => projectsApi.events.delete(workspaceSlug, projectId, event!.id),
+    mutationFn: () => isMe
+      ? meApi.personalEvents.delete(event!.id)
+      : projectsApi.events.delete(workspaceSlug!, projectId!, event!.id),
     onSuccess: () => { invalidate(); onOpenChange(false); toast.success(t("events.deleted")); },
     onError: () => toast.error(t("events.deleteFailed")),
   });
@@ -217,44 +245,47 @@ export function EventDialog({ open, onOpenChange, workspaceSlug, projectId, even
             </div>
           </div>
 
-          {/* 참여자 — 워크스페이스 멤버 멀티셀렉트 */}
-          <div className="space-y-1">
-            <Label>{t("events.fields.participants")}</Label>
-            <AssigneePicker
-              members={members}
-              currentIds={participants}
-              currentDetails={null}
-              onChange={setParticipants}
-              className="w-full justify-start"
-            />
-          </div>
+          {/* 참여자 + 전역 토글 — 프로젝트 모드에서만 (me 모드는 본인 한정이라 의미 없음) */}
+          {!isMe && (
+            <>
+              <div className="space-y-1">
+                <Label>{t("events.fields.participants")}</Label>
+                <AssigneePicker
+                  members={members}
+                  currentIds={participants}
+                  currentDetails={null}
+                  onChange={setParticipants}
+                  className="w-full justify-start"
+                />
+              </div>
 
-          {/* 전역 이벤트 토글 — 워크스페이스 전체에 공유 */}
-          <button
-            type="button"
-            onClick={() => setIsGlobal((v) => !v)}
-            className={cn(
-              "flex items-center gap-2 w-full rounded-lg border px-3 py-2 text-sm transition-all",
-              isGlobal
-                ? "border-primary bg-primary/10 text-primary"
-                : "border-border text-muted-foreground hover:border-primary/50"
-            )}
-          >
-            <Users className="h-4 w-4 shrink-0" />
-            <div className="flex-1 text-left">
-              <div className="font-medium">{t("events.fields.global")}</div>
-              <div className="text-2xs opacity-70">{t("events.fields.globalHint")}</div>
-            </div>
-            <div className={cn(
-              "h-5 w-9 rounded-full border flex items-center px-0.5",
-              isGlobal ? "bg-primary border-primary" : "bg-muted/40 border-border"
-            )}>
-              <div className={cn(
-                "h-4 w-4 rounded-full transition-all",
-                isGlobal ? "translate-x-4 bg-primary-foreground" : "bg-muted-foreground/60"
-              )} />
-            </div>
-          </button>
+              <button
+                type="button"
+                onClick={() => setIsGlobal((v) => !v)}
+                className={cn(
+                  "flex items-center gap-2 w-full rounded-lg border px-3 py-2 text-sm transition-all",
+                  isGlobal
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-border text-muted-foreground hover:border-primary/50"
+                )}
+              >
+                <Users className="h-4 w-4 shrink-0" />
+                <div className="flex-1 text-left">
+                  <div className="font-medium">{t("events.fields.global")}</div>
+                  <div className="text-2xs opacity-70">{t("events.fields.globalHint")}</div>
+                </div>
+                <div className={cn(
+                  "h-5 w-9 rounded-full border flex items-center px-0.5",
+                  isGlobal ? "bg-primary border-primary" : "bg-muted/40 border-border"
+                )}>
+                  <div className={cn(
+                    "h-4 w-4 rounded-full transition-all",
+                    isGlobal ? "translate-x-4 bg-primary-foreground" : "bg-muted-foreground/60"
+                  )} />
+                </div>
+              </button>
+            </>
+          )}
 
           {/* 설명 */}
           <div className="space-y-1">

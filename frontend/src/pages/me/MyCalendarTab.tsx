@@ -1,15 +1,22 @@
-/** 마이 캘린더 탭 — 월 그리드. 본인 이슈(due_date) + ProjectEvent + PersonalEvent 통합. */
+/** 마이 캘린더 탭 — 본인 이슈(due/start) + 본인 참여 ProjectEvent + 개인 PersonalEvent 통합.
+ *
+ * 시각/기능을 가능한 한 프로젝트 CalendarView 패턴과 맞춤:
+ *   - 같은 EventType 아이콘/색 (EVENT_TYPES)
+ *   - 같은 EventDialog (mode="me" 로 PersonalEvent endpoint 사용)
+ *   - 셀 호버 시 "+ 새 이벤트" 버튼
+ */
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon } from "lucide-react";
 import { meApi } from "@/api/me";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useOpenIssue } from "@/hooks/useOpenIssue";
+import { EVENT_TYPES } from "@/constants/event-types";
+import { EventDialog } from "@/components/events/EventDialog";
 import type { Issue, ProjectEvent, PersonalEvent } from "@/types";
-import { PersonalEventDialog } from "./PersonalEventDialog";
 
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
 
@@ -18,18 +25,37 @@ function dateKey(d: Date): string {
 }
 
 function startOfMonthGrid(year: number, month: number): Date {
-  // month: 0-indexed. 그달 1일이 속한 주의 일요일부터 시작.
   const first = new Date(year, month, 1);
-  const offset = first.getDay();
-  return new Date(year, month, 1 - offset);
+  return new Date(year, month, 1 - first.getDay());
 }
 
 type CellItem =
-  | { kind: "issue"; id: string; title: string; color: string; href: string; workspaceSlug: string; projectId: string }
-  | { kind: "project_event"; id: string; title: string; color: string; href: string }
-  | { kind: "personal"; id: string; title: string; color: string; event: PersonalEvent };
+  | {
+      kind: "issue";
+      id: string;
+      title: string;
+      color: string;
+      workspaceSlug: string;
+      projectId: string;
+      href: string;
+    }
+  | {
+      kind: "project_event";
+      id: string;
+      title: string;
+      color: string;
+      eventType: ProjectEvent["event_type"];
+      href: string;
+    }
+  | {
+      kind: "personal";
+      id: string;
+      title: string;
+      color: string;
+      eventType: PersonalEvent["event_type"];
+      event: PersonalEvent;
+    };
 
-/** 주어진 항목이 d 일자에 표시되는지 (시작~종료 범위 포함) */
 function inRange(d: string, start: string, end: string | null): boolean {
   const e = end ?? start;
   return start <= d && d <= e;
@@ -43,8 +69,8 @@ export function MyCalendarTab() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editEvent, setEditEvent] = useState<PersonalEvent | null>(null);
   const [defaultDate, setDefaultDate] = useState<string>("");
+  const [hoverCell, setHoverCell] = useState<string | null>(null);
 
-  // 그리드: 6주(=42일) 표시
   const gridStart = useMemo(() => startOfMonthGrid(cursor.getFullYear(), cursor.getMonth()), [cursor]);
   const gridDays = useMemo(() => {
     const days: Date[] = [];
@@ -60,7 +86,7 @@ export function MyCalendarTab() {
   const toKey = dateKey(gridDays[gridDays.length - 1]);
 
   const { data: issues = [], isLoading: loadingIssues } = useQuery({
-    queryKey: ["me", "issues", "calendar", fromKey, toKey],
+    queryKey: ["me", "issues", "calendar"],
     queryFn: () => meApi.issues({ include_completed: true }),
   });
   const { data: projectEvents = [], isLoading: loadingProj } = useQuery({
@@ -72,7 +98,6 @@ export function MyCalendarTab() {
     queryFn: () => meApi.personalEvents.list({ from: fromKey, to: toKey }),
   });
 
-  // 날짜별 항목 매핑
   const itemsByDate = useMemo(() => {
     const m = new Map<string, CellItem[]>();
     const push = (key: string, item: CellItem) => {
@@ -80,7 +105,6 @@ export function MyCalendarTab() {
       m.get(key)!.push(item);
     };
 
-    // 이슈 — start_date ~ due_date 범위. 둘 다 없으면 표시 X.
     for (const issue of issues as Issue[]) {
       const start = issue.start_date;
       const end = issue.due_date;
@@ -90,44 +114,46 @@ export function MyCalendarTab() {
       for (const day of gridDays) {
         const dk = dateKey(day);
         if (inRange(dk, s, e)) {
-          const ws = issue.workspace_slug;
-          const href = ws
-            ? `/${ws}/projects/${issue.project}/issues?issue=${issue.id}`
-            : "#";
+          const ws = issue.workspace_slug ?? "";
           push(dk, {
             kind: "issue",
             id: issue.id,
             title: issue.title,
             color: issue.state_detail?.color ?? "#9ca3af",
-            href,
-            workspaceSlug: ws ?? "",
+            workspaceSlug: ws,
             projectId: issue.project,
+            href: ws ? `/${ws}/projects/${issue.project}/issues?issue=${issue.id}` : "#",
           });
         }
       }
     }
-    // ProjectEvent
     for (const ev of projectEvents as ProjectEvent[]) {
       for (const day of gridDays) {
         const dk = dateKey(day);
         if (inRange(dk, ev.date, ev.end_date)) {
-          const wsLink = ev.project_workspace_slug;
           push(dk, {
             kind: "project_event",
             id: ev.id,
             title: ev.title,
             color: ev.color,
-            href: wsLink ? `/${wsLink}/projects/${ev.project}/issues?view=calendar` : "#",
+            eventType: ev.event_type,
+            href: ev.project_workspace_slug ? `/${ev.project_workspace_slug}/projects/${ev.project}/issues?view=calendar` : "#",
           });
         }
       }
     }
-    // PersonalEvent
     for (const ev of personalEvents) {
       for (const day of gridDays) {
         const dk = dateKey(day);
         if (inRange(dk, ev.date, ev.end_date)) {
-          push(dk, { kind: "personal", id: ev.id, title: ev.title, color: ev.color, event: ev });
+          push(dk, {
+            kind: "personal",
+            id: ev.id,
+            title: ev.title,
+            color: ev.color,
+            eventType: ev.event_type,
+            event: ev,
+          });
         }
       }
     }
@@ -149,21 +175,18 @@ export function MyCalendarTab() {
   };
 
   return (
-    <div>
-      <p className="text-xs text-muted-foreground mb-3">
-        {t("me.calendar.hint", "내가 담당한 이슈의 마감/시작일과 프로젝트 이벤트, 그리고 개인 일정을 한 캘린더에 모아 봅니다. 빈 셀을 누르면 그 날짜에 개인 일정을 추가할 수 있어요.")}
-      </p>
-      {/* 네비 + 새 일정 */}
-      <div className="flex items-center gap-2 mb-3">
+    <div className="flex flex-col h-full">
+      {/* 네비 + 새 이벤트 — 컴팩트한 단일 라인 */}
+      <div className="flex items-center gap-1.5 mb-2 shrink-0">
         <Button
-          variant="outline" size="sm"
+          variant="ghost" size="sm"
           onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1))}
         >
           <ChevronLeft className="h-4 w-4" />
         </Button>
-        <span className="text-lg font-semibold tabular-nums">{monthLabel}</span>
+        <span className="text-base font-semibold tabular-nums px-1">{monthLabel}</span>
         <Button
-          variant="outline" size="sm"
+          variant="ghost" size="sm"
           onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1))}
         >
           <ChevronRight className="h-4 w-4" />
@@ -174,63 +197,81 @@ export function MyCalendarTab() {
         <div className="ml-auto">
           <Button size="sm" onClick={() => openNew()}>
             <Plus className="h-3.5 w-3.5 mr-1" />
-            {t("me.calendar.newEvent", "새 일정")}
+            {t("me.calendar.newEvent", "새 이벤트")}
           </Button>
         </div>
       </div>
 
       {isLoading ? (
-        <Skeleton className="h-[640px] rounded-xl" />
+        <Skeleton className="flex-1 rounded-md" />
       ) : (
-        <div className="rounded-xl border border-border bg-card overflow-hidden">
+        <div className="flex-1 rounded-md border border-border bg-card overflow-hidden flex flex-col">
           {/* 요일 헤더 */}
-          <div className="grid grid-cols-7 border-b border-border text-sm">
+          <div className="grid grid-cols-7 border-b border-border text-sm shrink-0">
             {WEEKDAYS.map((w, i) => (
               <div
                 key={w}
-                className={"px-2 py-2.5 text-center font-medium " + (i === 0 ? "text-red-500" : i === 6 ? "text-blue-500" : "text-muted-foreground")}
+                className={"px-2 py-2 text-center font-medium " + (i === 0 ? "text-red-500" : i === 6 ? "text-blue-500" : "text-muted-foreground")}
               >
                 {w}
               </div>
             ))}
           </div>
-          {/* 6주 셀 */}
-          <div className="grid grid-cols-7" style={{ gridTemplateRows: "repeat(6, minmax(160px, 1fr))" }}>
+          {/* 6주 셀 — 화면 꽉 차게 균등 분할 */}
+          <div className="grid grid-cols-7 flex-1" style={{ gridTemplateRows: "repeat(6, minmax(0, 1fr))" }}>
             {gridDays.map((d) => {
               const dk = dateKey(d);
               const inMonth = d.getMonth() === cursor.getMonth();
               const items = itemsByDate.get(dk) ?? [];
               const isToday = dk === todayKey;
+              const isHover = hoverCell === dk;
               return (
                 <div
                   key={dk}
                   className={
-                    "relative border-r border-b border-border last-of-type:border-r-0 p-2 cursor-pointer hover:bg-accent/30 transition-colors " +
+                    "relative border-r border-b border-border last-of-type:border-r-0 px-1.5 py-1 cursor-pointer hover:bg-accent/30 transition-colors min-h-0 overflow-hidden " +
                     (inMonth ? "bg-card" : "bg-muted/20")
                   }
+                  onMouseEnter={() => setHoverCell(dk)}
+                  onMouseLeave={() => setHoverCell((c) => (c === dk ? null : c))}
                   onClick={(e) => {
                     if ((e.target as HTMLElement).closest("[data-item]")) return;
                     openNew(dk);
                   }}
                 >
-                  <div className="flex items-center justify-between mb-1.5">
+                  <div className="flex items-center justify-between mb-0.5">
                     <span className={
-                      "text-sm tabular-nums " +
-                      (isToday ? "bg-primary text-primary-foreground rounded-full px-2 py-0.5 font-semibold" :
+                      "text-xs tabular-nums " +
+                      (isToday ? "bg-primary text-primary-foreground rounded-full px-1.5 py-0.5 font-semibold" :
                         inMonth ? "text-foreground font-medium" : "text-muted-foreground/50")
                     }>
                       {d.getDate()}
                     </span>
+                    {/* 호버 시 "+ 새 이벤트" 버튼 — 그 날짜에 PersonalEvent 빠르게 추가 */}
+                    {isHover && inMonth && (
+                      <button
+                        type="button"
+                        data-item
+                        onClick={(e) => { e.stopPropagation(); openNew(dk); }}
+                        className="opacity-70 hover:opacity-100 transition-opacity rounded p-0.5 hover:bg-muted"
+                        title={t("me.calendar.newEvent", "새 이벤트")}
+                      >
+                        <Plus className="h-3 w-3" />
+                      </button>
+                    )}
                   </div>
-                  <div className="space-y-1 overflow-hidden">
-                    {items.slice(0, 5).map((it, idx) => {
-                      const content = (
+                  <div className="space-y-0.5 overflow-hidden">
+                    {items.slice(0, 4).map((it, idx) => {
+                      const Icon = it.kind === "issue"
+                        ? CalendarIcon
+                        : EVENT_TYPES[it.eventType]?.icon ?? CalendarIcon;
+                      const chip = (
                         <span
                           data-item
-                          className="flex items-center gap-1.5 text-xs truncate rounded px-1.5 py-1 cursor-pointer hover:opacity-80 font-medium"
+                          className="flex items-center gap-1 text-2xs truncate rounded px-1 py-0.5 cursor-pointer hover:opacity-80 font-medium leading-tight"
                           style={{ backgroundColor: `${it.color}22`, color: it.color }}
                         >
-                          <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: it.color }} />
+                          <Icon className="h-2.5 w-2.5 shrink-0" />
                           <span className="truncate">{it.title}</span>
                         </span>
                       );
@@ -242,7 +283,7 @@ export function MyCalendarTab() {
                             className="w-full text-left"
                             onClick={(e) => { e.stopPropagation(); openEdit(it.event); }}
                           >
-                            {content}
+                            {chip}
                           </button>
                         );
                       }
@@ -256,7 +297,7 @@ export function MyCalendarTab() {
                               openIssue(e, it.workspaceSlug, it.projectId, it.id);
                             }}
                           >
-                            {content}
+                            {chip}
                           </Link>
                         );
                       }
@@ -266,12 +307,12 @@ export function MyCalendarTab() {
                           to={it.href}
                           onClick={(e) => e.stopPropagation()}
                         >
-                          {content}
+                          {chip}
                         </Link>
                       );
                     })}
-                    {items.length > 5 && (
-                      <span className="text-2xs text-muted-foreground px-1.5">+{items.length - 5}{t("me.calendar.more", "개 더")}</span>
+                    {items.length > 4 && (
+                      <span className="text-2xs text-muted-foreground/80 px-1">+{items.length - 4}{t("me.calendar.more", "개 더")}</span>
                     )}
                   </div>
                 </div>
@@ -281,9 +322,10 @@ export function MyCalendarTab() {
         </div>
       )}
 
-      <PersonalEventDialog
+      <EventDialog
         open={dialogOpen}
-        onClose={() => setDialogOpen(false)}
+        onOpenChange={setDialogOpen}
+        mode="me"
         event={editEvent}
         defaultDate={defaultDate}
       />
