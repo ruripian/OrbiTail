@@ -1,0 +1,987 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>OrbiTail Audit v4 · 중복 &amp; 정리</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0c1018;
+    --bg-2: #11151f;
+    --panel: #161b27;
+    --panel-2: #1c2230;
+    --line: #262d3d;
+    --line-2: #303a4f;
+    --ink: #e6e9f0;
+    --ink-2: #b6bdcc;
+    --ink-3: #7d8699;
+    --ink-4: #525a6c;
+    --primary: #5b8def;
+    --primary-2: #7aa3ff;
+    --primary-soft: rgba(91,141,239,0.14);
+
+    --sev-crit: #ef5e6f;
+    --sev-high: #f59e0b;
+    --sev-med: #5b8def;
+    --sev-low: #7d8699;
+
+    --good: #10b981;
+    --remove: #ef5e6f;
+    --keep: #10b981;
+    --merge: #f59e0b;
+
+    --r-sm: 6px; --r-md: 10px; --r-lg: 14px; --r-xl: 20px;
+
+    --font-sans: "Inter", "Pretendard", system-ui, sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, monospace;
+    --font-display: "Fraunces", Georgia, serif;
+  }
+
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    font-family:var(--font-sans);
+    background:var(--bg);
+    color:var(--ink);
+    line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+  }
+  body::before{
+    content:"";position:fixed;inset:0;
+    background:
+      radial-gradient(1200px 600px at 80% -10%, rgba(91,141,239,0.10), transparent 60%),
+      radial-gradient(900px 500px at 0% 100%, rgba(245,158,11,0.06), transparent 60%);
+    pointer-events:none;z-index:0;
+  }
+
+  .layout{
+    position:relative;z-index:1;
+    display:grid;
+    grid-template-columns:280px minmax(0,1fr);
+    min-height:100vh;
+  }
+
+  aside.toc{
+    position:sticky;top:0;height:100vh;
+    border-right:1px solid var(--line);
+    background:rgba(11,14,22,0.7);
+    backdrop-filter:blur(8px);
+    padding:28px 22px;overflow-y:auto;
+  }
+  .toc .brand{display:flex;align-items:center;gap:10px;margin-bottom:24px;}
+  .toc .brand .ring{width:28px;height:28px;border-radius:999px;border:1.5px solid var(--merge);position:relative;}
+  .toc .brand .ring::after{content:"";position:absolute;width:6px;height:6px;border-radius:999px;background:var(--merge);top:-3px;left:50%;transform:translateX(-50%);}
+  .toc .brand .name{font-family:var(--font-display);font-weight:600;font-size:17px;letter-spacing:-0.01em;}
+  .toc .brand .sub{font-size:11px;color:var(--ink-3);letter-spacing:0.06em;text-transform:uppercase;}
+
+  .toc h4{font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:var(--ink-4);margin:22px 0 8px 4px;font-weight:600;}
+  .toc a{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:var(--r-sm);color:var(--ink-2);text-decoration:none;font-size:13px;transition:background 120ms,color 120ms;}
+  .toc a:hover{background:var(--panel);color:var(--ink);}
+  .toc a.active{background:var(--primary-soft);color:var(--primary-2);}
+  .toc a .num{font-family:var(--font-mono);font-size:10px;color:var(--ink-4);width:18px;}
+  .toc a.active .num{color:var(--primary);}
+  .toc a .badge{margin-left:auto;font-family:var(--font-mono);font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(245,158,11,0.14);color:var(--merge);letter-spacing:0.05em;}
+
+  main{padding:56px 64px 120px;max-width:1200px;}
+  @media (max-width:1100px){main{padding:40px 32px 80px;}}
+
+  .eyebrow{
+    display:inline-flex;align-items:center;gap:8px;
+    font-size:11px;letter-spacing:0.14em;text-transform:uppercase;
+    color:var(--ink-3);
+    padding:4px 10px;border:1px solid var(--line);border-radius:999px;
+  }
+  .eyebrow .dot{width:6px;height:6px;border-radius:999px;background:var(--merge);}
+
+  h1.title{
+    font-family:var(--font-display);
+    font-size:54px;line-height:1.05;letter-spacing:-0.022em;
+    font-weight:500;margin:18px 0 12px;
+  }
+  h1.title em{font-style:italic;color:var(--merge);font-weight:400;}
+  .lede{color:var(--ink-2);font-size:17px;max-width:64ch;}
+
+  /* legend */
+  .legend{display:flex;gap:18px;flex-wrap:wrap;margin-top:24px;padding:14px 18px;background:var(--panel);border:1px solid var(--line);border-radius:var(--r-md);font-size:12px;}
+  .legend .item{display:flex;align-items:center;gap:8px;color:var(--ink-2);}
+  .legend .chip{width:10px;height:10px;border-radius:99px;}
+  .legend .chip.keep{background:var(--keep);}
+  .legend .chip.merge{background:var(--merge);}
+  .legend .chip.remove{background:var(--remove);}
+  .legend .chip.move{background:var(--primary);}
+
+  .meta-row{
+    display:flex;gap:28px;flex-wrap:wrap;
+    margin-top:18px;padding:18px 22px;
+    background:linear-gradient(180deg,var(--panel),var(--panel-2));
+    border:1px solid var(--line);border-radius:var(--r-lg);
+  }
+  .meta-row .cell .k{font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:var(--ink-4);}
+  .meta-row .cell .v{font-size:14px;margin-top:4px;}
+  .meta-row .cell .v.num{font-family:var(--font-display);font-size:24px;font-weight:500;}
+  .meta-row .cell .v.num.warn{color:var(--merge);}
+  .meta-row .cell .v.num.bad{color:var(--remove);}
+  .meta-row .cell .v.num.ok{color:var(--keep);}
+
+  section{margin-top:84px;scroll-margin-top:24px;}
+  section h2{font-family:var(--font-display);font-size:32px;letter-spacing:-0.015em;font-weight:500;margin:0 0 6px;display:flex;align-items:baseline;gap:14px;}
+  section h2 .idx{font-family:var(--font-mono);font-size:13px;color:var(--merge);letter-spacing:0.05em;}
+  section .sec-lede{color:var(--ink-2);font-size:15px;max-width:74ch;margin-bottom:24px;}
+
+  .scan{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);padding:0;margin-bottom:18px;overflow:hidden;}
+  .scan > header{padding:16px 22px;border-bottom:1px solid var(--line);display:flex;align-items:flex-start;gap:14px;background:linear-gradient(180deg,rgba(255,255,255,0.02),transparent);}
+  .scan > header .num{font-family:var(--font-mono);font-size:11px;color:var(--ink-4);letter-spacing:0.1em;}
+  .scan > header h3{margin:0;font-size:18px;font-weight:600;letter-spacing:-0.005em;}
+  .scan > header .meta{margin-top:4px;font-size:12px;color:var(--ink-3);font-family:var(--font-mono);}
+  .scan > header .pill{margin-left:auto;font-size:10px;padding:3px 9px;border-radius:99px;font-family:var(--font-mono);letter-spacing:0.06em;text-transform:uppercase;flex-shrink:0;align-self:flex-start;margin-top:3px;}
+  .scan > header .pill.heavy{background:rgba(239,94,111,0.14);color:var(--remove);}
+  .scan > header .pill.medium{background:rgba(245,158,11,0.14);color:var(--merge);}
+  .scan > header .pill.light{background:rgba(16,185,129,0.14);color:var(--keep);}
+
+  .scan .body{padding:18px 22px;}
+
+  /* item table */
+  .items{display:table;width:100%;border-collapse:separate;border-spacing:0;}
+  .items > div.row{display:table-row;}
+  .items > div.row > div{display:table-cell;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top;font-size:13px;}
+  .items > div.row:last-child > div{border-bottom:none;}
+  .items > div.row.head > div{font-family:var(--font-mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-4);border-bottom:1px solid var(--line-2);padding-bottom:8px;padding-top:0;}
+  .items .verdict{width:90px;}
+  .items .verdict span{display:inline-flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:10px;letter-spacing:0.08em;text-transform:uppercase;padding:3px 8px;border-radius:99px;}
+  .items .verdict .keep{background:rgba(16,185,129,0.12);color:var(--keep);}
+  .items .verdict .merge{background:rgba(245,158,11,0.14);color:var(--merge);}
+  .items .verdict .remove{background:rgba(239,94,111,0.14);color:var(--remove);}
+  .items .verdict .move{background:rgba(91,141,239,0.14);color:var(--primary-2);}
+  .items .label{font-weight:500;color:var(--ink);width:30%;}
+  .items .why{color:var(--ink-2);}
+  .items .target{font-family:var(--font-mono);font-size:11.5px;color:var(--primary-2);width:24%;}
+
+  /* before/after as columns */
+  .ba{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:18px;}
+  @media (max-width:760px){.ba{grid-template-columns:1fr;}}
+  .ba .col{border:1px solid var(--line);border-radius:var(--r-md);padding:14px 16px;background:var(--bg-2);}
+  .ba .col header{padding:0 0 10px;font-family:var(--font-mono);font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:var(--ink-4);}
+  .ba .col.bad header{color:var(--remove);}
+  .ba .col.good header{color:var(--keep);}
+
+  .tree{font-family:var(--font-mono);font-size:11.5px;line-height:1.85;color:var(--ink-2);margin:0;white-space:pre-wrap;}
+  .tree .h{color:var(--ink);font-weight:600;}
+  .tree .l{color:var(--ink-4);}
+  .tree .new{color:var(--keep);}
+  .tree .mv{color:var(--primary-2);}
+  .tree .rm{color:var(--remove);text-decoration:line-through;text-decoration-color:rgba(239,94,111,0.5);}
+  .tree .gr{color:var(--ink-3);}
+
+  code.inline{font-family:var(--font-mono);font-size:11.5px;background:var(--bg-2);padding:1px 6px;border-radius:4px;color:var(--primary-2);border:1px solid var(--line);}
+
+  /* mock — settings sidebar */
+  .mock-sb{width:200px;background:var(--bg);border:1px solid var(--line);border-radius:var(--r-md);overflow:hidden;font-size:11.5px;}
+  .mock-sb .h{padding:8px 12px;font-size:9px;letter-spacing:0.12em;text-transform:uppercase;color:var(--ink-4);}
+  .mock-sb .it{padding:5px 12px;color:var(--ink-2);display:flex;align-items:center;gap:7px;}
+  .mock-sb .it.act{background:var(--panel);color:var(--ink);position:relative;}
+  .mock-sb .it.act::before{content:"";position:absolute;left:0;top:25%;bottom:25%;width:2px;background:var(--primary);border-radius:2px;}
+  .mock-sb .it.new{color:var(--keep);}
+  .mock-sb .it.rm{color:var(--ink-4);text-decoration:line-through;}
+  .mock-sb .ico{width:11px;height:11px;border-radius:2px;border:1px solid var(--ink-3);flex-shrink:0;opacity:0.7;}
+  .mock-sb .it.act .ico{border-color:var(--ink);opacity:1;}
+  .mock-sb hr{border:none;border-top:1px solid var(--line);margin:6px 0;}
+
+  /* fix box */
+  .fix{margin-top:14px;background:var(--bg-2);border-radius:var(--r-md);border:1px solid var(--line);padding:14px 16px;}
+  .fix .label{font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:var(--keep);font-family:var(--font-mono);display:flex;align-items:center;gap:6px;margin-bottom:10px;}
+  .fix .label::before{content:"";width:6px;height:6px;border-radius:999px;background:var(--keep);}
+  .fix pre{margin:0;font-family:var(--font-mono);font-size:12.5px;line-height:1.7;color:var(--ink-2);white-space:pre-wrap;word-break:break-word;}
+  .fix pre .c{color:var(--ink-4);}
+  .fix pre .k{color:var(--primary-2);}
+  .fix pre .s{color:#f0c4a8;}
+  .fix pre .g{color:var(--keep);}
+  .fix pre .r{color:var(--remove);}
+
+  /* roadmap */
+  .roadmap{margin-top:24px;display:grid;grid-template-columns:repeat(3,1fr);gap:16px;}
+  @media (max-width:900px){.roadmap{grid-template-columns:1fr;}}
+  .lane{border:1px solid var(--line);border-radius:var(--r-lg);padding:18px;background:linear-gradient(180deg,var(--panel),var(--panel-2));}
+  .lane h4{margin:0 0 4px;font-family:var(--font-display);font-size:18px;font-weight:500;}
+  .lane .when{font-size:11px;color:var(--ink-4);letter-spacing:0.1em;text-transform:uppercase;font-family:var(--font-mono);}
+  .lane ul{padding:14px 0 0 0;margin:0;list-style:none;}
+  .lane li{padding:8px 0;border-top:1px solid var(--line);font-size:13px;color:var(--ink-2);display:flex;gap:10px;align-items:flex-start;}
+  .lane li::before{content:"";width:6px;height:6px;border-radius:999px;margin-top:7px;flex-shrink:0;}
+  .lane.q1 li::before{background:var(--keep);}
+  .lane.q2 li::before{background:var(--merge);}
+  .lane.q3 li::before{background:var(--primary);}
+
+  footer.foot{margin-top:100px;padding:32px 0 0;border-top:1px solid var(--line);color:var(--ink-4);font-size:12px;}
+  footer.foot strong{color:var(--ink-2);}
+
+  /* notif comparison: project vs user */
+  .twocol{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  .twocol > div{border:1px solid var(--line);background:var(--bg-2);border-radius:var(--r-md);padding:14px 16px;}
+  .twocol h5{margin:0 0 10px;font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-3);font-family:var(--font-mono);}
+  .twocol ul{margin:0;padding-left:18px;font-size:12.5px;color:var(--ink-2);}
+  .twocol ul li{padding:3px 0;}
+  .twocol ul li.dup{color:var(--remove);font-weight:500;}
+  .twocol ul li.dup::before{content:"⊗ ";color:var(--remove);}
+
+  .div-line{height:1px;background:linear-gradient(90deg,var(--line),transparent);margin:18px 0 0;}
+
+  .stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:22px;}
+  @media (max-width:800px){.stat-grid{grid-template-columns:repeat(2,1fr);}}
+  .stat{border:1px solid var(--line);border-radius:var(--r-md);padding:16px;background:var(--panel);}
+  .stat .v{font-family:var(--font-display);font-size:30px;font-weight:500;line-height:1;}
+  .stat .v.warn{color:var(--merge);}
+  .stat .v.bad{color:var(--remove);}
+  .stat .v.ok{color:var(--keep);}
+  .stat .l{font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--ink-4);margin-top:8px;}
+
+</style>
+</head>
+<body>
+
+<div class="layout">
+
+  <aside class="toc">
+    <div class="brand">
+      <div class="ring"></div>
+      <div>
+        <div class="name">Audit v4</div>
+        <div class="sub">중복 · 정리</div>
+      </div>
+    </div>
+
+    <h4>Frame</h4>
+    <a href="#summary"><span class="num">00</span>요약 · 통계</a>
+
+    <h4>Settings</h4>
+    <a href="#user-settings"><span class="num">01</span>사용자 설정<span class="badge">중첩</span></a>
+    <a href="#project-settings"><span class="num">02</span>프로젝트 설정<span class="badge">투박</span></a>
+    <a href="#settings-overlap"><span class="num">03</span>두 설정의 겹침</a>
+
+    <h4>Workspace</h4>
+    <a href="#dashboard"><span class="num">04</span>Dashboard</a>
+    <a href="#sidebar"><span class="num">05</span>Sidebar</a>
+
+    <h4>Project</h4>
+    <a href="#views"><span class="num">06</span>10 Views</a>
+    <a href="#issue-detail"><span class="num">07</span>Issue Detail</a>
+    <a href="#archive-trash"><span class="num">08</span>Archive / Trash</a>
+
+    <h4>Plan</h4>
+    <a href="#summary-of-changes"><span class="num">09</span>변경 요약표</a>
+    <a href="#roadmap"><span class="num">10</span>Roadmap</a>
+  </aside>
+
+  <main>
+
+    <section id="summary" style="margin-top:0;">
+      <span class="eyebrow"><span class="dot"></span>Audit v4 · Duplication &amp; cruft</span>
+      <h1 class="title">덜어내야 <em>깔끔해진다</em>.</h1>
+      <p class="lede">
+        v3에서 IA를 봤다면 v4는 <strong>한 페이지 안의 살을 본다</strong>. 무엇이 중복되어 있고, 무엇이 더 이상 필요 없으며,
+        어떤 게 두 곳에 같이 있어 “수정하면 다른 데도 고쳐야 하나?” 헷갈리는지 — 페이지별로 코드를 읽고 정리한다.
+      </p>
+
+      <div class="legend">
+        <div class="item"><span class="chip keep"></span><strong style="color:var(--keep)">KEEP</strong> 유지</div>
+        <div class="item"><span class="chip merge"></span><strong style="color:var(--merge)">MERGE</strong> 다른 항목과 합치기</div>
+        <div class="item"><span class="chip move"></span><strong style="color:var(--primary-2)">MOVE</strong> 다른 페이지로 이동</div>
+        <div class="item"><span class="chip remove"></span><strong style="color:var(--remove)">REMOVE</strong> 제거</div>
+      </div>
+
+      <div class="stat-grid">
+        <div class="stat"><div class="v warn">28</div><div class="l">총 정리 항목</div></div>
+        <div class="stat"><div class="v bad">9</div><div class="l">REMOVE</div></div>
+        <div class="stat"><div class="v warn">11</div><div class="l">MERGE / MOVE</div></div>
+        <div class="stat"><div class="v ok">8</div><div class="l">KEEP, but 개선</div></div>
+      </div>
+
+      <div class="meta-row">
+        <div class="cell"><div class="k">검토 페이지</div><div class="v num">14</div></div>
+        <div class="cell"><div class="k">설정 화면</div><div class="v num">12</div></div>
+        <div class="cell"><div class="k">중복 발견</div><div class="v num warn">5쌍</div></div>
+        <div class="cell"><div class="k">없어도 되는 것</div><div class="v num bad">9</div></div>
+        <div class="cell"><div class="k">즉시 작업가능</div><div class="v num ok">11</div></div>
+      </div>
+    </section>
+
+    <!-- ────────────── 01 USER SETTINGS ────────────── -->
+    <section id="user-settings">
+      <h2><span class="idx">01</span>사용자 설정 (`/settings`)</h2>
+      <p class="sec-lede">
+        탭 4개 — Profile / Preferences / Security / Workspace Members.
+        가장 큰 문제는 <strong>“내 계정 설정”과 “워크스페이스 관리”가 같은 sidebar에 평등하게 놓여 있다</strong>는 점.
+        그리고 Preferences 한 페이지에 7개 그룹이 쌓여 있어 <em>설정 페이지가 한 화면에 다 안 들어옴</em>.
+      </p>
+
+      <!-- ProfilePage -->
+      <div class="scan">
+        <header>
+          <div>
+            <div class="num">01-A</div>
+            <h3>ProfilePage</h3>
+            <div class="meta">227 lines · /settings/profile</div>
+          </div>
+          <span class="pill light">light cleanup</span>
+        </header>
+        <div class="body">
+          <div class="items">
+            <div class="row head"><div class="verdict">처분</div><div class="label">항목</div><div class="why">이유</div><div class="target">대상</div></div>
+
+            <div class="row"><div class="verdict"><span class="keep">keep</span></div><div class="label">아바타 업로드 · 크롭</div><div class="why">잘 작동하고 적절한 자리.</div><div class="target">ProfilePage:107-152</div></div>
+
+            <div class="row"><div class="verdict"><span class="merge">merge</span></div><div class="label">First name · Last name · Display name 3개 필드</div><div class="why">3개 입력 받아 결국 <code class="inline">display_name</code>만 표시되는 곳이 대부분. first/last는 거의 안 쓰는 데이터. <strong>display_name 1개로 단순화</strong>하거나, first/last를 “옵션 - 펼치기” 안으로.</div><div class="target">ProfilePage:163-188</div></div>
+
+            <div class="row"><div class="verdict"><span class="remove">remove</span></div><div class="label">Email 읽기 전용 input + “읽기 전용” hint 텍스트</div><div class="why">변경할 수 없는 값을 input box로 보여주는 건 어포던스 거짓말. 평문 한 줄 + “이메일을 변경하려면 지원팀에 문의” 링크면 충분.</div><div class="target">ProfilePage:198-208</div></div>
+
+            <div class="row"><div class="verdict"><span class="merge">merge</span></div><div class="label">하단 Save 버튼</div><div class="why">Preferences 페이지는 <strong>theme/motion/density만 즉시 저장, 나머지는 수동 저장</strong>이라 일관성 없음. ProfilePage도 마찬가지로 “이름 변경 후 Save 클릭” 필요. <em>전역 패턴 결정 필요</em>: GeneralPage(프로젝트)는 이미 700ms debounce 자동 저장 사용 중.</div><div class="target">ProfilePage:191-194</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SecurityPage -->
+      <div class="scan">
+        <header>
+          <div>
+            <div class="num">01-B</div>
+            <h3>SecurityPage</h3>
+            <div class="meta">222 lines · /settings/security</div>
+          </div>
+          <span class="pill light">light cleanup</span>
+        </header>
+        <div class="body">
+          <div class="items">
+            <div class="row head"><div class="verdict">처분</div><div class="label">항목</div><div class="why">이유</div><div class="target">대상</div></div>
+
+            <div class="row"><div class="verdict"><span class="keep">keep</span></div><div class="label">비밀번호 변경 form</div><div class="why">표준. 그대로 둔다.</div><div class="target">SecurityPage:79-120</div></div>
+
+            <div class="row"><div class="verdict"><span class="remove">remove</span></div><div class="label">계정 탈퇴 시 비밀번호 + “DELETE” 입력 + window.confirm 3중 확인</div><div class="why">비밀번호 + 확인 텍스트면 충분. 그 후 또 <code class="inline">window.confirm()</code>이 나오는 건 과한 friction. 또한 <code class="inline">window.confirm</code>은 디자인 시스템 밖 alert이라 톤이 깨짐.</div><div class="target">SecurityPage:175-185</div></div>
+
+            <div class="row"><div class="verdict"><span class="merge">merge</span></div><div class="label">Danger zone 박스 디자인</div><div class="why">Project GeneralPage에도 “아카이브 / 떠나기 / 삭제” 위험 구역이 있음. <strong>같은 컴포넌트(`<DangerZone>`)로 추출</strong>해서 두 곳에서 재사용. 지금은 비슷하지만 다르게 그려져 있다.</div><div class="target">+ project/settings/GeneralPage</div></div>
+
+            <div class="row"><div class="verdict"><span class="move">move</span></div><div class="label">2FA · 활성 세션 · 로그아웃 모든 디바이스</div><div class="why">SecurityPage에 <strong>없음</strong>. 비밀번호 변경 + 계정 탈퇴 2개뿐. “Security” 라는 이름값을 못함. 2FA, active sessions(현재 로그인된 디바이스 목록), “모든 세션 로그아웃” 버튼은 v5에서 추가 검토.</div><div class="target">future</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PreferencesPage -->
+      <div class="scan">
+        <header>
+          <div>
+            <div class="num">01-C</div>
+            <h3>PreferencesPage <span style="color:var(--remove);font-size:13px;font-weight:400">— 가장 투박한 페이지</span></h3>
+            <div class="meta">359 lines · /settings/preferences · 7개 그룹</div>
+          </div>
+          <span class="pill heavy">heavy refactor</span>
+        </header>
+        <div class="body">
+          <p style="color:var(--ink-2);font-size:13px;margin-top:0;">
+            현재 한 페이지에 들어 있는 7개 그룹 — Theme · Motion · Density · Language · Timezone · First day of week · Email notifications.
+            “Save” 버튼이 있는 그룹과 즉시 저장되는 그룹이 섞여 있어 <strong>저장 모델이 일관되지 않다</strong>.
+          </p>
+
+          <div class="items">
+            <div class="row head"><div class="verdict">처분</div><div class="label">그룹</div><div class="why">이유 / 처분</div><div class="target">대상</div></div>
+
+            <div class="row"><div class="verdict"><span class="merge">group</span></div><div class="label">Theme + Motion + Density</div><div class="why">3개 모두 <strong>“Appearance”</strong> 1개 섹션. 셋 다 즉시 저장 (provider state)이라 묶기 자연스러움. 한 카드 안에 segmented control 3개.</div><div class="target">PreferencesPage:124-200</div></div>
+
+            <div class="row"><div class="verdict"><span class="merge">group</span></div><div class="label">Language + Timezone + First day of week</div><div class="why"><strong>“Locale &amp; Region”</strong> 1개 섹션. 셋 다 한 form, 한 Save 버튼.</div><div class="target">PreferencesPage:202-258</div></div>
+
+            <div class="row"><div class="verdict"><span class="merge">group</span></div><div class="label">Notifications 섹션 전체</div><div class="why"><strong>“Notifications”</strong> 1개 섹션 (이미 그루핑 됨). 단, 안에 “In-app 알림은 항상 표시” 정보 텍스트는 의미 약함 — 토글 없는 정보는 footer hint로.</div><div class="target">PreferencesPage:268-330</div></div>
+
+            <div class="row"><div class="verdict"><span class="remove">remove</span></div><div class="label">하단 “Save” 버튼 (form 단위)</div><div class="why">Theme/Motion/Density는 즉시 저장되는데 Language/Timezone/DOW만 “Save 누르세요”인 건 인지 부조화. <strong>Locale 그룹도 onChange 즉시 저장</strong>으로 통일하면 Save 버튼 자체가 없어짐.</div><div class="target">PreferencesPage:260-263</div></div>
+
+            <div class="row"><div class="verdict"><span class="keep">keep</span></div><div class="label">알림 마스터 토글 + 하위 종속</div><div class="why">패턴 좋음. master off 시 children dim + pointer-events:none — 그대로.</div><div class="target">PreferencesPage:300-325</div></div>
+          </div>
+
+          <div class="ba">
+            <div class="col bad">
+              <header>현재 — 7개 그룹 평면 나열</header>
+<pre class="tree">
+<span class="h">Preferences</span>
+├── Theme        (즉시 저장)
+├── Motion       (즉시 저장)
+├── Density      (즉시 저장)
+├── Language     ┐
+├── Timezone     │ Save 버튼 필요
+└── First day    ┘
+<span class="l">— hr —</span>
+<span class="h">Notifications</span>
+├── Master
+└── 3 sub toggles (즉시 저장)
+</pre>
+            </div>
+            <div class="col good">
+              <header>제안 — 3 카드 · 모두 즉시 저장</header>
+<pre class="tree">
+<span class="h">Appearance</span>          <span class="l">— 즉시 저장</span>
+├── Theme         [Light · Dark]
+├── Motion        [Rich · Minimal]
+└── Density       [Compact · Cozy · Spacious]
+
+<span class="h">Locale &amp; Region</span>     <span class="l">— 즉시 저장</span>
+├── Language
+├── Timezone
+└── First day of week
+
+<span class="h">Notifications</span>       <span class="l">— 즉시 저장</span>
+├── Email · master
+└── Email · per-event (3)
+</pre>
+            </div>
+          </div>
+
+          <div class="fix">
+            <div class="label">FIX · 1d</div>
+<pre><span class="c">// PreferencesPage.tsx — Locale 즉시 저장 패턴</span>
+<span class="c">// register/handleSubmit 제거하고 Theme처럼 Select onChange에서 바로 mutation</span>
+&lt;Select value={values.timezone} onValueChange={(v) =&gt; {
+  setValue(<span class="s">"timezone"</span>, v);
+  <span class="g">mutation.mutate({ ...values, timezone: v });</span>  <span class="c">// 즉시 저장</span>
+}}&gt;...&lt;/Select&gt;
+
+<span class="c">// 결과: Save 버튼 삭제. 7개 그룹 → 3개 카드.</span></pre>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ────────────── 02 PROJECT SETTINGS ────────────── -->
+    <section id="project-settings">
+      <h2><span class="idx">02</span>프로젝트 설정 (`/projects/:id/settings`)</h2>
+      <p class="sec-lede">
+        7개 탭 — General · Members · States · Labels · Templates · Auto-archive · Notifications.
+        <strong>탭이 너무 많고, 우선순위가 평면적</strong>이다. 사용자가 가장 자주 쓰는 General만 진하고 나머지는 admin tooling에 가깝다.
+      </p>
+
+      <div class="scan">
+        <header>
+          <div>
+            <div class="num">02-A</div>
+            <h3>탭 7개의 사용 빈도 진단</h3>
+          </div>
+          <span class="pill medium">restructure</span>
+        </header>
+        <div class="body">
+          <div class="items">
+            <div class="row head"><div class="verdict">처분</div><div class="label">탭</div><div class="why">사용 빈도 / 처분</div><div class="target">변경</div></div>
+
+            <div class="row"><div class="verdict"><span class="keep">keep</span></div><div class="label">General</div><div class="why">매우 자주 — 이름, 아이콘, 공개범위, 위험 구역</div><div class="target">그대로 (단 5번 finding 참조)</div></div>
+
+            <div class="row"><div class="verdict"><span class="keep">keep</span></div><div class="label">Members</div><div class="why">자주 — 권한 관리</div><div class="target">그대로</div></div>
+
+            <div class="row"><div class="verdict"><span class="merge">merge</span></div><div class="label">States + Labels</div><div class="why">둘 다 “이슈 분류 toolbox”다. 한 페이지 “Workflow”에 두 섹션으로. (참조: Linear의 Workflow 페이지) States는 column 형태, Labels는 chip 형태로 시각적으로도 다르니 충돌 안 함.</div><div class="target">→ Workflow (1 tab)</div></div>
+
+            <div class="row"><div class="verdict"><span class="merge">merge</span></div><div class="label">Auto-archive + Notifications</div><div class="why">둘 다 “정책(policy)”에 가깝다. <strong>“Automation”</strong> 1개 탭에 두 섹션. notifications도 “이슈 변경 시 어디로 알리나”의 자동화.</div><div class="target">→ Automation (1 tab)</div></div>
+
+            <div class="row"><div class="verdict"><span class="move">move</span></div><div class="label">Templates</div><div class="why">자주 안 들어가는 페이지. <strong>이슈 생성 다이얼로그 안의 “템플릿 사용” 버튼 → 거기서 관리</strong>로 이동하거나, Workflow 페이지의 한 섹션으로 흡수.</div><div class="target">→ contextual</div></div>
+          </div>
+
+          <div class="ba">
+            <div class="col bad">
+              <header>현재 — 7개 평면</header>
+<pre class="tree">
+<span class="h">Project Settings</span>
+├── ⚙ General
+├── 👥 Members
+├── ◯ States
+├── 🏷 Labels
+├── 📄 Templates
+├── 📦 Auto-archive
+└── 🔔 Notifications
+</pre>
+            </div>
+            <div class="col good">
+              <header>제안 — 4개 탭</header>
+<pre class="tree">
+<span class="h">Project Settings</span>
+├── ⚙ General
+├── 👥 Members
+├── ⚡ <span class="mv">Workflow</span>          <span class="l">— states + labels + templates</span>
+└── 🤖 <span class="mv">Automation</span>        <span class="l">— auto-archive + notifications</span>
+</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="scan">
+        <header>
+          <div>
+            <div class="num">02-B</div>
+            <h3>GeneralPage 내부</h3>
+            <div class="meta">596 lines · 초기 디자인 잔재가 가장 많은 페이지</div>
+          </div>
+          <span class="pill heavy">heavy cleanup</span>
+        </header>
+        <div class="body">
+          <div class="items">
+            <div class="row head"><div class="verdict">처분</div><div class="label">섹션</div><div class="why">이유</div><div class="target">대상</div></div>
+
+            <div class="row"><div class="verdict"><span class="keep">keep</span></div><div class="label">자동 저장 (700ms debounce)</div><div class="why">좋다. 이 패턴을 PreferencesPage에도 옮긴다.</div><div class="target">GeneralPage:91-115</div></div>
+
+            <div class="row"><div class="verdict"><span class="merge">merge</span></div><div class="label">Archive + Leave + Delete 3개 다이얼로그</div><div class="why">현재 각각 별도 state·dialog·확인 텍스트. <strong>공용 `<ConfirmDangerDialog>` 컴포넌트</strong>로 추상화해서 “title / description / confirmText / action” prop만 다르게.</div><div class="target">→ DangerZone.tsx 신설</div></div>
+
+            <div class="row"><div class="verdict"><span class="remove">remove</span></div><div class="label">아이콘 별도 PATCH (form 바깥)</div><div class="why">아이콘만 form 밖에서 직접 PATCH하는 코드 별도 존재. form 안으로 넣고 “자동 저장”으로 통일하면 1개 mutation으로 정리.</div><div class="target">GeneralPage:115-130 (icon mutation)</div></div>
+
+            <div class="row"><div class="verdict"><span class="merge">merge</span></div><div class="label">Project features toggle (request 등)</div><div class="why">기능 on/off가 General에 박혀 있는데, “기능 토글”은 사실 Workflow에 가깝다 — <em>또는</em> General의 “Features” 하위 섹션으로 명확히 그루핑. 현재는 그냥 페이지 어딘가에 끼어 있음.</div><div class="target">name 정리</div></div>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ────────────── 03 OVERLAP ────────────── -->
+    <section id="settings-overlap">
+      <h2><span class="idx">03</span>두 설정의 겹침</h2>
+      <p class="sec-lede">
+        <strong>같은 단어 “Notifications”가 user settings와 project settings 양쪽에 있다.</strong>
+        뭐가 어디서 결정되는지 사용자가 알 길이 없다. 가장 큰 인지 부조화 지점.
+      </p>
+
+      <div class="scan">
+        <header>
+          <div>
+            <div class="num">03-A</div>
+            <h3>“Notifications”가 두 곳에 — 책임 분리 필요</h3>
+          </div>
+          <span class="pill heavy">naming + IA fix</span>
+        </header>
+        <div class="body">
+          <div class="twocol">
+            <div>
+              <h5>User · /settings/preferences</h5>
+              <ul>
+                <li>Email 마스터 on/off</li>
+                <li class="dup">이슈 배정 시 메일</li>
+                <li class="dup">댓글 작성 시 메일</li>
+                <li class="dup">이슈 업데이트 시 메일</li>
+              </ul>
+              <p style="font-size:11px;color:var(--ink-3);margin-top:8px">→ <strong>“내가 어떻게 받을지”</strong></p>
+            </div>
+            <div>
+              <h5>Project · /settings/notifications</h5>
+              <ul>
+                <li>프로젝트 단위 메일 on/off</li>
+                <li class="dup">이슈 생성 시</li>
+                <li class="dup">상태 변경 시</li>
+                <li class="dup">댓글 시</li>
+                <li>웹훅 / Slack 통합</li>
+              </ul>
+              <p style="font-size:11px;color:var(--ink-3);margin-top:8px">→ <strong>“이 프로젝트가 무엇을 발신할지”</strong></p>
+            </div>
+          </div>
+
+          <p style="color:var(--ink-2);font-size:13.5px;margin-top:18px">
+            두 영역은 본질적으로 다르다 — 하나는 <em>사용자 수신 설정</em>, 하나는 <em>프로젝트 발신/통합 설정</em>.
+            그런데 같은 “Notifications” 라벨을 쓰니 사용자가 “내 알림 끄려면 어디 가야 하지?”에 답 못함.
+          </p>
+
+          <div class="ba">
+            <div class="col bad">
+              <header>현재 — 같은 라벨, 다른 책임</header>
+<pre class="tree">
+User Settings
+└── Notifications     <span class="l">← 내가 받는 메일 토글</span>
+
+Project Settings
+└── Notifications     <span class="l">← 같은 이름! 다른 의미</span>
+</pre>
+            </div>
+            <div class="col good">
+              <header>제안 — 라벨 분리</header>
+<pre class="tree">
+User Settings
+└── Notifications     <span class="l">— "내가 받는 알림"</span>
+    "Email me when…"
+
+Project Settings
+└── <span class="mv">Integrations &amp; webhooks</span>
+    "Send updates to…"  <span class="l">(Slack, webhook…)</span>
+</pre>
+            </div>
+          </div>
+          <p style="color:var(--ink-2);font-size:13px;margin-top:14px">
+            User 쪽은 “Notifications” 유지. Project 쪽은 <strong>“Integrations”</strong>로 개명 — 웹훅/Slack 같은 외부 발신 통합이 본질이고, 메일 발신은 그 한 종류로.
+            사용자 수신은 user 설정으로 일원화.
+          </p>
+        </div>
+      </div>
+
+      <div class="scan">
+        <header>
+          <div>
+            <div class="num">03-B</div>
+            <h3>위험 구역 디자인이 두 곳에서 다르게 그려짐</h3>
+          </div>
+          <span class="pill medium">component extract</span>
+        </header>
+        <div class="body">
+          <p style="color:var(--ink-2);font-size:13.5px;margin-top:0">
+            SecurityPage의 “계정 탈퇴”와 GeneralPage의 “프로젝트 보관/떠나기/삭제”가 비슷하지만 다르다.
+            border 색·아이콘 위치·확인 input 위치·버튼 정렬이 어긋남. <code class="inline">&lt;DangerZone&gt;</code> 컴포넌트로 추출.
+          </p>
+          <div class="fix">
+            <div class="label">FIX · 4h</div>
+<pre><span class="c">// components/ui/danger-zone.tsx — 신설</span>
+&lt;DangerZone
+  title=<span class="s">"Delete project"</span>
+  description=<span class="s">"This will permanently…"</span>
+  confirmText=<span class="s">"DELETE"</span>
+  buttonLabel=<span class="s">"Delete project"</span>
+  onConfirm={() =&gt; deleteMutation.mutate()}
+/&gt;
+
+<span class="c">// 사용처: SecurityPage(account delete), GeneralPage(project archive/leave/delete)</span>
+<span class="c">// 4개 호출 → 1개 컴포넌트</span></pre>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ────────────── 04 DASHBOARD ────────────── -->
+    <section id="dashboard">
+      <h2><span class="idx">04</span>WorkspaceDashboard</h2>
+
+      <div class="scan">
+        <header>
+          <div>
+            <div class="num">04-A</div>
+            <h3>대시보드의 “필터링 도구”가 너무 많다</h3>
+            <div class="meta">543 lines</div>
+          </div>
+          <span class="pill medium">simplify</span>
+        </header>
+        <div class="body">
+          <div class="items">
+            <div class="row head"><div class="verdict">처분</div><div class="label">요소</div><div class="why">이유</div><div class="target">대상</div></div>
+
+            <div class="row"><div class="verdict"><span class="keep">keep</span></div><div class="label">인사 + 날짜</div><div class="why">대시보드 헤더 톤. 좋음.</div><div class="target">WorkspaceDashboard:71-79</div></div>
+
+            <div class="row"><div class="verdict"><span class="keep">keep</span></div><div class="label">SprintProgressOrbit</div><div class="why">브랜드 모먼트. v3에서 더 활용 권장.</div><div class="target">orbit-glyph.tsx</div></div>
+
+            <div class="row"><div class="verdict"><span class="remove">remove</span></div><div class="label">groupBy state/project 토글</div><div class="why">대시보드 사용자가 “상태별로 보고 싶다 / 프로젝트별로 보고 싶다”를 자주 바꾸나? <em>아니다</em>. 한 가지(상태별)로 고정하고 토글 제거. localStorage 키도 함께 정리.</div><div class="target">groupBy in PersistedFilters</div></div>
+
+            <div class="row"><div class="verdict"><span class="merge">merge</span></div><div class="label">priority + project + stateGroup 3개 필터 dropdown</div><div class="why">대시보드 상단에 dropdown이 3개 항상 노출. <strong>“Filter” 버튼 1개 → 펼치면 3개</strong>로 통합. 평소엔 1개 버튼.</div><div class="target">WorkspaceDashboard:200-221</div></div>
+
+            <div class="row"><div class="verdict"><span class="remove">remove</span></div><div class="label">“최근 이슈” 별도 섹션</div><div class="why">대시보드는 “할 일” 페이지지 “활동 로그” 페이지가 아님. 최근 이슈 → activity 사이드 패널로 격하 (워크스페이스 토픽바에 종 아이콘).</div><div class="target">WorkspaceDashboard recent</div></div>
+
+            <div class="row"><div class="verdict"><span class="move">move</span></div><div class="label">filters localStorage 키 이름 <code class="inline">orbitail_dashboard_filters</code></div><div class="why">앱 전체에서 localStorage 키 prefix가 통일 안 됨. <code class="inline">orbitail.dashboard.filters</code>로 dot notation 통일 권장(다른 키들과 함께).</div><div class="target">global key audit</div></div>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ────────────── 05 SIDEBAR ────────────── -->
+    <section id="sidebar">
+      <h2><span class="idx">05</span>Sidebar</h2>
+      <p class="sec-lede">v3에서 IA 관점으로 다뤘다. v4에서는 <strong>코드 잔재</strong>를 본다.</p>
+
+      <div class="scan">
+        <header>
+          <div>
+            <div class="num">05-A</div>
+            <h3>Sidebar.tsx 잔재 정리</h3>
+            <div class="meta">480 lines</div>
+          </div>
+          <span class="pill light">light cleanup</span>
+        </header>
+        <div class="body">
+          <div class="items">
+            <div class="row head"><div class="verdict">처분</div><div class="label">요소</div><div class="why">이유</div><div class="target">대상</div></div>
+
+            <div class="row"><div class="verdict"><span class="merge">merge</span></div><div class="label">NavItem + AnnouncementsNavItem 거의 동일 구조</div><div class="why">badge prop 하나 차이로 컴포넌트 분리. <strong>NavItem에 <code class="inline">badge?</code> prop 추가</strong>로 일원화.</div><div class="target">Sidebar:36-65 + 245-275</div></div>
+
+            <div class="row"><div class="verdict"><span class="remove">remove</span></div><div class="label">“favoriteProjects.length === 0 일 때 allFavorited 텍스트”</div><div class="why">favorite도 없고 public도 없을 때만 의미있는 안내. 현재 <em>favoriteProjects 0 + public 0</em>일 때 “noProjects” 보여주고, <em>favorite 있고 public 0</em>일 때 “allFavorited” 보여주는 분기. 후자는 <strong>아예 안 보이게</strong>해도 충분(섹션 자체가 안 그려짐).</div><div class="target">Sidebar:355-365</div></div>
+
+            <div class="row"><div class="verdict"><span class="remove">remove</span></div><div class="label">Phase 2.5 / Phase 2.6 주석</div><div class="why">코드 주석에 phase 번호 박힌 건 향후 혼란. “좌측 인디케이터를 ::before로 그린다” 같은 의도 주석은 keep, “Phase 2.5”는 git history에 맡기고 제거.</div><div class="target">Sidebar:30-33</div></div>
+
+            <div class="row"><div class="verdict"><span class="keep">keep</span></div><div class="label">DnD 로직 (project + category)</div><div class="why">잘 작동. 단 두 개의 거의 동일한 DnD 핸들러가 한 파일에 있음 — 향후 <code class="inline">useReorderableDnd</code> 훅으로 추출 검토.</div><div class="target">Sidebar:298-322 + 132-150</div></div>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ────────────── 06 VIEWS ────────────── -->
+    <section id="views">
+      <h2><span class="idx">06</span>Project: 10개 View</h2>
+
+      <div class="scan">
+        <header>
+          <div>
+            <div class="num">06-A</div>
+            <h3>10개 view 파일 — 무엇을 합치고 무엇을 지울까</h3>
+            <div class="meta">views/ 디렉토리</div>
+          </div>
+          <span class="pill heavy">restructure</span>
+        </header>
+        <div class="body">
+          <div class="items">
+            <div class="row head"><div class="verdict">처분</div><div class="label">View</div><div class="why">사용 빈도 / 가치</div><div class="target">처분</div></div>
+
+            <div class="row"><div class="verdict"><span class="keep">keep</span></div><div class="label">TableView, BoardView, BacklogView</div><div class="why">핵심 3개. 매일 사용.</div><div class="target">그대로</div></div>
+
+            <div class="row"><div class="verdict"><span class="keep">keep</span></div><div class="label">CalendarView, TimelineView</div><div class="why">기획/일정관리 페르소나에 필수.</div><div class="target">그대로</div></div>
+
+            <div class="row"><div class="verdict"><span class="merge">merge</span></div><div class="label">SprintView + AnalyticsView</div><div class="why">SprintView는 “현재 sprint 진행” 시각화, Analytics는 “과거 sprint 통계”. 둘 다 sprint 메트릭. <strong>1개 “Reports” 페이지의 두 탭</strong>으로.</div><div class="target">→ Reports (sprint + analytics)</div></div>
+
+            <div class="row"><div class="verdict"><span class="remove">remove</span></div><div class="label">GraphView</div><div class="why">코드 있는데 실제로 의미 있는 그래프인지 확인 필요. 의존성 시각화나 dependency graph라면 keep, 그냥 “예쁜 그림”이면 remove. <strong>실사용 검토 후 판단.</strong></div><div class="target">GraphView.tsx</div></div>
+
+            <div class="row"><div class="verdict"><span class="move">move</span></div><div class="label">ArchiveView, TrashView</div><div class="why">v3에서 제안한 대로 sidebar 프로젝트 펼침 메뉴로 이동. View tab에서는 제거.</div><div class="target">→ sidebar nav</div></div>
+          </div>
+
+          <div class="ba">
+            <div class="col bad">
+              <header>현재 — 10 views, 한 줄에 안 들어감</header>
+<pre class="tree">
+[Table] [Board] [Backlog] [Calendar]
+[Timeline] [Graph] [Sprints] [Analytics]
+[Archive] [Trash]
+</pre>
+            </div>
+            <div class="col good">
+              <header>제안 — 5 views + 1 reports + sidebar로 이동</header>
+<pre class="tree">
+View tabs:
+  [Table] [Board] [Backlog] [Calendar] [Timeline]
+
+Tools menu:
+  📊 <span class="mv">Reports</span>     <span class="l">(sprints + analytics)</span>
+
+Sidebar (프로젝트 펼침):
+  📦 <span class="mv">Archive</span>
+  🗑 <span class="mv">Trash</span>
+
+Removed: <span class="rm">Graph</span>     <span class="l">(검토 후)</span>
+</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ────────────── 07 ISSUE DETAIL ────────────── -->
+    <section id="issue-detail">
+      <h2><span class="idx">07</span>Issue Detail</h2>
+
+      <div class="scan">
+        <header>
+          <div>
+            <div class="num">07-A</div>
+            <h3>IssueDetailPage 1388 lines — split 후보</h3>
+            <div class="meta">1,388 lines</div>
+          </div>
+          <span class="pill heavy">code split</span>
+        </header>
+        <div class="body">
+          <p style="color:var(--ink-2);font-size:13px;margin-top:0">
+            한 파일에 6개 탭(sub-issues / links / nodes / attachments / comments / activity) + sidebar 메타픽커들이 다 들어 있음.
+            UI 문제는 아니지만 <strong>편집할 때 한 곳을 만지면 다른 게 깨질 위험이 큼</strong>.
+          </p>
+
+          <div class="items">
+            <div class="row head"><div class="verdict">처분</div><div class="label">현재</div><div class="why">제안</div><div class="target">대상</div></div>
+
+            <div class="row"><div class="verdict"><span class="merge">split</span></div><div class="label">탭 콘텐츠 6종이 모두 한 파일</div><div class="why">각 탭을 <code class="inline">tabs/SubIssuesTab.tsx</code> 등으로 분리. main 파일은 layout + tab routing만.</div><div class="target">→ tabs/ 폴더</div></div>
+
+            <div class="row"><div class="verdict"><span class="merge">extract</span></div><div class="label">우측 메타 sidebar (state/priority/assignee/parent/labels/sprint/category 픽커)</div><div class="why">7개 picker가 옆에 쌓여 있는데, 이건 BoardView/TableView에서도 비슷하게 쓴다. <code class="inline">&lt;IssueMetaSidebar&gt;</code> 컴포넌트로 추출하면 패널/full-page 양쪽에서 재사용.</div><div class="target">→ IssueMetaSidebar.tsx</div></div>
+
+            <div class="row"><div class="verdict"><span class="remove">remove</span></div><div class="label">하드코딩된 PRIORITY_CONFIG (page 상단)</div><div class="why">파일 32줄에 있음. <code class="inline">@/constants/priority</code> 에 이미 있음 (PRIORITY_LIST, PRIORITY_LABEL_KEY). 중복 제거.</div><div class="target">IssueDetailPage:31-37</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="scan">
+        <header>
+          <div>
+            <div class="num">07-B</div>
+            <h3>IssueDetailPanel — IssueDetailPage를 그대로 감싼 modal</h3>
+          </div>
+          <span class="pill light">good · keep</span>
+        </header>
+        <div class="body">
+          <p style="color:var(--ink-2);font-size:13px;margin:0">
+            패널(modal)과 fullpage가 같은 컴포넌트를 공유 — <code class="inline">issueIdOverride</code>, <code class="inline">inPanel</code> prop으로 분기.
+            잘 설계됨. <strong>그대로 유지.</strong>
+            단 <code class="inline">inPanel</code>일 때 breadcrumb 숨기는 패턴이 7개 자식에 다 props drilling 되면 context로 바꾸는 것 검토.
+          </p>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ────────────── 08 ARCHIVE / TRASH ────────────── -->
+    <section id="archive-trash">
+      <h2><span class="idx">08</span>Archive · Trash</h2>
+
+      <div class="scan">
+        <header>
+          <div>
+            <div class="num">08-A</div>
+            <h3>두 view의 거의 동일한 구조</h3>
+          </div>
+          <span class="pill medium">extract base</span>
+        </header>
+        <div class="body">
+          <p style="color:var(--ink-2);font-size:13px;margin-top:0">
+            ArchiveView와 TrashView 둘 다 <em>“특정 상태의 이슈 목록 + per-row 복원/영구삭제 액션”</em> 패턴.
+            테이블 columns만 다르다 (Archive: archived_at / Trash: 잔여일).
+          </p>
+          <div class="fix">
+            <div class="label">FIX · 6h</div>
+<pre><span class="c">// views/RestorableListView.tsx — 신설</span>
+&lt;RestorableListView
+  query={archivedIssuesQuery}
+  columns={[<span class="s">"title"</span>, <span class="s">"state"</span>, <span class="s">"priority"</span>, <span class="s">"archivedAt"</span>]}
+  rowAction={(issue) =&gt; (
+    &lt;&gt;
+      &lt;Button onClick=&gt;Restore&lt;/Button&gt;
+      &lt;Button variant=<span class="s">"destructive"</span>&gt;Move to trash&lt;/Button&gt;
+    &lt;/&gt;
+  )}
+  emptyState={...}
+/&gt;
+
+<span class="c">// ArchiveView, TrashView 둘 다 이 컴포넌트를 columns/action만 바꿔 사용</span></pre>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ────────────── 09 SUMMARY OF CHANGES ────────────── -->
+    <section id="summary-of-changes">
+      <h2><span class="idx">09</span>변경 요약표</h2>
+      <p class="sec-lede">위 모든 처분을 한 표로 모음 — 작업 우선순위 잡을 때 사용.</p>
+
+      <div class="scan">
+        <header><div><h3>전체 28개 처분 한눈에</h3></div></header>
+        <div class="body">
+          <div class="items" style="font-size:12px">
+            <div class="row head">
+              <div class="verdict">처분</div><div class="label">항목</div><div class="why">페이지</div><div class="target">effort</div>
+            </div>
+
+            <!-- REMOVE -->
+            <div class="row"><div class="verdict"><span class="remove">remove</span></div><div class="label">Email read-only input</div><div class="why">ProfilePage</div><div class="target">15min</div></div>
+            <div class="row"><div class="verdict"><span class="remove">remove</span></div><div class="label">계정 탈퇴 window.confirm 3중확인</div><div class="why">SecurityPage</div><div class="target">10min</div></div>
+            <div class="row"><div class="verdict"><span class="remove">remove</span></div><div class="label">Preferences Save 버튼 (Locale 즉시 저장 후)</div><div class="why">PreferencesPage</div><div class="target">included in C</div></div>
+            <div class="row"><div class="verdict"><span class="remove">remove</span></div><div class="label">groupBy state/project 토글</div><div class="why">Dashboard</div><div class="target">20min</div></div>
+            <div class="row"><div class="verdict"><span class="remove">remove</span></div><div class="label">대시보드 “최근 이슈” 섹션</div><div class="why">Dashboard</div><div class="target">30min</div></div>
+            <div class="row"><div class="verdict"><span class="remove">remove</span></div><div class="label">allFavorited 빈 텍스트</div><div class="why">Sidebar</div><div class="target">5min</div></div>
+            <div class="row"><div class="verdict"><span class="remove">remove</span></div><div class="label">Phase 주석</div><div class="why">Sidebar</div><div class="target">5min</div></div>
+            <div class="row"><div class="verdict"><span class="remove">remove</span></div><div class="label">PRIORITY_CONFIG 중복</div><div class="why">IssueDetail</div><div class="target">10min</div></div>
+            <div class="row"><div class="verdict"><span class="remove">remove</span></div><div class="label">GraphView (검토 후)</div><div class="why">Views</div><div class="target">결정 후 1d</div></div>
+
+            <!-- MERGE -->
+            <div class="row"><div class="verdict"><span class="merge">merge</span></div><div class="label">First/Last/Display name → 1개 필드</div><div class="why">ProfilePage</div><div class="target">1h</div></div>
+            <div class="row"><div class="verdict"><span class="merge">merge</span></div><div class="label">7개 Preferences → 3 카드</div><div class="why">PreferencesPage</div><div class="target">1d</div></div>
+            <div class="row"><div class="verdict"><span class="merge">merge</span></div><div class="label">DangerZone 컴포넌트 추출</div><div class="why">Security + GeneralPage</div><div class="target">4h</div></div>
+            <div class="row"><div class="verdict"><span class="merge">merge</span></div><div class="label">States + Labels + Templates → Workflow</div><div class="why">Project Settings</div><div class="target">1d</div></div>
+            <div class="row"><div class="verdict"><span class="merge">merge</span></div><div class="label">Auto-archive + Notifications → Automation</div><div class="why">Project Settings</div><div class="target">4h</div></div>
+            <div class="row"><div class="verdict"><span class="merge">merge</span></div><div class="label">Sprint + Analytics → Reports</div><div class="why">Views</div><div class="target">1d</div></div>
+            <div class="row"><div class="verdict"><span class="merge">merge</span></div><div class="label">3 필터 dropdown → 1 Filter 버튼</div><div class="why">Dashboard</div><div class="target">3h</div></div>
+            <div class="row"><div class="verdict"><span class="merge">merge</span></div><div class="label">NavItem + AnnouncementsNavItem 통합</div><div class="why">Sidebar</div><div class="target">30min</div></div>
+            <div class="row"><div class="verdict"><span class="merge">merge</span></div><div class="label">Archive + Leave + Delete dialog 통합</div><div class="why">GeneralPage</div><div class="target">3h</div></div>
+            <div class="row"><div class="verdict"><span class="merge">merge</span></div><div class="label">RestorableListView 추출</div><div class="why">Archive + Trash</div><div class="target">6h</div></div>
+            <div class="row"><div class="verdict"><span class="merge">merge</span></div><div class="label">IssueMetaSidebar 추출</div><div class="why">IssueDetail + Board + Table</div><div class="target">1d</div></div>
+
+            <!-- MOVE / RENAME -->
+            <div class="row"><div class="verdict"><span class="move">move</span></div><div class="label">Project Notifications → Integrations 개명</div><div class="why">Project Settings</div><div class="target">1h</div></div>
+            <div class="row"><div class="verdict"><span class="move">move</span></div><div class="label">Templates → 이슈 생성 모달 안</div><div class="why">Project Settings</div><div class="target">결정 후 1d</div></div>
+            <div class="row"><div class="verdict"><span class="move">move</span></div><div class="label">Archive/Trash views → sidebar nav</div><div class="why">Project</div><div class="target">v3 통합</div></div>
+            <div class="row"><div class="verdict"><span class="move">move</span></div><div class="label">localStorage 키 dot notation 통일</div><div class="why">전체</div><div class="target">2h + 마이그레이션</div></div>
+
+            <!-- KEEP+IMPROVE -->
+            <div class="row"><div class="verdict"><span class="keep">keep</span></div><div class="label">자동 저장 (700ms debounce) — 다른 form에도 확산</div><div class="why">GeneralPage→PreferencesPage</div><div class="target">1d</div></div>
+            <div class="row"><div class="verdict"><span class="keep">keep</span></div><div class="label">SprintProgressOrbit — 더 큰 자리</div><div class="why">Dashboard</div><div class="target">v3 통합</div></div>
+            <div class="row"><div class="verdict"><span class="keep">keep</span></div><div class="label">알림 마스터+종속 토글 패턴</div><div class="why">PreferencesPage</div><div class="target">참고용</div></div>
+            <div class="row"><div class="verdict"><span class="keep">keep</span></div><div class="label">IssueDetailPage/Panel 공유 구조</div><div class="why">IssueDetail</div><div class="target">참고용</div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ────────────── 10 ROADMAP ────────────── -->
+    <section id="roadmap">
+      <h2><span class="idx">10</span>Roadmap v4</h2>
+      <p class="sec-lede">단순 cleanup → 컴포넌트 추출 → IA 재배치 순서로 가야 안전하다.</p>
+
+      <div class="roadmap">
+
+        <div class="lane q1">
+          <span class="when">Sprint 1 — Easy wins (1d 합쳐 가능)</span>
+          <h4>코드 잔재 청소</h4>
+          <ul>
+            <li>Email read-only input → 평문</li>
+            <li>계정 탈퇴 window.confirm 제거</li>
+            <li>Phase 주석 + allFavorited 텍스트 정리</li>
+            <li>PRIORITY_CONFIG 중복 제거</li>
+            <li>localStorage 키 dot-notation</li>
+            <li>NavItem 통합 (Announcements badge prop)</li>
+          </ul>
+        </div>
+
+        <div class="lane q2">
+          <span class="when">Sprint 2–3 — 컴포넌트 추출</span>
+          <h4>재사용 가능한 building blocks</h4>
+          <ul>
+            <li>&lt;DangerZone&gt; — 4개 호출처 통합</li>
+            <li>&lt;RestorableListView&gt; — Archive + Trash</li>
+            <li>&lt;IssueMetaSidebar&gt; — Detail + Board + Table</li>
+            <li>IssueDetailPage tabs/ 폴더로 split</li>
+            <li>PreferencesPage 즉시 저장 통일 (3 카드)</li>
+            <li>Dashboard 3 필터 → 1 Filter 버튼</li>
+          </ul>
+        </div>
+
+        <div class="lane q3">
+          <span class="when">Sprint 4+ — IA 재배치</span>
+          <h4>탭 / 라벨 정리</h4>
+          <ul>
+            <li>Project Settings 7→4 탭 (Workflow + Automation)</li>
+            <li>“Notifications” 라벨 분리 — User vs Project</li>
+            <li>Sprint + Analytics → Reports</li>
+            <li>Archive/Trash views → sidebar (v3 통합)</li>
+            <li>대시보드 “최근 이슈” → activity panel</li>
+            <li>GraphView 실사용 검토 후 결정</li>
+          </ul>
+        </div>
+
+      </div>
+    </section>
+
+    <footer class="foot">
+      <div class="div-line"></div>
+      <p style="margin-top:24px">
+        <strong>v4 audit · 14 페이지 · 28개 처분 · 9 REMOVE / 11 MERGE+MOVE / 8 KEEP-improve.</strong><br/>
+        Sprint 1만 끝내도 “페이지가 정리됐네” 라는 인상이 즉시 든다. 그 후 Sprint 2의 컴포넌트 추출이 가장 큰 ROI — 한 번 만들면 여러 곳이 일관되게 정돈된다.<br/>
+        Sprint 3는 v3와 같이 묶어서 IA 재배치 PR로.
+      </p>
+    </footer>
+
+  </main>
+
+</div>
+
+<script>
+const links = document.querySelectorAll('aside.toc a');
+const sections = [...links].map(a => document.querySelector(a.getAttribute('href')));
+function onScroll() {
+  const y = window.scrollY + 100;
+  let active = 0;
+  sections.forEach((s, i) => { if (s && s.offsetTop <= y) active = i; });
+  links.forEach((l, i) => l.classList.toggle('active', i === active));
+}
+window.addEventListener('scroll', onScroll, { passive: true });
+onScroll();
+</script>
+
+</body>
+</html>

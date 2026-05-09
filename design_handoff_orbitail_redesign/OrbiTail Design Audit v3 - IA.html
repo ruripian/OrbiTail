@@ -1,0 +1,1053 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>OrbiTail Audit v3 · 페이지 IA &amp; 구조</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0c1018;
+    --bg-2: #11151f;
+    --panel: #161b27;
+    --panel-2: #1c2230;
+    --line: #262d3d;
+    --line-2: #303a4f;
+    --ink: #e6e9f0;
+    --ink-2: #b6bdcc;
+    --ink-3: #7d8699;
+    --ink-4: #525a6c;
+    --primary: #5b8def;
+    --primary-2: #7aa3ff;
+    --primary-soft: rgba(91,141,239,0.14);
+
+    --sev-crit: #ef5e6f;
+    --sev-high: #f59e0b;
+    --sev-med: #5b8def;
+    --sev-low: #7d8699;
+
+    --good: #10b981;
+
+    --r-sm: 6px; --r-md: 10px; --r-lg: 14px; --r-xl: 20px;
+
+    --font-sans: "Inter", "Pretendard", system-ui, sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, monospace;
+    --font-display: "Fraunces", Georgia, serif;
+  }
+
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    font-family:var(--font-sans);
+    background:var(--bg);
+    color:var(--ink);
+    line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+  }
+  body::before{
+    content:"";position:fixed;inset:0;
+    background:
+      radial-gradient(1200px 600px at 80% -10%, rgba(91,141,239,0.10), transparent 60%),
+      radial-gradient(900px 500px at 0% 100%, rgba(91,141,239,0.06), transparent 60%);
+    pointer-events:none;z-index:0;
+  }
+
+  .layout{
+    position:relative;z-index:1;
+    display:grid;
+    grid-template-columns:260px minmax(0,1fr);
+    min-height:100vh;
+  }
+
+  aside.toc{
+    position:sticky;top:0;height:100vh;
+    border-right:1px solid var(--line);
+    background:rgba(11,14,22,0.7);
+    backdrop-filter:blur(8px);
+    padding:28px 22px;overflow-y:auto;
+  }
+  .toc .brand{display:flex;align-items:center;gap:10px;margin-bottom:24px;}
+  .toc .brand .ring{width:28px;height:28px;border-radius:999px;border:1.5px solid var(--primary);position:relative;}
+  .toc .brand .ring::after{content:"";position:absolute;width:6px;height:6px;border-radius:999px;background:var(--primary);top:-3px;left:50%;transform:translateX(-50%);}
+  .toc .brand .name{font-family:var(--font-display);font-weight:600;font-size:17px;letter-spacing:-0.01em;}
+  .toc .brand .sub{font-size:11px;color:var(--ink-3);letter-spacing:0.06em;text-transform:uppercase;}
+
+  .toc h4{
+    font-size:10px;letter-spacing:0.12em;text-transform:uppercase;
+    color:var(--ink-4);
+    margin:22px 0 8px 4px;font-weight:600;
+  }
+  .toc a{
+    display:flex;align-items:center;gap:10px;
+    padding:7px 10px;border-radius:var(--r-sm);
+    color:var(--ink-2);text-decoration:none;font-size:13px;
+    transition:background 120ms,color 120ms;
+  }
+  .toc a:hover{background:var(--panel);color:var(--ink);}
+  .toc a.active{background:var(--primary-soft);color:var(--primary-2);}
+  .toc a .num{font-family:var(--font-mono);font-size:10px;color:var(--ink-4);width:18px;}
+  .toc a.active .num{color:var(--primary);}
+
+  main{padding:56px 64px 120px;max-width:1100px;}
+  @media (max-width:1100px){main{padding:40px 32px 80px;}}
+
+  .eyebrow{
+    display:inline-flex;align-items:center;gap:8px;
+    font-size:11px;letter-spacing:0.14em;text-transform:uppercase;
+    color:var(--ink-3);
+    padding:4px 10px;border:1px solid var(--line);border-radius:999px;
+  }
+  .eyebrow .dot{width:6px;height:6px;border-radius:999px;background:var(--primary);}
+
+  h1.title{
+    font-family:var(--font-display);
+    font-size:54px;line-height:1.05;letter-spacing:-0.022em;
+    font-weight:500;margin:18px 0 12px;
+  }
+  h1.title em{font-style:italic;color:var(--primary-2);font-weight:400;}
+  .lede{color:var(--ink-2);font-size:17px;max-width:64ch;}
+
+  .meta-row{
+    display:flex;gap:28px;flex-wrap:wrap;
+    margin-top:26px;padding:18px 22px;
+    background:linear-gradient(180deg,var(--panel),var(--panel-2));
+    border:1px solid var(--line);border-radius:var(--r-lg);
+  }
+  .meta-row .cell .k{font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:var(--ink-4);}
+  .meta-row .cell .v{font-size:14px;margin-top:4px;}
+  .meta-row .cell .v.num{font-family:var(--font-display);font-size:22px;font-weight:500;}
+
+  section{margin-top:72px;scroll-margin-top:24px;}
+  section h2{
+    font-family:var(--font-display);
+    font-size:32px;letter-spacing:-0.015em;font-weight:500;
+    margin:0 0 6px;display:flex;align-items:baseline;gap:14px;
+  }
+  section h2 .idx{font-family:var(--font-mono);font-size:13px;color:var(--primary);letter-spacing:0.05em;}
+  section .sec-lede{color:var(--ink-2);font-size:15px;max-width:70ch;margin-bottom:28px;}
+
+  .finding{
+    border:1px solid var(--line);border-radius:var(--r-lg);
+    background:var(--panel);margin-bottom:16px;overflow:hidden;
+  }
+  .finding.crit{border-left:3px solid var(--sev-crit);}
+  .finding.high{border-left:3px solid var(--sev-high);}
+  .finding.med{border-left:3px solid var(--sev-med);}
+  .finding.low{border-left:3px solid var(--sev-low);}
+
+  .finding header{display:flex;align-items:flex-start;gap:14px;padding:18px 22px 12px;}
+  .finding header .sev{
+    font-family:var(--font-mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;
+    padding:3px 8px;border-radius:4px;flex-shrink:0;margin-top:3px;
+  }
+  .crit .sev{background:rgba(239,94,111,0.14);color:var(--sev-crit);}
+  .high .sev{background:rgba(245,158,11,0.14);color:var(--sev-high);}
+  .med .sev{background:var(--primary-soft);color:var(--primary-2);}
+  .low .sev{background:rgba(125,134,153,0.18);color:var(--ink-2);}
+  .finding header .title{flex:1;}
+  .finding header h3{margin:0;font-size:16px;font-weight:600;color:var(--ink);letter-spacing:-0.005em;}
+  .finding header .tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+  .finding header .tags span{
+    font-size:10px;letter-spacing:0.06em;color:var(--ink-3);
+    padding:2px 8px;border:1px solid var(--line);border-radius:999px;font-family:var(--font-mono);
+  }
+  .finding header .tags span.path{color:var(--primary-2);border-color:rgba(91,141,239,0.3);}
+  .finding header .tags span.scope{color:var(--good);border-color:rgba(16,185,129,0.3);}
+
+  .finding .body{padding:4px 22px 20px;}
+  .finding .body p{margin:8px 0;color:var(--ink-2);font-size:14px;}
+  .finding .body p.q{color:var(--ink);font-style:italic;font-family:var(--font-display);font-size:16px;}
+  .finding .body strong{color:var(--ink);font-weight:600;}
+  .finding .body code{
+    font-family:var(--font-mono);font-size:12px;
+    background:var(--bg-2);padding:1px 6px;border-radius:4px;
+    color:var(--primary-2);border:1px solid var(--line);
+  }
+
+  .fix{margin-top:14px;background:var(--bg-2);border-radius:var(--r-md);border:1px solid var(--line);padding:14px 16px;}
+  .fix .label{
+    font-size:10px;letter-spacing:0.12em;text-transform:uppercase;
+    color:var(--good);font-family:var(--font-mono);
+    display:flex;align-items:center;gap:6px;margin-bottom:10px;
+  }
+  .fix .label::before{content:"";width:6px;height:6px;border-radius:999px;background:var(--good);}
+  .fix pre{margin:0;font-family:var(--font-mono);font-size:12.5px;line-height:1.65;color:var(--ink-2);white-space:pre-wrap;word-break:break-word;}
+  .fix pre .c{color:var(--ink-4);}
+  .fix pre .k{color:var(--primary-2);}
+  .fix pre .s{color:#f0c4a8;}
+
+  /* before/after */
+  .ba{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px;}
+  .ba .col{border:1px solid var(--line);border-radius:var(--r-md);padding:14px;background:var(--bg-2);min-height:160px;}
+  .ba .col header{padding:0 0 10px;font-family:var(--font-mono);font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:var(--ink-4);}
+  .ba .col.bad header{color:var(--sev-crit);}
+  .ba .col.good header{color:var(--good);}
+  .ba .col .demo{display:flex;align-items:center;justify-content:center;min-height:110px;}
+
+  /* Sidebar mock */
+  .sb-mock{
+    width:200px;background:var(--bg);border:1px solid var(--line);border-radius:var(--r-md);
+    overflow:hidden;font-size:11px;
+  }
+  .sb-mock .header{padding:10px 12px;border-bottom:1px solid var(--line);font-size:11px;color:var(--ink-3);}
+  .sb-mock .item{display:flex;align-items:center;gap:8px;padding:6px 12px;color:var(--ink-2);}
+  .sb-mock .item.active{background:rgba(91,141,239,0.12);color:var(--ink);position:relative;}
+  .sb-mock .item.active::before{content:"";position:absolute;left:0;top:25%;bottom:25%;width:2px;background:var(--primary);border-radius:2px;}
+  .sb-mock .footer{
+    border-top:1px solid var(--line);padding:8px 12px;
+    display:flex;align-items:center;gap:6px;font-size:10px;color:var(--ink-3);
+  }
+  .sb-mock .dot{width:7px;height:7px;border-radius:99px;}
+  .sb-mock .dot.ok{background:#22c55e;box-shadow:0 0 0 3px rgba(34,197,94,0.18);}
+  .sb-mock .dot.warn{background:#f59e0b;}
+  .sb-mock .dot.bad{background:#ef4444;}
+  .sb-mock .ico{width:12px;height:12px;border:1px solid var(--ink-4);border-radius:3px;flex-shrink:0;}
+
+  /* Page model */
+  .pm{
+    display:grid;grid-template-columns:140px 1fr;gap:22px;
+    padding:18px;border:1px solid var(--line);border-radius:var(--r-md);
+    background:var(--bg-2);margin-top:14px;
+  }
+  .pm .label{font-family:var(--font-mono);font-size:10px;color:var(--ink-4);letter-spacing:0.1em;text-transform:uppercase;padding-top:4px;}
+  .pm .body{font-size:13px;color:var(--ink-2);}
+  .pm .body strong{color:var(--ink);}
+  .pm .body ul{padding-left:18px;margin:6px 0;}
+
+  /* Roadmap */
+  .roadmap{margin-top:24px;display:grid;grid-template-columns:repeat(3,1fr);gap:16px;}
+  @media (max-width:900px){.roadmap{grid-template-columns:1fr;}}
+  .lane{border:1px solid var(--line);border-radius:var(--r-lg);padding:18px;background:linear-gradient(180deg,var(--panel),var(--panel-2));}
+  .lane h4{margin:0 0 4px;font-family:var(--font-display);font-size:18px;font-weight:500;}
+  .lane .when{font-size:11px;color:var(--ink-4);letter-spacing:0.1em;text-transform:uppercase;font-family:var(--font-mono);}
+  .lane ul{padding:14px 0 0 0;margin:0;list-style:none;}
+  .lane li{padding:8px 0;border-top:1px solid var(--line);font-size:13px;color:var(--ink-2);display:flex;gap:10px;align-items:flex-start;}
+  .lane li::before{content:"";width:6px;height:6px;border-radius:999px;background:var(--primary);margin-top:7px;flex-shrink:0;}
+  .lane.q3 li::before{background:var(--sev-high);}
+  .lane.q1 li::before{background:var(--good);}
+
+  footer.foot{margin-top:100px;padding:32px 0 0;border-top:1px solid var(--line);color:var(--ink-4);font-size:12px;}
+  footer.foot strong{color:var(--ink-2);}
+
+  .stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:22px;}
+  @media (max-width:800px){.stat-grid{grid-template-columns:repeat(2,1fr);}}
+  .stat{border:1px solid var(--line);border-radius:var(--r-md);padding:16px;background:var(--panel);}
+  .stat .v{font-family:var(--font-display);font-size:32px;font-weight:500;line-height:1;}
+  .stat .v.warn{color:var(--sev-high);}
+  .stat .v.bad{color:var(--sev-crit);}
+  .stat .l{font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--ink-4);margin-top:8px;}
+
+  /* nav model — current vs proposed */
+  .navmap{
+    display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px;
+  }
+  .navmap .col{
+    background:var(--bg-2);border:1px solid var(--line);border-radius:var(--r-md);padding:14px;
+  }
+  .navmap .col header{font-family:var(--font-mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-4);margin-bottom:10px;}
+  .navmap .col.bad header{color:var(--sev-crit);}
+  .navmap .col.good header{color:var(--good);}
+  .navmap .tree{font-family:var(--font-mono);font-size:11.5px;line-height:1.85;color:var(--ink-2);}
+  .navmap .tree .l{color:var(--ink-3);}
+  .navmap .tree .h{color:var(--ink);font-weight:600;}
+  .navmap .tree .new{color:var(--good);}
+  .navmap .tree .moved{color:var(--primary-2);}
+  .navmap .tree .removed{color:var(--sev-crit);text-decoration:line-through;text-decoration-color:rgba(239,94,111,0.5);}
+
+  .div-line{height:1px;background:linear-gradient(90deg,var(--line),transparent);margin:18px 0 0;}
+
+</style>
+</head>
+<body>
+
+<div class="layout">
+
+  <aside class="toc">
+    <div class="brand">
+      <div class="ring"></div>
+      <div>
+        <div class="name">Audit v3</div>
+        <div class="sub">Page IA &amp; Structure</div>
+      </div>
+    </div>
+
+    <h4>Frame</h4>
+    <a href="#summary"><span class="num">00</span>요약</a>
+    <a href="#nav"><span class="num">01</span>좌측 nav 구조</a>
+    <a href="#sync"><span class="num">02</span>동기화 표시</a>
+
+    <h4>Pages</h4>
+    <a href="#dashboard"><span class="num">03</span>Dashboard</a>
+    <a href="#project"><span class="num">04</span>Project Issue Page</a>
+    <a href="#backlog"><span class="num">05</span>Backlog</a>
+    <a href="#archive"><span class="num">06</span>Archive</a>
+    <a href="#trash"><span class="num">07</span>Trash</a>
+    <a href="#settings"><span class="num">08</span>Settings</a>
+
+    <h4>Plan</h4>
+    <a href="#roadmap"><span class="num">09</span>Roadmap v3</a>
+  </aside>
+
+  <main>
+
+    <section id="summary" style="margin-top:0;">
+      <span class="eyebrow"><span class="dot"></span>Audit v3 · IA &amp; Structure</span>
+      <h1 class="title">픽셀이 아니라 <em>구조</em>가 깔끔함을 만든다.</h1>
+      <p class="lede">
+        v1·v2는 토큰·간격·계층을 다뤘다. v3는 한 단계 위 — <strong>“이 페이지에 이 정보가 이 위치에 있는 게 맞는가”</strong>를 본다.
+        백로그·보관함·휴지통·동기화 표시·Dashboard·Project 페이지 6곳에서 17개 구조 문제를 짚는다.
+      </p>
+
+      <div class="meta-row">
+        <div class="cell"><div class="k">검토 페이지</div><div class="v num">9</div></div>
+        <div class="cell"><div class="k">IA findings</div><div class="v num">17</div></div>
+        <div class="cell"><div class="k">Critical</div><div class="v num" style="color:var(--sev-crit)">2</div></div>
+        <div class="cell"><div class="k">UX redesign</div><div class="v num" style="color:var(--sev-high)">5</div></div>
+        <div class="cell"><div class="k">Quick (≤1d)</div><div class="v num" style="color:var(--good)">7</div></div>
+      </div>
+    </section>
+
+    <!-- ───── 01 NAV ───── -->
+    <section id="nav">
+      <h2><span class="idx">01</span>좌측 nav 구조</h2>
+      <p class="sec-lede">
+        Sidebar에 “보관함”은 <strong>워크스페이스 레벨에서 프로젝트 보관함</strong>(상단 Archive)이고,
+        “휴지통”은 <strong>프로젝트 내부의 issue trash</strong>(<code>?view=trash</code>)다 —
+        같은 단어로 보이지만 사실 <em>다른 레벨·다른 도메인</em>이다. 이게 사용자에게 가장 큰 혼란이다.
+      </p>
+
+      <div class="finding crit">
+        <header>
+          <span class="sev">crit</span>
+          <div class="title">
+            <h3>Archive와 Trash가 의미적으로 충돌한다</h3>
+            <div class="tags">
+              <span class="path">Sidebar.tsx:303</span>
+              <span class="path">Sidebar.tsx:240</span>
+              <span>mental model</span>
+            </div>
+          </div>
+        </header>
+        <div class="body">
+          <p class="q">“방금 삭제한 이슈가 어디 있지? 보관함? 휴지통? 어느 프로젝트의 휴지통?”</p>
+          <p>
+            현재 구조:
+          </p>
+          <div class="navmap">
+            <div class="col bad">
+              <header>현재</header>
+<pre class="tree">
+<span class="h">Workspace</span>
+├── 🏠 Home
+├── 🧭 Discover
+├── 📦 Archived            <span class="l">← 프로젝트 단위 archive</span>
+├── 📢 Announcements
+└── ⭐ Project A
+    ├── Issues
+    ├── Categories
+    ├── 🗑 Trash             <span class="l">← 이슈 단위 trash (?view=trash)</span>
+    └── Settings
+</pre>
+            </div>
+            <div class="col good">
+              <header>제안</header>
+<pre class="tree">
+<span class="h">Workspace</span>
+├── 🏠 Home
+├── 🧭 Discover
+├── 📢 Announcements
+└── ⭐ Project A
+    ├── Issues
+    ├── Categories
+    ├── <span class="moved">📦 Archived issues</span>     <span class="l">← 같은 “지운 것” 그룹</span>
+    ├── <span class="moved">🗑 Trash (30d)</span>
+    └── Settings
+<span class="new">⚙ Workspace Admin</span>
+└── <span class="moved">Archived projects</span>      <span class="l">← 워크스페이스 단위는 admin 메뉴로</span>
+</pre>
+            </div>
+          </div>
+          <p>
+            <strong>핵심:</strong> “지움”의 두 종류는 <em>같은 위치(프로젝트 안)</em>에 두고, “프로젝트 archive”는 워크스페이스 관리자 영역으로 옮긴다.
+            일반 사용자는 “프로젝트 archive”를 거의 안 쓴다 — admin이 정리할 때나 본다.
+          </p>
+        </div>
+      </div>
+
+      <div class="finding high">
+        <header>
+          <span class="sev">high</span>
+          <div class="title">
+            <h3>프로젝트 펼침 메뉴에 “Trash”가 있는데 “Archive”는 없다</h3>
+            <div class="tags"><span class="path">Sidebar.tsx:225-243</span></div>
+          </div>
+        </header>
+        <div class="body">
+          <p>
+            현재 펼친 프로젝트 트리: Issues / Modules / Categories / <strong>Trash</strong> / Settings.
+            그런데 ProjectIssuePage에는 <code>view=archive</code>도 있다 (ArchiveView 컴포넌트 존재).
+            즉 <strong>Archive 뷰에 도달할 수 있는 사이드바 경로가 없다</strong> — 상단 view tab으로만 갈 수 있다.
+          </p>
+          <p>
+            “보관”이 “휴지통”보다 자주 쓰이는 행위인데 nav에 없으니 사용자가 찾아 헤맨다.
+          </p>
+          <div class="fix">
+            <div class="label">FIX · 5min</div>
+<pre><span class="c">// Sidebar.tsx — 프로젝트 펼침 트리에 Archive 추가</span>
+&lt;SubLink to={`${base}/issues?view=archive`} icon={Archive}
+  label={t(<span class="s">"sidebar.archived"</span>)} active={location.search.includes(<span class="s">"view=archive"</span>)} /&gt;
+&lt;SubLink to={`${base}/issues?view=trash`}   icon={Trash2}
+  label={t(<span class="s">"views.tabs.trash"</span>)} active={location.search.includes(<span class="s">"view=trash"</span>)} /&gt;
+<span class="c">// 두 항목을 “Issues / Modules / Categories” 다음에 묶어서, 위계 시각화</span></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="finding med">
+        <header>
+          <span class="sev">med</span>
+          <div class="title">
+            <h3>Workspace-level Archive가 nav 최상단에 있을 이유가 없다</h3>
+            <div class="tags"><span class="path">Sidebar.tsx:303</span></div>
+          </div>
+        </header>
+        <div class="body">
+          <p>
+            Home / Discover / <strong>Archived</strong> / Announcements 순서. Archived(워크스페이스 archived projects 페이지)는 <em>거의 안 들어가는 페이지</em>다.
+            상단 4개 슬롯은 “매일 1번 이상 들어가는 페이지”에 줘야 한다.
+          </p>
+          <p><strong>처방:</strong> Archived는 Settings → Workspace → Archived Projects로 이동. 또는 프로젝트 목록 하단 “Show archived” 토글로.</p>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ───── 02 SYNC ───── -->
+    <section id="sync">
+      <h2><span class="idx">02</span>동기화 표시 (좌측 하단)</h2>
+      <p class="sec-lede">
+        Sidebar 하단의 WebSocket status indicator는 만들어져 있으나, 표현이 너무 나이브하다.
+        “Connected — Real-time sync active” 풀 텍스트가 항상 보이는 건 <em>저신뢰 신호 + 고노이즈</em> 조합이다.
+      </p>
+
+      <div class="finding high">
+        <header>
+          <span class="sev">high</span>
+          <div class="title">
+            <h3>연결 상태가 항상 “보이는” 건 시각적 노이즈</h3>
+            <div class="tags"><span class="path">Sidebar.tsx:445-465</span><span>signal hygiene</span></div>
+          </div>
+        </header>
+        <div class="body">
+          <p>
+            정상 작동(connected)일 때 사용자가 알 필요가 없다. 문제 있을 때만 보여야 신호가 의미 있다.
+            현재는 <strong>3개 상태 모두 같은 무게로 표시</strong>되니 connected 상태에서도 눈이 간다.
+          </p>
+          <div class="ba">
+            <div class="col bad">
+              <header>현재 — always visible, all states equal</header>
+              <div class="demo">
+                <div class="sb-mock">
+                  <div class="header">SIDEBAR FOOTER</div>
+                  <div class="footer">
+                    <span class="dot ok"></span>
+                    <span>Connected — Real-time sync active</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="col good">
+              <header>제안 — minimal · stateful</header>
+              <div class="demo" style="flex-direction:column;gap:10px;">
+                <div class="sb-mock">
+                  <div class="header">CONNECTED (정상)</div>
+                  <div class="footer" style="justify-content:flex-end;color:var(--ink-4);">
+                    <span class="dot ok" style="width:5px;height:5px;box-shadow:none;opacity:0.5"></span>
+                  </div>
+                </div>
+                <div class="sb-mock">
+                  <div class="header">RECONNECTING</div>
+                  <div class="footer" style="color:#f59e0b;">
+                    <span class="dot warn"></span>
+                    <span>재연결 중…</span>
+                  </div>
+                </div>
+                <div class="sb-mock">
+                  <div class="header">DISCONNECTED</div>
+                  <div class="footer" style="color:#ef4444;">
+                    <span class="dot bad"></span>
+                    <span>연결 끊김 · 재시도</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <p>
+            <strong>원리:</strong> connected = <em>점만</em>(작고 흐리게), reconnecting/disconnected만 텍스트 + 색.
+            맥OS 메뉴바·Linear·Slack 모두 동일 패턴.
+          </p>
+          <div class="fix">
+            <div class="label">FIX · 15min</div>
+<pre><span class="c">// Sidebar.tsx footer</span>
+{wsStatus === <span class="s">"connected"</span> ? (
+  <span class="c">// 정상 — 점만, 클릭/hover 시 tooltip으로 “Live” 표시</span>
+  &lt;div className=<span class="s">"flex justify-end px-4 py-2 opacity-50 hover:opacity-100"</span>&gt;
+    &lt;span title={t(<span class="s">"sidebar.connection.connectedTooltip"</span>)}
+          className=<span class="s">"h-1.5 w-1.5 rounded-full bg-green-500"</span> /&gt;
+  &lt;/div&gt;
+) : (
+  <span class="c">// 문제 — 풀 텍스트 + 색</span>
+  &lt;StatusBanner status={wsStatus} /&gt;
+)}</pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="finding med">
+        <header>
+          <span class="sev">med</span>
+          <div class="title">
+            <h3>“실시간 동기화” 라는 신뢰는 다른 곳에서 만들어야 한다</h3>
+            <div class="tags"><span>signal upgrade</span></div>
+          </div>
+        </header>
+        <div class="body">
+          <p>
+            연결 점은 <em>약속</em>이지 <em>증거</em>가 아니다. 사용자가 정말 안심하는 건:
+          </p>
+          <ul style="color:var(--ink-2);font-size:13px;padding-left:20px;">
+            <li><strong>“방금 OO이 이 카드를 옮겼습니다”</strong> 토스트 (1.5s)</li>
+            <li>WebSocket pulse-strip (이미 구현됨 — 더 자주 쓰여야 함)</li>
+            <li>Avatar 클러스터 — 같은 페이지를 보고 있는 동료 표시 (Linear, Notion)</li>
+            <li>Last saved 자동 저장 표시 (이슈 detail에서)</li>
+          </ul>
+          <p>
+            <strong>처방:</strong> 좌측 하단의 점은 “네트워크 상태”로만 격하시키고, “실시간 협업감”은 위 4가지로 분산시켜라.
+          </p>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ───── 03 DASHBOARD ───── -->
+    <section id="dashboard">
+      <h2><span class="idx">03</span>Dashboard (Workspace home)</h2>
+      <p class="sec-lede">
+        “내 할 일”과 “최근 이슈”의 두 영역이 같은 비중으로 놓여 있다 — 그래서 어디로 시선을 둬야 할지 결정 못한다.
+      </p>
+
+      <div class="finding high">
+        <header>
+          <span class="sev">high</span>
+          <div class="title">
+            <h3>Dashboard는 “이번 주 작업”에 집중해야 한다</h3>
+            <div class="tags"><span class="path">WorkspaceDashboard.tsx</span><span>focus</span></div>
+          </div>
+        </header>
+        <div class="body">
+          <p>
+            현재 정보 구조:
+          </p>
+          <div class="pm">
+            <div class="label">현재</div>
+            <div class="body">
+              <ul>
+                <li>인사 + SprintProgressOrbit (큰 영역)</li>
+                <li>필터 (priority / project / state group / groupBy)</li>
+                <li>내 할 일 — 그룹별 (state 또는 project)</li>
+                <li>최근 이슈 — 별개 섹션</li>
+              </ul>
+            </div>
+          </div>
+          <div class="pm" style="border-color:rgba(16,185,129,0.4);">
+            <div class="label" style="color:var(--good);">제안</div>
+            <div class="body">
+              <p style="margin-top:0">
+                3-column 또는 “Today — This week — Stale” 의 3-슬롯 구조로 재구성.
+              </p>
+              <ul>
+                <li><strong>Today:</strong> 오늘 마감 + 진행 중 + 지금 멘션 받은 것</li>
+                <li><strong>This week:</strong> 이번 sprint·이번 주 마감</li>
+                <li><strong>Stale:</strong> 7일+ 안 건드린 in-progress (alert)</li>
+              </ul>
+              <p>
+                “최근 이슈”는 dashboard 메인이 아니라 <em>activity 사이드패널</em>로 격하.
+                대시보드 1페이지에서 “지금 뭘 해야 하나”가 즉시 답이 나와야 한다.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="finding med">
+        <header>
+          <span class="sev">med</span>
+          <div class="title">
+            <h3>필터 4종이 dashboard에 박혀 있어야 하나?</h3>
+            <div class="tags"><span class="path">WorkspaceDashboard.tsx:200-221</span></div>
+          </div>
+        </header>
+        <div class="body">
+          <p>
+            <code>priorityFilter / projectFilter / stateGroupFilter / groupBy</code> 4개가 매번 보여진다.
+            대시보드는 “필터링 도구”가 아니라 “현황 요약” 페이지다.
+            기본은 <strong>active issues only</strong>로 자동 필터, 사용자는 “필터 변경” 버튼 한 번 누른 뒤에만 펼쳐 보이게.
+          </p>
+        </div>
+      </div>
+
+      <div class="finding low">
+        <header>
+          <span class="sev">low</span>
+          <div class="title">
+            <h3>SprintProgressOrbit은 좋은 모먼트 — 더 활용하라</h3>
+            <div class="tags"><span>brand</span></div>
+          </div>
+        </header>
+        <div class="body">
+          <p>
+            대시보드 우측 상단의 작은 orbit progress는 “OrbiTail다움”이 살아있는 거의 유일한 작업 페이지 모먼트다.
+            이걸 <em>크게</em> 메인 슬롯에 두고, 그 주변에 “Today / Week / Stale” 카드를 위성처럼 배치하는 것도 검토.
+          </p>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ───── 04 PROJECT ISSUE PAGE ───── -->
+    <section id="project">
+      <h2><span class="idx">04</span>Project Issue Page</h2>
+      <p class="sec-lede">
+        한 페이지에 10개 view가 있다 — table, board, backlog, calendar, timeline, graph, sprints, analytics, archive, trash.
+        탭이 한 줄에 안 들어간다.
+      </p>
+
+      <div class="finding high">
+        <header>
+          <span class="sev">high</span>
+          <div class="title">
+            <h3>10개 뷰 탭을 “수평 한 줄”에 두는 건 한계</h3>
+            <div class="tags"><span class="path">ProjectIssuePage.tsx:42-56</span><span>nav scale</span></div>
+          </div>
+        </header>
+        <div class="body">
+          <p>
+            view 종류가 너무 많고, 의미도 다층이다 — “list/board/calendar”는 같은 데이터의 형태이고,
+            “backlog/sprints/analytics”는 <em>다른 뷰</em>이고, “archive/trash”는 <em>다른 데이터셋</em>이다.
+          </p>
+          <div class="ba">
+            <div class="col bad">
+              <header>현재</header>
+              <div class="demo">
+                <div style="font-size:11px;color:var(--ink-3);text-align:left;width:100%">
+                  [ Table ] [ Board ] [ Backlog ] [ Calendar ] [ Timeline ] [ Graph ] [ Sprints ] [ Analytics ] [ Archive ]<br/>
+                  <span style="color:var(--ink-4);font-size:10px">한 줄에 다 안 들어감 → wrap 또는 horizontal scroll</span>
+                </div>
+              </div>
+            </div>
+            <div class="col good">
+              <header>제안 — 3계층 분리</header>
+              <div class="demo">
+                <div style="font-size:11px;color:var(--ink-2);text-align:left;width:100%;line-height:1.9">
+                  <div><strong style="color:var(--ink)">View:</strong> Table · Board · Calendar · Timeline · Graph</div>
+                  <div><strong style="color:var(--ink)">Scope:</strong> Active · <span style="color:var(--ink-3)">Backlog</span> · <span style="color:var(--ink-3)">Archive</span></div>
+                  <div><strong style="color:var(--ink)">Tools:</strong> Sprints · Analytics</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <p>
+            <strong>해석:</strong> 같은 데이터의 “보는 법(view)”과, 어떤 데이터셋을 보는가(<em>scope</em>), 도구(<em>tool</em>)를 분리.
+            Trash는 sidebar로 이동(§01에서 제안).
+          </p>
+        </div>
+      </div>
+
+      <div class="finding med">
+        <header>
+          <span class="sev">med</span>
+          <div class="title">
+            <h3>Sprint banner와 Filter row가 따로 논다</h3>
+            <div class="tags"><span class="path">ProjectIssuePage.tsx:300-348</span></div>
+          </div>
+        </header>
+        <div class="body">
+          <p>
+            스프린트 선택 시 banner가 하단에 추가되어 <strong>view tab → filter row → sprint banner → 실제 view</strong> 4단으로 쌓인다.
+            화면 상단 100–120px이 모두 chrome.
+          </p>
+          <p>
+            <strong>처방:</strong> sprint banner는 view 영역의 “in-context header”로 흡수. 또는 우측 사이드 패널로.
+            view tab은 sticky로 두되 banner는 view 안쪽으로.
+          </p>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ───── 05 BACKLOG ───── -->
+    <section id="backlog">
+      <h2><span class="idx">05</span>Backlog</h2>
+      <p class="sec-lede">
+        Backlog는 “계획되지 않은 잠재 이슈 풀”. 현재는 그냥 “backlog state group의 리스트”로만 다룬다.
+      </p>
+
+      <div class="finding high">
+        <header>
+          <span class="sev">high</span>
+          <div class="title">
+            <h3>Backlog는 “sprint로 이동하기 위한 staging”이어야 한다</h3>
+            <div class="tags"><span class="path">BacklogView.tsx</span><span>workflow</span></div>
+          </div>
+        </header>
+        <div class="body">
+          <p>
+            현재 BacklogView: state-group = backlog인 이슈를 priority별 정렬해서 표시.
+            인라인으로 priority/state/assignee/sprint 변경 가능. <strong>좋다.</strong>
+          </p>
+          <p>
+            하지만 “backlog → sprint”라는 가장 중요한 전환이 잘 안 보인다.
+            인라인 SprintPicker로 가능은 하지만, <em>이 페이지의 1차 목적이 그것</em>이라는 게 디자인에 안 드러난다.
+          </p>
+          <div class="ba">
+            <div class="col bad">
+              <header>현재</header>
+              <div class="demo">
+                <div style="text-align:left;width:100%;font-size:11px">
+                  <div style="padding:6px;border:1px solid var(--line);border-radius:4px;margin-bottom:4px;display:flex;gap:6px;align-items:center">
+                    <span style="color:#ef4444">●</span><span style="color:var(--ink-3);font-family:var(--font-mono)">PRJ-101</span><span style="flex:1">로그인 에러</span>
+                    <span style="font-size:10px;color:var(--ink-4)">[sprint?] [state] [user]</span>
+                  </div>
+                  <div style="padding:6px;border:1px solid var(--line);border-radius:4px;display:flex;gap:6px;align-items:center">
+                    <span style="color:#f97316">▲</span><span style="color:var(--ink-3);font-family:var(--font-mono)">PRJ-103</span><span style="flex:1">대시보드 차트</span>
+                    <span style="font-size:10px;color:var(--ink-4)">[sprint?] [state] [user]</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="col good">
+              <header>제안 — split view</header>
+              <div class="demo">
+                <div style="display:grid;grid-template-columns:1fr auto 0.7fr;gap:8px;font-size:10px;width:100%;align-items:start">
+                  <div>
+                    <div style="font-size:9px;color:var(--ink-4);letter-spacing:0.1em;margin-bottom:6px">📥 BACKLOG (12)</div>
+                    <div style="padding:4px 6px;border:1px solid var(--line);border-radius:3px;margin-bottom:3px">로그인 에러</div>
+                    <div style="padding:4px 6px;border:1px solid var(--line);border-radius:3px;margin-bottom:3px">차트 추가</div>
+                    <div style="padding:4px 6px;border:1px solid var(--line);border-radius:3px">검색 개선</div>
+                  </div>
+                  <div style="color:var(--good);font-size:14px;align-self:center">→</div>
+                  <div>
+                    <div style="font-size:9px;color:var(--good);letter-spacing:0.1em;margin-bottom:6px">⚡ SPRINT 12</div>
+                    <div style="padding:4px 6px;border:1px dashed var(--good);border-radius:3px;background:rgba(16,185,129,0.05);color:var(--good);text-align:center">drop</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <p>
+            <strong>핵심 행동(backlog→sprint)</strong>이 시각적으로 1번 영역에 와야 한다.
+            화살표·드래그·점선 drop zone 같은 어포던스로 “이게 이 페이지의 일이다”를 드러내자.
+          </p>
+        </div>
+      </div>
+
+      <div class="finding med">
+        <header>
+          <span class="sev">med</span>
+          <div class="title">
+            <h3>Backlog 아이템 row에 픽커가 4개나 노출됨 — 시각 노이즈</h3>
+            <div class="tags"><span class="path">BacklogView.tsx:177-235</span></div>
+          </div>
+        </header>
+        <div class="body">
+          <p>
+            한 row에 priority + sprint + state + assignee 픽커가 항상 보인다.
+            제목 보기도 전에 <strong>버튼이 4개</strong>다. hover 시에만 expose하거나, 우측에 collapsed 메타 영역으로.
+          </p>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ───── 06 ARCHIVE ───── -->
+    <section id="archive">
+      <h2><span class="idx">06</span>Archive (이슈 보관함)</h2>
+
+      <div class="finding med">
+        <header>
+          <span class="sev">med</span>
+          <div class="title">
+            <h3>“보관함”에 “자동 정리(retention)” 정책이 없다</h3>
+            <div class="tags"><span class="path">ArchiveView.tsx</span><span>policy</span></div>
+          </div>
+        </header>
+        <div class="body">
+          <p>
+            Trash는 30일 후 자동 영구 삭제 — 좋은 정책. Archive는? <strong>영원히 쌓인다.</strong>
+            6개월·1년·2년이 지난 archived 이슈가 검색·통계를 오염시킨다.
+          </p>
+          <p>
+            <strong>처방:</strong> Settings → Data Retention 페이지에 “Archived issues older than 1y → Trash로 이동” 옵션. 기본 비활성, 워크스페이스 admin이 켤 수 있게.
+          </p>
+        </div>
+      </div>
+
+      <div class="finding low">
+        <header>
+          <span class="sev">low</span>
+          <div class="title">
+            <h3>Archive 헤더에 “언제·누가” 정보 없음</h3>
+            <div class="tags"><span class="path">ArchiveView.tsx:96-103</span></div>
+          </div>
+        </header>
+        <div class="body">
+          <p>
+            현재 columns: ID / Title / Priority / State / Archived date / actions.
+            <strong>“누가 보관했는지”</strong>가 없다. 6개월 후 “이건 왜 보관했지?”에 답할 수 없다.
+            <code>archived_by</code> 필드가 백엔드에 있다면 컬럼 추가, 없다면 백엔드 마이그레이션 후 추가.
+          </p>
+        </div>
+      </div>
+
+      <div class="finding low">
+        <header>
+          <span class="sev">low</span>
+          <div class="title">
+            <h3>Archive 페이지에 검색·필터 없음</h3>
+            <div class="tags"><span>scale</span></div>
+          </div>
+        </header>
+        <div class="body">
+          <p>
+            archive가 100건 이상 쌓이면 “restore할 그 이슈”를 찾을 수 없다. 최소한 title 검색은 필요.
+          </p>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ───── 07 TRASH ───── -->
+    <section id="trash">
+      <h2><span class="idx">07</span>Trash (휴지통)</h2>
+
+      <div class="finding med">
+        <header>
+          <span class="sev">med</span>
+          <div class="title">
+            <h3>“30일 잔여” 표시는 좋다 — 시각화가 약하다</h3>
+            <div class="tags"><span class="path">TrashView.tsx:115-120</span></div>
+          </div>
+        </header>
+        <div class="body">
+          <p>
+            현재 “14일 남음”을 텍스트로만 표시. <strong>막대(progress bar)</strong>로 시각화하면 “곧 없어질 것”이 시각적으로 드러난다.
+          </p>
+          <div class="ba">
+            <div class="col bad">
+              <header>현재</header>
+              <div class="demo">
+                <div style="font-size:12px;color:var(--ink-2);text-align:left;width:100%">
+                  <div style="display:flex;gap:14px;align-items:center;padding:8px 0">
+                    <span style="flex:1">로그인 버튼 깨짐</span>
+                    <span style="color:#ef5e6f;font-size:11px">3 days left</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="col good">
+              <header>제안</header>
+              <div class="demo">
+                <div style="font-size:12px;color:var(--ink-2);text-align:left;width:100%">
+                  <div style="display:flex;gap:14px;align-items:center;padding:8px 0">
+                    <span style="flex:1">로그인 버튼 깨짐</span>
+                    <div style="width:90px">
+                      <div style="height:3px;border-radius:99px;background:rgba(239,94,111,0.15);overflow:hidden">
+                        <div style="height:100%;width:10%;background:#ef5e6f"></div>
+                      </div>
+                      <div style="font-size:9px;color:#ef5e6f;text-align:right;margin-top:3px">3d left</div>
+                    </div>
+                  </div>
+                  <div style="display:flex;gap:14px;align-items:center;padding:8px 0">
+                    <span style="flex:1">차트 미정렬</span>
+                    <div style="width:90px">
+                      <div style="height:3px;border-radius:99px;background:rgba(255,255,255,0.08);overflow:hidden">
+                        <div style="height:100%;width:73%;background:var(--ink-3)"></div>
+                      </div>
+                      <div style="font-size:9px;color:var(--ink-3);text-align:right;margin-top:3px">22d left</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="finding med">
+        <header>
+          <span class="sev">med</span>
+          <div class="title">
+            <h3>“Empty trash” 일괄 처리 없음</h3>
+            <div class="tags"><span class="path">TrashView.tsx</span></div>
+          </div>
+        </header>
+        <div class="body">
+          <p>
+            한 건씩만 “purge” 가능. 100건 쌓인 trash를 비우려면 100번 클릭.
+            <code>perms.can_purge</code>일 때 우상단 “Empty all (12)” 버튼 추가. 확인 dialog 한 번이면 충분.
+          </p>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ───── 08 SETTINGS ───── -->
+    <section id="settings">
+      <h2><span class="idx">08</span>Settings 영역</h2>
+      <p class="sec-lede">
+        Profile / Security / Preferences / Workspace Members 4개가 평등하게 놓여 있다 —
+        각각 깊이가 다른데 같은 무게로 보인다.
+      </p>
+
+      <div class="finding low">
+        <header>
+          <span class="sev">low</span>
+          <div class="title">
+            <h3>Settings를 “계정 / 워크스페이스 / 도구” 3계층으로 묶자</h3>
+            <div class="tags"><span class="path">SettingsLayout.tsx</span></div>
+          </div>
+        </header>
+        <div class="body">
+          <div class="navmap">
+            <div class="col bad">
+              <header>현재 — flat</header>
+<pre class="tree">
+Settings
+├── Profile
+├── Security
+├── Preferences
+└── Workspace Members
+</pre>
+            </div>
+            <div class="col good">
+              <header>제안 — 3 group</header>
+<pre class="tree">
+<span class="h">Account</span>             <span class="l">← 나의 것</span>
+├── Profile
+├── Security
+└── Preferences
+
+<span class="h">Workspace</span>           <span class="l">← 워크스페이스 admin</span>
+├── Members
+├── <span class="new">Branding</span>          (logo, brand_color)
+├── <span class="new">Integrations</span>
+└── <span class="new">Data retention</span>    (archive policy §06)
+
+<span class="h">Project (active)</span>    <span class="l">← 컨텍스트 의존</span>
+├── General
+├── States
+├── Categories
+└── Sprints
+</pre>
+            </div>
+          </div>
+          <p>
+            scope(개인 / 워크스페이스 / 프로젝트)가 다르면 시각적으로도 다른 영역에 둬야 한다.
+            현재처럼 한 sidebar에 모두 평등 배치하면 “워크스페이스 멤버 변경”과 “내 프로필 사진”이 같은 비중으로 보인다.
+          </p>
+        </div>
+      </div>
+
+      <div class="finding low">
+        <header>
+          <span class="sev">low</span>
+          <div class="title">
+            <h3>Preferences에 density / motion / language가 흩어져 있다</h3>
+            <div class="tags"><span class="path">PreferencesPage.tsx</span></div>
+          </div>
+        </header>
+        <div class="body">
+          <p>
+            현재 preferences는 그냥 stacked form. <em>“Appearance”</em>(theme/density/motion)와 <em>“Locale”</em>(language/timezone/dateformat) 그룹을 명확히 분리.
+          </p>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ───── 09 ROADMAP ───── -->
+    <section id="roadmap">
+      <h2><span class="idx">09</span>Roadmap v3</h2>
+      <p class="sec-lede">v3는 IA 변경이라 frontend + i18n + 약간의 backend가 같이 움직인다. 작은 단위로 잘라야 함.</p>
+
+      <div class="roadmap">
+
+        <div class="lane q1">
+          <span class="when">Sprint 1 — Quick</span>
+          <h4>nav 정합성 + signal</h4>
+          <ul>
+            <li>프로젝트 펼침에 Archive 추가 (§01)</li>
+            <li>WS status — connected는 점만, 나머지만 텍스트 (§02)</li>
+            <li>Trash 잔여일수 progress bar (§07)</li>
+            <li>Trash “Empty all” 일괄 (§07)</li>
+            <li>Archive 검색 input 추가 (§06)</li>
+          </ul>
+        </div>
+
+        <div class="lane">
+          <span class="when">Sprint 2–3 — Restructure</span>
+          <h4>view 탭 3계층 + dashboard 재편</h4>
+          <ul>
+            <li>View tab을 view/scope/tool로 분리 (§04)</li>
+            <li>Workspace-level Archive를 admin으로 이동 (§01)</li>
+            <li>Dashboard “Today/Week/Stale” 슬롯 (§03)</li>
+            <li>BacklogView split-view: backlog → sprint drop zone (§05)</li>
+            <li>Settings 3계층 그루핑 (§08)</li>
+          </ul>
+        </div>
+
+        <div class="lane q3">
+          <span class="when">Quarter — Policy &amp; Trust</span>
+          <h4>retention + presence</h4>
+          <ul>
+            <li>Archive retention 정책 (1y → trash) backend + admin UI (§06)</li>
+            <li><code>archived_by</code> 필드 + 컬럼 (§06)</li>
+            <li>“같은 페이지 보는 동료” avatar cluster (§02)</li>
+            <li>변경 토스트 “OO이 옮겼습니다” (§02)</li>
+            <li>Last-saved indicator on issue detail (§02)</li>
+          </ul>
+        </div>
+
+      </div>
+    </section>
+
+    <footer class="foot">
+      <div class="div-line"></div>
+      <p style="margin-top:24px">
+        <strong>v3 audit · 17 IA findings · 9 페이지 검토.</strong> v1·v2가 “보이는 것”을 다뤘다면
+        v3는 “구조”를 다룬다. 픽셀 디테일이 다 맞아도 IA가 어긋나면 사용자는 헤맨다.<br/>
+        다음 단계: Sprint 1의 5개를 단일 PR로 — 빠르고 회귀 위험 낮은 것부터.
+      </p>
+    </footer>
+
+  </main>
+
+</div>
+
+<script>
+const links = document.querySelectorAll('aside.toc a');
+const sections = [...links].map(a => document.querySelector(a.getAttribute('href')));
+function onScroll() {
+  const y = window.scrollY + 100;
+  let active = 0;
+  sections.forEach((s, i) => { if (s && s.offsetTop <= y) active = i; });
+  links.forEach((l, i) => l.classList.toggle('active', i === active));
+}
+window.addEventListener('scroll', onScroll, { passive: true });
+onScroll();
+</script>
+
+</body>
+</html>

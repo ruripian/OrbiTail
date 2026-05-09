@@ -1,0 +1,815 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>OrbiTail · Design Audit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap" rel="stylesheet">
+<style>
+  /* ═══════════════════════════════════════════
+     Audit report – warm-neutral on cool grade
+     A 'second opinion' aesthetic: paper-ish cream
+     surfaces, slate ink, single saturated accent.
+     ═══════════════════════════════════════════ */
+  :root{
+    --bg:        oklch(0.97 0.008 80);
+    --paper:     oklch(0.99 0.006 85);
+    --ink:       oklch(0.21 0.02 260);
+    --ink-soft:  oklch(0.42 0.02 260);
+    --ink-mute:  oklch(0.62 0.015 260);
+    --rule:      oklch(0.88 0.012 260);
+    --rule-soft: oklch(0.93 0.01 260);
+
+    --accent:    oklch(0.55 0.18 254);  /* OrbiTail blue ref */
+    --warn:      oklch(0.68 0.16 60);
+    --bad:       oklch(0.6 0.2 25);
+    --ok:        oklch(0.62 0.15 155);
+
+    /* sample palette from product */
+    --p-priority-urgent:#ff4444;
+    --p-priority-high:#ff4db8;
+    --p-priority-medium:#f5c400;
+    --p-priority-low:#aaff00;
+    --p-state-started:#aaff00;
+    --p-state-completed:#00c4a8;
+    --p-state-cancelled:#3d4055;
+
+    --serif:'Fraunces',ui-serif,Georgia,serif;
+    --sans:'Inter','Pretendard',-apple-system,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+  a{color:inherit}
+  ::selection{background:var(--accent);color:#fff}
+
+  /* page frame */
+  .frame{display:grid;grid-template-columns:240px minmax(0,1fr);gap:0;min-height:100vh}
+  /* sticky toc */
+  aside.toc{
+    position:sticky;top:0;align-self:start;height:100vh;
+    border-right:1px solid var(--rule);
+    background:var(--paper);
+    padding:32px 24px 24px;
+    display:flex;flex-direction:column;gap:18px;
+    overflow:auto;
+  }
+  .brand{display:flex;align-items:center;gap:10px;font-weight:600;letter-spacing:-0.01em}
+  .brand .logo{width:24px;height:24px;border-radius:50%;background:radial-gradient(circle at 30% 30%, var(--accent), oklch(0.32 0.18 254));position:relative}
+  .brand .logo::after{content:"";position:absolute;inset:-3px;border:1px dashed oklch(0.55 0.18 254 / .5);border-radius:50%;animation:spin 22s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .brand .meta{display:flex;flex-direction:column;line-height:1.1}
+  .brand .meta b{font-family:var(--serif);font-weight:600;font-size:15px}
+  .brand .meta span{color:var(--ink-mute);font-size:11px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em}
+
+  .toc nav{display:flex;flex-direction:column;gap:2px;font-size:13.5px;border-top:1px solid var(--rule-soft);padding-top:14px}
+  .toc nav a{display:flex;justify-content:space-between;align-items:center;padding:6px 8px;border-radius:6px;color:var(--ink-soft);text-decoration:none;transition:background .12s, color .12s}
+  .toc nav a:hover{background:var(--rule-soft);color:var(--ink)}
+  .toc nav a.active{background:var(--ink);color:var(--paper)}
+  .toc nav a span{font-family:var(--mono);font-size:10.5px;opacity:.6}
+  .toc nav a.active span{opacity:.85}
+
+  .toc footer{margin-top:auto;font-size:11px;color:var(--ink-mute);font-family:var(--mono);line-height:1.5}
+
+  /* main column */
+  main{padding:48px 64px 120px;max-width:1100px}
+  @media(max-width:1100px){
+    .frame{grid-template-columns:1fr}
+    aside.toc{position:relative;height:auto;border-right:0;border-bottom:1px solid var(--rule)}
+    main{padding:32px 24px 80px}
+  }
+
+  /* type system */
+  h1{font-family:var(--serif);font-weight:600;font-size:54px;line-height:1.05;letter-spacing:-0.025em;margin:0 0 8px;text-wrap:balance}
+  h2{font-family:var(--serif);font-weight:600;font-size:30px;line-height:1.15;letter-spacing:-0.02em;margin:0 0 14px}
+  h3{font-family:var(--sans);font-weight:600;font-size:16px;letter-spacing:-0.005em;margin:0 0 10px}
+  h4{font-family:var(--mono);font-weight:600;text-transform:uppercase;letter-spacing:.1em;font-size:11px;color:var(--ink-mute);margin:0 0 8px}
+  p{margin:0 0 14px;color:var(--ink-soft);max-width:65ch;text-wrap:pretty}
+  p strong{color:var(--ink)}
+  hr.section-rule{border:0;border-top:1px solid var(--rule);margin:60px 0 36px}
+
+  /* hero */
+  .hero{display:grid;grid-template-columns:1fr auto;gap:32px;align-items:end;padding-bottom:32px;border-bottom:1px solid var(--rule)}
+  .hero .lede{font-size:18px;color:var(--ink-soft);max-width:60ch;text-wrap:pretty}
+  .hero-stats{display:grid;grid-template-columns:repeat(3,auto);gap:24px;font-family:var(--mono);font-size:11px;color:var(--ink-mute);text-transform:uppercase;letter-spacing:.08em}
+  .hero-stats b{display:block;font-family:var(--serif);font-size:36px;color:var(--ink);font-weight:600;letter-spacing:-0.02em;line-height:1}
+  .badge-row{display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap}
+  .pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid var(--rule);border-radius:99px;font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-soft);background:var(--paper)}
+  .pill .dot{width:6px;height:6px;border-radius:50%;background:var(--accent)}
+
+  /* section header */
+  section{scroll-margin-top:24px;padding-top:8px}
+  .section-head{display:flex;align-items:baseline;gap:14px;margin-bottom:24px}
+  .section-num{font-family:var(--mono);font-size:11px;color:var(--ink-mute);letter-spacing:.1em}
+  .section-head h2{margin:0}
+
+  /* finding card */
+  .findings{display:grid;grid-template-columns:1fr;gap:16px}
+  .finding{
+    border:1px solid var(--rule);
+    background:var(--paper);
+    border-radius:14px;
+    overflow:hidden;
+    display:grid;
+    grid-template-columns:48px 1fr;
+  }
+  .finding .gutter{
+    border-right:1px solid var(--rule-soft);
+    background:linear-gradient(180deg, var(--rule-soft), transparent 80%);
+    display:flex;flex-direction:column;align-items:center;padding:14px 0;gap:8px;font-family:var(--mono);font-size:10px;color:var(--ink-mute);
+  }
+  .finding .gutter .sev{
+    width:24px;height:24px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    font-size:11px;font-weight:600;color:#fff;
+  }
+  .sev-h{background:var(--bad)}
+  .sev-m{background:var(--warn)}
+  .sev-l{background:var(--ok)}
+
+  .finding .body{padding:18px 22px}
+  .finding header{display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap}
+  .finding header h3{margin:0;font-size:18px;font-family:var(--serif);font-weight:600;letter-spacing:-0.01em}
+  .tag{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:99px;font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-soft);background:var(--rule-soft)}
+  .tag.acc{background:oklch(0.93 0.04 254);color:oklch(0.4 0.18 254)}
+  .tag.mot{background:oklch(0.94 0.05 320);color:oklch(0.4 0.18 320)}
+  .tag.col{background:oklch(0.94 0.07 30);color:oklch(0.45 0.16 30)}
+  .tag.lay{background:oklch(0.93 0.04 200);color:oklch(0.4 0.16 200)}
+  .tag.typ{background:oklch(0.93 0.04 100);color:oklch(0.4 0.15 100)}
+
+  .ba{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:14px 0 6px}
+  .ba > div{border:1px solid var(--rule);border-radius:10px;padding:14px;background:var(--bg);position:relative;overflow:hidden;min-height:140px}
+  .ba > div::before{content:attr(data-label);position:absolute;top:8px;left:10px;font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-mute)}
+  .fix{margin-top:10px;padding:12px 14px;background:var(--rule-soft);border-radius:10px;border-left:3px solid var(--accent)}
+  .fix h4{color:var(--accent);margin-bottom:4px}
+  .fix p{margin:0;font-size:13.5px;color:var(--ink)}
+
+  /* recommendation list */
+  ol.recs{padding:0;margin:0;list-style:none;counter-reset:rec}
+  ol.recs li{counter-increment:rec;display:grid;grid-template-columns:48px 1fr auto;gap:18px;padding:14px 0;border-bottom:1px solid var(--rule-soft);align-items:start}
+  ol.recs li::before{content:counter(rec, decimal-leading-zero);font-family:var(--mono);font-size:11px;color:var(--ink-mute);padding-top:3px}
+  ol.recs li b{display:block;font-size:15px;color:var(--ink);font-weight:600;margin-bottom:2px}
+  ol.recs li p{margin:0;font-size:13.5px}
+  ol.recs li .effort{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-mute);white-space:nowrap;padding-top:4px}
+  .effort .bar{display:inline-flex;gap:2px;margin-left:6px}
+  .effort .bar i{width:6px;height:8px;background:var(--rule);border-radius:1px}
+  .effort.s .bar i:nth-child(1){background:var(--ok)}
+  .effort.m .bar i:nth-child(-n+2){background:var(--warn)}
+  .effort.l .bar i{background:var(--bad)}
+
+  /* color audit grid */
+  .swatch-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin:8px 0 18px}
+  .sw{border:1px solid var(--rule);border-radius:10px;overflow:hidden;background:var(--paper)}
+  .sw .chip{height:64px;display:flex;align-items:flex-end;padding:8px;color:#000;font-family:var(--mono);font-size:10px}
+  .sw .chip.dark{color:#fff}
+  .sw .meta{padding:8px 10px;font-size:11px}
+  .sw .meta b{display:block;font-size:12px;color:var(--ink);margin-bottom:2px}
+  .sw .meta code{font-family:var(--mono);font-size:10px;color:var(--ink-mute)}
+  .sw .verdict{font-family:var(--mono);font-size:9.5px;text-transform:uppercase;letter-spacing:.08em;padding:2px 6px;border-radius:4px;display:inline-block;margin-top:4px}
+  .v-bad{background:oklch(0.95 0.04 25);color:var(--bad)}
+  .v-warn{background:oklch(0.96 0.05 60);color:oklch(0.45 0.15 60)}
+  .v-ok{background:oklch(0.94 0.06 155);color:var(--ok)}
+
+  /* type specimen */
+  .specimen{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin:8px 0 0}
+  .specimen > div{border:1px solid var(--rule);border-radius:12px;padding:20px;background:var(--paper)}
+  .spec-row{display:flex;justify-content:space-between;align-items:baseline;border-bottom:1px solid var(--rule-soft);padding:10px 0;gap:16px}
+  .spec-row:last-child{border-bottom:0}
+  .spec-row .sample{font-family:var(--sans);color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+  .spec-row .meta{font-family:var(--mono);font-size:10.5px;color:var(--ink-mute);white-space:nowrap}
+
+  /* layout/board mockups */
+  .board{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;font-size:10px}
+  .board .col{background:transparent;padding:0;display:flex;flex-direction:column;gap:4px}
+  .board .col-h{display:flex;align-items:center;gap:4px;padding:0 0 4px;border-bottom:2px solid var(--accent);font-family:var(--mono);font-size:9px;text-transform:uppercase;color:var(--ink-soft);letter-spacing:.08em}
+  .board .col-h .n{margin-left:auto;color:var(--ink-mute)}
+  .board .card{background:var(--paper);border:1px solid var(--rule);border-radius:6px;padding:6px;font-size:10px;line-height:1.3;color:var(--ink-soft)}
+  .board .card .title{color:var(--ink);font-weight:500;margin-bottom:3px}
+  .board .card .meta{display:flex;align-items:center;gap:4px;font-family:var(--mono);font-size:9px;color:var(--ink-mute)}
+  .board .card .pri{width:6px;height:6px;border-radius:50%}
+
+  /* sidebar mock */
+  .nav-mock{font-size:11px;background:var(--paper);border:1px solid var(--rule);border-radius:8px;padding:8px;display:flex;flex-direction:column;gap:1px}
+  .nav-mock .row{display:flex;align-items:center;gap:6px;padding:5px 7px;border-radius:5px;color:var(--ink-soft)}
+  .nav-mock .row.act{background:oklch(0.93 0.04 254);color:var(--accent)}
+  .nav-mock .row .ic{width:10px;height:10px;background:currentColor;opacity:.6;border-radius:2px;flex-shrink:0}
+  .nav-mock .row .name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .nav-mock .row .dot{width:4px;height:4px;border-radius:50%;background:currentColor}
+  .nav-mock .group{font-family:var(--mono);font-size:9px;color:var(--ink-mute);text-transform:uppercase;letter-spacing:.08em;padding:8px 7px 4px}
+
+  /* motion timeline */
+  .motion-grid{display:grid;grid-template-columns:1fr;gap:14px}
+  .timeline{
+    border:1px solid var(--rule);border-radius:12px;background:var(--paper);
+    padding:18px 22px;
+  }
+  .timeline header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+  .timeline header h3{margin:0;font-family:var(--serif);font-size:18px;font-weight:600}
+  .timeline .ms{font-family:var(--mono);font-size:10px;color:var(--ink-mute);letter-spacing:.06em}
+  .track{
+    position:relative;
+    height:34px;
+    background:repeating-linear-gradient(90deg, transparent 0 99px, var(--rule-soft) 99px 100px);
+    border-bottom:1px solid var(--rule);
+    margin-bottom:6px;
+  }
+  .track .lab{position:absolute;left:-90px;top:7px;font-size:11px;color:var(--ink-soft);width:80px;text-align:right}
+  .track .seg{
+    position:absolute;top:6px;height:22px;border-radius:3px;
+    font-family:var(--mono);font-size:9.5px;color:#fff;
+    display:flex;align-items:center;padding:0 6px;
+    box-shadow:0 1px 0 oklch(0 0 0 / .04);
+  }
+  .seg.cur{background:var(--ink)}
+  .seg.fix{background:var(--accent)}
+  .seg.warn{background:var(--warn)}
+  .seg.bad{background:var(--bad)}
+  .legend{display:flex;gap:14px;font-size:11px;color:var(--ink-soft);margin-top:14px;padding-top:10px;border-top:1px solid var(--rule-soft);flex-wrap:wrap}
+  .legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+
+  .tl-wrap{padding-left:90px}
+
+  /* perspective dot demo */
+  .dotwave{position:relative;height:120px;overflow:hidden;border-radius:8px;background:linear-gradient(180deg, var(--paper), var(--bg));border:1px solid var(--rule)}
+  .dotwave::before{
+    content:"";position:absolute;inset:-30% -10% 0 -10%;
+    background-image:radial-gradient(circle, oklch(0.4 0.05 254 / .35) 1.6px, transparent 1.6px);
+    background-size:18px 18px;
+    transform:perspective(280px) rotateX(58deg);
+    transform-origin:50% 100%;
+    animation:dotwave 6s ease-in-out infinite;
+  }
+  @keyframes dotwave{0%,100%{transform:perspective(280px) rotateX(58deg)}50%{transform:perspective(285px) rotateX(58.4deg) translateY(-1px)}}
+
+  /* contrast bars */
+  .cmpx{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:8px}
+  .cmpx > div{border:1px solid var(--rule);border-radius:10px;padding:12px 14px;background:var(--paper);font-size:13px}
+  .cmpx code{font-family:var(--mono);font-size:11px;color:var(--ink-mute)}
+  .ratio{display:inline-block;font-family:var(--mono);font-size:10px;padding:2px 6px;border-radius:4px;margin-left:6px}
+  .pass{background:oklch(0.94 0.06 155);color:var(--ok)}
+  .fail{background:oklch(0.95 0.04 25);color:var(--bad)}
+
+  /* priority demo */
+  .pri-demo{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .pri-demo span{font-family:var(--mono);font-size:11px;padding:4px 10px;border-radius:99px;color:#000;display:inline-flex;align-items:center;gap:6px}
+  .pri-demo span i{width:8px;height:8px;border-radius:50%}
+
+  /* sidebar info / takeaway */
+  .takeaway{
+    background:var(--ink);color:var(--paper);
+    border-radius:14px;padding:24px 28px;margin-top:48px;
+    display:grid;grid-template-columns:auto 1fr;gap:24px;align-items:center;
+  }
+  .takeaway .num{font-family:var(--serif);font-size:60px;font-weight:600;line-height:.9;color:var(--accent);letter-spacing:-0.03em}
+  .takeaway p{color:oklch(0.85 0.01 260);margin:0;max-width:60ch}
+  .takeaway b{color:var(--paper)}
+
+  /* small util */
+  .row-2{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}
+  .row-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  ul.bul{padding-left:18px;margin:0 0 14px}
+  ul.bul li{color:var(--ink-soft);margin-bottom:4px}
+  .quote{font-family:var(--serif);font-style:italic;font-size:18px;color:var(--ink);border-left:3px solid var(--accent);padding:6px 0 6px 18px;margin:18px 0}
+
+  /* keyboard hint */
+  kbd{font-family:var(--mono);font-size:10px;background:var(--paper);border:1px solid var(--rule);border-bottom-width:2px;padding:1px 5px;border-radius:4px;color:var(--ink-soft)}
+
+  /* svg perspective demo container */
+  .demo-card{border:1px solid var(--rule);border-radius:12px;padding:14px;background:var(--paper)}
+  .demo-card h4{margin-bottom:8px}
+  .demo-card .note{font-size:11.5px;color:var(--ink-mute);font-family:var(--mono)}
+</style>
+</head>
+<body>
+<div class="frame">
+  <aside class="toc">
+    <div class="brand">
+      <div class="logo"></div>
+      <div class="meta"><b>OrbiTail</b><span>Design Audit · v1</span></div>
+    </div>
+    <nav id="toc">
+      <a href="#summary" class="active">Executive summary <span>00</span></a>
+      <a href="#identity">Identity &amp; tone <span>01</span></a>
+      <a href="#color">Color system <span>02</span></a>
+      <a href="#type">Typography <span>03</span></a>
+      <a href="#layout">Layout &amp; density <span>04</span></a>
+      <a href="#components">Components &amp; states <span>05</span></a>
+      <a href="#motion">Motion &amp; transitions <span>06</span></a>
+      <a href="#accessibility">Accessibility <span>07</span></a>
+      <a href="#roadmap">Prioritized roadmap <span>08</span></a>
+    </nav>
+    <footer>
+      Reviewed surfaces: tokens, layout chrome, dashboard, board, issue list, login, motion provider, decorations.<br><br>
+      Severity: <span style="color:var(--bad)">●</span> high · <span style="color:var(--warn)">●</span> medium · <span style="color:var(--ok)">●</span> low
+    </footer>
+  </aside>
+
+  <main>
+    <!-- ════════ SUMMARY ════════ -->
+    <section id="summary">
+      <div class="badge-row">
+        <span class="pill"><span class="dot"></span>Hi-fi audit</span>
+        <span class="pill">9 surfaces reviewed</span>
+        <span class="pill">23 findings</span>
+      </div>
+      <div class="hero">
+        <div>
+          <h1>OrbiTail은 좋은<br>뼈대를 가졌습니다.<br>다만 정체성이<br>분산돼 있어요.</h1>
+          <p class="lede">전체 디자인은 잘 토큰화돼 있고 모션 시스템도 상하 모드(rich/minimal)로 구분돼 있습니다. 하지만 <strong>색·형·움직임의 우선순위가 불명확</strong>해 화면이 어수선해 보이고, 인터랙션이 “시스템”보다 “효과”에 가깝습니다. 아래 8개 영역에서 23건의 개선점을 정리했고, 각 항목은 구현 난도와 함께 표시했습니다.</p>
+        </div>
+        <div class="hero-stats">
+          <div><b>23</b>findings</div>
+          <div><b>7</b>high&nbsp;sev</div>
+          <div><b>4d</b>quick&nbsp;wins</div>
+        </div>
+      </div>
+
+      <div class="row-3" style="margin-top:36px">
+        <div class="demo-card">
+          <h4>가장 큰 시각적 부담</h4>
+          <p style="font-size:13.5px">전 페이지에 깔린 <strong>원근 점 격자 + Orbit 궤도 + 카드 글래스 + 색채도 높은 우선순위 도트</strong>가 한 화면에 동시에 보입니다. 시선이 데이터로 가지 못합니다.</p>
+        </div>
+        <div class="demo-card">
+          <h4>모션의 일관성 부재</h4>
+          <p style="font-size:13.5px">spring/duration 값이 컴포넌트마다 다릅니다 (150 / 200 / 220 / 250 / 300ms). <kbd>--motion-fast</kbd> · <kbd>--motion-base</kbd> · <kbd>--motion-slow</kbd> 3-tier로 통일이 필요합니다.</p>
+        </div>
+        <div class="demo-card">
+          <h4>접근성 위험</h4>
+          <p style="font-size:13.5px">우선순위 색 5종이 색상만으로 구분되며 <strong>WCAG 대비 부족</strong>한 짝이 다수입니다 (예: 라이트 위 라임그린·핫핑크). 형태 시그널을 함께 사용해야 합니다.</p>
+        </div>
+      </div>
+    </section>
+
+    <hr class="section-rule">
+
+    <!-- ════════ IDENTITY ════════ -->
+    <section id="identity">
+      <div class="section-head"><span class="section-num">01</span><h2>정체성 & 톤</h2></div>
+
+      <p>OrbiTail은 “위성·궤도”라는 강한 메타포를 가지고 있고, <code>OrbiTailOrbit</code> 컴포넌트는 그 자체로 매력적인 설치미술입니다. 문제는 이 메타포가 <strong>로그인·홈에서만 등장</strong>하고 작업 화면에서는 단순한 “원근 점 격자”로 약해진다는 점입니다. 결과적으로 브랜드는 “예쁜 표지”로 끝나고 본문은 일반 SaaS 보드처럼 보입니다.</p>
+
+      <div class="findings">
+        <div class="finding">
+          <div class="gutter"><div class="sev sev-h">!</div>HIGH</div>
+          <div class="body">
+            <header><h3>궤도 메타포가 작업 화면에서 사라진다</h3><span class="tag">Brand</span><span class="tag lay">Layout</span></header>
+            <p>로그인·대시보드의 거대한 Orbit 링과 “행성” 도트가 보드/이슈 페이지에서는 <strong>흔한 점 패턴</strong>으로 대체됩니다. 사용자는 “여기가 같은 앱인가?” 하는 단절을 느낍니다.</p>
+
+            <div class="ba">
+              <div data-label="현재 — Dashboard">
+                <svg viewBox="0 0 220 130" style="width:100%;height:100%">
+                  <defs><pattern id="dot1" width="14" height="14" patternUnits="userSpaceOnUse"><circle cx="7" cy="7" r="0.9" fill="rgba(50,70,140,0.4)"/></pattern></defs>
+                  <rect width="220" height="130" fill="url(#dot1)"/>
+                  <g fill="none" stroke="oklch(0.55 0.18 254 / .3)" stroke-width="1.2"><circle cx="180" cy="20" r="60"/><circle cx="180" cy="20" r="44" stroke-dasharray="3 4"/><circle cx="180" cy="20" r="28"/></g>
+                  <circle cx="220" cy="44" r="3.2" fill="oklch(0.55 0.18 254)"/>
+                  <rect x="14" y="20" width="120" height="8" rx="2" fill="oklch(0.21 0.02 260)"/>
+                  <rect x="14" y="34" width="80" height="5" rx="2" fill="oklch(0.62 0.015 260)"/>
+                </svg>
+              </div>
+              <div data-label="현재 — Board">
+                <svg viewBox="0 0 220 130" style="width:100%;height:100%">
+                  <rect width="220" height="130" fill="url(#dot1)"/>
+                  <g><rect x="10" y="10" width="46" height="110" rx="4" fill="oklch(0.99 0.006 85)" stroke="oklch(0.88 0.012 260)"/>
+                  <rect x="60" y="10" width="46" height="110" rx="4" fill="oklch(0.99 0.006 85)" stroke="oklch(0.88 0.012 260)"/>
+                  <rect x="110" y="10" width="46" height="110" rx="4" fill="oklch(0.99 0.006 85)" stroke="oklch(0.88 0.012 260)"/>
+                  <rect x="160" y="10" width="46" height="110" rx="4" fill="oklch(0.99 0.006 85)" stroke="oklch(0.88 0.012 260)"/></g>
+                </svg>
+              </div>
+            </div>
+
+            <div class="fix">
+              <h4>FIX</h4>
+              <p>Orbit을 “장식”이 아니라 <strong>상태 시각화의 모티브</strong>로 격상하세요. 예: 사이드바 워크스페이스 아바타가 작은 궤도이고 — 활성 알림 수만큼 행성이 돌고 — 진행률은 행성 위치로 표현. 하나의 시각 시스템이 좌상→전 화면을 관통하면 정체성이 살아납니다.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="finding">
+          <div class="gutter"><div class="sev sev-m">!</div>MED</div>
+          <div class="body">
+            <header><h3>“라이트=블루, 다크=골드” 정체성 흔들림</h3><span class="tag col">Color</span></header>
+            <p>라이트는 <code>#3d72e8</code> 일렉트릭 블루, 다크는 <code>#e5a800</code> 골드. <strong>두 모드의 감정선이 완전히 다릅니다.</strong> “블루 워크스페이스”인지 “골드 워크스페이스”인지 사용자가 헷갈립니다. <span class="quote" style="font-size:14px;display:inline;border:0;padding:0;margin:0">단일 브랜드는 한 톤을 유지하고, 모드는 “종이 색”만 바뀌어야 한다</span>가 일반 원칙입니다.</p>
+            <div class="fix">
+              <h4>FIX</h4>
+              <p>두 모드 모두 <strong>같은 hue</strong>(예: 254° 블루)를 유지하되 다크에서는 chroma·lightness만 조정합니다 — <code>oklch(0.7 0.16 254)</code> 정도. 골드는 “Premium / Workspace Brand” 옵션 색으로 격하.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════════ COLOR ════════ -->
+    <section id="color">
+      <div class="section-head"><span class="section-num">02</span><h2>색 시스템</h2></div>
+
+      <h4>현재 우선순위 토큰</h4>
+      <div class="swatch-grid">
+        <div class="sw"><div class="chip" style="background:#ff4444">URGENT</div><div class="meta"><b>Urgent</b><code>#ff4444</code><div class="verdict v-warn">Sat. 92 — 과채도</div></div></div>
+        <div class="sw"><div class="chip" style="background:#ff4db8">HIGH</div><div class="meta"><b>High</b><code>#ff4db8</code><div class="verdict v-bad">Hot pink ≠ severity</div></div></div>
+        <div class="sw"><div class="chip" style="background:#f5c400">MEDIUM</div><div class="meta"><b>Medium</b><code>#f5c400</code><div class="verdict v-warn">Light bg 1.5:1</div></div></div>
+        <div class="sw"><div class="chip" style="background:#aaff00">LOW</div><div class="meta"><b>Low</b><code>#aaff00</code><div class="verdict v-bad">Light bg 1.2:1</div></div></div>
+        <div class="sw"><div class="chip dark" style="background:#6b7080">NONE</div><div class="meta"><b>None</b><code>#6b7080</code><div class="verdict v-ok">OK</div></div></div>
+      </div>
+
+      <p>현재 우선순위 5종이 <strong>각각 다른 hue</strong>(red→pink→gold→lime→gray)로 흩어져 있습니다. 보드/이슈 리스트에서 5색이 동시에 깜빡이면 “테이블이 케이크처럼 보입니다.” 더 큰 문제는 <strong>severity 의미가 색 그라디언트로 안 읽힌다</strong>는 점입니다 — 라임그린이 핫핑크보다 “덜 긴급해 보일” 이유가 형태에 없습니다.</p>
+
+      <div class="findings">
+        <div class="finding">
+          <div class="gutter"><div class="sev sev-h">!</div>HIGH</div>
+          <div class="body">
+            <header><h3>우선순위 = 같은 hue, 다른 채도/명도로 재설계</h3><span class="tag col">Color</span><span class="tag acc">A11y</span></header>
+            <p>같은 redish hue 안에서 <strong>채도와 lightness만 변화</strong>시키면 “긴급도 그라디언트”가 시각적으로 즉시 읽힙니다. None은 중립 회색을 유지.</p>
+
+            <h4 style="margin-top:14px">제안</h4>
+            <div class="pri-demo">
+              <span style="background:oklch(0.5 0.22 25);color:#fff"><i style="background:#fff"></i>URGENT · 0.50/0.22</span>
+              <span style="background:oklch(0.62 0.18 25);color:#fff"><i style="background:#fff"></i>HIGH · 0.62/0.18</span>
+              <span style="background:oklch(0.74 0.14 50);color:#000"><i style="background:#000"></i>MEDIUM · 0.74/0.14</span>
+              <span style="background:oklch(0.82 0.08 90);color:#000"><i style="background:#000"></i>LOW · 0.82/0.08</span>
+              <span style="background:oklch(0.85 0.01 260);color:#000"><i style="background:#000"></i>NONE · neutral</span>
+            </div>
+
+            <div class="fix">
+              <h4>FIX</h4>
+              <p>색 외에 <strong>아이콘 형태</strong>를 함께 사용 — Urgent: 채워진 ◆, High: ▲, Medium: ●, Low: ○, None: 빈 점선. 색맹/저시력 사용자도 즉시 구분 가능.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="finding">
+          <div class="gutter"><div class="sev sev-h">!</div>HIGH</div>
+          <div class="body">
+            <header><h3>“started = 라임그린” 콘트라스트 부족</h3><span class="tag acc">A11y</span><span class="tag col">Color</span></header>
+            <p>라이트 모드 배경 <code>#e8eaee</code> 위 <code>#aaff00</code>의 텍스트 대비는 <strong>약 1.2:1</strong> — WCAG AA 미달. 보드 컬럼 헤더의 <code>border-bottom: 2px solid state.color</code>가 거의 안 보입니다.</p>
+            <div class="cmpx">
+              <div style="background:#e8eaee"><span style="color:#aaff00;font-weight:600">In Progress</span> <span class="ratio fail">1.2:1 — FAIL</span><br><code>현재</code></div>
+              <div style="background:#e8eaee"><span style="color:#1f8a3a;font-weight:600">In Progress</span> <span class="ratio pass">5.4:1 — PASS</span><br><code>oklch(0.5 0.16 145)</code></div>
+            </div>
+            <div class="fix"><h4>FIX</h4><p>state 색은 <strong>“채움+테두리+텍스트” 토큰을 분리</strong>하세요: <code>--state-started-fill</code>(밝은 채움) / <code>--state-started-text</code>(진한 텍스트) / <code>--state-started-border</code>. 한 색만 쓰면 항상 한쪽이 깨집니다.</p></div>
+          </div>
+        </div>
+
+        <div class="finding">
+          <div class="gutter"><div class="sev sev-m">!</div>MED</div>
+          <div class="body">
+            <header><h3>border 색이 primary와 같다</h3><span class="tag col">Color</span><span class="tag lay">Layout</span></header>
+            <p>현재 <code>--border: hsl(221 40% 72%)</code> = primary 블루 톤. 결과적으로 <strong>모든 카드 테두리가 “선택된 것처럼”</strong> 보이고, 실제 포커스 ring과 시각 충돌이 일어납니다.</p>
+            <div class="fix"><h4>FIX</h4><p>border는 채도가 거의 없는 중성색으로 (<code>oklch(0.88 0.012 260)</code>). 강조가 필요한 카드만 <code>border-primary/30</code>를 명시적으로 적용. 선택 상태는 <strong>2px 링 + 그림자</strong>로 차별화.</p></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════════ TYPE ════════ -->
+    <section id="type">
+      <div class="section-head"><span class="section-num">03</span><h2>타이포그래피</h2></div>
+
+      <p>Pretendard Variable + JetBrains Mono 조합은 한·영 모두 안정적입니다. 그러나 <strong>스케일이 너무 평탄</strong>합니다 — base 17px / lg 19px / xl 21px / 2xl 25px 에서 단계 비율이 1.12배로 모두 비슷해 “위계가 안 만들어집니다.”</p>
+
+      <div class="specimen">
+        <div>
+          <h4>현재 스케일 (1.12 ratio)</h4>
+          <div class="spec-row"><span class="sample" style="font-size:38px;font-weight:600">Workspace</span><span class="meta">4xl · 38px</span></div>
+          <div class="spec-row"><span class="sample" style="font-size:31px;font-weight:600">Good morning</span><span class="meta">3xl · 31px</span></div>
+          <div class="spec-row"><span class="sample" style="font-size:25px;font-weight:600">Page title</span><span class="meta">2xl · 25px</span></div>
+          <div class="spec-row"><span class="sample" style="font-size:21px;font-weight:500">Subhead</span><span class="meta">xl · 21px</span></div>
+          <div class="spec-row"><span class="sample" style="font-size:17px">Body text · 본문</span><span class="meta">base · 17px</span></div>
+          <div class="spec-row"><span class="sample" style="font-size:15px">Sidebar item</span><span class="meta">sm · 15px</span></div>
+          <div style="margin-top:8px;font-size:12px;color:var(--ink-mute)">상위 4개 단계가 모두 <strong>비슷한 무게</strong>로 보임 — 위계 부재.</div>
+        </div>
+        <div>
+          <h4>제안 (1.25 ratio + display)</h4>
+          <div class="spec-row"><span class="sample" style="font-family:'Fraunces',serif;font-size:48px;font-weight:600;letter-spacing:-0.02em">Workspace</span><span class="meta">display · 48</span></div>
+          <div class="spec-row"><span class="sample" style="font-size:32px;font-weight:600;letter-spacing:-0.02em">Good morning</span><span class="meta">3xl · 32</span></div>
+          <div class="spec-row"><span class="sample" style="font-size:22px;font-weight:600;letter-spacing:-0.01em">Page title</span><span class="meta">2xl · 22</span></div>
+          <div class="spec-row"><span class="sample" style="font-size:17px;font-weight:600">Section</span><span class="meta">lg · 17</span></div>
+          <div class="spec-row"><span class="sample" style="font-size:14px">Body text · 본문</span><span class="meta">base · 14</span></div>
+          <div class="spec-row"><span class="sample" style="font-size:12px;color:var(--ink-mute)">Caption</span><span class="meta">xs · 12</span></div>
+          <div style="margin-top:8px;font-size:12px;color:var(--ink-mute)">위계 명확. <strong>display는 옵션 serif</strong>로 브랜드감 강화.</div>
+        </div>
+      </div>
+
+      <div class="findings" style="margin-top:18px">
+        <div class="finding">
+          <div class="gutter"><div class="sev sev-m">!</div>MED</div>
+          <div class="body">
+            <header><h3>본문 17px이 너무 크다</h3><span class="tag typ">Type</span></header>
+            <p>이슈 리스트처럼 <strong>밀도가 핵심인 productivity 화면</strong>에서 17px 본문은 한 화면에 들어가는 정보가 30%~ 줄어듭니다. Linear/Notion은 13–14px. 글로벌 18px scale-up은 <strong>접근성에는 좋지만 컴팩트 모드 옵션이 필요</strong>합니다.</p>
+            <div class="fix"><h4>FIX</h4><p>설정 → Density: <kbd>Comfortable</kbd>(현재) / <kbd>Compact</kbd>(13px base) / <kbd>Spacious</kbd>(16px). localStorage에 저장. 핵심: <strong>리스트/보드는 기본 Compact</strong>, 문서 에디터만 Comfortable.</p></div>
+          </div>
+        </div>
+
+        <div class="finding">
+          <div class="gutter"><div class="sev sev-l">!</div>LOW</div>
+          <div class="body">
+            <header><h3>display용 폰트가 없다</h3><span class="tag typ">Type</span><span class="tag">Brand</span></header>
+            <p>모든 텍스트가 Pretendard 한 종류. 로그인 카드, 대시보드 인사말 같은 <strong>브랜드 모먼트</strong>에 약간의 Serif/Display(예: Fraunces, Tiempos) 한 줄을 더하면 OrbiTail이 “SaaS 또 하나”가 아니라 <strong>“tool with character”</strong>로 보입니다.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════════ LAYOUT ════════ -->
+    <section id="layout">
+      <div class="section-head"><span class="section-num">04</span><h2>레이아웃 & 밀도</h2></div>
+
+      <div class="row-2">
+        <div>
+          <h3>현재 보드</h3>
+          <div class="board" style="border:1px solid var(--rule);border-radius:8px;padding:10px;background:var(--paper)">
+            <div class="col"><div class="col-h" style="border-color:#aaff00">TODO<span class="n">12</span></div>
+              <div class="card"><div class="title">Refactor auth flow</div><div class="meta"><span class="pri" style="background:#ff4db8"></span>HIGH · OB-44</div></div>
+              <div class="card"><div class="title">Add sprint burndown</div><div class="meta"><span class="pri" style="background:#f5c400"></span>MED · OB-45</div></div>
+            </div>
+            <div class="col"><div class="col-h" style="border-color:#aaff00">DOING<span class="n">5</span></div>
+              <div class="card"><div class="title">Document editor cursor sync</div><div class="meta"><span class="pri" style="background:#ff4444"></span>URG · OB-46</div></div>
+              <div class="card"><div class="title">Workspace color picker</div><div class="meta"><span class="pri" style="background:#aaff00"></span>LOW · OB-47</div></div>
+            </div>
+            <div class="col"><div class="col-h" style="border-color:#00c4a8">REVIEW<span class="n">3</span></div>
+              <div class="card"><div class="title">Empty state polish</div><div class="meta"><span class="pri" style="background:#f5c400"></span>MED · OB-48</div></div>
+            </div>
+            <div class="col"><div class="col-h" style="border-color:#3d4055">DONE<span class="n">28</span></div>
+              <div class="card"><div class="title">Migrate to OKLCH tokens</div><div class="meta"><span class="pri" style="background:#6b7080"></span>NONE · OB-49</div></div>
+            </div>
+          </div>
+          <p style="margin-top:8px;font-size:12px;color:var(--ink-mute)">각 카드에 정보 5개 (제목, 우선순위 dot, 라벨, 코드, 색 헤더). 4컬럼이 동시에 다른 색 헤더를 가지면 산만함.</p>
+        </div>
+
+        <div>
+          <h3>제안 보드</h3>
+          <div class="board" style="border:1px solid var(--rule);border-radius:8px;padding:10px;background:var(--paper)">
+            <div class="col"><div class="col-h" style="border-color:var(--ink);color:var(--ink)">◇ TODO<span class="n">12</span></div>
+              <div class="card" style="border-left:3px solid oklch(0.62 0.18 25)"><div class="title">Refactor auth flow</div><div class="meta">▲ OB-44</div></div>
+              <div class="card" style="border-left:3px solid oklch(0.74 0.14 50)"><div class="title">Add sprint burndown</div><div class="meta">● OB-45</div></div>
+            </div>
+            <div class="col"><div class="col-h" style="border-color:var(--accent);color:var(--accent)">◆ DOING<span class="n">5</span></div>
+              <div class="card" style="border-left:3px solid oklch(0.5 0.22 25)"><div class="title">Document editor cursor sync</div><div class="meta">◆ OB-46</div></div>
+              <div class="card" style="border-left:3px solid oklch(0.82 0.08 90)"><div class="title">Workspace color picker</div><div class="meta">○ OB-47</div></div>
+            </div>
+            <div class="col"><div class="col-h" style="border-color:oklch(0.7 0.13 90);color:oklch(0.5 0.13 90)">◐ REVIEW<span class="n">3</span></div>
+              <div class="card" style="border-left:3px solid oklch(0.74 0.14 50)"><div class="title">Empty state polish</div><div class="meta">● OB-48</div></div>
+            </div>
+            <div class="col"><div class="col-h" style="border-color:var(--ok);color:var(--ok)">● DONE<span class="n">28</span></div>
+              <div class="card" style="opacity:.6;border-left:3px solid var(--rule)"><div class="title">Migrate to OKLCH tokens</div><div class="meta">○ OB-49</div></div>
+            </div>
+          </div>
+          <p style="margin-top:8px;font-size:12px;color:var(--ink-mute)"><strong>형태 시그널</strong>(◇◆◐●) 추가, 우선순위는 카드 좌측 strip으로, DONE은 자동 dim. 한 카드당 시각 노이즈 −40%.</p>
+        </div>
+      </div>
+
+      <div class="findings" style="margin-top:24px">
+        <div class="finding">
+          <div class="gutter"><div class="sev sev-h">!</div>HIGH</div>
+          <div class="body">
+            <header><h3>전역 “원근 점 격자 + Orbit” 배경이 너무 무겁다</h3><span class="tag lay">Layout</span><span class="tag mot">Motion</span></header>
+            <p>모든 페이지에 <code>body::before</code> 점 격자 + 페이지별 GeoDecoration이 동시에 깔립니다. <strong>작업 화면(Board, Issues, Documents)</strong>에서는 이 배경이 인지 부담이 됩니다.</p>
+            <div class="ba">
+              <div data-label="현재 — 모든 화면 동일 배경"><div class="dotwave"></div></div>
+              <div data-label="제안 — 컨텍스트별 배경"><div style="height:120px;background:var(--paper);border:1px solid var(--rule);border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--ink-mute);font-family:var(--mono);font-size:11px">flat surface · 0 distractions</div></div>
+            </div>
+            <div class="fix"><h4>FIX</h4><p>“브랜드 모먼트” 화면(Login, Workspace home, Empty states)에서만 Orbit + 점 격자를 살리고, <strong>Board/Issue/Document는 평평한 surface</strong>로. 라우터 메타에 <code>chrome: "branded" | "minimal" | "document"</code> 플래그를 추가.</p></div>
+          </div>
+        </div>
+
+        <div class="finding">
+          <div class="gutter"><div class="sev sev-m">!</div>MED</div>
+          <div class="body">
+            <header><h3>Sidebar — 활성 상태 시각 신호가 두 개</h3><span class="tag lay">Layout</span></header>
+            <div class="row-2" style="margin:10px 0">
+              <div class="nav-mock">
+                <div class="group">현재</div>
+                <div class="row"><i class="ic"></i><span class="name">Home</span></div>
+                <div class="row act" style="background:oklch(0.93 0.04 254);color:var(--accent)"><i class="ic"></i><span class="name">My issues</span><span class="dot"></span></div>
+                <div class="row"><i class="ic"></i><span class="name">Board</span></div>
+              </div>
+              <div class="nav-mock">
+                <div class="group">제안</div>
+                <div class="row" style="position:relative;padding-left:14px"><span style="position:absolute;left:0;top:50%;transform:translateY(-50%);width:3px;height:14px;background:transparent"></span><i class="ic"></i><span class="name">Home</span></div>
+                <div class="row" style="position:relative;padding-left:14px;color:var(--ink);font-weight:600"><span style="position:absolute;left:0;top:50%;transform:translateY(-50%);width:3px;height:18px;background:var(--accent);border-radius:99px"></span><i class="ic"></i><span class="name">My issues</span></div>
+                <div class="row" style="padding-left:14px"><i class="ic"></i><span class="name">Board</span></div>
+              </div>
+            </div>
+            <p>현재 활성 상태 = 배경 채움 + 우측 점 + primary 텍스트 — 시그널이 3개입니다. <strong>좌측 3px bar 하나</strong>로 줄이면 사이드바 노이즈가 크게 줄고, 워크스페이스 색을 그 bar에 매핑할 수 있습니다.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════════ COMPONENTS ════════ -->
+    <section id="components">
+      <div class="section-head"><span class="section-num">05</span><h2>컴포넌트 & 상태</h2></div>
+
+      <div class="findings">
+        <div class="finding">
+          <div class="gutter"><div class="sev sev-m">!</div>MED</div>
+          <div class="body">
+            <header><h3>Button — variant 6종, size 4종 = 24 조합. 실제 사용은 6개.</h3><span class="tag">Components</span></header>
+            <p>shadcn 기본 그대로지만 OrbiTail 디자인 톤에 맞춘 <strong>“우리 버튼”</strong>이 없습니다. <code>default</code>가 솔리드 블루라서 페이지마다 시선을 빼앗습니다.</p>
+            <div class="fix"><h4>FIX</h4><p>Primary는 <strong>“가장 중요한 액션 1개에만”</strong> 정책 — 나머지는 <code>secondary</code>(미묘한 채움) 또는 <code>ghost</code>. <code>destructive</code>는 모달 안에서만 등장하도록 빌드 타임 lint 룰.</p></div>
+          </div>
+        </div>
+
+        <div class="finding">
+          <div class="gutter"><div class="sev sev-m">!</div>MED</div>
+          <div class="body">
+            <header><h3>Empty states 부재</h3><span class="tag">Components</span></header>
+            <p>이슈/스프린트/문서 첫 진입 시 “비어 있을 때”의 일러스트·문구·CTA가 없습니다. OrbiTail의 궤도 메타포를 <strong>아주 작은 단일 행성으로 표현한 정적 일러스트</strong> 1세트면 모든 empty 상태를 통일할 수 있습니다.</p>
+          </div>
+        </div>
+
+        <div class="finding">
+          <div class="gutter"><div class="sev sev-l">!</div>LOW</div>
+          <div class="body">
+            <header><h3>알림 벨 — 펄스만 있고 “읽음으로 가는 길”이 멀다</h3><span class="tag">Components</span><span class="tag mot">Motion</span></header>
+            <p><code>PulseOnUpdate</code>는 좋은 어포던스지만 클릭 후 알림 패널 → 항목 클릭 → 이슈 페이지까지 3-step. <strong>패널 안에서 inline preview + “마크 후 다음으로” 키보드 흐름</strong>(<kbd>j</kbd>/<kbd>k</kbd>/<kbd>e</kbd>)을 제공.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════════ MOTION ════════ -->
+    <section id="motion">
+      <div class="section-head"><span class="section-num">06</span><h2>모션 & 트랜지션</h2></div>
+
+      <p>모션 시스템은 <strong>가장 큰 강점이자 가장 큰 약점</strong>입니다. 강점: <code>MotionProvider</code>로 rich/minimal 토글 + <code>prefers-reduced-motion</code> 친화적 구조. 약점: 실제 duration 값이 컴포넌트마다 다르고, “등장”에만 집중돼 있고 <strong>“관계를 보여주는 모션”</strong>이 없습니다.</p>
+
+      <div class="motion-grid">
+        <div class="timeline">
+          <header><h3>현재 — 페이지 전환 타임라인</h3><span class="ms">0ms ─────────────── 600ms</span></header>
+          <div class="tl-wrap">
+            <div class="track"><span class="lab">page fade</span><div class="seg cur" style="left:0%;width:33%">0–200ms · ease-out</div></div>
+            <div class="track"><span class="lab">view xfade</span><div class="seg cur" style="left:0%;width:25%">0–150ms · ease-in-out</div></div>
+            <div class="track"><span class="lab">stagger list</span><div class="seg warn" style="left:0%;width:8%">0</div><div class="seg warn" style="left:8%;width:8%">50</div><div class="seg warn" style="left:16%;width:8%">100</div><div class="seg warn" style="left:24%;width:8%">150</div></div>
+            <div class="track"><span class="lab">modal in</span><div class="seg cur" style="left:0%;width:36%">0–220ms · cubic 0.16,1,0.3,1</div></div>
+            <div class="track"><span class="lab">panel slide</span><div class="seg cur" style="left:0%;width:42%">0–250ms · cubic</div></div>
+            <div class="track"><span class="lab">spring (rich)</span><div class="seg bad" style="left:0%;width:60%">stiffness 300 · damping 25 · ~360ms 실측</div></div>
+          </div>
+          <div class="legend">
+            <span><i style="background:var(--ink)"></i>설정된 duration</span>
+            <span><i style="background:var(--warn)"></i>stagger step</span>
+            <span><i style="background:var(--bad)"></i>실측이 명세보다 김</span>
+          </div>
+          <p style="font-size:13px;color:var(--ink-soft);margin-top:14px;margin-bottom:0">5개 트랜지션이 <strong>5개 다른 duration</strong>(150 / 200 / 220 / 250 / ~360ms). 같은 페이지에서 두 모션이 섞이면 “두 박자”가 들립니다.</p>
+        </div>
+
+        <div class="timeline">
+          <header><h3>제안 — 3-tier easing system</h3><span class="ms">0ms ─────────────── 500ms</span></header>
+          <div class="tl-wrap">
+            <div class="track"><span class="lab">--fast 120</span><div class="seg fix" style="left:0%;width:24%">hover · button · tooltip</div></div>
+            <div class="track"><span class="lab">--base 220</span><div class="seg fix" style="left:0%;width:44%">page · modal · panel · stagger 합</div></div>
+            <div class="track"><span class="lab">--slow 360</span><div class="seg fix" style="left:0%;width:72%">orbit · empty-state · brand moment</div></div>
+            <div class="track" style="background:transparent;border:0"><span class="lab">curves</span>
+              <div style="position:absolute;left:0;display:flex;gap:14px;font-family:var(--mono);font-size:10px;color:var(--ink-soft);top:8px">
+                <span><b style="color:var(--ink)">snap</b> · cubic-bezier(0.2, 0, 0, 1)</span>
+                <span><b style="color:var(--ink)">smooth</b> · cubic-bezier(0.4, 0, 0.2, 1)</span>
+                <span><b style="color:var(--ink)">orbit</b> · cubic-bezier(0.4, 0.8, 0.2, 1)</span>
+              </div>
+            </div>
+          </div>
+          <p style="font-size:13px;color:var(--ink-soft);margin-top:14px;margin-bottom:0"><strong>3개 duration × 3개 curve</strong>로 모든 모션을 표현. <code>--motion-fast/base/slow</code> CSS 변수로 노출, framer-motion preset에 매핑.</p>
+        </div>
+
+        <div class="timeline">
+          <header><h3>새로운 모션 패턴 제안</h3><span class="ms">관계를 보여주는 움직임</span></header>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:8px">
+            <div style="border:1px solid var(--rule);border-radius:10px;padding:14px;background:var(--bg)">
+              <h4>FLIP — 보드 카드 상태 변경</h4>
+              <p style="font-size:13px;margin-bottom:0">카드를 “Doing”에서 “Done”으로 드래그하면 현재는 즉시 점프. <strong>FLIP 애니메이션</strong>으로 카드가 자기 자리에서 새 자리까지 220ms <code>orbit</code> curve로 호선을 그리며 이동. 이게 “Orbital UI”의 진짜 의미.</p>
+            </div>
+
+            <div style="border:1px solid var(--rule);border-radius:10px;padding:14px;background:var(--bg)">
+              <h4>Shared element — 이슈 행 → 모달</h4>
+              <p style="font-size:13px;margin-bottom:0">리스트의 이슈 제목·코드가 <strong>모달 헤더로 이어지듯</strong> 같은 위치에서 자라며 모달이 그 뒤로 펼쳐짐. framer-motion <code>layoutId</code> 사용. 사용자가 “어디서 왔는지” 잊지 않음.</p>
+            </div>
+
+            <div style="border:1px solid var(--rule);border-radius:10px;padding:14px;background:var(--bg)">
+              <h4>Optimistic ripple — 우선순위 변경</h4>
+              <p style="font-size:13px;margin-bottom:0">우선순위 바꾸면 <strong>같은 우선순위의 다른 이슈들이 0.2초 동안 미묘하게 깜빡</strong>(scale 1→1.02→1) — “이 그룹이 같이 움직였다”는 시그널. 단순 색 변경보다 인지 부담이 낮습니다.</p>
+            </div>
+
+            <div style="border:1px solid var(--rule);border-radius:10px;padding:14px;background:var(--bg)">
+              <h4>WebSocket pulse — 실시간 활동</h4>
+              <p style="font-size:13px;margin-bottom:0">현재는 데이터가 새로 오면 그냥 갱신. <strong>변경된 행만 좌측 strip이 0.4초 fade-in</strong>(strip은 변경자의 아바타 색). “누가 무엇을 바꿨는지”가 모션으로 즉시 읽힘. 5초 후 strip 사라짐.</p>
+            </div>
+
+            <div style="border:1px solid var(--rule);border-radius:10px;padding:14px;background:var(--bg);grid-column:span 2">
+              <h4>Orbit 메타포 → 진행률 시각화</h4>
+              <p style="font-size:13px">스프린트 카드에서 “남은 일 vs 완료” 비율을 <strong>작은 궤도 위 행성 위치</strong>로 표현. 시작점에서 종착점까지 호선을 따라 이동. 호선은 burn-down의 ideal line, 행성은 actual remaining. 이러면 OrbitTail의 이름이 마침내 “기능”이 됩니다.</p>
+              <svg viewBox="0 0 600 90" style="width:100%;height:80px;margin-top:6px">
+                <path id="arc" d="M 30 70 Q 300 -10 570 70" fill="none" stroke="oklch(0.55 0.18 254)" stroke-width="1.5" stroke-dasharray="3 4" opacity=".5"/>
+                <circle cx="30" cy="70" r="4" fill="oklch(0.55 0.18 254)"/>
+                <circle cx="570" cy="70" r="4" fill="var(--ok)"/>
+                <circle r="6" fill="oklch(0.55 0.18 254)"><animateMotion dur="6s" repeatCount="indefinite"><mpath href="#arc"/></animateMotion></circle>
+                <text x="30" y="86" font-family="var(--mono)" font-size="9" fill="var(--ink-mute)">START</text>
+                <text x="540" y="86" font-family="var(--mono)" font-size="9" fill="var(--ink-mute)">DONE</text>
+                <text x="285" y="20" font-family="var(--mono)" font-size="10" fill="var(--ink-soft)">Sprint 14 · 62%</text>
+              </svg>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════════ A11Y ════════ -->
+    <section id="accessibility">
+      <div class="section-head"><span class="section-num">07</span><h2>접근성</h2></div>
+
+      <div class="findings">
+        <div class="finding">
+          <div class="gutter"><div class="sev sev-h">!</div>HIGH</div>
+          <div class="body">
+            <header><h3>색만으로 우선순위·상태를 구분 (WCAG 1.4.1)</h3><span class="tag acc">A11y</span></header>
+            <p>이슈 리스트의 우선순위는 <code>w-2 h-2 rounded-full</code> 점 + 색이 전부입니다. 색맹(약 8% 남성)에게 정보가 전달되지 않습니다. <strong>형태/아이콘/패턴 + 색</strong>의 이중 부호화를 도입.</p>
+          </div>
+        </div>
+
+        <div class="finding">
+          <div class="gutter"><div class="sev sev-m">!</div>MED</div>
+          <div class="body">
+            <header><h3>focus-visible 링과 border가 같은 색</h3><span class="tag acc">A11y</span></header>
+            <p><code>--ring</code> = <code>--primary</code> = <code>--border</code>(라이트). 키보드 포커스가 <strong>구분되지 않습니다.</strong> ring을 <code>2px solid + 2px offset</code>으로 두께를 늘리고, 가능하면 dark border 대신 ink-soft 톤으로 변경.</p>
+          </div>
+        </div>
+
+        <div class="finding">
+          <div class="gutter"><div class="sev sev-m">!</div>MED</div>
+          <div class="body">
+            <header><h3>perspective-wave 애니메이션이 <code>prefers-reduced-motion</code> 무시</h3><span class="tag mot">Motion</span><span class="tag acc">A11y</span></header>
+            <p>현재는 <code>data-motion="minimal"</code>일 때만 멈춥니다. <strong>OS 레벨 reduced-motion</strong>도 자동 감지해야 합니다.</p>
+            <div class="fix"><h4>FIX</h4><p><code>@media (prefers-reduced-motion: reduce){ body::before{animation:none} }</code> 한 줄로 해결. MotionProvider 초기값도 OS 설정을 읽어 minimal로 시작.</p></div>
+          </div>
+        </div>
+
+        <div class="finding">
+          <div class="gutter"><div class="sev sev-l">!</div>LOW</div>
+          <div class="body">
+            <header><h3>키보드 단축키가 숨겨져 있다</h3><span class="tag acc">A11y</span></header>
+            <p><kbd>Cmd+K</kbd>, <kbd>Cmd+Z</kbd>는 있지만 발견 가능성이 낮습니다. <kbd>?</kbd> 키로 떠오르는 <strong>shortcut overlay</strong>(Linear 패턴) 추가.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════════ ROADMAP ════════ -->
+    <section id="roadmap">
+      <div class="section-head"><span class="section-num">08</span><h2>우선순위 로드맵</h2></div>
+
+      <p>23개 finding을 <strong>“이번 주 / 이번 스프린트 / 이번 분기”</strong>로 분류했습니다. effort bar는 1=한나절, 2=2~3일, 3=1주+.</p>
+
+      <h3 style="margin-top:24px">이번 주 — 4 quick wins</h3>
+      <ol class="recs">
+        <li><div><b>perspective-wave에 prefers-reduced-motion 추가</b><p>1 line CSS. 접근성 즉시 개선.</p></div><div class="effort s">Effort<span class="bar"><i></i><i></i><i></i></span></div></li>
+        <li><div><b>--border 색을 채도 0.012로 낮추기</b><p>tokens.css 한 줄. 모든 카드가 즉시 “선택 안 된 상태”로 정상화.</p></div><div class="effort s">Effort<span class="bar"><i></i><i></i><i></i></span></div></li>
+        <li><div><b>focus-visible ring 두께 +1px, offset 분리</b><p>키보드 포커스 가시성 회복.</p></div><div class="effort s">Effort<span class="bar"><i></i><i></i><i></i></span></div></li>
+        <li><div><b>--motion-fast/base/slow CSS 변수 도입</b><p>MotionProvider의 spring/duration을 모두 이 3개로 매핑. 신규 컴포넌트는 무조건 이 토큰만 사용.</p></div><div class="effort s">Effort<span class="bar"><i></i><i></i><i></i></span></div></li>
+      </ol>
+
+      <h3 style="margin-top:32px">이번 스프린트 — 8 system fixes</h3>
+      <ol class="recs">
+        <li><div><b>우선순위 색을 단일 hue 그라디언트로 재설계</b><p>oklch 기반 5단계 + 형태 아이콘(◆▲●○) 동시 도입.</p></div><div class="effort m">Effort<span class="bar"><i></i><i></i><i></i></span></div></li>
+        <li><div><b>state 토큰을 fill/text/border 3쌍으로 분해</b><p>WCAG 대비 자동 통과. 보드 헤더, 라벨, badge 모두 영향.</p></div><div class="effort m">Effort<span class="bar"><i></i><i></i><i></i></span></div></li>
+        <li><div><b>라이트/다크 모두 같은 hue (블루)로 통일, 골드는 워크스페이스 옵션 색으로</b><p>브랜드 일관성 회복.</p></div><div class="effort m">Effort<span class="bar"><i></i><i></i><i></i></span></div></li>
+        <li><div><b>라우터 메타에 chrome 플래그(branded/minimal/document) 추가</b><p>작업 화면에서 점격자·궤도 비활성화 → 정보 가독성 +.</p></div><div class="effort m">Effort<span class="bar"><i></i><i></i><i></i></span></div></li>
+        <li><div><b>Sidebar 활성 상태 = 좌측 3px bar 단일화</b><p>워크스페이스 색을 그 bar에 매핑.</p></div><div class="effort s">Effort<span class="bar"><i></i><i></i><i></i></span></div></li>
+        <li><div><b>Density 토글 도입 (Compact / Comfortable / Spacious)</b><p>Compact 기본, 문서 에디터만 Comfortable.</p></div><div class="effort m">Effort<span class="bar"><i></i><i></i><i></i></span></div></li>
+        <li><div><b>Empty state 일러스트 1세트 (작은 단일 행성)</b><p>Issues / Sprints / Documents / Notifications 통일.</p></div><div class="effort m">Effort<span class="bar"><i></i><i></i><i></i></span></div></li>
+        <li><div><b>FLIP 애니메이션 — 보드 카드 상태 이동</b><p>framer-motion <code>layout</code> prop만 추가하면 90% 완성. orbit curve 적용.</p></div><div class="effort m">Effort<span class="bar"><i></i><i></i><i></i></span></div></li>
+      </ol>
+
+      <h3 style="margin-top:32px">이번 분기 — 4 strategic moves</h3>
+      <ol class="recs">
+        <li><div><b>Orbit 메타포를 시각 시스템으로 격상</b><p>워크스페이스 아바타 = 작은 궤도, 스프린트 진행률 = 행성 위치, 알림 카운트 = 위성 수. 한 시스템으로 모든 화면 관통.</p></div><div class="effort l">Effort<span class="bar"><i></i><i></i><i></i></span></div></li>
+        <li><div><b>Display serif (Fraunces/Tiempos) 도입 — 브랜드 모먼트에만</b><p>로그인, 대시보드 인사말, 빈 상태 헤드라인.</p></div><div class="effort m">Effort<span class="bar"><i></i><i></i><i></i></span></div></li>
+        <li><div><b>Shared element transitions (이슈 리스트 ↔ 모달)</b><p>framer-motion layoutId. 컨텍스트 손실 제거.</p></div><div class="effort l">Effort<span class="bar"><i></i><i></i><i></i></span></div></li>
+        <li><div><b>WebSocket pulse — 실시간 변경자 strip</b><p>변경된 행 좌측에 변경자 아바타 색의 4px strip이 0.4초 fade-in. 5초 후 사라짐.</p></div><div class="effort l">Effort<span class="bar"><i></i><i></i><i></i></span></div></li>
+      </ol>
+
+      <div class="takeaway">
+        <div class="num">3×</div>
+        <p><b>한 줄 요약.</b> OrbiTail의 디자인 시스템은 잘 정돈돼 있지만 “정체성·계층·모션” 세 축이 각자 따로 일하고 있습니다. <strong>Orbit 메타포를 시각 시스템으로 격상하고, 우선순위/상태 색을 단일 hue 그라디언트로 재설계하고, 모션을 3-tier로 통일</strong>하는 것 — 이 셋을 함께 하면 같은 기능이 <em>완전히 다른 제품</em>처럼 느껴집니다.</p>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+  /* TOC 활성 상태 — IntersectionObserver */
+  const links = document.querySelectorAll('#toc a');
+  const map = new Map();
+  links.forEach(a => map.set(a.getAttribute('href').slice(1), a));
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        links.forEach(l => l.classList.remove('active'));
+        const a = map.get(e.target.id);
+        if (a) a.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-30% 0px -60% 0px', threshold: 0 });
+  document.querySelectorAll('section[id]').forEach(s => io.observe(s));
+</script>
+</body>
+</html>

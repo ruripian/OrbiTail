@@ -1,0 +1,1156 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>OrbiTail Design Audit v2 · 적용 후 점검</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    /* Palette — neutral slate + electric blue, mirroring the codebase */
+    --bg: #0c1018;
+    --bg-2: #11151f;
+    --panel: #161b27;
+    --panel-2: #1c2230;
+    --line: #262d3d;
+    --line-2: #303a4f;
+    --ink: #e6e9f0;
+    --ink-2: #b6bdcc;
+    --ink-3: #7d8699;
+    --ink-4: #525a6c;
+    --primary: #5b8def;
+    --primary-2: #7aa3ff;
+    --primary-soft: rgba(91,141,239,0.14);
+
+    /* Severity */
+    --sev-crit: #ef5e6f;
+    --sev-high: #f59e0b;
+    --sev-med: #5b8def;
+    --sev-low: #7d8699;
+
+    /* State (mirrors app) */
+    --st-backlog:  #9ca3af;
+    --st-unstarted:#94a3b8;
+    --st-started:  #3b82f6;
+    --st-completed:#10b981;
+    --st-cancelled:#ef4444;
+
+    --r-sm: 6px;
+    --r-md: 10px;
+    --r-lg: 14px;
+    --r-xl: 20px;
+
+    --font-sans: "Inter", "Pretendard", system-ui, sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, monospace;
+    --font-display: "Fraunces", Georgia, serif;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin:0; padding:0; }
+  body {
+    font-family: var(--font-sans);
+    background: var(--bg);
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.55;
+  }
+
+  /* Subtle starfield-ish bg */
+  body::before {
+    content: "";
+    position: fixed; inset: 0;
+    background:
+      radial-gradient(1200px 600px at 80% -10%, rgba(91,141,239,0.10), transparent 60%),
+      radial-gradient(900px 500px at 0% 100%, rgba(91,141,239,0.06), transparent 60%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .layout {
+    position: relative; z-index: 1;
+    display: grid;
+    grid-template-columns: 260px minmax(0, 1fr);
+    min-height: 100vh;
+  }
+
+  /* ── TOC ── */
+  aside.toc {
+    position: sticky; top: 0;
+    height: 100vh;
+    border-right: 1px solid var(--line);
+    background: rgba(11,14,22,0.7);
+    backdrop-filter: blur(8px);
+    padding: 28px 22px;
+    overflow-y: auto;
+  }
+  .toc .brand {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 24px;
+  }
+  .toc .brand .ring {
+    width: 28px; height: 28px; border-radius: 999px;
+    border: 1.5px solid var(--primary);
+    position: relative;
+  }
+  .toc .brand .ring::after {
+    content:""; position:absolute;
+    width: 6px; height: 6px; border-radius: 999px;
+    background: var(--primary);
+    top: -3px; left: 50%; transform: translateX(-50%);
+  }
+  .toc .brand .name { font-family: var(--font-display); font-weight: 600; font-size: 17px; letter-spacing: -0.01em; }
+  .toc .brand .sub  { font-size: 11px; color: var(--ink-3); letter-spacing: 0.06em; text-transform: uppercase; }
+
+  .toc h4 {
+    font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--ink-4);
+    margin: 22px 0 8px 4px;
+    font-weight: 600;
+  }
+  .toc a {
+    display: flex; align-items: center; gap: 10px;
+    padding: 7px 10px; border-radius: var(--r-sm);
+    color: var(--ink-2); text-decoration: none; font-size: 13px;
+    transition: background 120ms, color 120ms;
+  }
+  .toc a:hover { background: var(--panel); color: var(--ink); }
+  .toc a.active { background: var(--primary-soft); color: var(--primary-2); }
+  .toc a .num { font-family: var(--font-mono); font-size: 10px; color: var(--ink-4); width: 18px; }
+  .toc a.active .num { color: var(--primary); }
+
+  /* ── Main ── */
+  main { padding: 56px 64px 120px; max-width: 1080px; }
+  @media (max-width: 1100px) { main { padding: 40px 32px 80px; } }
+
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--ink-3);
+    padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px;
+  }
+  .eyebrow .dot { width: 6px; height: 6px; border-radius: 999px; background: var(--primary); }
+
+  h1.title {
+    font-family: var(--font-display);
+    font-size: 56px; line-height: 1.05; letter-spacing: -0.022em;
+    font-weight: 500;
+    margin: 18px 0 12px;
+  }
+  h1.title em { font-style: italic; color: var(--primary-2); font-weight: 400; }
+  .lede {
+    color: var(--ink-2); font-size: 17px; max-width: 64ch;
+  }
+
+  .meta-row {
+    display: flex; gap: 28px; flex-wrap: wrap;
+    margin-top: 26px; padding: 18px 22px;
+    background: linear-gradient(180deg, var(--panel), var(--panel-2));
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+  }
+  .meta-row .cell .k { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-4); }
+  .meta-row .cell .v { font-size: 14px; margin-top: 4px; color: var(--ink); }
+  .meta-row .cell .v.num { font-family: var(--font-display); font-size: 22px; font-weight: 500; }
+
+  section { margin-top: 72px; scroll-margin-top: 24px; }
+  section h2 {
+    font-family: var(--font-display);
+    font-size: 32px; letter-spacing: -0.015em; font-weight: 500;
+    margin: 0 0 6px;
+    display: flex; align-items: baseline; gap: 14px;
+  }
+  section h2 .idx {
+    font-family: var(--font-mono); font-size: 13px;
+    color: var(--primary); letter-spacing: 0.05em;
+  }
+  section .sec-lede { color: var(--ink-2); font-size: 15px; max-width: 70ch; margin-bottom: 28px; }
+
+  /* Finding card */
+  .finding {
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    background: var(--panel);
+    margin-bottom: 16px;
+    overflow: hidden;
+  }
+  .finding.crit { border-left: 3px solid var(--sev-crit); }
+  .finding.high { border-left: 3px solid var(--sev-high); }
+  .finding.med  { border-left: 3px solid var(--sev-med); }
+  .finding.low  { border-left: 3px solid var(--sev-low); }
+
+  .finding header {
+    display: flex; align-items: flex-start; gap: 14px;
+    padding: 18px 22px 12px;
+  }
+  .finding header .sev {
+    font-family: var(--font-mono);
+    font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+    padding: 3px 8px; border-radius: 4px;
+    flex-shrink: 0;
+    margin-top: 3px;
+  }
+  .crit .sev { background: rgba(239,94,111,0.14); color: var(--sev-crit); }
+  .high .sev { background: rgba(245,158,11,0.14); color: var(--sev-high); }
+  .med  .sev { background: var(--primary-soft); color: var(--primary-2); }
+  .low  .sev { background: rgba(125,134,153,0.18); color: var(--ink-2); }
+
+  .finding header .title {
+    flex: 1;
+  }
+  .finding header h3 {
+    margin: 0; font-size: 16px; font-weight: 600; color: var(--ink);
+    letter-spacing: -0.005em;
+  }
+  .finding header .tags {
+    display: flex; flex-wrap: wrap; gap: 6px;
+    margin-top: 8px;
+  }
+  .finding header .tags span {
+    font-size: 10px; letter-spacing: 0.06em;
+    color: var(--ink-3); padding: 2px 8px;
+    border: 1px solid var(--line); border-radius: 999px;
+    font-family: var(--font-mono);
+  }
+  .finding header .tags span.path { color: var(--primary-2); border-color: rgba(91,141,239,0.3); }
+  .finding header .tags span.status-good { color: var(--st-completed); border-color: rgba(16,185,129,0.3); }
+
+  .finding .body {
+    padding: 4px 22px 20px;
+  }
+  .finding .body p {
+    margin: 8px 0;
+    color: var(--ink-2); font-size: 14px;
+  }
+  .finding .body p.observation { color: var(--ink); }
+  .finding .body strong { color: var(--ink); font-weight: 600; }
+  .finding .body code {
+    font-family: var(--font-mono); font-size: 12px;
+    background: var(--bg-2); padding: 1px 6px; border-radius: 4px;
+    color: var(--primary-2); border: 1px solid var(--line);
+  }
+
+  .fix {
+    margin-top: 14px;
+    background: var(--bg-2);
+    border-radius: var(--r-md);
+    border: 1px solid var(--line);
+    padding: 14px 16px;
+  }
+  .fix .label {
+    font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--st-completed);
+    font-family: var(--font-mono);
+    display: flex; align-items: center; gap: 6px;
+    margin-bottom: 10px;
+  }
+  .fix .label::before {
+    content: ""; width: 6px; height: 6px; border-radius: 999px;
+    background: var(--st-completed);
+  }
+  .fix pre {
+    margin: 0; padding: 0;
+    font-family: var(--font-mono); font-size: 12.5px; line-height: 1.65;
+    color: var(--ink-2);
+    white-space: pre-wrap; word-break: break-word;
+  }
+  .fix pre .c { color: var(--ink-4); }
+  .fix pre .k { color: var(--primary-2); }
+  .fix pre .v { color: #c4f0d4; }
+  .fix pre .s { color: #f0c4a8; }
+
+  /* Before / After comparison */
+  .ba {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 12px; margin-top: 14px;
+  }
+  .ba .col {
+    border: 1px solid var(--line);
+    border-radius: var(--r-md);
+    padding: 14px;
+    background: var(--bg-2);
+  }
+  .ba .col header {
+    padding: 0 0 10px; font-family: var(--font-mono);
+    font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--ink-4);
+  }
+  .ba .col.bad header { color: var(--sev-crit); }
+  .ba .col.good header { color: var(--st-completed); }
+  .ba .col .demo { min-height: 100px; display: flex; align-items: center; justify-content: center; }
+
+  /* Token chip / swatch */
+  .swatch-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+  .swatch {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px; border: 1px solid var(--line);
+    border-radius: var(--r-md);
+    background: var(--bg-2); font-size: 12px;
+  }
+  .swatch .chip {
+    width: 22px; height: 22px; border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+  .swatch .label { color: var(--ink-2); }
+  .swatch .val { font-family: var(--font-mono); color: var(--ink-3); font-size: 11px; }
+
+  /* Density bar */
+  .density-bar {
+    height: 8px; border-radius: 999px; overflow: hidden;
+    background: var(--bg-2); border: 1px solid var(--line);
+    display: flex;
+  }
+  .density-bar span { display: block; height: 100%; }
+
+  /* Roadmap */
+  .roadmap {
+    margin-top: 24px; display: grid;
+    grid-template-columns: repeat(3, 1fr); gap: 16px;
+  }
+  @media (max-width: 900px) { .roadmap { grid-template-columns: 1fr; } }
+  .lane {
+    border: 1px solid var(--line); border-radius: var(--r-lg);
+    padding: 18px 18px 22px;
+    background: linear-gradient(180deg, var(--panel), var(--panel-2));
+  }
+  .lane h4 {
+    margin: 0 0 4px; font-family: var(--font-display);
+    font-size: 18px; font-weight: 500;
+  }
+  .lane .when { font-size: 11px; color: var(--ink-4); letter-spacing: 0.1em; text-transform: uppercase; font-family: var(--font-mono); }
+  .lane ul { padding: 14px 0 0 0; margin: 0; list-style: none; }
+  .lane li {
+    padding: 8px 0; border-top: 1px solid var(--line);
+    font-size: 13px; color: var(--ink-2);
+    display: flex; gap: 10px; align-items: flex-start;
+  }
+  .lane li::before {
+    content: ""; width: 6px; height: 6px; border-radius: 999px;
+    background: var(--primary); margin-top: 7px; flex-shrink: 0;
+  }
+  .lane.q3 li::before { background: var(--sev-high); }
+  .lane.q1 li::before { background: var(--st-completed); }
+
+  /* Status pills for quick glance */
+  .status-grid {
+    display: grid; grid-template-columns: repeat(2, 1fr);
+    gap: 10px; margin-top: 18px;
+  }
+  @media (max-width: 700px) { .status-grid { grid-template-columns: 1fr; } }
+  .status-pill {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px;
+    border: 1px solid var(--line); border-radius: var(--r-md);
+    background: var(--panel);
+    font-size: 13px;
+  }
+  .status-pill .left { display: flex; align-items: center; gap: 10px; }
+  .status-pill .dot { width: 8px; height: 8px; border-radius: 999px; }
+  .status-pill .dot.ok   { background: var(--st-completed); }
+  .status-pill .dot.warn { background: var(--sev-high); }
+  .status-pill .dot.bad  { background: var(--sev-crit); }
+  .status-pill .right { font-family: var(--font-mono); font-size: 11px; color: var(--ink-3); }
+
+  /* Inline demo bits */
+  .btn-demo {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 12px; border-radius: var(--r-sm);
+    font-size: 12px; font-weight: 500;
+    border: 1px solid var(--line); background: var(--bg-2); color: var(--ink-2);
+  }
+  .btn-demo.primary { background: var(--primary); border-color: var(--primary); color: white; }
+
+  /* small footer */
+  footer.foot {
+    margin-top: 100px; padding: 32px 0 0;
+    border-top: 1px solid var(--line);
+    color: var(--ink-4); font-size: 12px;
+  }
+  footer.foot strong { color: var(--ink-2); }
+
+  /* tiny ascii-ish heading divider */
+  .div-line {
+    height: 1px; background: linear-gradient(90deg, var(--line), transparent);
+    margin: 18px 0 0;
+  }
+
+  /* numbers display */
+  .stat-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px;
+    margin-top: 22px;
+  }
+  @media (max-width: 800px) { .stat-grid { grid-template-columns: repeat(2, 1fr); } }
+  .stat {
+    border: 1px solid var(--line); border-radius: var(--r-md);
+    padding: 16px; background: var(--panel);
+  }
+  .stat .v { font-family: var(--font-display); font-size: 32px; font-weight: 500; line-height: 1; }
+  .stat .v.ok   { color: var(--st-completed); }
+  .stat .v.warn { color: var(--sev-high); }
+  .stat .v.bad  { color: var(--sev-crit); }
+  .stat .l { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-4); margin-top: 8px; }
+
+</style>
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- ─────────── TOC ─────────── -->
+  <aside class="toc">
+    <div class="brand">
+      <div class="ring"></div>
+      <div>
+        <div class="name">Audit v2</div>
+        <div class="sub">Post-Phase Review</div>
+      </div>
+    </div>
+
+    <h4>Overview</h4>
+    <a href="#summary"><span class="num">00</span>Executive summary</a>
+    <a href="#scorecard"><span class="num">01</span>Phase scorecard</a>
+
+    <h4>New findings</h4>
+    <a href="#color"><span class="num">02</span>Color & contrast</a>
+    <a href="#hierarchy"><span class="num">03</span>Visual hierarchy</a>
+    <a href="#density"><span class="num">04</span>Density & rhythm</a>
+    <a href="#identity"><span class="num">05</span>Brand identity</a>
+    <a href="#motion"><span class="num">06</span>Motion residue</a>
+    <a href="#empty"><span class="num">07</span>Empty &amp; edge</a>
+    <a href="#a11y"><span class="num">08</span>Accessibility</a>
+
+    <h4>Plan</h4>
+    <a href="#roadmap"><span class="num">09</span>Roadmap v2</a>
+  </aside>
+
+  <!-- ─────────── MAIN ─────────── -->
+  <main>
+
+    <!-- HERO -->
+    <section id="summary" style="margin-top:0;">
+      <span class="eyebrow"><span class="dot"></span>Audit v2 · 2025-04</span>
+      <h1 class="title">Phase 1 토큰은 안착했다.<br/><em>이제 “정렬과 호흡”이 문제다.</em></h1>
+      <p class="lede">
+        Phase 1–3의 토큰·모션·shared-element는 코드에 잘 녹아 있다.
+        그래서 v2의 관심사는 더 이상 “시스템”이 아니라 <strong>“화면이 깔끔해 보이지 않는 진짜 이유”</strong>다.
+        간격·정렬·계층이 어긋나는 23개 지점을 짚는다.
+      </p>
+
+      <div class="meta-row">
+        <div class="cell"><div class="k">기준 파일</div><div class="v num">11</div></div>
+        <div class="cell"><div class="k">새 finding</div><div class="v num">23</div></div>
+        <div class="cell"><div class="k">Critical</div><div class="v num" style="color:var(--sev-crit)">3</div></div>
+        <div class="cell"><div class="k">Quick win (1d)</div><div class="v num" style="color:var(--st-completed)">9</div></div>
+        <div class="cell"><div class="k">v1 대비 회귀</div><div class="v num" style="color:var(--st-completed)">0</div></div>
+      </div>
+    </section>
+
+    <!-- SCORECARD -->
+    <section id="scorecard">
+      <h2><span class="idx">01</span>Phase scorecard</h2>
+      <p class="sec-lede">
+        v1 권고가 어떻게 코드에 반영됐는지 — 그리고 어디가 절반만 끝난 채 멈췄는지.
+      </p>
+
+      <div class="status-grid">
+        <div class="status-pill"><div class="left"><span class="dot ok"></span>Motion 토큰 3-tier (<code>--motion-fast/base/slow</code>)</div><div class="right">DONE · index.css L51-58</div></div>
+        <div class="status-pill"><div class="left"><span class="dot ok"></span>Border 채도 중립화</div><div class="right">DONE · L93, L153</div></div>
+        <div class="status-pill"><div class="left"><span class="dot ok"></span><code>prefers-reduced-motion</code></div><div class="right">DONE · L230</div></div>
+        <div class="status-pill"><div class="left"><span class="dot ok"></span>FLIP / shared-element</div><div class="right">DONE · BoardView, IssueDetail</div></div>
+        <div class="status-pill"><div class="left"><span class="dot ok"></span>WebSocket pulse strip</div><div class="right">DONE · index.css L1554</div></div>
+        <div class="status-pill"><div class="left"><span class="dot ok"></span>Density 토글</div><div class="right">DONE · density-provider.tsx</div></div>
+        <div class="status-pill"><div class="left"><span class="dot warn"></span>Display serif 적용 범위</div><div class="right">PARTIAL · h1만</div></div>
+        <div class="status-pill"><div class="left"><span class="dot warn"></span>State 색 토큰화 (<code>--state-*-fill</code>)</div><div class="right">PARTIAL · BoardView만 사용</div></div>
+        <div class="status-pill"><div class="left"><span class="dot warn"></span>Priority 시각 시그널</div><div class="right">PARTIAL · 색만, 형태 없음</div></div>
+        <div class="status-pill"><div class="left"><span class="dot bad"></span>SprintProgress hard-coded 색</div><div class="right">REGRESSION · <code>bg-green-500</code> 등</div></div>
+      </div>
+    </section>
+
+    <!-- ─────────── 02 COLOR ─────────── -->
+    <section id="color">
+      <h2><span class="idx">02</span>Color &amp; contrast</h2>
+      <p class="sec-lede">
+        Phase 1.2의 border 중립화는 효과적이었다. 다만 <strong>토큰 바깥에서 직접 색을 쓰는 잔재</strong>가 깔끔함을 망가뜨린다.
+      </p>
+
+      <div class="finding crit">
+        <header>
+          <span class="sev">crit</span>
+          <div class="title">
+            <h3>Sprint progress bar가 토큰을 우회한다</h3>
+            <div class="tags">
+              <span class="path">ProjectIssuePage.tsx:331</span>
+              <span>color drift</span>
+              <span>regression</span>
+            </div>
+          </div>
+        </header>
+        <div class="body">
+          <p class="observation">
+            스프린트 진행 띠는 <code>bg-green-500</code>, 카운트는 <code>text-green-600</code>·<code>text-blue-600</code>로 박혀 있다.
+            나머지 화면은 모두 <code>--state-completed</code> / <code>--state-started</code> 토큰을 따르도록 통일했는데
+            이 한 줄이 다크모드에서 채도 균형을 깨고, 워크스페이스 brand_color로 테마를 바꿨을 때 무너진다.
+          </p>
+          <div class="ba">
+            <div class="col bad">
+              <header>현재 (Tailwind hard-coded)</header>
+              <div class="demo">
+                <div style="width:100%">
+                  <div style="height:6px;border-radius:99px;background:rgba(255,255,255,0.08);overflow:hidden">
+                    <div style="height:100%;width:62%;background:#22c55e"></div>
+                  </div>
+                  <div style="display:flex;gap:14px;margin-top:10px;font-size:11px;font-family:var(--font-mono)">
+                    <span style="color:#16a34a">● 12</span>
+                    <span style="color:#2563eb">● 4</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="col good">
+              <header>제안 (state token)</header>
+              <div class="demo">
+                <div style="width:100%">
+                  <div style="height:6px;border-radius:99px;background:rgba(255,255,255,0.08);overflow:hidden">
+                    <div style="height:100%;width:62%;background:linear-gradient(90deg,var(--st-started),var(--st-completed))"></div>
+                  </div>
+                  <div style="display:flex;gap:14px;margin-top:10px;font-size:11px;font-family:var(--font-mono)">
+                    <span style="color:var(--st-completed)">● 12</span>
+                    <span style="color:var(--st-started)">● 4</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="fix">
+            <div class="label">FIX · 5min</div>
+<pre><span class="c">// ProjectIssuePage.tsx — sprint banner 내부</span>
+<span class="c">// before</span>
+className=<span class="s">"h-full rounded-full bg-green-500 transition-all"</span>
+<span class="c">// after</span>
+className=<span class="s">"h-full rounded-full transition-all"</span>
+style={{ background: <span class="s">"hsl(var(--state-completed-fill, 142 70% 45%))"</span>, width: `${pct}%` }}
+
+<span class="c">// 카운트 라벨도 동일하게 토큰화</span>
+text-[<span class="s">color:hsl(var(--state-completed-text))</span>] / text-[<span class="s">color:hsl(var(--state-started-text))</span>]</pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="finding high">
+        <header>
+          <span class="sev">high</span>
+          <div class="title">
+            <h3>State token이 BoardView에만 살아있다</h3>
+            <div class="tags">
+              <span class="path">BoardView.tsx:127</span>
+              <span class="path">TableView · backlog 등</span>
+              <span>token sprawl</span>
+            </div>
+          </div>
+        </header>
+        <div class="body">
+          <p>
+            BoardView는 모범적이다 — <code>var(--state-${'{'}group{'}'}-fill)</code>로 카운트 배지를 그린다.
+            그러나 TableView·BacklogView·ArchiveView·CalendarView는 여전히
+            <code>state.color</code> (사용자가 admin에서 정한 임의 hex)를 그대로 색칠한다.
+          </p>
+          <p>
+            결과: 같은 “In Progress” 상태가 <strong>화면마다 미묘하게 다른 채도</strong>로 보인다. 이게 “깔끔하지 않다”의 큰 원인 중 하나.
+          </p>
+          <div class="fix">
+            <div class="label">FIX · 30min</div>
+<pre><span class="c">// 새 헬퍼 — lib/state-color.ts</span>
+<span class="k">export function</span> stateColor(group: StateGroup, fallback?: string) {
+  <span class="k">return</span> {
+    fill: `hsl(var(--state-${group}-fill, ${fallback ?? <span class="s">"220 8% 60%"</span>}))`,
+    text: `hsl(var(--state-${group}-text, ${fallback ?? <span class="s">"220 8% 40%"</span>}))`,
+    dot:  fallback ?? `hsl(var(--state-${group}-fill))`, <span class="c">// dot은 user color OK</span>
+  };
+}
+<span class="c">// 모든 view에서 import해서 일관 적용. dot(점)만 user color 허용.</span></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="finding med">
+        <header>
+          <span class="sev">med</span>
+          <div class="title">
+            <h3>Glass border가 여전히 primary tint</h3>
+            <div class="tags">
+              <span class="path">index.css:103</span>
+              <span>visual noise</span>
+            </div>
+          </div>
+        </header>
+        <div class="body">
+          <p>
+            <code>--glass-border: rgba(61,114,232,0.35)</code> — 라이트모드에서 모든 카드/모달에 <strong>옅은 파란 테두리</strong>가 깔린다.
+            v1에서 <code>--border</code>는 슬레이트로 중립화했는데, glass 변수는 그대로 남아 두 종류의 border가 공존한다.
+          </p>
+          <p>다크모드는 이미 <code>rgba(120,150,230,0.20)</code>로 충분히 옅어 문제 없다. 라이트만 손보면 된다.</p>
+          <div class="fix">
+            <div class="label">FIX · 2min</div>
+<pre><span class="c">// index.css :root (light)</span>
+--glass-border: hsl(220 8% 80% / 0.6);  <span class="c">// border와 같은 hue, 알파만</span>
+<span class="c">// 또는 var 참조</span>
+--glass-border: hsl(var(--border) / 0.7);</pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="finding med">
+        <header>
+          <span class="sev">med</span>
+          <div class="title">
+            <h3>Due-date 색 3종이 토큰화 안 됨</h3>
+            <div class="tags"><span class="path">BoardView.tsx:213-217</span><span>tailwind palette</span></div>
+          </div>
+        </header>
+        <div class="body">
+          <p>
+            마감 임박 표시가 <code>text-red-500</code> / <code>text-orange-400</code>로 박혀 있다.
+            destructive·warning 토큰이 없어서 그런 건데, 이건 토큰 자체를 추가할 시점이다.
+          </p>
+          <div class="swatch-row">
+            <div class="swatch"><span class="chip" style="background:#ef4444"></span><span class="label">overdue</span><span class="val">→ --warn-strong</span></div>
+            <div class="swatch"><span class="chip" style="background:#fb923c"></span><span class="label">due ≤ 3d</span><span class="val">→ --warn-soft</span></div>
+            <div class="swatch"><span class="chip" style="background:hsl(var(--muted-foreground))"></span><span class="label">normal</span><span class="val">--muted-foreground</span></div>
+          </div>
+          <div class="fix">
+            <div class="label">FIX · 10min</div>
+<pre><span class="c">// index.css — light & dark 둘 다 추가</span>
+--warn-strong: 0 84% 60%;     <span class="c">/* overdue */</span>
+--warn-soft:   25 95% 55%;    <span class="c">/* near */</span>
+<span class="c">// 그리고 tailwind.config.ts colors에 매핑</span></pre>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ─────────── 03 HIERARCHY ─────────── -->
+    <section id="hierarchy">
+      <h2><span class="idx">03</span>Visual hierarchy</h2>
+      <p class="sec-lede">
+        “전체적으로 평평하다”의 정체. 같은 화면 안에서 <strong>중요한 것과 덜 중요한 것의 무게 차이</strong>가 약하다.
+      </p>
+
+      <div class="finding high">
+        <header>
+          <span class="sev">high</span>
+          <div class="title">
+            <h3>WorkspaceDashboard 인사 영역이 너무 무겁다</h3>
+            <div class="tags"><span class="path">WorkspaceDashboard.tsx:299</span><span>type weight</span></div>
+          </div>
+        </header>
+        <div class="body">
+          <p>
+            <code>text-3xl sm:text-4xl font-semibold</code> + Fraunces serif가 페이지 최상단을 압도한다.
+            그 아래 <em>실제 작업 영역</em>(My issues 그룹)은 <code>text-sm font-medium</code>으로 시작 — 톤 점프가 너무 크다.
+          </p>
+          <p>
+            인사는 <strong>분위기</strong>이지 <strong>내용</strong>이 아니다. 한 단계 줄여서 “SprintProgressOrbit”와 균형을 맞추자.
+          </p>
+          <div class="ba">
+            <div class="col bad"><header>현재</header><div class="demo">
+              <div style="text-align:left;width:100%">
+                <h2 style="font-family:var(--font-display);font-size:36px;font-weight:600;margin:0;letter-spacing:-0.02em">Good morning, <span style="color:var(--primary)">Eunho</span></h2>
+                <p style="font-size:13px;color:var(--ink-3);margin:6px 0 0">Apr 8, Tue · 4:32 PM · 12 assigned</p>
+              </div>
+            </div></div>
+            <div class="col good"><header>제안</header><div class="demo">
+              <div style="text-align:left;width:100%">
+                <p style="font-size:11px;color:var(--ink-4);letter-spacing:0.12em;text-transform:uppercase;margin:0">Tuesday · Apr 8</p>
+                <h2 style="font-family:var(--font-display);font-size:26px;font-weight:500;margin:6px 0 0;letter-spacing:-0.015em;font-style:italic">Good morning, <span style="color:var(--primary);font-style:normal">Eunho</span></h2>
+                <p style="font-size:13px;color:var(--ink-2);margin:8px 0 0">12 issues assigned · 4 in progress</p>
+              </div>
+            </div></div>
+          </div>
+          <div class="fix">
+            <div class="label">FIX · 15min</div>
+<pre><span class="c">// 1) 날짜 → eyebrow로 격상, 인사 → 본문화</span>
+&lt;p className=<span class="s">"text-2xs uppercase tracking-widest text-muted-foreground/70"</span>&gt;
+  {formatDate()}
+&lt;/p&gt;
+&lt;h1 className=<span class="s">"font-display italic text-2xl sm:text-3xl font-medium tracking-tight mt-1.5"</span>&gt;
+  {t(getGreetingKey())}, &lt;span className=<span class="s">"not-italic text-primary"</span>&gt;{name}&lt;/span&gt;
+&lt;/h1&gt;
+
+<span class="c">// 2) 보조 정보는 한 줄로 요약 — 시간/분리자 제거</span>
+&lt;p className=<span class="s">"text-sm text-muted-foreground mt-2"</span>&gt;
+  {totalCount} assigned · {started} in progress
+&lt;/p&gt;</pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="finding high">
+        <header>
+          <span class="sev">high</span>
+          <div class="title">
+            <h3>Filter dropdown 3개가 한 줄에 평등하게 놓여 있다</h3>
+            <div class="tags"><span class="path">ProjectIssuePage.tsx:201-300</span><span>spatial weight</span></div>
+          </div>
+        </header>
+        <div class="body">
+          <p>
+            카테고리·스프린트·정렬·필터 dropdown이 모두 같은 <code>border + rounded-md + text-xs</code> 스타일로 한 줄을 차지한다.
+            <strong>활성 필터(파란 보더)와 비활성 필터(슬레이트 보더)의 무게 차이가 너무 미묘</strong>해서 “지금 무엇이 걸려 있는가”가 한눈에 안 들어온다.
+          </p>
+          <div class="ba">
+            <div class="col bad"><header>현재 — 평등</header><div class="demo" style="gap:6px;justify-content:flex-start">
+              <span class="btn-demo" style="font-size:11px;padding:4px 10px;border-color:var(--primary);color:var(--primary-2);background:rgba(91,141,239,0.1)">⚡ Sprint 12 ▾</span>
+              <span class="btn-demo" style="font-size:11px;padding:4px 10px">▢ Category ▾</span>
+              <span class="btn-demo" style="font-size:11px;padding:4px 10px">⇅ Sort ▾</span>
+            </div></div>
+            <div class="col good"><header>제안 — 활성/유휴 분리</header><div class="demo" style="gap:8px;justify-content:flex-start;flex-wrap:wrap">
+              <span style="display:inline-flex;align-items:center;gap:6px;padding:5px 12px 5px 8px;border-radius:99px;background:var(--primary);color:white;font-size:11px;font-weight:500">⚡ Sprint 12 <span style="opacity:0.7;margin-left:4px">×</span></span>
+              <span class="btn-demo" style="font-size:11px;padding:4px 10px;border-style:dashed;color:var(--ink-3)">+ Category</span>
+              <span class="btn-demo" style="font-size:11px;padding:4px 10px;border-style:dashed;color:var(--ink-3)">+ Sort</span>
+            </div></div>
+          </div>
+          <p style="margin-top:14px">
+            <strong>원리:</strong> 활성 필터는 <em>제거 가능한 토큰(chip with ×)</em>으로, 비활성 필터는 <em>점선 + 추가 어포던스</em>로 그린다.
+            Linear·Height가 채택한 패턴 — 한눈에 “이 화면은 sprint 12 + 진행중 만 보고 있다”가 읽힌다.
+          </p>
+        </div>
+      </div>
+
+      <div class="finding med">
+        <header>
+          <span class="sev">med</span>
+          <div class="title">
+            <h3>Display serif가 제목 1단계에만 적용됐다</h3>
+            <div class="tags"><span>type system</span><span class="status-good">Phase 3.2 partial</span></div>
+          </div>
+        </header>
+        <div class="body">
+          <p>
+            <code>font-display</code>가 페이지 h1과 EmptyState h3에만 쓰이고 있다. 그래서 “브랜드 모먼트”가 너무 드물다 —
+            대부분의 화면은 sans-serif 단일 톤으로 보인다.
+          </p>
+          <p><strong>3곳 더 추가하자:</strong></p>
+          <ul style="color:var(--ink-2);font-size:13px;padding-left:20px">
+            <li>이슈 상세 모달 제목 (<code>IssueDetailPage</code> title)</li>
+            <li>Settings 페이지 섹션 제목 (h2)</li>
+            <li>대시보드 그룹 헤더 (“In Progress” 등) — italic 변형으로</li>
+          </ul>
+          <p>
+            Sans는 “정보”, serif italic은 “감정·분류”라는 역할 분담이 명확해진다.
+          </p>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ─────────── 04 DENSITY ─────────── -->
+    <section id="density">
+      <h2><span class="idx">04</span>Density &amp; rhythm</h2>
+      <p class="sec-lede">
+        간격이 일관되지 않다. <code>p-2.5</code>, <code>p-3</code>, <code>px-2.5 py-1</code>, <code>px-3 py-3</code>… 한 화면에 4–5종의 패딩이 공존한다.
+      </p>
+
+      <div class="finding high">
+        <header>
+          <span class="sev">high</span>
+          <div class="title">
+            <h3>Board card 내부 vertical rhythm이 어긋난다</h3>
+            <div class="tags"><span class="path">BoardView.tsx:175-241</span><span>spacing</span></div>
+          </div>
+        </header>
+        <div class="body">
+          <p>
+            한 카드 안에서: 제목 <code>mb-2</code> → 날짜 <code>mb-2</code> → assignee/sequence row.
+            그런데 <strong>날짜가 없으면 mb-2가 통째로 사라져서</strong> 카드마다 높이가 들쭉날쭉.
+            칸반에서 카드 높이 차이는 시각적 노이즈다.
+          </p>
+          <p>
+            추가로 <code>p-3</code>인데 내부 row는 <code>min-h-[20px]</code> — 패딩이 본문 사이즈에 비해 너무 빡빡하다.
+          </p>
+          <div class="fix">
+            <div class="label">FIX · 10min</div>
+<pre><span class="c">// 1) flex column + 일정 gap으로 — 빠진 요소가 있어도 자연 정렬</span>
+&lt;div className=<span class="s">"... p-3.5 flex flex-col gap-2.5"</span>&gt;
+  &lt;p className=<span class="s">"font-medium line-clamp-2 text-sm"</span>&gt;{title}&lt;/p&gt;
+  {(start_date || due_date) &amp;&amp; &lt;DateRow ... /&gt;}
+  &lt;div className=<span class="s">"flex items-center justify-between"</span>&gt;{footer}&lt;/div&gt;
+&lt;/div&gt;
+<span class="c">// gap-2.5(=10px) + p-3.5(=14px) — 본문 줄높이와 비례</span></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="finding med">
+        <header>
+          <span class="sev">med</span>
+          <div class="title">
+            <h3>Density 토글 3단계의 폰트 비율이 어색하다</h3>
+            <div class="tags"><span class="path">index.css:185-189</span><span>type scale</span></div>
+          </div>
+        </header>
+        <div class="body">
+          <p>
+            현재: compact 13–15px, comfortable 14–17px, spacious 16–19px.
+            <strong>3단계 사이가 거의 1px 차이</strong> — 사용자가 토글해도 “바뀐 게 맞나?” 싶을 정도다.
+            게다가 spacing(margin/padding)은 rem 기반이라 같이 비례 확대되지 않는 컴포넌트가 많다.
+          </p>
+          <div class="density-bar" style="margin-top:14px">
+            <span style="width:32%;background:var(--ink-4)"></span>
+            <span style="width:34%;background:var(--ink-3)"></span>
+            <span style="width:34%;background:var(--ink-2)"></span>
+          </div>
+          <p style="font-size:11px;color:var(--ink-4);font-family:var(--font-mono);margin-top:6px">
+            현재 polynomial — 거의 균등, 차이 미미
+          </p>
+          <div class="fix">
+            <div class="label">FIX · 5min</div>
+<pre>html[data-density=<span class="s">"compact"</span>]     { font-size: clamp(12px, 0.78vw, 14px); }
+html[data-density=<span class="s">"comfortable"</span>] { font-size: clamp(14px, 0.875vw, 17px); }
+html[data-density=<span class="s">"spacious"</span>]    { font-size: clamp(16px, 1.05vw, 20px); }
+<span class="c">// + 카드 내부 padding도 rem화(p-3 = 0.75rem 기반 OK), 1px hardcoding 제거</span></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="finding low">
+        <header>
+          <span class="sev">low</span>
+          <div class="title">
+            <h3>BoardView column 내부 padding 불일치</h3>
+            <div class="tags"><span class="path">BoardView.tsx:97-127</span></div>
+          </div>
+        </header>
+        <div class="body">
+          <p>
+            컬럼 자체 <code>p-2</code>, 헤더 <code>px-2 pb-3</code>, StaggerList <code>px-1</code>.
+            카드와 컬럼 가장자리 사이가 1–8px 사이에서 일관성 없이 변한다. 같은 값(<code>px-2</code>)으로 통일하거나, 컬럼은 <code>p-3</code>·내부는 무패딩으로.
+          </p>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ─────────── 05 IDENTITY ─────────── -->
+    <section id="identity">
+      <h2><span class="idx">05</span>Brand identity</h2>
+      <p class="sec-lede">
+        Orbit 모티프가 일부 페이지에만 살아있다. v1 권고는 “시각 시스템화”였는데, 그게 절반만 됐다.
+      </p>
+
+      <div class="finding med">
+        <header>
+          <span class="sev">med</span>
+          <div class="title">
+            <h3>OrbiTailOrbit 배경이 대시보드에만 있다</h3>
+            <div class="tags"><span class="path">WorkspaceDashboard.tsx:281</span><span>brand consistency</span></div>
+          </div>
+        </header>
+        <div class="body">
+          <p>
+            로그인·홈에는 거대한 SVG orbit이 깔려 있는데, 정작 사용자가 99% 시간을 보내는 BoardPage·TableView·DocumentPage에는 없다.
+            궤도(orbit)가 “브랜드 모먼트”가 아니라 “대시보드 장식”이 되어버렸다.
+          </p>
+          <p><strong>처방:</strong> 작업 페이지에는 orbit을 “모서리에 미세하게 노출”하는 정도로만 — 사용자의 시야 밖에서 정체성을 유지.</p>
+          <div class="fix">
+            <div class="label">FIX · 20min</div>
+<pre><span class="c">// 새 컴포넌트: OrbitCorner — 우상단 모서리에 25% 노출, opacity 0.04</span>
+&lt;OrbitCorner size={420} corner=<span class="s">"top-right"</span> opacity={0.04} /&gt;
+<span class="c">// → 모든 작업 페이지 layout shell에 한 줄 추가</span>
+<span class="c">// 사용자는 거의 못 느끼지만, 스크린샷·zoom-out 했을 때 “OrbiTail이구나”가 식별됨</span></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="finding med">
+        <header>
+          <span class="sev">med</span>
+          <div class="title">
+            <h3>Priority가 색만 있고 형태 없음 (v1 권고 미적용)</h3>
+            <div class="tags"><span>icon system</span><span class="status-good">v1에서 지적</span></div>
+          </div>
+        </header>
+        <div class="body">
+          <p>
+            v1에서 “색 + 형태(◆▲●○)” 듀얼 시그널을 권고했는데, 코드는 여전히 색만 사용한다 (<code>priority: "urgent"|"high"|...</code> → red/orange/blue/gray).
+            색맹 접근성 외에도, <strong>모노크롬 인쇄·다크모드 채도 저하</strong>에서 식별이 떨어진다.
+          </p>
+          <div class="ba">
+            <div class="col bad"><header>현재 — 색만</header><div class="demo">
+              <div style="display:flex;flex-direction:column;gap:10px;align-items:flex-start">
+                <span style="display:inline-flex;align-items:center;gap:8px;font-size:12px"><span style="width:8px;height:8px;border-radius:99px;background:#ef4444"></span>Urgent</span>
+                <span style="display:inline-flex;align-items:center;gap:8px;font-size:12px"><span style="width:8px;height:8px;border-radius:99px;background:#f97316"></span>High</span>
+                <span style="display:inline-flex;align-items:center;gap:8px;font-size:12px"><span style="width:8px;height:8px;border-radius:99px;background:#3b82f6"></span>Medium</span>
+                <span style="display:inline-flex;align-items:center;gap:8px;font-size:12px"><span style="width:8px;height:8px;border-radius:99px;background:#9ca3af"></span>Low</span>
+              </div>
+            </div></div>
+            <div class="col good"><header>제안 — 색 + 형태</header><div class="demo">
+              <div style="display:flex;flex-direction:column;gap:10px;align-items:flex-start">
+                <span style="display:inline-flex;align-items:center;gap:8px;font-size:12px"><svg width="10" height="10" viewBox="0 0 10 10"><polygon points="5,0 10,5 5,10 0,5" fill="#ef4444"/></svg>Urgent</span>
+                <span style="display:inline-flex;align-items:center;gap:8px;font-size:12px"><svg width="10" height="10" viewBox="0 0 10 10"><polygon points="5,1 9.5,9 0.5,9" fill="#f97316"/></svg>High</span>
+                <span style="display:inline-flex;align-items:center;gap:8px;font-size:12px"><svg width="10" height="10" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4" fill="#3b82f6"/></svg>Medium</span>
+                <span style="display:inline-flex;align-items:center;gap:8px;font-size:12px"><svg width="10" height="10" viewBox="0 0 10 10"><circle cx="5" cy="5" r="3.2" fill="none" stroke="#9ca3af" stroke-width="1.4"/></svg>Low</span>
+              </div>
+            </div></div>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ─────────── 06 MOTION RESIDUE ─────────── -->
+    <section id="motion">
+      <h2><span class="idx">06</span>Motion residue</h2>
+      <p class="sec-lede">
+        Phase 1의 motion 토큰화는 깨끗했다. 하지만 코드를 grep해보면 <strong>토큰을 안 거치는 duration이 아직 18군데</strong> 남아 있다.
+      </p>
+
+      <div class="finding med">
+        <header>
+          <span class="sev">med</span>
+          <div class="title">
+            <h3>Hardcoded duration 잔재</h3>
+            <div class="tags"><span>token bypass</span></div>
+          </div>
+        </header>
+        <div class="body">
+          <p>실제 코드에서 발견된 패턴:</p>
+          <div class="stat-grid" style="margin-top:14px">
+            <div class="stat"><div class="v warn">7</div><div class="l"><code>0.22s</code> framer transition</div></div>
+            <div class="stat"><div class="v warn">4</div><div class="l"><code>0.15s</code> tailwind transition</div></div>
+            <div class="stat"><div class="v warn">5</div><div class="l"><code>duration-500</code> bg fade</div></div>
+            <div class="stat"><div class="v ok">12</div><div class="l">올바르게 <code>duration-base</code> 사용</div></div>
+          </div>
+          <p style="margin-top:18px">
+            특히 BoardView.tsx:163에 <code>transition={{ duration: 0.22, ease: EASE_ORBIT }}</code>가 박혀 있는데 — 이게 <code>--motion-base</code>(220ms)와 같은 값이지만
+            토큰을 우회한다. 사용자가 reduced-motion일 때 framer-motion에 별도 지시가 안 가서 <strong>레이아웃 트윈은 여전히 발생한다</strong>.
+          </p>
+          <div class="fix">
+            <div class="label">FIX · 20min</div>
+<pre><span class="c">// motion-provider.tsx에 이미 useMotion()이 있을 것 — duration 헬퍼 추가</span>
+<span class="k">export function</span> useMotionDuration() {
+  <span class="k">const</span> { isRich, prefersReduced } = useMotion();
+  <span class="k">return</span> {
+    fast: prefersReduced ? 0 : (isRich ? 0.12 : 0.08),
+    base: prefersReduced ? 0 : (isRich ? 0.22 : 0.14),
+    slow: prefersReduced ? 0 : (isRich ? 0.36 : 0.20),
+  };
+}
+<span class="c">// 사용처</span>
+&lt;motion.div transition={{ duration: m.base, ease: EASE_ORBIT }}&gt;</pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="finding low">
+        <header>
+          <span class="sev">low</span>
+          <div class="title">
+            <h3>Pulse-strip이 강조되는 색이 비슷한 두 이슈에 동시 발생하면 시각 노이즈</h3>
+            <div class="tags"><span>polish</span></div>
+          </div>
+        </header>
+        <div class="body">
+          <p>
+            여러 이슈가 동시에 업데이트될 때 4px stripe가 동시 점멸 — 시각적으로 “깜빡깜빡”한다.
+            stagger를 80ms 단위로 넣으면 자연스럽게 “물결”처럼 흐른다.
+          </p>
+          <div class="fix">
+            <div class="label">FIX · 5min</div>
+<pre>[data-recently-changed]::before {
+  animation: pulse-strip <span class="k">var</span>(--motion-base) <span class="k">var</span>(--ease-smooth) forwards;
+  animation-delay: <span class="k">calc</span>(<span class="k">var</span>(--pulse-stagger, 0) * 80ms);
+}
+<span class="c">/* recentChangesStore에서 push 순서대로 --pulse-stagger 0,1,2... 부여 */</span></pre>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ─────────── 07 EMPTY ─────────── -->
+    <section id="empty">
+      <h2><span class="idx">07</span>Empty &amp; edge states</h2>
+      <p class="sec-lede">
+        EmptyState 컴포넌트는 잘 만들어져 있다. 다만 <strong>실제 사용처에서 description·CTA를 거의 안 쓴다</strong>.
+      </p>
+
+      <div class="finding med">
+        <header>
+          <span class="sev">med</span>
+          <div class="title">
+            <h3>“empty title만, description·CTA 없음”이 표준이 되고 있다</h3>
+            <div class="tags"><span class="path">TableView:1028</span><span class="path">AnnouncementsPage:102</span></div>
+          </div>
+        </header>
+        <div class="body">
+          <p>
+            grep 결과, 9개 사용처 중 <strong>5개가 title만 넘긴다</strong>.
+            EmptyState 컴포넌트의 가치(아이콘·설명·CTA 일체형)가 절반만 쓰이는 셈.
+          </p>
+          <div class="ba">
+            <div class="col bad"><header>현재</header><div class="demo">
+              <div style="text-align:center;color:var(--ink-3);font-size:13px;font-family:var(--font-display)">No issues</div>
+            </div></div>
+            <div class="col good"><header>제안</header><div class="demo">
+              <div style="text-align:center">
+                <div style="width:36px;height:36px;border:1.5px solid var(--ink-4);border-radius:99px;margin:0 auto 12px;position:relative">
+                  <span style="position:absolute;width:5px;height:5px;border-radius:99px;background:var(--ink-3);top:-3px;left:50%;transform:translateX(-50%)"></span>
+                </div>
+                <div style="font-family:var(--font-display);font-style:italic;font-size:15px;color:var(--ink);font-weight:500">All clear</div>
+                <div style="font-size:12px;color:var(--ink-3);margin-top:6px;max-width:240px;margin-left:auto;margin-right:auto;line-height:1.5">No issues match your filter. Adjust filters or create a new issue.</div>
+                <button class="btn-demo primary" style="margin-top:14px;font-size:11px">+ New issue</button>
+              </div>
+            </div></div>
+          </div>
+          <p style="margin-top:14px">
+            <strong>처방:</strong> EmptyState 사용처를 PR로 한 번 훑으며 description·CTA를 채워라. 카피 가이드만 i18n 키로 추가하면 된다.
+          </p>
+        </div>
+      </div>
+
+      <div class="finding low">
+        <header>
+          <span class="sev">low</span>
+          <div class="title">
+            <h3>Loading skeleton과 EmptyState의 시각 톤이 분리됐다</h3>
+            <div class="tags"><span>continuity</span></div>
+          </div>
+        </header>
+        <div class="body">
+          <p>
+            shimmer 스켈레톤(2s linear)이 끝나고 EmptyState가 페이드인 — 그런데 스켈레톤은 컴팩트, EmptyState는 py-12.
+            전환 순간 레이아웃이 점프한다. 스켈레톤도 EmptyState와 같은 수직 중앙·padding을 가지게 하자.
+          </p>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ─────────── 08 A11Y ─────────── -->
+    <section id="a11y">
+      <h2><span class="idx">08</span>Accessibility &amp; contrast</h2>
+      <p class="sec-lede">
+        Phase 1.3에서 ring 토큰은 분리됐지만, 실제 컴포넌트가 ring을 쓰는지가 또 다른 얘기다.
+      </p>
+
+      <div class="finding high">
+        <header>
+          <span class="sev">high</span>
+          <div class="title">
+            <h3>focus-visible ring이 dropdown trigger에 적용 안 됨</h3>
+            <div class="tags"><span class="path">ProjectIssuePage.tsx:248-262</span><span>WCAG 2.4.7</span></div>
+          </div>
+        </header>
+        <div class="body">
+          <p>
+            카테고리·스프린트 dropdown의 trigger button이 raw <code>&lt;button&gt;</code>이라 focus-visible 스타일이 없다.
+            키보드로 탭하면 어디 있는지 <strong>전혀 안 보인다</strong>. shadcn <code>Button</code>으로 교체하거나 base 스타일에 ring 추가.
+          </p>
+          <div class="fix">
+            <div class="label">FIX · 5min</div>
+<pre><span class="c">// 글로벌 base — index.css @layer base</span>
+button:focus-visible,
+[role=<span class="s">"button"</span>]:focus-visible {
+  outline: 2px solid hsl(<span class="k">var</span>(--ring));
+  outline-offset: 2px;
+  border-radius: <span class="k">var</span>(--radius);
+}</pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="finding med">
+        <header>
+          <span class="sev">med</span>
+          <div class="title">
+            <h3>2xs · 3xs 폰트가 11px 이하로 떨어진다</h3>
+            <div class="tags"><span>density × type</span></div>
+          </div>
+        </header>
+        <div class="body">
+          <p>
+            <code>text-2xs</code>(=10px), <code>text-3xs</code>(=9px)가 BoardView·dropdown에 빈번하게 등장.
+            <code>data-density="compact"</code> + 노트북 12.9″에서 기본 13px × 0.75 = <strong>9.75px</strong> — 나이가 든 사용자에게 거의 안 읽힌다.
+          </p>
+          <p><strong>처방:</strong> 2xs/3xs는 “시각적 단서로만 작동, 정보 본문에는 절대 안 씀” 규칙 명문화. 카피·날짜·assignee count는 최소 11px 보장.</p>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ─────────── 09 ROADMAP ─────────── -->
+    <section id="roadmap">
+      <h2><span class="idx">09</span>Roadmap v2</h2>
+      <p class="sec-lede">우선순위별로 2주, 한 분기, 다음 분기의 3-lane으로 묶었다.</p>
+
+      <div class="roadmap">
+
+        <div class="lane q1">
+          <span class="when">Week 1 — Quick wins</span>
+          <h4>줍는 즉시 깔끔해짐</h4>
+          <ul>
+            <li>SprintProgress 토큰화 (<strong>crit</strong>)</li>
+            <li>focus-visible 글로벌 ring</li>
+            <li>glass-border tint 제거</li>
+            <li>EmptyState description·CTA 채우기 (i18n)</li>
+            <li>Density 폰트 비율 재조정</li>
+          </ul>
+        </div>
+
+        <div class="lane">
+          <span class="when">Sprint 2 — System</span>
+          <h4>토큰의 마지막 사일로 청소</h4>
+          <ul>
+            <li><code>state-color.ts</code> 헬퍼로 view 4개 통일</li>
+            <li><code>useMotionDuration()</code> hook 도입 + 18군데 치환</li>
+            <li>Priority 형태 시그널(◆▲●○) 컴포넌트화</li>
+            <li>Filter chip(active=pill, idle=dashed) 패턴</li>
+            <li>warn-strong / warn-soft 토큰 추가</li>
+          </ul>
+        </div>
+
+        <div class="lane q3">
+          <span class="when">Quarter — Brand</span>
+          <h4>정체성을 시스템으로</h4>
+          <ul>
+            <li>OrbitCorner 컴포넌트 — 모든 페이지에 미세하게</li>
+            <li>Display serif 적용 영역 3곳 확장</li>
+            <li>Pulse-strip stagger 80ms</li>
+            <li>스켈레톤 ↔ EmptyState 레이아웃 연속성</li>
+            <li>모션 시그니처: page enter / panel / shared element 3종 영상 가이드</li>
+          </ul>
+        </div>
+
+      </div>
+    </section>
+
+    <footer class="foot">
+      <div class="div-line"></div>
+      <p style="margin-top:24px">
+        <strong>v2 audit · 23 findings · 0 regressions vs v1.</strong> 코드 인용은 모두 <code>orbitail/frontend/src</code> 기준.<br/>
+        다음 단계: Week 1 quick wins 5개를 단일 PR로 묶어 “OrbiTail-PR-design-v2-pass-1”로 보내면 깨끗하게 끝난다.
+      </p>
+    </footer>
+
+  </main>
+
+</div>
+
+<script>
+// TOC active state on scroll
+const links = document.querySelectorAll('aside.toc a');
+const sections = [...links].map(a => document.querySelector(a.getAttribute('href')));
+function onScroll() {
+  const y = window.scrollY + 100;
+  let active = 0;
+  sections.forEach((s, i) => { if (s && s.offsetTop <= y) active = i; });
+  links.forEach((l, i) => l.classList.toggle('active', i === active));
+}
+window.addEventListener('scroll', onScroll, { passive: true });
+onScroll();
+</script>
+
+</body>
+</html>
