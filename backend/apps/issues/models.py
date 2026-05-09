@@ -187,7 +187,7 @@ class IssueNodeLink(models.Model):
     """이슈 간 그래프 링크 — 트리 구조와 독립된 자유 연결(node 기능 기반).
 
     사용처: 다른 트리/프로젝트의 이슈끼리 관련성 표시(블록/참조/중복 등).
-    그래프 뷰는 프론트엔드 추후 구현. 여기서는 데이터 모델과 CRUD 엔드포인트만.
+    시각화는 frontend `GraphView.tsx` 에서 처리.
     """
 
     class LinkType(models.TextChoices):

@@ -117,7 +117,7 @@ urlpatterns = [
         IssueLinkDetailView.as_view(),
         name="issue-link-detail",
     ),
-    # 이슈 간 그래프 링크(node) — 트리 경계 넘는 자유 연결. 프론트 UI 보류, 데이터/API 먼저.
+    # 이슈 간 그래프 링크(node) — 트리 경계 넘는 자유 연결. GraphView.tsx 에서 시각화.
     path(
         "workspaces/<slug:workspace_slug>/projects/<uuid:project_pk>/issues/<uuid:issue_pk>/node-links/",
         IssueNodeLinkListCreateView.as_view(),
