@@ -1,5 +1,6 @@
 import { api } from "@/lib/axios";
 import type { Issue, ProjectEvent, PersonalEvent, MeSummary, PaginatedResponse } from "@/types";
+import type { NodeGraphResponse } from "./issues";
 
 interface DateRange {
   from?: string;
@@ -37,6 +38,17 @@ export const meApi = {
   /** 종합 탭 카드 + 분포 데이터. */
   summary: () =>
     api.get<MeSummary>("/me/summary/").then((r) => r.data),
+
+  /** 본인 이슈 그래프 — 같은 NodeGraphResponse 포맷. 외부 조상은 external=true 반투명. */
+  graph: (opts?: { includeLabelEdges?: boolean; manualOnly?: boolean }) =>
+    api
+      .get<NodeGraphResponse>("/me/graph/", {
+        params: {
+          include_label_edges: opts?.includeLabelEdges === false ? "false" : "true",
+          manual_only: opts?.manualOnly ? "true" : "false",
+        },
+      })
+      .then((r) => r.data),
 
   personalEvents: {
     list: (opts: DateRange = {}) =>

@@ -11,6 +11,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { issuesApi } from "@/api/issues";
+import { meApi } from "@/api/me";
 import { projectsApi } from "@/api/projects";
 import { useIssueDialogStore } from "@/stores/issueDialogStore";
 import { useLocalState } from "@/hooks/useLocalState";
@@ -61,9 +62,12 @@ interface Props {
   projectId: string;
   categoryId?: string | null;
   onIssueClick?: (issueId: string) => void;
+  /** "me" 모드 — 본인 담당 이슈 그래프(/api/me/graph/). 편집 기능 비활성, 외부 조상은 external=true 로 반투명. */
+  mode?: "project" | "me";
 }
 
-export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick }: Props) {
+export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick, mode = "project" }: Props) {
+  const isMe = mode === "me";
   const { t } = useTranslation();
 
   const [zoom, setZoom] = useState(1);
@@ -115,19 +119,19 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick }
 
   // 자동 저장은 useLocalState 가 처리 (PASS5-A)
 
-  // 프로젝트 메타 (태양계 중심 라벨)
+  // 프로젝트 메타 (태양계 중심 라벨) — me 모드에선 단일 프로젝트 컨텍스트가 없어 skip
   const { data: project } = useQuery({
     queryKey: ["project", workspaceSlug, projectId],
     queryFn: () => projectsApi.get(workspaceSlug, projectId),
-    enabled: !!workspaceSlug && !!projectId,
+    enabled: !isMe && !!workspaceSlug && !!projectId,
     staleTime: 60_000,
   });
 
-  // 카테고리 목록 (필터용)
+  // 카테고리 목록 (필터용) — me 모드에선 여러 프로젝트라 의미 없음
   const { data: categories = [] } = useQuery({
     queryKey: ["categories", workspaceSlug, projectId],
     queryFn: () => projectsApi.categories.list(workspaceSlug, projectId),
-    enabled: !!workspaceSlug && !!projectId,
+    enabled: !isMe && !!workspaceSlug && !!projectId,
     staleTime: 60_000,
   });
 
@@ -137,9 +141,13 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick }
 
   // 라벨 기반 자동 엣지 제외 — 수동 node-link 만 표시. 라벨은 카테고리화 용도라 관계망과 역할 분리.
   const { data, isLoading } = useQuery({
-    queryKey: ["node-graph", workspaceSlug, projectId, "manual"],
-    queryFn: () => issuesApi.nodeGraph(workspaceSlug, projectId, { manualOnly: true, includeLabelEdges: false }),
-    enabled: !!workspaceSlug && !!projectId,
+    queryKey: isMe
+      ? ["me", "graph", "manual"]
+      : ["node-graph", workspaceSlug, projectId, "manual"],
+    queryFn: () => isMe
+      ? meApi.graph({ manualOnly: true, includeLabelEdges: false })
+      : issuesApi.nodeGraph(workspaceSlug, projectId, { manualOnly: true, includeLabelEdges: false }),
+    enabled: isMe || (!!workspaceSlug && !!projectId),
   });
 
   useEffect(() => {
@@ -816,27 +824,31 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick }
             궤도
           </button>
         </div>
-        {/* 연결 모드 */}
-        <Button
-          variant={isConnect ? "default" : "ghost"}
-          size="sm"
-          onClick={() => { setEditMode(isConnect ? null : "connect"); setPendingSource(null); }}
-          className="gap-1"
-          title="두 노드 클릭으로 이슈 연결"
-        >
-          {isConnect ? <X className="h-3.5 w-3.5" /> : <Link2 className="h-3.5 w-3.5" />}
-          {isConnect ? "연결 취소" : "연결"}
-        </Button>
-        <Button
-          variant={isDisconnect ? "destructive" : "ghost"}
-          size="sm"
-          onClick={() => { setEditMode(isDisconnect ? null : "disconnect"); setPendingSource(null); }}
-          className="gap-1"
-          title="기존 연결선 클릭으로 해제"
-        >
-          {isDisconnect ? <X className="h-3.5 w-3.5" /> : <Unlink2 className="h-3.5 w-3.5" />}
-          {isDisconnect ? "해제 취소" : "해제"}
-        </Button>
+        {/* 연결/해제 — me 모드(읽기 전용)에선 숨김 */}
+        {!isMe && (
+          <>
+            <Button
+              variant={isConnect ? "default" : "ghost"}
+              size="sm"
+              onClick={() => { setEditMode(isConnect ? null : "connect"); setPendingSource(null); }}
+              className="gap-1"
+              title="두 노드 클릭으로 이슈 연결"
+            >
+              {isConnect ? <X className="h-3.5 w-3.5" /> : <Link2 className="h-3.5 w-3.5" />}
+              {isConnect ? "연결 취소" : "연결"}
+            </Button>
+            <Button
+              variant={isDisconnect ? "destructive" : "ghost"}
+              size="sm"
+              onClick={() => { setEditMode(isDisconnect ? null : "disconnect"); setPendingSource(null); }}
+              className="gap-1"
+              title="기존 연결선 클릭으로 해제"
+            >
+              {isDisconnect ? <X className="h-3.5 w-3.5" /> : <Unlink2 className="h-3.5 w-3.5" />}
+              {isDisconnect ? "해제 취소" : "해제"}
+            </Button>
+          </>
+        )}
         <Button
           variant={openPanel === "layer" ? "default" : "ghost"}
           size="sm"
@@ -1244,11 +1256,13 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick }
               const depthR = Math.max(7, Math.min(20, 22 / Math.sqrt(nDepth + 1)));
               const baseR = n.external ? Math.max(7, depthR - 3) : depthR;
               const dim = focusedDepth != null && nDepth !== focusedDepth;
+              // me 모드: 본인 담당이 아닌 조상(external)은 트리 연결만 위해 반투명.
+              const meDim = isMe && n.external;
               return (
                 <g
                   key={n.id}
                   data-graph-node
-                  opacity={dim ? 0.15 : 1}
+                  opacity={dim ? 0.15 : (meDim ? 0.45 : 1)}
                   transform={`translate(${n.x} ${n.y})`}
                   onMouseEnter={() => setHoverId(n.id)}
                   onMouseLeave={() => setHoverId((h) => (h === n.id ? null : h))}

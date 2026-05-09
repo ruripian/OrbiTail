@@ -5,6 +5,7 @@ from .views import (
     MeIssuesView,
     MeProjectEventsView,
     MeSummaryView,
+    MeNodeGraphView,
 )
 
 urlpatterns = [
@@ -13,4 +14,5 @@ urlpatterns = [
     path("personal-events/", PersonalEventListCreateView.as_view(), name="me-personal-events"),
     path("personal-events/<uuid:pk>/", PersonalEventDetailView.as_view(), name="me-personal-event-detail"),
     path("summary/",         MeSummaryView.as_view(),              name="me-summary"),
+    path("graph/",           MeNodeGraphView.as_view(),            name="me-graph"),
 ]
