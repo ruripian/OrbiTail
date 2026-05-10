@@ -8,6 +8,8 @@ class Workspace(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=255)
     slug = models.SlugField(unique=True, max_length=255)
+    # 워크스페이스 소개/용도 — General 설정 탭에서 편집. 빈 문자열 허용.
+    description = models.TextField(blank=True, default="")
     logo = models.ImageField(upload_to="workspace_logos/", blank=True, null=True)
     # owner 가 계정 삭제될 수 있으므로 SET_NULL — 워크스페이스는 다른 어드민이 운영 지속.
     # 운영상 마지막 owner 가 사라지면 다른 멤버를 owner 로 승격해야 함.

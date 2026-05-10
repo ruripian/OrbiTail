@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { ResizableAside } from "@/components/ui/resizable-aside";
 import { Link, useParams, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -11,6 +11,7 @@ import {
   Layers,
   Plus,
   ChevronDown,
+  ChevronRight,
   SlidersHorizontal,
   Star,
   GripVertical,
@@ -92,8 +93,10 @@ function ProjectItem({
   project,
   workspaceSlug,
   isActive,
+  isExpanded,
   isFavorite,
   onSelect,
+  onToggleExpanded,
   onToggleFavorite,
   draggable,
   onDragStart,
@@ -104,9 +107,14 @@ function ProjectItem({
 }: {
   project: Project;
   workspaceSlug: string;
+  /** 현재 보고 있는 프로젝트 — 자동 펼침 + 강조 */
   isActive: boolean;
+  /** 사용자가 명시적으로 펼친 상태 — isActive 와 별개로 유지 */
+  isExpanded: boolean;
   isFavorite: boolean;
   onSelect: (p: Project) => void;
+  /** chevron 클릭 — 펼침 상태 토글 */
+  onToggleExpanded: (id: string) => void;
   onToggleFavorite: (id: string) => void;
   draggable?: boolean;
   onDragStart?: () => void;
@@ -119,6 +127,10 @@ function ProjectItem({
   const location = useLocation();
   const base = `/${workspaceSlug}/projects/${project.id}`;
 
+  /* 효과적 펼침 — 사용자 의지(expandedSet) 가 단일 진리.
+     첫 진입 시 자동 펼침은 부모(Sidebar)의 useEffect 가 expandedSet 에 추가하는 방식으로 처리. */
+  const showSubLinks = isExpanded;
+
   const issuesActive =
     location.pathname === `${base}/issues` ||
     location.pathname === `${base}/board`;
@@ -127,7 +139,7 @@ function ProjectItem({
   const { data: categories = [] } = useQuery({
     queryKey: ["categories", workspaceSlug, project.id],
     queryFn: () => projectsApi.categories.list(workspaceSlug, project.id),
-    enabled: isActive,
+    enabled: showSubLinks,
   });
 
   /* 카테고리 DnD */
@@ -187,9 +199,22 @@ function ProjectItem({
           {project.network === 2 && (
             <Lock className="h-3 w-3 shrink-0 text-muted-foreground/50" />
           )}
-          {isActive && (
-            <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+        </button>
+        {/* 펼침/접힘 토글 — currentProject 가 아닌 프로젝트도 사용자가 펼쳐 둘 수 있음.
+            isActive 시에는 자동 펼침이지만 chevron 으로 강제 접기는 가능 (그래도 다음 클릭으로 다시 펼치게 됨). */}
+        <button
+          onClick={(e) => { e.stopPropagation(); onToggleExpanded(project.id); }}
+          className={cn(
+            "shrink-0 p-1 rounded-lg transition-all",
+            showSubLinks
+              ? "text-muted-foreground/70 hover:text-foreground"
+              : "text-muted-foreground/0 group-hover/proj:text-muted-foreground/50 hover:text-foreground"
           )}
+          title={showSubLinks ? t("sidebar.collapseProject", "접기") : t("sidebar.expandProject", "펴기")}
+        >
+          {showSubLinks
+            ? <ChevronDown className="h-3.5 w-3.5" />
+            : <ChevronRight className="h-3.5 w-3.5" />}
         </button>
         <button
           onClick={(e) => { e.stopPropagation(); onToggleFavorite(project.id); }}
@@ -205,7 +230,7 @@ function ProjectItem({
         </button>
       </div>
 
-      {isActive && (
+      {showSubLinks && (
         <div className="ml-3 pl-4 space-y-0.5 border-l-2 border-primary/20">
           <SubLink to={`${base}/issues`} icon={ListChecks} label={t("sidebar.issues")} active={issuesActive} />
           <SubLink
@@ -319,6 +344,63 @@ export function Sidebar({ onNavigate, wsStatus = "connecting" }: { onNavigate?: 
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const dragIdRef = useRef<string | null>(null);
 
+  /* 펼친 프로젝트 IDs — 사용자 토글 + currentProject 진입 시 자동 추가.
+     localStorage 영속, workspace 별 키. */
+  const EXPANDED_KEY = `orbitail_sidebar_expanded_${slug}`;
+  const [expandedSet, setExpandedSet] = useState<Set<string>>(() => {
+    try {
+      const raw = localStorage.getItem(EXPANDED_KEY);
+      if (raw) {
+        const arr = JSON.parse(raw);
+        if (Array.isArray(arr)) return new Set(arr);
+      }
+    } catch {}
+    return new Set();
+  });
+  const persistExpanded = (s: Set<string>) => {
+    try {
+      localStorage.setItem(EXPANDED_KEY, JSON.stringify(Array.from(s)));
+    } catch {}
+  };
+  const toggleExpanded = (id: string) => {
+    setExpandedSet((cur) => {
+      const next = new Set(cur);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      persistExpanded(next);
+      return next;
+    });
+  };
+  /* currentProject 진입 시 expandedSet = {그 ID} 로 교체 — 다른 프로젝트로 이동하면 이전 펼침은 자동 닫힘.
+     진입 후엔 사용자가 같은 프로젝트의 chevron 으로 접거나, 다른 프로젝트의 chevron 으로 추가 펼침 가능
+     (단, 다음 프로젝트 이동 시 다시 reset 됨). */
+  useEffect(() => {
+    if (!currentProject) return;
+    setExpandedSet((cur) => {
+      if (cur.size === 1 && cur.has(currentProject.id)) return cur;
+      const next = new Set([currentProject.id]);
+      persistExpanded(next);
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentProject?.id]);
+
+  /* 프로젝트 외 라우트(홈/내 작업/보관함/공지 등) 로 이동하면 모두 접기.
+     currentProject store 는 워크스페이스 전환에서만 null 되므로 라우트 기반으로 별도 처리. */
+  useEffect(() => {
+    const parts = location.pathname.split("/").filter(Boolean);
+    /* /<ws>/projects/<id>/... 패턴이면 프로젝트 라우트 — 기존 useEffect 가 처리 */
+    const isProjectRoute = parts.length >= 3 && parts[1] === "projects";
+    if (isProjectRoute) return;
+    setExpandedSet((cur) => {
+      if (cur.size === 0) return cur;
+      const next = new Set<string>();
+      persistExpanded(next);
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname]);
+
   const handleDrop = (targetId: string) => {
     const currentDragId = dragIdRef.current;
     if (!currentDragId || currentDragId === targetId) { setDragId(null); setDragOverId(null); dragIdRef.current = null; return; }
@@ -348,8 +430,10 @@ export function Sidebar({ onNavigate, wsStatus = "connecting" }: { onNavigate?: 
       project={project}
       workspaceSlug={slug}
       isActive={currentProject?.id === project.id}
+      isExpanded={expandedSet.has(project.id)}
       isFavorite={favIds.has(project.id)}
       onSelect={handleSelectProject}
+      onToggleExpanded={toggleExpanded}
       onToggleFavorite={(id) => toggleFavorite(slug, id)}
       draggable
       onDragStart={() => { dragIdRef.current = project.id; setDragId(project.id); }}
@@ -376,7 +460,11 @@ export function Sidebar({ onNavigate, wsStatus = "connecting" }: { onNavigate?: 
       <AppSwitcher />
 
       {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events */}
-      <nav className="flex flex-col flex-1 overflow-y-auto p-3 gap-1" onClick={(e) => {
+      <nav
+        className="flex flex-col flex-1 overflow-y-auto p-3 gap-1"
+        /* 스크롤바 자리 항상 예약 — 컨텐츠 양에 따라 사이드바 폭 흔들리는 현상 방지 */
+        style={{ scrollbarGutter: "stable" }}
+        onClick={(e) => {
         if ((e.target as HTMLElement).closest("a")) onNavigate?.();
       }}>
 
@@ -390,7 +478,7 @@ export function Sidebar({ onNavigate, wsStatus = "connecting" }: { onNavigate?: 
         <NavItem
           to={`/${workspaceSlug}/me`}
           icon={UserCircle}
-          label={t("sidebar.myPage", "마이")}
+          label={t("sidebar.myPage", "내 작업")}
           active={location.pathname === `/${workspaceSlug}/me`}
         />
 
@@ -470,29 +558,6 @@ export function Sidebar({ onNavigate, wsStatus = "connecting" }: { onNavigate?: 
           </div>
         )}
       </nav>
-
-      <div className="border-t border-border px-4 py-2">
-        <div
-          className="flex items-center gap-2"
-          title={t(`sidebar.connection.${wsStatus}Tooltip`)}
-        >
-          <span className="relative flex h-2 w-2">
-            {wsStatus === "connected" && (
-              <span className="absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75 animate-ping" />
-            )}
-            <span className={cn(
-              "relative inline-flex h-2 w-2 rounded-full",
-              wsStatus === "connected" && "bg-green-500",
-              wsStatus === "connecting" && "bg-amber-400",
-              wsStatus === "disconnected" && "bg-rose-500",
-            )} />
-          </span>
-          <span className="text-xs text-sidebar-foreground/60">
-            {t(`sidebar.connection.${wsStatus}`)}
-            <span className="text-sidebar-foreground/40"> — {t(`sidebar.connection.${wsStatus}Desc`)}</span>
-          </span>
-        </div>
-      </div>
     </ResizableAside>
   );
 }

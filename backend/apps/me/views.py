@@ -18,8 +18,24 @@ from apps.issues.models import Issue, IssueNodeLink
 from apps.issues.serializers import IssueSerializer
 from apps.projects.models import Project, ProjectEvent, ProjectMember
 from apps.projects.serializers import ProjectEventSerializer
+from apps.workspaces.models import Workspace
 from .models import PersonalEvent
 from .serializers import PersonalEventSerializer
+
+
+def _resolve_workspace(request):
+    """request 에서 workspace slug 를 추출해 Workspace 인스턴스 반환.
+    멤버 검증까지 포함 — 비멤버 ws 면 None 반환.
+    query string ?workspace=<slug> 또는 body { workspace_slug: ... } 둘 다 지원."""
+    ws_slug = request.query_params.get("workspace") or request.data.get("workspace_slug")
+    if not ws_slug:
+        return None
+    ws = Workspace.objects.filter(slug=ws_slug).first()
+    if not ws:
+        return None
+    if not ws.members.filter(member=request.user).exists():
+        return None
+    return ws
 
 
 def _user_member_project_ids(user):
@@ -28,12 +44,27 @@ def _user_member_project_ids(user):
 
 
 class PersonalEventListCreateView(generics.ListCreateAPIView):
-    """본인 개인 일정 목록 + 생성. ?from=YYYY-MM-DD&to=YYYY-MM-DD 로 범위 필터."""
+    """본인 개인 일정 목록 + 생성.
+
+    쿼리:
+      ?workspace=<slug>  필수 — 마이 페이지가 ws-scoped 라 그 ws 의 PersonalEvent 만 노출
+      ?from=YYYY-MM-DD&to=YYYY-MM-DD  날짜 범위
+    POST body:
+      workspace_slug: <slug>  생성 시 ws 자동 설정
+    """
     serializer_class = PersonalEventSerializer
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        qs = PersonalEvent.objects.filter(user=self.request.user)
+        qs = PersonalEvent.objects.filter(user=self.request.user).select_related("workspace")
+        ws = _resolve_workspace(self.request)
+        if ws:
+            qs = qs.filter(workspace=ws)
+        else:
+            ws_slug = self.request.query_params.get("workspace")
+            if ws_slug:
+                # ws 가 잘못됐거나 비멤버 — 빈 결과
+                qs = qs.none()
         date_from = self.request.query_params.get("from")
         date_to = self.request.query_params.get("to")
         if date_from:
@@ -43,7 +74,8 @@ class PersonalEventListCreateView(generics.ListCreateAPIView):
         return qs
 
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+        ws = _resolve_workspace(self.request)
+        serializer.save(user=self.request.user, workspace=ws)
 
 
 class PersonalEventDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -148,6 +180,9 @@ class MeSummaryView(APIView):
             )
             .exclude(state__group__in=["completed", "cancelled"])
         )
+        ws = _resolve_workspace(request)
+        if ws:
+            base = base.filter(workspace=ws)
         active_count = base.count()
         due_today = base.filter(due_date=today).count()
         due_this_week = base.filter(due_date__gte=today, due_date__lte=week_end).count()
@@ -210,9 +245,10 @@ class MeNodeGraphView(APIView):
         include_label_edges = request.query_params.get("include_label_edges", "true").lower() != "false"
         manual_only = request.query_params.get("manual_only", "false").lower() == "true"
         include_parent_edges = request.query_params.get("include_parent_edges", "true").lower() != "false"
+        ws = _resolve_workspace(request)
 
         # 1) 본인 담당 이슈
-        my_issues = list(
+        my_issues_qs = (
             Issue.objects
             .filter(
                 assignees=user,
@@ -223,6 +259,9 @@ class MeNodeGraphView(APIView):
             .select_related("project", "state")
             .distinct()
         )
+        if ws:
+            my_issues_qs = my_issues_qs.filter(workspace=ws)
+        my_issues = list(my_issues_qs)
         my_ids = {str(iss.id) for iss in my_issues}
 
         # 2) 부모 chain BFS — 본인이 멤버인 프로젝트의 조상만 포함(SECRET 비멤버 누수 차단)
@@ -269,6 +308,8 @@ class MeNodeGraphView(APIView):
                 "sequence_id": issue.sequence_id,
                 "project_id": str(issue.project_id) if issue.project_id else None,
                 "project_identifier": issue.project.identifier if issue.project_id else None,
+                # 마이 그래프 — 다중 프로젝트 색 구분용
+                "project_icon_prop": issue.project.icon_prop if issue.project_id else None,
                 "state_group": state_group,
                 "state_color": state_color,
                 "labels": [{"id": str(l.id), "name": l.name, "color": l.color} for l in labels],

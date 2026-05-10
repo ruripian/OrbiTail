@@ -16,6 +16,8 @@ export interface NodeGraphResponse {
     sequence_id: number;
     project_id: string | null;
     project_identifier: string | null;
+    /** 다중 프로젝트 통합 그래프(마이/워크스페이스)에서 프로젝트별 stroke 색 결정용 */
+    project_icon_prop?: Record<string, unknown> | null;
     state_group: string | null;
     state_color?: string | null;
     labels: Array<{ id: string; name: string; color: string }>;

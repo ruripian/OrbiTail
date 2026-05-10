@@ -1,7 +1,8 @@
-/** 마이 페이지 종합 탭 — 카드 4개 + 우선순위/프로젝트 분포 + 다가오는 일정 5개 */
+/** 마이 페이지 종합 탭 — 카드 4개 + 우선순위/프로젝트 분포 + 다가오는 일정 5개.
+ * ws-scoped — 현재 워크스페이스 한정. */
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { Calendar, AlertTriangle, ListTodo, CalendarRange } from "lucide-react";
 import { meApi } from "@/api/me";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -29,21 +30,29 @@ function StatCard({ icon: Icon, label, value, accent }: {
 
 export function MySummaryTab() {
   const { t } = useTranslation();
+  const { workspaceSlug = "" } = useParams<{ workspaceSlug: string }>();
 
+  /* 글로벌 staleTime(60s) 우회 — 마운트마다 강제 refetch 로 항상 최신 데이터 표시 */
   const { data: summary, isLoading } = useQuery({
-    queryKey: ["me", "summary"],
-    queryFn: () => meApi.summary(),
+    queryKey: ["me", "summary", workspaceSlug],
+    queryFn: () => meApi.summary(workspaceSlug),
+    enabled: !!workspaceSlug,
+    refetchOnMount: "always",
   });
 
   const today = new Date().toISOString().slice(0, 10);
   const weekEnd = new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10);
   const { data: upcomingEvents = [] } = useQuery({
-    queryKey: ["me", "events", "upcoming", today, weekEnd],
-    queryFn: () => meApi.projectEvents({ from: today, to: weekEnd }),
+    queryKey: ["me", "events", "upcoming", workspaceSlug, today, weekEnd],
+    queryFn: () => meApi.projectEvents(workspaceSlug, { from: today, to: weekEnd }),
+    enabled: !!workspaceSlug,
+    refetchOnMount: "always",
   });
   const { data: upcomingPersonal = [] } = useQuery({
-    queryKey: ["me", "personal-events", "upcoming", today, weekEnd],
-    queryFn: () => meApi.personalEvents.list({ from: today, to: weekEnd }),
+    queryKey: ["me", "personal-events", "upcoming", workspaceSlug, today, weekEnd],
+    queryFn: () => meApi.personalEvents.list(workspaceSlug, { from: today, to: weekEnd }),
+    enabled: !!workspaceSlug,
+    refetchOnMount: "always",
   });
 
   if (isLoading || !summary) {

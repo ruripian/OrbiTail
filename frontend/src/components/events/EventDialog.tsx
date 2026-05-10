@@ -110,7 +110,7 @@ export function EventDialog({
 
   const createMutation = useMutation({
     mutationFn: () => isMe
-      ? meApi.personalEvents.create({
+      ? meApi.personalEvents.create(workspaceSlug!, {
           title, date, end_date: endDate,
           event_type: eventType, color, description,
         })

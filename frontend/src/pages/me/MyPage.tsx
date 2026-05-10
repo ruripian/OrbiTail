@@ -32,15 +32,10 @@ export function MyPage() {
   };
 
   return (
-    <PageTransition className="px-3 sm:px-4 py-3 overflow-y-auto h-full flex flex-col">
-      <div className="flex items-center justify-between mb-3 shrink-0">
-        <h1 className="font-display text-xl font-semibold text-foreground tracking-tight">
-          {t("me.title", "마이 페이지")}
-        </h1>
-      </div>
-
-      {/* 탭 네비 */}
-      <div className="flex gap-1 border-b border-border mb-3 overflow-x-auto shrink-0">
+    <PageTransition className="px-3 sm:px-4 py-2 overflow-hidden h-full flex flex-col">
+      {/* 탭 네비 — 페이지 제목 헤더는 사이드바 highlight 와 탭으로 충분하므로 제거.
+          overflow-hidden 으로 페이지 외부 스크롤 방지 — 자식 탭이 자체 스크롤 처리. */}
+      <div className="flex gap-1 border-b border-border mb-2 overflow-x-auto shrink-0">
         {TABS.map((id) => {
           const Icon = TAB_META[id].icon;
           const active = tab === id;

@@ -51,6 +51,15 @@ export const workspacesApi = {
   update: (slug: string, data: Partial<Workspace>) =>
     api.patch<Workspace>(`/workspaces/${slug}/`, data).then((r) => r.data),
 
+  /** 로고 업로드 — multipart/form-data. 브라우저가 boundary 자동 설정. */
+  uploadLogo: (slug: string, file: File) => {
+    const fd = new FormData();
+    fd.append("logo", file);
+    return api.patch<Workspace>(`/workspaces/${slug}/`, fd).then((r) => r.data);
+  },
+  removeLogo: (slug: string) =>
+    api.patch<Workspace>(`/workspaces/${slug}/`, { logo: null }).then((r) => r.data),
+
   delete: (slug: string) => api.delete(`/workspaces/${slug}/`),
 
   members: (slug: string) =>

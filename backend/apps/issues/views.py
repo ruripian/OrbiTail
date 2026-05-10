@@ -638,6 +638,8 @@ class ProjectNodeGraphView(APIView):
                 "sequence_id": issue.sequence_id,
                 "project_id": str(issue.project_id) if issue.project_id else None,
                 "project_identifier": issue.project.identifier if issue.project_id else None,
+                # 마이 그래프 등 다중 프로젝트 통합 뷰에서 프로젝트별 색 결정용
+                "project_icon_prop": issue.project.icon_prop if issue.project_id else None,
                 "state_group": state_group,
                 "state_color": state_color,
                 "labels": labels or [],
@@ -755,6 +757,8 @@ class WorkspaceNodeGraphView(APIView):
                 "sequence_id": issue.sequence_id,
                 "project_id": str(issue.project_id) if issue.project_id else None,
                 "project_identifier": issue.project.identifier if issue.project_id else None,
+                # 워크스페이스 그래프 — 다중 프로젝트 색 구분용
+                "project_icon_prop": issue.project.icon_prop if issue.project_id else None,
                 "state_group": state_group,
                 "state_color": state_color,
                 "labels": labels or [],

@@ -20,6 +20,7 @@ import { ProfilePage } from "@/pages/settings/ProfilePage";
 import { PreferencesPage } from "@/pages/settings/PreferencesPage";
 import { SecurityPage } from "@/pages/settings/SecurityPage";
 import { WorkspaceMembersPage } from "@/pages/settings/WorkspaceMembersPage";
+import { WorkspaceGeneralPage } from "@/pages/settings/WorkspaceGeneralPage";
 import { WorkspaceJoinRequestsPage } from "@/pages/settings/WorkspaceJoinRequestsPage";
 import { AdminLayout } from "@/pages/admin/AdminLayout";
 import { AdminUsersPage } from "@/pages/admin/AdminUsersPage";
@@ -201,7 +202,8 @@ export const router = createBrowserRouter([
         path: "workspace-settings",
         element: <WorkspaceSettingsLayout />,
         children: [
-          { index: true, element: <Navigate to="members" replace /> },
+          { index: true, element: <Navigate to="general" replace /> },
+          { path: "general", element: <WorkspaceGeneralPage /> },
           { path: "members", element: <WorkspaceMembersPage /> },
           { path: "join-requests", element: <WorkspaceJoinRequestsPage /> },
         ],

@@ -24,6 +24,15 @@ class PersonalEvent(models.Model):
         on_delete=models.CASCADE,
         related_name="personal_events",
     )
+    # 워크스페이스 별로 분리 — 사용자 멘탈 모델: ws 는 별개 공간이라 마이 페이지도 ws 한정.
+    # null=True 는 마이그레이션 시 기존 데이터 호환 (backfill 후에도 안전 장치).
+    workspace   = models.ForeignKey(
+        "workspaces.Workspace",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="personal_events",
+    )
     title       = models.CharField(max_length=255)
     date        = models.DateField()
     end_date    = models.DateField(null=True, blank=True)
@@ -38,6 +47,7 @@ class PersonalEvent(models.Model):
         ordering = ["date"]
         indexes = [
             models.Index(fields=["user", "date"]),
+            models.Index(fields=["workspace", "user", "date"]),
         ]
 
     def __str__(self):

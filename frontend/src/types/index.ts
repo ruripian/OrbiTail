@@ -59,6 +59,8 @@ export interface Workspace {
   id: string;
   name: string;
   slug: string;
+  /** 워크스페이스 소개/용도 — General 설정 탭에서 편집. 빈 문자열 가능. */
+  description?: string;
   logo: string | null;
   owner: User;
   member_count: number;
@@ -196,6 +198,8 @@ export interface ProjectEvent {
   project: string;
   project_workspace_slug?: string;
   project_name?: string;
+  /** 마이 페이지 프로젝트 색 결정용 */
+  project_icon_prop?: Record<string, unknown> | null;
   title: string;
   date: string;               // YYYY-MM-DD — 시작일
   end_date: string | null;    // YYYY-MM-DD | null — 기간 이벤트
@@ -384,6 +388,8 @@ export interface Issue {
   project: string;
   project_identifier?: string;
   project_name?: string;
+  /** 마이 페이지 등 다중 프로젝트 통합 뷰에서 프로젝트별 색 결정에 사용 (lucide 아이콘이면 .color 추출) */
+  project_icon_prop?: Record<string, unknown> | null;
   workspace: string;
   workspace_slug?: string;
   workspace_name?: string;

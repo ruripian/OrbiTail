@@ -6,7 +6,7 @@
  * - 클릭 시 이슈 상세 오픈, 드래그로 노드 이동, 휠로 줌, 빈 공간 드래그로 팬
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -17,7 +17,18 @@ import { useIssueDialogStore } from "@/stores/issueDialogStore";
 import { useLocalState } from "@/hooks/useLocalState";
 import { ProjectIcon } from "@/components/ui/project-icon-picker";
 import { Button } from "@/components/ui/button";
-import { Loader2, Sliders, Link2, X, Unlink2, ArrowRight, Layers } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Loader2, Sliders, Link2, X, Unlink2, ArrowRight, Layers, FolderOpen, Check } from "lucide-react";
+import { buildProjectColorMap } from "@/lib/projectColors";
+import { cn } from "@/lib/utils";
+
+const ME_GRAPH_PROJECT_FILTER_KEY = "orbitail_me_graph_projects";
 
 type Node = {
   id: string;
@@ -140,15 +151,183 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick, 
   const activeCategory = categoryFilterId ? categories.find((c) => c.id === categoryFilterId) ?? null : null;
 
   // 라벨 기반 자동 엣지 제외 — 수동 node-link 만 표시. 라벨은 카테고리화 용도라 관계망과 역할 분리.
-  const { data, isLoading } = useQuery({
+  const { data: rawData, isLoading } = useQuery({
     queryKey: isMe
-      ? ["me", "graph", "manual"]
+      ? ["me", "graph", "manual", workspaceSlug]
       : ["node-graph", workspaceSlug, projectId, "manual"],
     queryFn: () => isMe
-      ? meApi.graph({ manualOnly: true, includeLabelEdges: false })
+      ? meApi.graph(workspaceSlug, { manualOnly: true, includeLabelEdges: false })
       : issuesApi.nodeGraph(workspaceSlug, projectId, { manualOnly: true, includeLabelEdges: false }),
-    enabled: isMe || (!!workspaceSlug && !!projectId),
+    enabled: isMe ? !!workspaceSlug : (!!workspaceSlug && !!projectId),
+    /* 마이 모드: 다른 페이지에서 이슈 변경 후 돌아왔을 때 항상 최신 그래프 표시 */
+    refetchOnMount: isMe ? "always" : true,
   });
+
+  /* 마이 모드 프로젝트 필터 — null=전체, Set=명시적 선택. localStorage 영속. */
+  const [selectedProjects, setSelectedProjects] = useState<Set<string> | null>(() => {
+    if (!isMe) return null;
+    try {
+      const raw = localStorage.getItem(ME_GRAPH_PROJECT_FILTER_KEY);
+      if (raw) {
+        const arr = JSON.parse(raw);
+        if (Array.isArray(arr)) return new Set(arr);
+      }
+    } catch {}
+    return null;
+  });
+
+  /* 본인 담당 이슈에 등장하는 unique 프로젝트 — 필터 드롭다운 + 색 매핑용 */
+  const uniqueProjects = useMemo(() => {
+    if (!isMe || !rawData) return [];
+    const m = new Map<string, { id: string; identifier: string | null; name: string; icon_prop?: Record<string, unknown> | null; count: number }>();
+    for (const n of rawData.nodes) {
+      if (!n.project_id || n.external) continue;
+      const cur = m.get(n.project_id);
+      if (cur) {
+        cur.count++;
+      } else {
+        m.set(n.project_id, {
+          id: n.project_id,
+          identifier: n.project_identifier,
+          name: (n as any).project_name ?? n.project_identifier ?? "",
+          icon_prop: n.project_icon_prop ?? null,
+          count: 1,
+        });
+      }
+    }
+    return Array.from(m.values()).sort((a, b) => (a.identifier ?? "").localeCompare(b.identifier ?? ""));
+  }, [isMe, rawData]);
+
+  const isProjectVisible = (projectId: string): boolean => {
+    return selectedProjects === null || selectedProjects.has(projectId);
+  };
+  const toggleProject = (id: string) => {
+    setSelectedProjects((cur) => {
+      const base = cur ?? new Set(uniqueProjects.map((p) => p.id));
+      const next = new Set(base);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      const normalized = next.size === uniqueProjects.length ? null : next;
+      try {
+        if (normalized === null) localStorage.removeItem(ME_GRAPH_PROJECT_FILTER_KEY);
+        else localStorage.setItem(ME_GRAPH_PROJECT_FILTER_KEY, JSON.stringify(Array.from(normalized)));
+      } catch {}
+      return normalized;
+    });
+  };
+  const selectAllProjects = () => {
+    setSelectedProjects(null);
+    try { localStorage.removeItem(ME_GRAPH_PROJECT_FILTER_KEY); } catch {}
+  };
+  const clearAllProjects = () => {
+    setSelectedProjects(new Set());
+    try { localStorage.setItem(ME_GRAPH_PROJECT_FILTER_KEY, JSON.stringify([])); } catch {}
+  };
+
+  /* 마이 모드: 가짜 project super-node + 가짜 parent edge 추가.
+   *  → orbit 모드는 자동으로 super-node 중심 궤도 형성, force 모드는 super-node spring.
+   *  본인 담당 이슈만 super-node 의 자식. external(외부 조상) 은 super-node 와 무관 — 트리 연결만.
+   *  가짜 노드 ID prefix: "__proj__<projectId>". is_project_super=true 로 시각 분기. */
+  const augmentedData = useMemo(() => {
+    if (!rawData) return rawData;
+    if (!isMe) return rawData;
+
+    const projects = new Map<string, { id: string; name: string; identifier: string | null; icon_prop?: Record<string, unknown> | null }>();
+    for (const n of rawData.nodes) {
+      if (!n.project_id || n.external) continue;
+      if (projects.has(n.project_id)) continue;
+      projects.set(n.project_id, {
+        id: n.project_id,
+        name: (n as any).project_name ?? n.project_identifier ?? "",
+        identifier: n.project_identifier,
+        icon_prop: n.project_icon_prop ?? null,
+      });
+    }
+
+    const superNodes = Array.from(projects.values()).map((p) => ({
+      id: `__proj__${p.id}`,
+      title: p.identifier || p.name || p.id.slice(0, 6),
+      sequence_id: 0,
+      project_id: p.id,
+      project_identifier: p.identifier,
+      project_icon_prop: p.icon_prop,
+      state_group: null,
+      state_color: null,
+      labels: [] as Array<{ id: string; name: string; color: string }>,
+      external: false,
+      category_id: null,
+      is_field: false,
+      is_project_super: true as const,
+    }));
+
+    const superEdges = rawData.nodes
+      .filter((n) => n.project_id && !n.external)
+      .map((n) => ({
+        id: `__projedge__${n.id}`,
+        source: `__proj__${n.project_id}`,
+        target: n.id,
+        link_type: "parent",
+        note: "",
+      }));
+
+    return {
+      nodes: [...rawData.nodes, ...superNodes as any],
+      edges: [...rawData.edges, ...superEdges],
+    };
+  }, [rawData, isMe]);
+
+  /* 프로젝트 필터 적용 — 선택된 프로젝트의 본인 담당 이슈 + 그 부모 chain (외부 조상 포함) + 해당 super-node 만.
+   *  selectedProjects=null 이거나 모두 포함하면 augmentedData 그대로. */
+  const data = useMemo(() => {
+    if (!augmentedData) return augmentedData;
+    if (!isMe || selectedProjects === null) return augmentedData;
+    if (selectedProjects.size === 0) {
+      /* 전체 해제 — 빈 그래프 */
+      return { nodes: [], edges: [] };
+    }
+    /* 1) 선택된 프로젝트의 본인 담당 이슈 + 해당 super-node ID 수집 */
+    const visible = new Set<string>();
+    for (const n of augmentedData.nodes) {
+      const isSuper = (n as any).is_project_super === true;
+      if (isSuper) {
+        if (n.project_id && selectedProjects.has(n.project_id)) visible.add(n.id);
+        continue;
+      }
+      if (n.external) continue;
+      if (n.project_id && selectedProjects.has(n.project_id)) visible.add(n.id);
+    }
+    /* 2) 본인 이슈의 부모 chain 추가 (외부 조상도 트리 연결 위해 표시) */
+    const parentMap = new Map<string, string>();
+    for (const e of augmentedData.edges) {
+      if ((e as any).link_type === "parent") parentMap.set(e.target, e.source);
+    }
+    const initial = Array.from(visible);
+    for (const id of initial) {
+      let p = parentMap.get(id);
+      while (p && !visible.has(p)) {
+        /* super-node 도 부모일 수 있는데 이미 visible 임. real parent (external 등) 는 추가. */
+        visible.add(p);
+        p = parentMap.get(p);
+      }
+    }
+    return {
+      nodes: augmentedData.nodes.filter((n) => visible.has(n.id)),
+      edges: augmentedData.edges.filter((e) => visible.has(e.source) && visible.has(e.target)),
+    };
+  }, [augmentedData, isMe, selectedProjects]);
+
+  /* 마이 모드 super-node 색 — 프로젝트 색 매핑 (icon_prop 우선 + hash fallback) */
+  const projectColorMap = useMemo<Record<string, string> | null>(() => {
+    if (!isMe || !rawData) return null;
+    const seen = new Set<string>();
+    const projects: Array<{ id: string; icon_prop?: Record<string, unknown> | null }> = [];
+    for (const n of rawData.nodes) {
+      if (!n.project_id || seen.has(n.project_id)) continue;
+      seen.add(n.project_id);
+      projects.push({ id: n.project_id, icon_prop: n.project_icon_prop ?? null });
+    }
+    return buildProjectColorMap(projects);
+  }, [isMe, rawData]);
 
   useEffect(() => {
     if (!data) return;
@@ -809,6 +988,55 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick, 
           {totalNodes}개 노드 · {edges.length}개 연결
         </span>
         <div className="flex-1" />
+
+        {/* 마이 모드 — 프로젝트 필터 (다중 체크박스, 본인 담당 이슈가 있는 프로젝트만 노출) */}
+        {isMe && uniqueProjects.length > 1 && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                className={cn(
+                  "h-7 px-2.5 rounded-md border text-xs font-medium flex items-center gap-1.5 transition-colors",
+                  selectedProjects === null
+                    ? "border-border text-muted-foreground hover:text-foreground hover:bg-muted/40"
+                    : "bg-primary/10 border-primary/40 text-primary"
+                )}
+                title={t("graphView.projectFilter", "프로젝트 필터")}
+              >
+                <FolderOpen className="h-3.5 w-3.5" />
+                {selectedProjects === null
+                  ? t("me.calendar.projects", "프로젝트")
+                  : `${t("me.calendar.projects", "프로젝트")} ${selectedProjects.size}/${uniqueProjects.length}`}
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="max-h-72 overflow-y-auto w-56">
+              <DropdownMenuItem onSelect={(e) => { e.preventDefault(); selectAllProjects(); }} className="text-xs">
+                {t("me.calendar.selectAll", "전체 선택")}
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={(e) => { e.preventDefault(); clearAllProjects(); }} className="text-xs">
+                {t("me.calendar.clearAll", "전체 해제")}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              {uniqueProjects.map((p) => {
+                const checked = isProjectVisible(p.id);
+                return (
+                  <DropdownMenuItem
+                    key={p.id}
+                    onSelect={(e) => { e.preventDefault(); toggleProject(p.id); }}
+                    className="text-xs gap-2 cursor-pointer"
+                  >
+                    <span
+                      className="h-3 w-3 rounded-sm shrink-0 border"
+                      style={{ backgroundColor: projectColorMap?.[p.id] ?? "#888", borderColor: projectColorMap?.[p.id] ?? "#888" }}
+                    />
+                    <span className="truncate flex-1">{p.identifier || p.name || p.id.slice(0, 6)}</span>
+                    {checked && <Check className="h-3 w-3 shrink-0 text-primary" />}
+                  </DropdownMenuItem>
+                );
+              })}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+
         {/* 레이아웃 모드 */}
         <div className="inline-flex rounded-md border border-border overflow-hidden text-xs">
           <button
@@ -1245,6 +1473,53 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick, 
               );
             })}
             {nodes.map((n) => {
+              /* 가짜 super-node (마이 모드의 프로젝트 노드) — 큰 원 + 프로젝트 색 + identifier 텍스트.
+                 클릭/연결 비활성, 자식 이슈들의 부모로서 클러스터 중심 역할. */
+              const isSuper = (n as any).is_project_super === true;
+              if (isSuper) {
+                const projColor = n.project_id ? projectColorMap?.[n.project_id] ?? "#6b7280" : "#6b7280";
+                const sR = 22;
+                const isHoverSuper = hoverId === n.id;
+                return (
+                  <g
+                    key={n.id}
+                    data-graph-node
+                    transform={`translate(${n.x} ${n.y})`}
+                    onMouseEnter={() => setHoverId(n.id)}
+                    onMouseLeave={() => setHoverId((h) => (h === n.id ? null : h))}
+                    onMouseDown={(e) => {
+                      /* super-node 도 일반 노드처럼 드래그 가능 — 자식들이 spring/orbit 으로 따라옴 */
+                      e.stopPropagation();
+                      const rect = containerRef.current!.getBoundingClientRect();
+                      const startCursor = {
+                        x: (e.clientX - rect.left - pan.x) / zoom,
+                        y: (e.clientY - rect.top - pan.y) / zoom,
+                      };
+                      const affected: Array<{ id: string; x0: number; y0: number; factor: number }> = [
+                        { id: n.id, x0: n.x, y0: n.y, factor: 1 },
+                      ];
+                      dragRef.current = { nodeId: n.id, startCursor, affected };
+                      dragMovedRef.current = false;
+                      dragStartRef.current = { x: e.clientX, y: e.clientY };
+                    }}
+                    className="cursor-grab active:cursor-grabbing"
+                  >
+                    {isHoverSuper && <circle r={sR + 8} fill={projColor} opacity={0.2} />}
+                    <circle r={sR} fill={projColor} opacity={0.85} stroke="var(--background, #fff)" strokeWidth={3} />
+                    <text
+                      x={0}
+                      y={4}
+                      fontSize={11}
+                      textAnchor="middle"
+                      className="pointer-events-none"
+                      style={{ fill: "#fff", fontWeight: 700, letterSpacing: "0.05em" }}
+                    >
+                      {n.title.slice(0, 6)}
+                    </text>
+                  </g>
+                );
+              }
+
               /* 노드 색상 — 필드는 통일된 라벤더, 그 외는 사용자 지정 state.color (테이블과 동일).
                  state_color 가 없으면 group 기본값으로 폴백. */
               const fill = n.is_field

@@ -20,6 +20,8 @@ class IssueSerializer(serializers.ModelSerializer):
     attachment_count = serializers.SerializerMethodField()
     project_identifier = serializers.CharField(source="project.identifier", read_only=True)
     project_name = serializers.CharField(source="project.name", read_only=True)
+    # 마이 페이지 등 다중 프로젝트 통합 뷰에서 프로젝트 색 결정용 — icon_prop.color 우선 + hash fallback
+    project_icon_prop = serializers.JSONField(source="project.icon_prop", read_only=True)
     workspace_slug = serializers.CharField(source="workspace.slug", read_only=True)
     workspace_name = serializers.CharField(source="workspace.name", read_only=True)
 
@@ -28,7 +30,7 @@ class IssueSerializer(serializers.ModelSerializer):
         fields = [
             "id", "title", "description", "description_html",
             "priority", "state", "state_detail",
-            "project", "project_identifier", "project_name",
+            "project", "project_identifier", "project_name", "project_icon_prop",
             "workspace", "workspace_slug", "workspace_name",
             "assignees", "assignee_details",
             "label", "label_details",

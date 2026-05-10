@@ -1,7 +1,7 @@
 import { NavLink, Outlet, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { UsersRound, UserCheck, Building2 } from "lucide-react";
+import { UsersRound, UserCheck, Building2, Settings } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { workspacesApi } from "@/api/workspaces";
 import { cn } from "@/lib/utils";
@@ -58,6 +58,21 @@ export function WorkspaceSettingsLayout() {
         </div>
         {canManageWorkspace && (
           <>
+            <NavLink
+              to={`${base}/general`}
+              className={({ isActive }) =>
+                cn(
+                  "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
+                  isActive
+                    ? "bg-accent text-foreground font-medium"
+                    : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                )
+              }
+            >
+              <Settings className="h-4 w-4 shrink-0" />
+              {t("settings.layout.workspaceGeneral", "일반")}
+            </NavLink>
+
             <NavLink
               to={`${base}/members`}
               className={({ isActive }) =>

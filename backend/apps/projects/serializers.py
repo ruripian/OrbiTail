@@ -9,11 +9,13 @@ class ProjectEventSerializer(serializers.ModelSerializer):
     participant_details = UserSerializer(source="participants", many=True, read_only=True)
     project_workspace_slug = serializers.CharField(source="project.workspace.slug", read_only=True)
     project_name = serializers.CharField(source="project.name", read_only=True)
+    # 마이 페이지에서 프로젝트별 색 구분용
+    project_icon_prop = serializers.JSONField(source="project.icon_prop", read_only=True)
 
     class Meta:
         model = ProjectEvent
         fields = [
-            "id", "project", "project_workspace_slug", "project_name",
+            "id", "project", "project_workspace_slug", "project_name", "project_icon_prop",
             "title", "date", "end_date",
             "event_type", "color", "description",
             "is_global", "participants", "participant_details",

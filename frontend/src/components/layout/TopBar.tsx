@@ -124,39 +124,8 @@ export function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
         </button>
       )}
 
-      {/* 워크스페이스 전환 + 검색 */}
+      {/* 검색 — 워크스페이스 전환은 사이드바 좌측에서 처리하므로 TopBar 에서는 제거 */}
       <div className="flex items-center gap-2 flex-1 sm:flex-none">
-        {workspaces.length > 1 && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="flex items-center gap-1.5 rounded-xl border bg-muted/30 px-3 h-9 text-sm font-medium hover:bg-muted/50 hover:border-border transition-all duration-fast shrink-0 max-w-[160px]">
-                <span className="truncate">{workspaces.find((w) => w.slug === workspaceSlug)?.name ?? workspaceSlug}</span>
-                <ChevronsUpDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-56">
-              <DropdownMenuLabel className="text-xs text-muted-foreground">{t("topbar.switchWorkspace")}</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {workspaces.map((ws) => (
-                <DropdownMenuItem
-                  key={ws.id}
-                  className="gap-2 cursor-pointer"
-                  onClick={() => navigate(`/${ws.slug}`)}
-                >
-                  <div className="h-6 w-6 rounded-md bg-primary/10 flex items-center justify-center text-xs font-bold text-primary shrink-0">
-                    {ws.name.charAt(0).toUpperCase()}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{ws.name}</p>
-                    <p className="text-xs text-muted-foreground">/{ws.slug}</p>
-                  </div>
-                  {ws.slug === workspaceSlug && <Check className="h-4 w-4 text-primary shrink-0" />}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
-
         {/* 검색창 — 클릭 시 검색 다이얼로그 열기 */}
         <div
           onClick={() => setSearchOpen(true)}
