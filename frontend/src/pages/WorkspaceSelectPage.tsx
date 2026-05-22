@@ -17,9 +17,14 @@ export function WorkspaceSelectPage() {
   const { setCurrentWorkspace } = useWorkspaceStore();
   const user = useAuthStore((s) => s.user);
   const clearAuth = useAuthStore((s) => s.clearAuth);
+  const beginLogout = useAuthStore((s) => s.beginLogout);
+  const endLogout = useAuthStore((s) => s.endLogout);
 
-  /* 로그아웃 — 다른 계정으로 진입하거나 잘못된 자동 로그인 상태에서 빠져나올 때 */
+  /* 로그아웃 — 다른 계정으로 진입하거나 잘못된 자동 로그인 상태에서 빠져나올 때.
+     TopBar.handleLogout 과 동일한 race 가드 순서를 따름 (begin/cancel/blacklist/clear/navigate/end). */
   const handleLogout = async () => {
+    beginLogout();
+    qc.cancelQueries();
     try {
       const refresh = localStorage.getItem("refresh_token");
       if (refresh) await api.post("/auth/logout/", { refresh });
@@ -28,6 +33,7 @@ export function WorkspaceSelectPage() {
     } finally {
       clearAuth();
       navigate("/auth/login", { replace: true });
+      endLogout();
     }
   };
 

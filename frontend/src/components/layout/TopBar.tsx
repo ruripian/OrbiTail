@@ -28,6 +28,8 @@ export function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
   const { t } = useTranslation();
   const user = useAuthStore((s) => s.user);
   const clearAuth = useAuthStore((s) => s.clearAuth);
+  const beginLogout = useAuthStore((s) => s.beginLogout);
+  const endLogout = useAuthStore((s) => s.endLogout);
   const navigate = useNavigate();
   const { workspaceSlug } = useParams<{ workspaceSlug: string }>();
   const { resolvedTheme, setTheme } = useTheme();
@@ -99,6 +101,15 @@ export function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
   }, []);
 
   const handleLogout = async () => {
+    /* 로그아웃 가드 순서:
+       1) beginLogout → axios interceptor 가 진행 중/이후 401 응답에서 refresh/redirect 를 건너뛰게
+       2) cancelQueries → 백그라운드 polling/refetch 의 fly-in 응답을 끊음
+       3) 서버 토큰 블랙리스트 (실패해도 로컬 정리는 진행)
+       4) clearAuth → localStorage/zustand 비움
+       5) navigate → SPA 전환 (hard reload 없음)
+       6) endLogout → 새 세션 시작 시 정상 인터셉터 복원 */
+    beginLogout();
+    qc.cancelQueries();
     try {
       const refresh = localStorage.getItem("refresh_token");
       if (refresh) await api.post("/auth/logout/", { refresh });
@@ -107,6 +118,7 @@ export function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
     } finally {
       clearAuth();
       navigate("/auth/login", { replace: true });
+      endLogout();
     }
   };
 

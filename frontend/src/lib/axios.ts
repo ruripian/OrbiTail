@@ -35,20 +35,36 @@ let refreshPromise: Promise<string> | null = null;
 const AUTH_ENDPOINTS = ["/auth/login/", "/auth/register/", "/auth/token/refresh/"];
 const isAuthEndpoint = (url: string = "") => AUTH_ENDPOINTS.some((ep) => url.includes(ep));
 
+/* 이미 인증 페이지에 있거나 인증 화면으로 향하는 경로면 hard reload 생략 — 진행 중인 navigate/render 와의 경합 차단 */
+const isOnAuthRoute = () => window.location.pathname.startsWith("/auth/");
+
+/* refresh 실패/토큰 없음 시 강제 로그인 페이지 전환. 이미 /auth/* 면 reload 안 함. */
+const forceLoginRedirect = () => {
+  useAuthStore.getState().clearAuth();
+  if (!isOnAuthRoute()) {
+    window.location.href = "/auth/login";
+  }
+};
+
 api.interceptors.response.use(
   (res) => res,
   async (error) => {
     const original = error.config;
     const refresh = localStorage.getItem("refresh_token");
     const status = error.response?.status;
+    const { isLoggingOut } = useAuthStore.getState();
+
+    /* 로그아웃 진행 중에는 401 처리 자체를 건너뜀.
+       handleLogout 이 cancelQueries 로 진행 중 fetch 를 끊고, 그래도 fly-in 으로 401 이 도착할 경우
+       refresh 시도/hard redirect 가 일어나면 로그인 폼이 새로 그려지면서 입력이 씹히는 race 가 발생함. */
+    if (status === 401 && isLoggingOut) {
+      return Promise.reject(error);
+    }
 
     if (status === 401 && !original._retry && !isAuthEndpoint(original.url)) {
       /* refresh 토큰이 없으면 = 완전 로그아웃 상태이거나 저장 실패. 즉시 로그인으로 */
       if (!refresh) {
-        useAuthStore.getState().clearAuth();
-        if (window.location.pathname !== "/auth/login") {
-          window.location.href = "/auth/login";
-        }
+        forceLoginRedirect();
         return Promise.reject(error);
       }
 
@@ -73,10 +89,7 @@ api.interceptors.response.use(
         return api(original);
       } catch {
         // refresh도 실패 → 세션 만료, 로그인 페이지로
-        useAuthStore.getState().clearAuth();
-        if (window.location.pathname !== "/auth/login") {
-          window.location.href = "/auth/login";
-        }
+        forceLoginRedirect();
       }
     }
     return Promise.reject(error);

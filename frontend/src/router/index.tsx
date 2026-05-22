@@ -44,6 +44,7 @@ import { InviteAcceptPage } from "@/pages/invite/InviteAcceptPage";
 import { AnnouncementsPage } from "@/pages/AnnouncementsPage";
 import { DocumentLayout } from "@/components/layout/DocumentLayout";
 import { RequestSubmitPage } from "@/pages/request/RequestSubmitPage";
+import { ErrorFallback } from "@/components/ErrorFallback";
 import { lazy, Suspense } from "react";
 
 const DocumentsHomePage = lazy(() => import("@/pages/documents/DocumentsHomePage"));
@@ -95,6 +96,8 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 export const router = createBrowserRouter([
   {
     element: <ChromeAttributeWrapper />,
+    /* 최상위 errorElement — 렌더 중 throw 시 회색 영문 페이지 대신 한국어 fallback 노출 + 콘솔 로그 */
+    errorElement: <ErrorFallback />,
     children: [
   {
     path: "/auth/login",

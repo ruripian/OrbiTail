@@ -8,12 +8,19 @@ interface AuthState {
   user: User | null;
   accessToken: string | null;
   refreshToken: string | null;
+  /** 로그아웃이 진행 중인 동안 true. axios interceptor 가 401 처리(refresh/redirect)를 건너뛰는 가드.
+     로그아웃 도중 fly-in 응답으로 새 토큰이 갱신되거나 hard reload 가 트리거되는 race 차단용.
+     persist 대상 아님 — 페이지 리로드 시 항상 false 로 시작해야 안전. */
+  isLoggingOut: boolean;
   setAuth: (user: User, access: string, refresh: string) => void;
   clearAuth: () => void;
   /** 프로필/설정 변경 후 스토어의 user 정보만 갱신 (토큰 유지) */
   updateUser: (user: User) => void;
   /** axios refresh 인터셉터에서 호출 — 새 토큰 저장, user 유지. refresh는 rotation 시에만 전달 */
   updateTokens: (access: string, refresh?: string) => void;
+  /** 로그아웃 시작 — handleLogout 가 cancelQueries 후 이 플래그를 켜고, 끝나면 endLogout 호출 */
+  beginLogout: () => void;
+  endLogout: () => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -22,6 +29,7 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       accessToken: null,
       refreshToken: null,
+      isLoggingOut: false,
       setAuth: (user, accessToken, refreshToken) => {
         localStorage.setItem("access_token", accessToken);
         localStorage.setItem("refresh_token", refreshToken);
@@ -50,9 +58,12 @@ export const useAuthStore = create<AuthState>()(
           refreshToken: refresh ?? state.refreshToken,
         }));
       },
+      beginLogout: () => set({ isLoggingOut: true }),
+      endLogout: () => set({ isLoggingOut: false }),
     }),
     {
       name: "auth-storage",
+      /* isLoggingOut 은 persist 대상에서 제외 — 새로고침 시 항상 false 로 시작 */
       partialize: (state) => ({
         user: state.user,
         accessToken: state.accessToken,
