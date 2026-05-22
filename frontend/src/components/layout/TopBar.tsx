@@ -2,14 +2,13 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Search, Settings, LogOut, User, Sun, Moon, Bell, CheckCheck, MessageSquare, UserPlus, RefreshCw, Menu, ShieldAlert, ChevronsUpDown, Check } from "lucide-react";
+import { Search, Settings, LogOut, User, Sun, Moon, Bell, CheckCheck, MessageSquare, UserPlus, RefreshCw, Menu, ShieldAlert } from "lucide-react";
 import { motion } from "framer-motion";
 import { useMotion } from "@/lib/motion-provider";
 import { useAuthStore } from "@/stores/authStore";
 import { useTheme } from "@/lib/theme-provider";
 import { api } from "@/lib/axios";
 import { notificationsApi } from "@/api/notifications";
-import { workspacesApi } from "@/api/workspaces";
 import { useIssueDialogStore } from "@/stores/issueDialogStore";
 import { cn } from "@/lib/utils";
 import {
@@ -38,12 +37,6 @@ export function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
   const [searchOpen, setSearchOpen] = useState(false);
   const qc = useQueryClient();
   const { isRich } = useMotion();
-
-  /* 워크스페이스 목록 — 전환 드롭다운용 */
-  const { data: workspaces = [] } = useQuery({
-    queryKey: ["workspaces"],
-    queryFn: () => workspacesApi.list(),
-  });
 
   /* 알림 미읽음 수 — WebSocket notification.new 이벤트로 즉시 갱신,
      polling은 WS 연결 끊김 fallback (60초) */

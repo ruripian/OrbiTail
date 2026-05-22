@@ -21,8 +21,8 @@ export function AppLayout() {
   // 워크스페이스 색상 설정을 CSS 변수로 주입 (priority_colors)
   useWorkspaceColors();
 
-  // WebSocket 실시간 업데이트 — 워크스페이스별 연결
-  const wsStatus = useWebSocket(workspaceSlug);
+  // WebSocket 실시간 업데이트 — 워크스페이스별 연결. 반환된 상태는 현재 UI에서 사용 안 함.
+  useWebSocket(workspaceSlug);
 
   /* 앱 진입 시 /me/ 를 한 번 갱신 — 백엔드에서 새로 추가된 플래그
      (is_superuser, is_workspace_admin, is_suspended 등) 를 기존 세션에 주입 */
@@ -59,7 +59,7 @@ export function AppLayout() {
   return (
     <div className="flex h-screen overflow-hidden relative">
       {isDesktop ? (
-        <Sidebar wsStatus={wsStatus} />
+        <Sidebar />
       ) : (
         <>
           {sidebarOpen && (
@@ -75,7 +75,7 @@ export function AppLayout() {
             }`}
             style={{ zIndex: Z_SIDEBAR }}
           >
-            <Sidebar onNavigate={closeSidebar} wsStatus={wsStatus} />
+            <Sidebar onNavigate={closeSidebar} />
           </div>
         </>
       )}

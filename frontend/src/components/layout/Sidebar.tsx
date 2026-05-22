@@ -29,7 +29,6 @@ import { ProjectIcon } from "@/components/ui/project-icon-picker";
 import { AppSwitcher } from "./AppSwitcher";
 import { WorkspaceHeader } from "./WorkspaceHeader";
 import type { Project, Category } from "@/types";
-import type { WsStatus } from "@/hooks/useWebSocket";
 
 /**
  * 활성 상태는 좌측 3px ::before bar 로 단일화. badge 가 있으면 우측에 카운트 노출.
@@ -304,7 +303,7 @@ function useAnnouncementsUnread(): number {
   return data;
 }
 
-export function Sidebar({ onNavigate, wsStatus = "connecting" }: { onNavigate?: () => void; wsStatus?: WsStatus } = {}) {
+export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
   const { t } = useTranslation();
   const { workspaceSlug } = useParams<{ workspaceSlug: string }>();
   const location = useLocation();
