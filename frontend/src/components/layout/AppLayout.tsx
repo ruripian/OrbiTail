@@ -1,11 +1,14 @@
 import { useState, useCallback, useEffect } from "react";
 import { Outlet, useParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 import { SponsorButton } from "./SponsorButton";
 import { authApi } from "@/api/auth";
+import { workspacesApi } from "@/api/workspaces";
 import { useAuthStore } from "@/stores/authStore";
+import { useWorkspaceStore } from "@/stores/workspaceStore";
 import { useWorkspaceColors } from "@/hooks/useWorkspaceColors";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { useIsDesktop } from "@/hooks/useMediaQuery";
@@ -33,6 +36,22 @@ export function AppLayout() {
       .then((u) => updateUser(u))
       .catch(() => { /* 401 등은 axios 인터셉터가 처리 */ });
   }, [updateUser]);
+
+  /* URL 의 workspaceSlug 를 진실의 원천으로 삼아 workspaceStore.currentWorkspace 를 동기화.
+     로그인 후 자동 리다이렉트(WorkspaceSelectPage) 가 "최근 워크스페이스"를 currentWorkspace 로 판단하므로,
+     선택 페이지/생성 페이지 외 진입 경로(URL 직접 입력, 북마크, 외부 링크 등) 에서도 이 값이 갱신되어야 함. */
+  const setCurrentWorkspace = useWorkspaceStore((s) => s.setCurrentWorkspace);
+  const currentWorkspaceSlug = useWorkspaceStore((s) => s.currentWorkspace?.slug);
+  const { data: workspacesData } = useQuery({
+    queryKey: ["workspaces"],
+    queryFn: workspacesApi.list,
+  });
+  useEffect(() => {
+    if (!workspaceSlug || !workspacesData) return;
+    if (currentWorkspaceSlug === workspaceSlug) return;
+    const matched = workspacesData.find((w) => w.slug === workspaceSlug);
+    if (matched) setCurrentWorkspace(matched);
+  }, [workspaceSlug, workspacesData, currentWorkspaceSlug, setCurrentWorkspace]);
 
   /* 글로벌 Undo 단축키 — Cmd/Ctrl+Z. input/textarea/contenteditable 안에서는 무시. */
   const popUndo = useUndoStore((s) => s.popAndRun);

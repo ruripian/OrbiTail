@@ -14,7 +14,7 @@ export function WorkspaceSelectPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const { setCurrentWorkspace } = useWorkspaceStore();
+  const { setCurrentWorkspace, currentWorkspace } = useWorkspaceStore();
   const user = useAuthStore((s) => s.user);
   const clearAuth = useAuthStore((s) => s.clearAuth);
   const beginLogout = useAuthStore((s) => s.beginLogout);
@@ -124,6 +124,17 @@ export function WorkspaceSelectPage() {
       return;
     }
 
+    // 1.5) 멤버십 2개 이상 + 직전에 사용한 워크스페이스가 여전히 멤버 목록에 있으면 그쪽으로 자동 진입.
+    //      멤버십이 풀렸거나 currentWorkspace 자체가 없으면 fallthrough → 선택 화면 노출.
+    if (workspaces.length > 1 && currentWorkspace?.slug) {
+      const matched = (workspaces as any[]).find((w) => w.slug === currentWorkspace.slug);
+      if (matched) {
+        setCurrentWorkspace(matched);
+        navigate(`/${matched.slug}`, { replace: true });
+        return;
+      }
+    }
+
     // 2) 어드민이 승인한 신청이 있으면 워크스페이스 목록을 다시 조회
     //    (refetch 로 멤버십이 잡히면 위 1) 분기로 다음 사이클에 진입)
     if (approvedRequest) {
@@ -145,6 +156,7 @@ export function WorkspaceSelectPage() {
     workspaces, isLoading, explicitSwitch,
     showJoinFlow, joinable, joinableLoading,
     myRequestsLoading, pendingRequests.length, approvedRequest,
+    currentWorkspace?.slug,
   ]);
 
   if (isLoading || (showJoinFlow && (joinableLoading || myRequestsLoading))) {
