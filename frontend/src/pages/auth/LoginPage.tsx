@@ -49,7 +49,7 @@ export function LoginPage() {
 
   return (
     <>
-      <OrbiTailOrbit size={1200} strokeW={5} offsetY={-40} />
+      <OrbiTailOrbit size={1200} strokeW={5} offsetY={-40} forceRich />
       <AuthCard>
         <AuthCardHeader subtitle={t("auth.login.subtitle")} />
 

@@ -60,6 +60,11 @@ interface OrbiTailOrbitProps {
    * 기본 2 — 사각형 경계가 화면 밖으로 나가 "사각형 영역에 갇힌 느낌" 제거.
    */
   canvasMultiplier?: number;
+  /**
+   * true 면 motion-provider 의 mode (OS prefers-reduced-motion, localStorage 저장값 등) 와 무관하게
+   * 공전 행성을 항상 렌더링. 인증 페이지처럼 짧게 머무는 화면에서 시각 강조를 보장하기 위해 사용.
+   */
+  forceRich?: boolean;
 }
 
 // 원본 로고 viewBox 치수
@@ -74,8 +79,10 @@ export function OrbiTailOrbit({
   idPrefix = "orb",
   layer = "all",
   canvasMultiplier = 2,
+  forceRich = false,
 }: OrbiTailOrbitProps) {
-  const { isRich } = useMotion();
+  const { isRich: motionRich } = useMotion();
+  const isRich = forceRich || motionRich;
   const translateY = offsetY ? `translateY(${offsetY}px)` : undefined;
   const showPaths = layer === "paths" || layer === "all";
   const showDots = layer === "dots" || layer === "all";
@@ -89,7 +96,7 @@ export function OrbiTailOrbit({
 
   return (
     <div
-      className={`orbitail-orbit pointer-events-none ${position} inset-0 overflow-hidden text-primary`}
+      className={`orbitail-orbit pointer-events-none ${position} inset-0 overflow-hidden text-primary${forceRich ? " force-rich" : ""}`}
       aria-hidden="true"
     >
       <svg

@@ -1591,8 +1591,8 @@ body.hide-dots::before { display: none; }
 
 /* 애니메이션 끄기 — minimal 모드에서 GPU 부하가 큰 요소 비활성화 */
 [data-motion="minimal"] body::before { animation: none !important; }
-[data-motion="minimal"] .orbitail-orbit circle { animation: none !important; }
-[data-motion="minimal"] .orbitail-orbit animateMotion { display: none; }
+[data-motion="minimal"] .orbitail-orbit:not(.force-rich) circle { animation: none !important; }
+[data-motion="minimal"] .orbitail-orbit:not(.force-rich) animateMotion { display: none; }
 
 /* Phase 3.4 — 실시간 변경 하이라이트
    다른 사용자가 이슈를 수정/이동하면 useWebSocket 이 recentChangesStore 에 2초 등록.
