@@ -12,7 +12,8 @@ export default defineConfig(({ mode }) => {
      예: DOMAIN=orbitail.example.com → ["orbitail.example.com"]
      비어있으면 기본값(localhost)만 허용 */
   const allowedHosts: string[] = [];
-  if (env.DOMAIN) allowedHosts.push(env.DOMAIN);
+  const domain = env.DOMAIN || process.env.DOMAIN;
+  if (domain) allowedHosts.push(domain);
 
   /* 버전 — 루트 VERSION 파일이 단일 source of truth.
      dev 컨테이너에서는 마운트 볼륨 외부라 못 읽는 경우가 있어
