@@ -12,6 +12,7 @@
  *   position — fixed(전체 화면) / absolute(부모 기준)
  */
 
+import { useLayoutEffect, useRef } from "react";
 import { useMotion } from "@/lib/motion-provider";
 
 /** 로고에서 추출한 외곽 path (엣지만) */
@@ -28,12 +29,14 @@ const PATHS = {
     "M1523.16,447.05c-13.08-59.21-35.23-116.13-66.59-167.92-1.67-2.76-10.61-14.7-10.3-16.45.48-2.66,8.08-3.71,10.69-4.33,47.57-11.19,103.93-18.66,152.69-23.31,39.64-3.79,105.99-9.23,143.54.46,26.92,6.95,11.64,23.95-.06,38.02-47.82,57.49-150.05,126.85-215.06,165.94-1.63.98-14.19,8.53-14.91,7.58Z",
 } as const;
 
-/** 궤도 행성 설정 */
-const ORBITERS = [
-  { pathKey: "edge1" as const, dur: "18s", r: 5, delay: "0s" },
-  { pathKey: "edge2" as const, dur: "24s", r: 4, delay: "-8s" },
-  { pathKey: "edge3" as const, dur: "12s", r: 4.5, delay: "-3s" },
-  { pathKey: "edge4" as const, dur: "14s", r: 3.5, delay: "-5s" },
+type PathKey = keyof typeof PATHS;
+
+/** 궤도 행성 설정. delaySec 음수 = 시작 시점에 이미 그만큼 진행되어 있다고 간주 (각 행성이 path 의 다른 지점에서 출발) */
+const ORBITERS: Array<{ pathKey: PathKey; durSec: number; rPx: number; delaySec: number }> = [
+  { pathKey: "edge1", durSec: 18, rPx: 5,   delaySec: 0 },
+  { pathKey: "edge2", durSec: 24, rPx: 4,   delaySec: -8 },
+  { pathKey: "edge3", durSec: 12, rPx: 4.5, delaySec: -3 },
+  { pathKey: "edge4", durSec: 14, rPx: 3.5, delaySec: -5 },
 ];
 
 interface OrbiTailOrbitProps {
@@ -45,8 +48,6 @@ interface OrbiTailOrbitProps {
   offsetY?: number;
   /** 위치 모드. fixed=전체 화면, absolute=부모 기준 */
   position?: "fixed" | "absolute";
-  /** SVG filter id 접두사 — 같은 페이지에 여러 인스턴스 있을 때 충돌 방지 */
-  idPrefix?: string;
   /**
    * 렌더 레이어 선택. 기본 `all`.
    *  - `paths`: 배경 로고 외곽선만 (카드에 가려도 무방)
@@ -76,7 +77,6 @@ export function OrbiTailOrbit({
   strokeW = 5,
   offsetY = 0,
   position = "fixed",
-  idPrefix = "orb",
   layer = "all",
   canvasMultiplier = 2,
   forceRich = false,
@@ -86,6 +86,45 @@ export function OrbiTailOrbit({
   const translateY = offsetY ? `translateY(${offsetY}px)` : undefined;
   const showPaths = layer === "paths" || layer === "all";
   const showDots = layer === "dots" || layer === "all";
+
+  /* RAF 기반 좌표 계산 — SMIL animateMotion 의 mpath 참조 race 와 16개 동시 시작 race 를
+     피하기 위해 JS 로 직접 path 좌표를 매 프레임 계산해 g.transform 으로 적용. */
+  const pathRefs = useRef<Record<PathKey, SVGPathElement | null>>({
+    edge1: null, edge2: null, edge3: null, edge4: null, edge5: null,
+  });
+  const orbiterRefs = useRef<(SVGGElement | null)[]>([]);
+
+  useLayoutEffect(() => {
+    if (!isRich || !showDots) return;
+
+    const totalLengths: Partial<Record<PathKey, number>> = {};
+    for (const o of ORBITERS) {
+      const el = pathRefs.current[o.pathKey];
+      if (el) totalLengths[o.pathKey] = el.getTotalLength();
+    }
+
+    let raf = 0;
+    const startMs = performance.now();
+
+    const tick = (nowMs: number) => {
+      const elapsedSec = (nowMs - startMs) / 1000;
+      for (let i = 0; i < ORBITERS.length; i++) {
+        const o = ORBITERS[i];
+        const pathEl = pathRefs.current[o.pathKey];
+        const gEl = orbiterRefs.current[i];
+        const len = totalLengths[o.pathKey];
+        if (!pathEl || !gEl || !len) continue;
+        const phase = (elapsedSec - o.delaySec) / o.durSec;
+        const t = phase - Math.floor(phase); // 0..1 wrap
+        const pt = pathEl.getPointAtLength(t * len);
+        gEl.setAttribute("transform", `translate(${pt.x} ${pt.y})`);
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    // 첫 frame 을 paint 전에 한 번 실행해 (0,0) 깜빡임 방지
+    tick(performance.now());
+    return () => cancelAnimationFrame(raf);
+  }, [isRich, showDots]);
 
   // viewBox 를 로고 크기보다 canvasMultiplier 배 만큼 확장 — 로고는 중앙에 위치
   const padX = (LOGO_W * (canvasMultiplier - 1)) / 2;
@@ -111,11 +150,12 @@ export function OrbiTailOrbit({
         }}
         fill="none"
       >
-        <defs>
-          {Object.entries(PATHS).map(([key, d]) => (
-            <path key={key} id={`${idPrefix}-path-${key}`} d={d} />
+        {/* getPointAtLength 측정용 — 화면에 표시하지 않지만 layout 은 됨(visibility:hidden 이라 bbox 계산 가능) */}
+        <g style={{ visibility: "hidden" }} aria-hidden="true">
+          {(Object.keys(PATHS) as PathKey[]).map((k) => (
+            <path key={k} ref={(el) => { pathRefs.current[k] = el; }} d={PATHS[k]} />
           ))}
-        </defs>
+        </g>
 
         {/* 배경 — 로고 엣지를 반투명 stroke로 렌더링 */}
         {showPaths && (
@@ -127,35 +167,18 @@ export function OrbiTailOrbit({
         )}
 
         {/* 공전 행성들 — minimal 모드에서는 숨김.
-            feGaussianBlur 필터 제거: 브라우저에 따라 필터 영역 클리핑으로 dot 주위 halo 가
-            특정 회전 각도에서 잘리는 "뒤로 밀린 듯" 한 착시가 생겼음.
-            이제는 반투명 큰 원 + 메인 원 + 흰 중심점 3겹 으로 halo 효과를 정적으로 재현. */}
-        {showDots && isRich && ORBITERS.map(({ pathKey, dur, r, delay }, i) => (
-          <g key={i}>
+            SMIL animateMotion 대신 RAF + g.transform 으로 좌표 계산:
+            SMIL 은 16개 동시 시작 시 path 해석 race 가 있어 일부 행성이 첫 cycle 동안 정지하는 버그가 있었음. */}
+        {showDots && isRich && ORBITERS.map((o, i) => (
+          <g key={i} ref={(el) => { orbiterRefs.current[i] = el; }}>
             {/* 외곽 halo — 크고 매우 옅게 */}
-            <circle r={r * 3} fill="currentColor" opacity={0.12}>
-              <animateMotion dur={dur} begin={delay} repeatCount="indefinite">
-                <mpath href={`#${idPrefix}-path-${pathKey}`} />
-              </animateMotion>
-            </circle>
+            <circle r={o.rPx * 3} fill="currentColor" opacity={0.12} />
             {/* 중간 halo */}
-            <circle r={r * 1.8} fill="currentColor" opacity={0.25}>
-              <animateMotion dur={dur} begin={delay} repeatCount="indefinite">
-                <mpath href={`#${idPrefix}-path-${pathKey}`} />
-              </animateMotion>
-            </circle>
+            <circle r={o.rPx * 1.8} fill="currentColor" opacity={0.25} />
             {/* 메인 dot */}
-            <circle r={r} fill="currentColor" opacity={0.9}>
-              <animateMotion dur={dur} begin={delay} repeatCount="indefinite">
-                <mpath href={`#${idPrefix}-path-${pathKey}`} />
-              </animateMotion>
-            </circle>
+            <circle r={o.rPx} fill="currentColor" opacity={0.9} />
             {/* 중심 하이라이트 */}
-            <circle r={r * 0.4} fill="white" opacity={0.9}>
-              <animateMotion dur={dur} begin={delay} repeatCount="indefinite">
-                <mpath href={`#${idPrefix}-path-${pathKey}`} />
-              </animateMotion>
-            </circle>
+            <circle r={o.rPx * 0.4} fill="white" opacity={0.9} />
           </g>
         ))}
       </svg>

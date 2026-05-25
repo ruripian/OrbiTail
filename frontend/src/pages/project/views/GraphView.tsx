@@ -246,7 +246,7 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick, 
 
     const superNodes = Array.from(projects.values()).map((p) => ({
       id: `__proj__${p.id}`,
-      title: p.identifier || p.name || p.id.slice(0, 6),
+      title: p.name || p.identifier || p.id.slice(0, 6),
       sequence_id: 0,
       project_id: p.id,
       project_identifier: p.identifier,
@@ -1506,15 +1506,27 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick, 
                   >
                     {isHoverSuper && <circle r={sR + 8} fill={projColor} opacity={0.2} />}
                     <circle r={sR} fill={projColor} opacity={0.85} stroke="var(--background, #fff)" strokeWidth={3} />
+                    {/* 원 안: 이름 첫 글자 이니셜 (한글/영문 공통, 그래프 원이 작아 풀 이름은 못 들어감) */}
                     <text
                       x={0}
-                      y={4}
+                      y={6}
+                      fontSize={18}
+                      textAnchor="middle"
+                      className="pointer-events-none"
+                      style={{ fill: "#fff", fontWeight: 700 }}
+                    >
+                      {n.title.charAt(0).toUpperCase()}
+                    </text>
+                    {/* 원 아래: 풀 이름 라벨 — 식별의 진짜 출처. 다른 노드 라벨과 겹칠 수 있지만 super-node 는 수가 적어 무방 */}
+                    <text
+                      x={0}
+                      y={sR + 14}
                       fontSize={11}
                       textAnchor="middle"
                       className="pointer-events-none"
-                      style={{ fill: "#fff", fontWeight: 700, letterSpacing: "0.05em" }}
+                      style={{ fill: "var(--foreground, #111)", fontWeight: 600 }}
                     >
-                      {n.title.slice(0, 6)}
+                      {n.title}
                     </text>
                   </g>
                 );
@@ -1673,7 +1685,7 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick, 
                     style={{ fill: "currentColor", paintOrder: "stroke", stroke: "var(--background, #fff)", strokeWidth: 3, strokeLinejoin: "round" }}
                   >
                     {n.is_field ? "✦ " : ""}
-                    {showIds && n.project_identifier ? `${n.project_identifier}-${n.sequence_id} ` : ""}
+                    {showIds && n.sequence_id ? `#${n.sequence_id} ` : ""}
                     {n.title.length > 24 ? n.title.slice(0, 24) + "…" : n.title}
                   </text>
                 </g>

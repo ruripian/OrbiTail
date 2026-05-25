@@ -21,6 +21,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Maximize2, Minimize2, Plus } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { EVENT_TYPES } from "@/constants/event-types";
 import type { Issue, ProjectEvent } from "@/types";
@@ -165,6 +166,10 @@ function snapToWeekday(d: Date): Date {
 const DAY_KEYS = ["calendar.sun", "calendar.mon", "calendar.tue", "calendar.wed", "calendar.thu", "calendar.fri", "calendar.sat"] as const;
 const BAR_HEIGHT = 30;
 const BAR_GAP = 3;
+/** 셀당 chip 최대 표시 수 — 초과 시 "+N개 더" 버튼이 popover 로 나머지 표시. 셀별 콘텐츠 양을 클램프해 주별 행 높이 격차도 자연스레 줄임. */
+const MAX_VISIBLE_CHIPS = 5;
+/** chip 1줄 + gap 이 차지하는 높이 (cellTotalH 계산 + chip 영역 minHeight 측정 일관) */
+const CHIP_H = 34;
 
 /* ── Props ──────────────────────────────────────────── */
 
@@ -245,6 +250,9 @@ export function CalendarMonth({
     }
     return all;
   }, [settings.alwaysExpand, expandedIds, issues]);
+
+  /* "+N개 더" popover — 셀당 하나만 열림 (dateKey 로 식별) */
+  const [overflowOpenDayKey, setOverflowOpenDayKey] = useState<string | null>(null);
 
   /* ── 드래그 상태 ───────────────────────────────────────── */
   const dragDistRef = useRef(0);
@@ -388,6 +396,67 @@ export function CalendarMonth({
   /* 오늘이 표시 중인 월에 있으면 요일 헤더 강조 */
   const todayColIndex = (year === today.getFullYear() && month === today.getMonth()) ? today.getDay() : -1;
 
+  /* chip 렌더 — 셀 안 + overflow popover 두 곳에서 재사용.
+     opts.disableDrag: popover 안 chip 은 portal 이라 closest('[data-week-row]') 가 null 이라 cellWidth 측정 불가
+     → drag 정확도 떨어지므로 click 만 허용. 변경 원하면 popover 닫고 셀에서 직접 드래그. */
+  const renderChip = (issue: Issue, opts?: { onAfterClick?: () => void; disableDrag?: boolean }) => {
+    const chipColor = stateColorMap[issue.state] ?? "#888";
+    const projColor = projectColorMap?.[issue.project];
+    const canExpand = !!issue.due_date;
+    const isDraggable = canSchedule && !opts?.disableDrag;
+    return (
+      <div
+        key={issue.id}
+        className={cn(
+          "flex items-center gap-1.5 rounded-[3px] pl-2 pr-1 py-1 hover:brightness-110 transition-all group/chip",
+          isDraggable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer",
+        )}
+        style={{
+          backgroundColor: `${chipColor}14`,
+          borderLeft: `3px solid ${chipColor}`,
+          borderRight: projColor ? `2px solid ${projColor}` : "none",
+          opacity: dragState?.targetId === issue.id ? 0.5 : 1,
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+          if (dragDistRef.current < 4) {
+            onIssueClick(issue.id);
+            opts?.onAfterClick?.();
+          }
+        }}
+        onMouseDown={isDraggable ? (e) => {
+          e.stopPropagation();
+          const row = e.currentTarget.closest("[data-week-row]") as HTMLElement | null;
+          const visibleCols = settings.hideWeekends ? 5 : 7;
+          const cellW = row ? row.offsetWidth / visibleCols : 100;
+          const rowH = row ? row.offsetHeight : 0;
+          const dueDate = parseLocalDate(issue.due_date!);
+          setDragState({
+            targetId: issue.id, targetType: "issue", type: "due-only",
+            initialStart: dueDate, initialDue: dueDate,
+            startX: e.clientX, currentX: e.clientX,
+            startY: e.clientY, currentY: e.clientY,
+            cellWidth: cellW, rowHeight: rowH,
+          });
+        } : undefined}
+      >
+        <span className="text-sm truncate text-foreground/80 group-hover/chip:text-foreground transition-colors leading-tight flex-1 font-medium">
+          {issue.title}
+        </span>
+        {canExpand && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onToggleExpand(issue.id); opts?.onAfterClick?.(); }}
+            className="shrink-0 opacity-50 group-hover/chip:opacity-100 transition-opacity p-1 rounded hover:bg-primary/20 text-muted-foreground hover:text-primary"
+            title={t("calendar.expandBar", "확장")}
+          >
+            <Maximize2 className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
+    );
+  };
+
   /** drawer drop 이 활성화된 셀? — drawerDropDayKey === dateKey(day) */
   const isDrawerDropActive = !!drawerDragIdRef && !!onDrawerDrop;
 
@@ -450,15 +519,16 @@ export function CalendarMonth({
             }
           }
 
-          /* 행 minHeight — chip + bar 합계로 계산. 콘텐츠가 많으면 행이 늘어나며 페이지 스크롤 */
-          const CHIP_H = 34;
+          /* 행 minHeight — chip + bar 합계로 계산. 콘텐츠가 많으면 행이 늘어나며 페이지 스크롤.
+             chip 은 MAX_VISIBLE_CHIPS 까지만 셀에 표시(초과는 "+N더" 1줄로 클램프)되어 셀 폭증 방지. */
           const cellTotalH: number[] = new Array(totalCols).fill(0);
           for (let i = 0; i < week.length; i++) {
             const day = week[i];
             if (settings.hideWeekends && (i === 0 || i === 6)) continue;
             const colIdx = settings.hideWeekends ? i - 1 : i;
             const chipsCount = getChipsForDay(renderIssues, day, effectiveExpanded).length;
-            cellTotalH[colIdx] = 36 + (colBarH[colIdx] || 0) + chipsCount * CHIP_H + 24;
+            const visibleChipsRows = Math.min(chipsCount, MAX_VISIBLE_CHIPS) + (chipsCount > MAX_VISIBLE_CHIPS ? 1 : 0);
+            cellTotalH[colIdx] = 36 + (colBarH[colIdx] || 0) + visibleChipsRows * CHIP_H + 24;
           }
           const dynamicMinH = Math.max(120, ...cellTotalH);
 
@@ -777,61 +847,39 @@ export function CalendarMonth({
                           })(),
                         }}
                       >
-                        {chips.map((issue) => {
-                          const chipColor = stateColorMap[issue.state] ?? "#888";
-                          const projColor = projectColorMap?.[issue.project];
-                          const canExpand = !!issue.due_date;
+                        {chips.slice(0, MAX_VISIBLE_CHIPS).map((issue) => renderChip(issue))}
+
+                        {chips.length > MAX_VISIBLE_CHIPS && (() => {
+                          const dKey = dateKey(day);
+                          const overflowCount = chips.length - MAX_VISIBLE_CHIPS;
                           return (
-                            <div
-                              key={issue.id}
-                              className={cn(
-                                "flex items-center gap-1.5 rounded-[3px] pl-2 pr-1 py-1 hover:brightness-110 transition-all group/chip",
-                                canSchedule ? "cursor-grab active:cursor-grabbing" : "cursor-pointer",
-                              )}
-                              style={{
-                                backgroundColor: `${chipColor}14`,
-                                borderLeft: `3px solid ${chipColor}`,
-                                /* 마이 페이지: 우측 보더로 프로젝트 색 표시 */
-                                borderRight: projColor ? `2px solid ${projColor}` : "none",
-                                opacity: dragState?.targetId === issue.id ? 0.5 : 1,
-                              }}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (dragDistRef.current < 4) onIssueClick(issue.id);
-                              }}
-                              onMouseDown={(e) => {
-                                if (!canSchedule) return;
-                                e.stopPropagation();
-                                const row = e.currentTarget.closest("[data-week-row]") as HTMLElement | null;
-                                const visibleCols = settings.hideWeekends ? 5 : 7;
-                                const cellW = row ? row.offsetWidth / visibleCols : 100;
-                                const rowH = row ? row.offsetHeight : 0;
-                                const dueDate = parseLocalDate(issue.due_date!);
-                                setDragState({
-                                  targetId: issue.id, targetType: "issue", type: "due-only",
-                                  initialStart: dueDate, initialDue: dueDate,
-                                  startX: e.clientX, currentX: e.clientX,
-                                  startY: e.clientY, currentY: e.clientY,
-                                  cellWidth: cellW, rowHeight: rowH,
-                                });
-                              }}
+                            <Popover
+                              open={overflowOpenDayKey === dKey}
+                              onOpenChange={(o) => setOverflowOpenDayKey(o ? dKey : null)}
                             >
-                              <span className="text-sm truncate text-foreground/80 group-hover/chip:text-foreground transition-colors leading-tight flex-1 font-medium">
-                                {issue.title}
-                              </span>
-                              {canExpand && (
+                              <PopoverTrigger asChild>
                                 <button
                                   type="button"
-                                  onClick={(e) => { e.stopPropagation(); onToggleExpand(issue.id); }}
-                                  className="shrink-0 opacity-50 group-hover/chip:opacity-100 transition-opacity p-1 rounded hover:bg-primary/20 text-muted-foreground hover:text-primary"
-                                  title={t("calendar.expandBar", "확장")}
+                                  onClick={(e) => e.stopPropagation()}
+                                  onMouseDown={(e) => e.stopPropagation()}
+                                  className="text-2xs font-semibold text-muted-foreground hover:text-primary px-2 py-1 rounded hover:bg-primary/10 transition-colors text-left"
                                 >
-                                  <Maximize2 className="h-3.5 w-3.5" />
+                                  +{overflowCount}{t("calendar.moreCount", "개 더")}
                                 </button>
-                              )}
-                            </div>
+                              </PopoverTrigger>
+                              <PopoverContent align="start" sideOffset={2} className="w-64 p-3">
+                                <div className="text-xs font-semibold text-foreground mb-2 px-1">
+                                  {day.getMonth() + 1}{t("calendar.monthSuffix", "월")} {day.getDate()}{t("calendar.daySuffix", "일")}
+                                </div>
+                                <div className="flex flex-col gap-1 max-h-[60vh] overflow-y-auto">
+                                  {chips.slice(MAX_VISIBLE_CHIPS).map((issue) =>
+                                    renderChip(issue, { onAfterClick: () => setOverflowOpenDayKey(null), disableDrag: true })
+                                  )}
+                                </div>
+                              </PopoverContent>
+                            </Popover>
                           );
-                        })}
+                        })()}
 
                         {/* 셀 호버 시 추가 버튼 — 콜백 있을 때만 노출 */}
                         {isCurrentMonth && (onIssueCreate || onEventCreate) && (

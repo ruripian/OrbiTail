@@ -285,7 +285,7 @@ export function WorkspaceDashboard() {
           size 는 로고 본체 크기(원래 1000). canvasMultiplier 로 SVG 캔버스만 2 배 키워서
           사각형 경계가 viewport 바깥으로 밀려나도록 — 로고 크기는 그대로 유지됨. */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none" style={{ zIndex: 0 }}>
-        <OrbiTailOrbit size={1000} strokeW={4} offsetY={-60} position="absolute" idPrefix="home-orb" canvasMultiplier={2.2} />
+        <OrbiTailOrbit size={1000} strokeW={4} offsetY={-60} position="absolute" canvasMultiplier={2.2} />
       </div>
 
       {/* 인사 섹션 — Phase 3.2 display serif. SprintProgressOrbit 카드는 제거 (사용자 피드백: 의미 모호) */}

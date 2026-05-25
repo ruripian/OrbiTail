@@ -308,6 +308,7 @@ class MeNodeGraphView(APIView):
                 "sequence_id": issue.sequence_id,
                 "project_id": str(issue.project_id) if issue.project_id else None,
                 "project_identifier": issue.project.identifier if issue.project_id else None,
+                "project_name": issue.project.name if issue.project_id else None,
                 # 마이 그래프 — 다중 프로젝트 색 구분용
                 "project_icon_prop": issue.project.icon_prop if issue.project_id else None,
                 "state_group": state_group,

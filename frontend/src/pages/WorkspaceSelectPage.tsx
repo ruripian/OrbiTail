@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, Link, useSearchParams } from "react-router-dom";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Plus, Trash2, LogOut, Clock, X } from "lucide-react";
@@ -10,11 +10,19 @@ import { useWorkspaceStore } from "@/stores/workspaceStore";
 import { useAuthStore } from "@/stores/authStore";
 import { Button } from "@/components/ui/button";
 
+/* useQuery 의 default `= []` 를 매 render 마다 새 array 로 만들지 않기 위한 모듈 단위 안정 ref.
+   이 reference 가 매번 바뀌면 자식 effect deps 가 매 render 변경되어 setState 무한 루프 위험. */
+const EMPTY_LIST: any[] = [];
+
 export function WorkspaceSelectPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const { setCurrentWorkspace, currentWorkspace } = useWorkspaceStore();
+  /* zustand selector 형태 — destructuring 으로 전체 state 받으면 store 의 어떤 변경에도 re-render 됨.
+     로그인 직후 setCurrentWorkspace 호출 시 store root ref 가 새로 만들어지므로,
+     destructuring 패턴은 effect → setState → re-render → effect 무한 루프를 유발했음. */
+  const setCurrentWorkspace = useWorkspaceStore((s) => s.setCurrentWorkspace);
+  const currentWorkspaceSlug = useWorkspaceStore((s) => s.currentWorkspace?.slug);
   const user = useAuthStore((s) => s.user);
   const clearAuth = useAuthStore((s) => s.clearAuth);
   const beginLogout = useAuthStore((s) => s.beginLogout);
@@ -41,7 +49,7 @@ export function WorkspaceSelectPage() {
   const [searchParams] = useSearchParams();
   const explicitSwitch = searchParams.get("switch") === "1";
 
-  const { data: workspaces = [], isLoading } = useQuery({
+  const { data: workspaces = EMPTY_LIST, isLoading } = useQuery({
     queryKey: ["workspaces"],
     queryFn: workspacesApi.list,
   });
@@ -49,22 +57,32 @@ export function WorkspaceSelectPage() {
   /* 가입 후보 + 내 신청 목록 — 멤버십 0개일 때만 조회 */
   const showJoinFlow = !isLoading && !explicitSwitch && workspaces.length === 0 && !user?.is_staff;
 
-  const { data: joinable = [], isLoading: joinableLoading } = useQuery({
+  const { data: joinable = EMPTY_LIST, isLoading: joinableLoading } = useQuery({
     queryKey: ["workspaces", "joinable"],
     queryFn: workspacesApi.joinable,
     enabled: showJoinFlow,
   });
 
-  const { data: myRequests = [], isLoading: myRequestsLoading } = useQuery({
+  const { data: myRequests = EMPTY_LIST, isLoading: myRequestsLoading } = useQuery({
     queryKey: ["workspaces", "join-requests", "mine"],
     queryFn: workspacesApi.joinRequests.listMine,
     enabled: showJoinFlow,
     refetchInterval: showJoinFlow ? 15000 : false, // 어드민 승인 폴링
   });
 
-  const pendingRequests = (myRequests as any[]).filter((r) => r.status === "pending");
-  const pendingSlugs = new Set(pendingRequests.map((r) => r.workspace_slug));
-  const approvedRequest = (myRequests as any[]).find((r) => r.status === "approved");
+  /* myRequests 변경 시에만 재계산 — 매 render 마다 새 array/Set ref 가 effect deps 를 흔드는 걸 차단 */
+  const pendingRequests = useMemo(
+    () => (myRequests as any[]).filter((r) => r.status === "pending"),
+    [myRequests],
+  );
+  const pendingSlugs = useMemo(
+    () => new Set(pendingRequests.map((r) => r.workspace_slug)),
+    [pendingRequests],
+  );
+  const approvedRequest = useMemo(
+    () => (myRequests as any[]).find((r) => r.status === "approved"),
+    [myRequests],
+  );
 
   /* 신청 생성 / 취소 mutation */
   const requestMutation = useMutation({
@@ -119,17 +137,24 @@ export function WorkspaceSelectPage() {
 
     // 1) 멤버십 1개면 바로 진입
     if (workspaces.length === 1) {
-      setCurrentWorkspace(workspaces[0]);
+      /* slug 가드 — 이미 같은 slug 면 setCurrentWorkspace 호출 X (zustand root ref 변경 차단 → re-render 차단) */
+      if (currentWorkspaceSlug !== workspaces[0].slug) {
+        setCurrentWorkspace(workspaces[0]);
+      }
       navigate(`/${workspaces[0].slug}`, { replace: true });
       return;
     }
 
     // 1.5) 멤버십 2개 이상 + 직전에 사용한 워크스페이스가 여전히 멤버 목록에 있으면 그쪽으로 자동 진입.
     //      멤버십이 풀렸거나 currentWorkspace 자체가 없으면 fallthrough → 선택 화면 노출.
-    if (workspaces.length > 1 && currentWorkspace?.slug) {
-      const matched = (workspaces as any[]).find((w) => w.slug === currentWorkspace.slug);
+    if (workspaces.length > 1 && currentWorkspaceSlug) {
+      const matched = (workspaces as any[]).find((w) => w.slug === currentWorkspaceSlug);
       if (matched) {
-        setCurrentWorkspace(matched);
+        /* 이 분기에선 currentWorkspaceSlug === matched.slug 가 항상 참이라 set 은 사실상 no-op,
+           가드로 명시해 두면 다른 분기와 패턴 일관 + 향후 변형에서 안전. */
+        if (currentWorkspaceSlug !== matched.slug) {
+          setCurrentWorkspace(matched);
+        }
         navigate(`/${matched.slug}`, { replace: true });
         return;
       }
@@ -156,7 +181,8 @@ export function WorkspaceSelectPage() {
     workspaces, isLoading, explicitSwitch,
     showJoinFlow, joinable, joinableLoading,
     myRequestsLoading, pendingRequests.length, approvedRequest,
-    currentWorkspace?.slug,
+    currentWorkspaceSlug,
+    /* setCurrentWorkspace, navigate, qc, requestMutation 는 stable ref (zustand action / router / react-query) */
   ]);
 
   if (isLoading || (showJoinFlow && (joinableLoading || myRequestsLoading))) {
