@@ -14,30 +14,25 @@
  *  - project.request_review_policy === "admin" → can_edit 멤버만
  *  - "all" (기본) → 멤버 누구나 승인/거절
  */
-import { useState, useMemo } from "react";
-import { useParams } from "react-router-dom";
+import { useState, useMemo, useEffect } from "react";
+import { useParams, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
-  Send, CheckCircle2, Bug, Sparkles, Eye, EyeOff, Check, X,
-  Clock, ChevronDown, Trash2, Plus,
+  Send, CheckCircle2, Bug, Sparkles, Eye, EyeOff,
+  Clock, ChevronDown, Plus,
 } from "lucide-react";
 import { projectsApi } from "@/api/projects";
 import { requestsApi } from "@/api/requests";
 import { useAuthStore } from "@/stores/authStore";
-import { useIssueDialogStore } from "@/stores/issueDialogStore";
-import { useProjectPerms } from "@/hooks/useProjectPerms";
+import { useRequestDialogStore } from "@/stores/requestDialogStore";
 import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { AvatarInitials } from "@/components/ui/avatar-initials";
 import { RichTextEditor } from "@/components/editor/RichTextEditor";
-import { StatePicker } from "@/components/issues/state-picker";
-import { AssigneePicker } from "@/components/issues/assignee-picker";
-import { CategoryPicker } from "@/components/issues/category-picker";
-import { SprintPicker } from "@/components/issues/sprint-picker";
 import { cn } from "@/lib/utils";
 import type { IssueRequest } from "@/types";
 
@@ -86,20 +81,14 @@ export function RequestSubmitPage() {
   const { workspaceSlug, projectId = "" } = useParams<{ workspaceSlug: string; projectId: string }>();
   const qc = useQueryClient();
   const currentUser = useAuthStore((s) => s.user);
-  const { perms } = useProjectPerms();
+  const openRequest = useRequestDialogStore((s) => s.openRequest);
+  const dialogCurrent = useRequestDialogStore((s) => s.current);
 
   const { data: project } = useQuery({
     queryKey: ["project", workspaceSlug, projectId],
     queryFn: () => projectsApi.get(workspaceSlug!, projectId),
     enabled: !!workspaceSlug && !!projectId,
   });
-
-  /* 승인 권한 — 프로젝트 정책 기준 */
-  const canReview = useMemo(() => {
-    if (!project) return false;
-    if (project.request_review_policy === "admin") return !!perms?.can_edit;
-    return true; // "all" 정책이면 프로젝트 멤버이기만 하면 OK
-  }, [project, perms]);
 
   /* 요청 목록 — 탭별로 페치 */
   const [activeTab, setActiveTab] = useState<"pending" | "history">("pending");
@@ -164,9 +153,46 @@ export function RequestSubmitPage() {
     onError: () => toast.error(t("request.submitFailed", "요청 접수 실패")),
   });
 
-  /* ── 승인/거절 모달 ── */
-  const [approveTarget, setApproveTarget] = useState<IssueRequest | null>(null);
-  const [rejectTarget, setRejectTarget] = useState<IssueRequest | null>(null);
+  /* ── deeplink (?req=<id>) → 다이얼로그 store 동기화 (단방향) ──
+   *  URL→store: useEffect 가 list 캐시(또는 deeplinkQ)에서 해당 요청을 찾으면 openRequest.
+   *  store→URL: handleRowClick 과 RequestDialog 의 handleClose 안에서 명시적으로 setSearchParams.
+   *  (양방향 useEffect 동기화는 close/open 이 같은 렌더 사이클에서 race 를 일으켜 폐기)
+   */
+  const [searchParams, setSearchParams] = useSearchParams();
+  const deeplinkReqId = searchParams.get("req");
+
+  const deeplinkQ = useQuery({
+    queryKey: ["requests", workspaceSlug, projectId, "all"],
+    queryFn: () => requestsApi.list(workspaceSlug!, projectId),
+    enabled: !!workspaceSlug && !!projectId && !!deeplinkReqId,
+  });
+
+  /* deeplink → openRequest: URL 직접 진입 시 list 데이터 로드 후 .find → 자동 열기 */
+  useEffect(() => {
+    if (!deeplinkReqId || !workspaceSlug || !projectId) return;
+    if (dialogCurrent?.id === deeplinkReqId) return; // 이미 열려있으면 skip
+    const pools: (IssueRequest[] | undefined)[] = [
+      pendingQ.data,
+      historyQ.data,
+      deeplinkQ.data,
+    ];
+    for (const pool of pools) {
+      const found = pool?.find((r) => r.id === deeplinkReqId);
+      if (found) {
+        openRequest(found, { workspaceSlug, projectId });
+        return;
+      }
+    }
+  }, [deeplinkReqId, dialogCurrent?.id, pendingQ.data, historyQ.data, deeplinkQ.data, workspaceSlug, projectId, openRequest]);
+
+  /* 행 클릭 — 모든 상태 동일하게 모달 진입 + URL ?req 반영 */
+  const handleRowClick = (r: IssueRequest) => {
+    if (!workspaceSlug) return;
+    openRequest(r, { workspaceSlug, projectId });
+    const next = new URLSearchParams(searchParams);
+    next.set("req", r.id);
+    setSearchParams(next, { replace: true });
+  };
 
   return (
     <div className="h-full overflow-y-auto bg-background">
@@ -404,16 +430,7 @@ export function RequestSubmitPage() {
                 ) : (
                   <ul className="divide-y divide-border">
                     {rows.map((r) => (
-                      <RequestRow
-                        key={r.id}
-                        req={r}
-                        currentUserId={currentUser?.id ?? null}
-                        canReview={canReview}
-                        onApprove={() => setApproveTarget(r)}
-                        onReject={() => setRejectTarget(r)}
-                        workspaceSlug={workspaceSlug!}
-                        projectId={projectId}
-                      />
+                      <RequestRow key={r.id} req={r} onClick={() => handleRowClick(r)} />
                     ))}
                   </ul>
                 )}
@@ -444,18 +461,7 @@ export function RequestSubmitPage() {
               ) : (
                 <ul className="divide-y divide-border">
                   {filterByKind(historyList).map((r) => (
-                    <RequestRow
-                      key={r.id}
-                      req={r}
-                      currentUserId={currentUser?.id ?? null}
-                      canReview={false}
-                      workspaceSlug={workspaceSlug!}
-                      projectId={projectId}
-                      onClick={r.approved_issue
-                        ? () => useIssueDialogStore.getState().openIssue(workspaceSlug!, projectId!, r.approved_issue!)
-                        : undefined
-                      }
-                    />
+                    <RequestRow key={r.id} req={r} onClick={() => handleRowClick(r)} />
                   ))}
                 </ul>
               )}
@@ -464,34 +470,6 @@ export function RequestSubmitPage() {
         </section>
       </div>
 
-      {/* 승인 모달 */}
-      {approveTarget && (
-        <ApproveDialog
-          req={approveTarget}
-          workspaceSlug={workspaceSlug!}
-          projectId={projectId}
-          onClose={() => setApproveTarget(null)}
-          onApproved={() => {
-            qc.invalidateQueries({ queryKey: ["requests", workspaceSlug, projectId] });
-            qc.invalidateQueries({ queryKey: ["issues", workspaceSlug, projectId] });
-            setApproveTarget(null);
-          }}
-        />
-      )}
-
-      {/* 거절 모달 */}
-      {rejectTarget && (
-        <RejectDialog
-          req={rejectTarget}
-          workspaceSlug={workspaceSlug!}
-          projectId={projectId}
-          onClose={() => setRejectTarget(null)}
-          onRejected={() => {
-            qc.invalidateQueries({ queryKey: ["requests", workspaceSlug, projectId] });
-            setRejectTarget(null);
-          }}
-        />
-      )}
     </div>
   );
 }
@@ -615,36 +593,16 @@ function KindBadge({ kind }: { kind: IssueRequest["kind"] }) {
   return <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary px-2 py-0.5 text-2xs font-semibold"><Sparkles className="h-2.5 w-2.5" />기능</span>;
 }
 
+/* 행은 요약만 노출. 액션(승인/거절/삭제) 과 풀 내용은 클릭 시 열리는 RequestDialog 가 담당. */
 function RequestRow({
-  req, currentUserId, canReview, onApprove, onReject, onClick, workspaceSlug, projectId,
+  req, onClick,
 }: {
   req: IssueRequest;
-  currentUserId: string | null;
-  canReview: boolean;
-  onApprove?: () => void;
-  onReject?: () => void;
-  onClick?: () => void;
-  workspaceSlug: string;
-  projectId: string;
+  onClick: () => void;
 }) {
-  const qc = useQueryClient();
-  const isOwner = currentUserId != null && req.submitted_by === currentUserId;
-  const canDelete = isOwner && req.status === "pending";
-
-  const deleteMutation = useMutation({
-    mutationFn: () => requestsApi.delete(workspaceSlug, projectId, req.id),
-    onSuccess: () => {
-      toast.success("요청이 삭제되었습니다");
-      qc.invalidateQueries({ queryKey: ["requests", workspaceSlug, projectId] });
-    },
-  });
-
   return (
     <li
-      className={cn(
-        "px-5 py-4 transition-colors",
-        onClick && "cursor-pointer hover:bg-accent/40",
-      )}
+      className="px-5 py-4 transition-colors cursor-pointer hover:bg-accent/40"
       onClick={onClick}
     >
       <div className="flex items-start gap-3">
@@ -687,35 +645,8 @@ function RequestRow({
             )}
           </div>
         </div>
-
-        {/* 액션 */}
-        <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
-          {req.status === "pending" && canReview && onApprove && onReject && (
-            <>
-              <Button variant="outline" size="sm" className="h-7 gap-1" onClick={onApprove}>
-                <Check className="h-3 w-3 text-emerald-600" /> 승인
-              </Button>
-              <Button variant="outline" size="sm" className="h-7 gap-1" onClick={onReject}>
-                <X className="h-3 w-3 text-destructive" /> 거절
-              </Button>
-            </>
-          )}
-          {canDelete && (
-            <button
-              type="button"
-              onClick={() => {
-                if (window.confirm("이 요청을 삭제하시겠습니까?")) deleteMutation.mutate();
-              }}
-              className="h-7 w-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-              title="요청 취소/삭제"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
-          )}
-        </div>
       </div>
 
-      {/* description 미리보기 */}
       {req.description_html && (
         <div
           className="mt-2 text-xs text-muted-foreground prose prose-sm max-w-none line-clamp-3 opacity-80"
@@ -726,171 +657,3 @@ function RequestRow({
   );
 }
 
-/* ── 승인 다이얼로그 ── */
-function ApproveDialog({
-  req, workspaceSlug, projectId, onClose, onApproved,
-}: {
-  req: IssueRequest;
-  workspaceSlug: string;
-  projectId: string;
-  onClose: () => void;
-  onApproved: () => void;
-}) {
-  const [stateId, setStateId] = useState<string | null>(null);
-  const [categoryId, setCategoryId] = useState<string | null>(null);
-  const [sprintId, setSprintId] = useState<string | null>(null);
-  const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
-
-  const { data: states = [] } = useQuery({
-    queryKey: ["states", projectId],
-    queryFn: () => projectsApi.states.list(workspaceSlug, projectId),
-  });
-  const { data: categories = [] } = useQuery({
-    queryKey: ["categories", workspaceSlug, projectId],
-    queryFn: () => projectsApi.categories.list(workspaceSlug, projectId),
-  });
-  const { data: sprints = [] } = useQuery({
-    queryKey: ["sprints", workspaceSlug, projectId],
-    queryFn: () => projectsApi.sprints.list(workspaceSlug, projectId),
-  });
-  const { data: members = [] } = useQuery({
-    queryKey: ["project-members", workspaceSlug, projectId],
-    queryFn: () => projectsApi.members.list(workspaceSlug, projectId),
-  });
-
-  const approveMutation = useMutation({
-    mutationFn: () =>
-      requestsApi.approve(workspaceSlug, projectId, req.id, {
-        state: stateId ?? undefined,
-        category: categoryId ?? undefined,
-        sprint: sprintId ?? undefined,
-        assignees: assigneeIds.length ? assigneeIds : undefined,
-      }),
-    onSuccess: () => {
-      toast.success("요청이 승인되어 이슈로 편입되었습니다");
-      onApproved();
-    },
-    onError: () => toast.error("승인 처리 실패"),
-  });
-
-  return (
-    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>요청 승인 → 이슈 편입</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-3">
-          <div className="rounded-lg border bg-muted/30 px-3 py-2">
-            <div className="flex items-center gap-2 mb-1">
-              <KindBadge kind={req.kind} />
-              <p className="text-sm font-medium truncate">{req.title}</p>
-            </div>
-            {req.description_html && (
-              <div
-                className="text-xs text-muted-foreground line-clamp-3 mt-1"
-                dangerouslySetInnerHTML={{ __html: req.description_html }}
-              />
-            )}
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium mb-1 text-muted-foreground">상태</label>
-            <StatePicker
-              states={states}
-              currentStateId={stateId}
-              onChange={(id) => setStateId(id)}
-            />
-            <p className="text-2xs text-muted-foreground/70 mt-1">미지정 시 프로젝트 기본 상태로 생성됩니다.</p>
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium mb-1 text-muted-foreground">카테고리</label>
-            <CategoryPicker
-              categories={categories}
-              currentId={categoryId}
-              onChange={(id) => setCategoryId(id)}
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium mb-1 text-muted-foreground">스프린트</label>
-            <SprintPicker
-              sprints={sprints}
-              currentId={sprintId}
-              onChange={(id) => setSprintId(id)}
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium mb-1 text-muted-foreground">담당자</label>
-            <AssigneePicker
-              members={members}
-              currentIds={assigneeIds}
-              onChange={setAssigneeIds}
-            />
-          </div>
-        </div>
-
-        <div className="flex justify-end gap-2 mt-5">
-          <Button variant="outline" onClick={onClose}>취소</Button>
-          <Button onClick={() => approveMutation.mutate()} disabled={approveMutation.isPending}>
-            <Check className="h-4 w-4 mr-1" />
-            {approveMutation.isPending ? "승인 중..." : "승인 + 이슈 생성"}
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-/* ── 거절 다이얼로그 ── */
-function RejectDialog({
-  req, workspaceSlug, projectId, onClose, onRejected,
-}: {
-  req: IssueRequest;
-  workspaceSlug: string;
-  projectId: string;
-  onClose: () => void;
-  onRejected: () => void;
-}) {
-  const [reason, setReason] = useState("");
-  const rejectMutation = useMutation({
-    mutationFn: () => requestsApi.reject(workspaceSlug, projectId, req.id, reason.trim()),
-    onSuccess: () => {
-      toast.success("요청이 거절되었습니다");
-      onRejected();
-    },
-  });
-
-  return (
-    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>요청 거절</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-3">
-          <p className="text-sm text-muted-foreground">
-            "<span className="font-medium text-foreground">{req.title}</span>" 요청을 거절합니다.
-          </p>
-          <div>
-            <label className="block text-xs font-medium mb-1 text-muted-foreground">사유 (선택)</label>
-            <textarea
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              placeholder="거절하는 이유를 적어두면 제출자가 확인할 수 있습니다"
-              rows={3}
-              className="w-full text-sm bg-background border rounded-lg px-3 py-2 outline-none focus:border-primary/60 resize-y"
-            />
-          </div>
-        </div>
-        <div className="flex justify-end gap-2 mt-5">
-          <Button variant="outline" onClick={onClose}>취소</Button>
-          <Button variant="destructive" onClick={() => rejectMutation.mutate()} disabled={rejectMutation.isPending}>
-            <X className="h-4 w-4 mr-1" />
-            거절
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}

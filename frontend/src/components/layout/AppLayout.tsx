@@ -15,6 +15,7 @@ import { useIsDesktop } from "@/hooks/useMediaQuery";
 import { useUndoStore } from "@/stores/undoStore";
 import { Z_SIDEBAR_OVERLAY, Z_SIDEBAR } from "@/constants/z-index";
 import { GlobalIssueDialog } from "@/components/issues/GlobalIssueDialog";
+import { RequestDialog } from "@/components/requests/RequestDialog";
 
 export function AppLayout() {
   const { workspaceSlug } = useParams<{ workspaceSlug: string }>();
@@ -107,6 +108,7 @@ export function AppLayout() {
       </div>
       <SponsorButton />
       <GlobalIssueDialog />
+      <RequestDialog />
     </div>
   );
 }
