@@ -9,7 +9,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.accounts.permissions import IsSuperUser
-from .models import Workspace, WorkspaceMember, WorkspaceInvitation, WorkspaceJoinRequest
+from .models import Workspace, WorkspaceMember, WorkspaceInvitation, WorkspaceJoinRequest, Team, TeamMember
 
 
 def _notify_workspace_admins_join_request(join_request):
@@ -81,6 +81,8 @@ from .serializers import (
     WorkspaceInvitationSerializer,
     WorkspaceInvitationCreateSerializer,
     WorkspaceJoinRequestSerializer,
+    TeamSerializer,
+    TeamMemberSerializer,
 )
 
 
@@ -819,3 +821,346 @@ class InvitationAcceptView(APIView):
             "detail": "초대를 수락했습니다.",
             "workspace_slug": invitation.workspace.slug,
         })
+
+
+# ══════════════════════════════════════════════════════════════════
+#  Team — 워크스페이스 안 멤버 그룹
+# ══════════════════════════════════════════════════════════════════
+
+def _get_workspace_or_403(workspace_slug, user):
+    """워크스페이스 + 본인 멤버십 검증. 결과: (workspace, ws_member_role) 또는 (None, None)"""
+    ws = Workspace.objects.filter(slug=workspace_slug).first()
+    if not ws:
+        return None, None
+    wm = WorkspaceMember.objects.filter(workspace=ws, member=user).only("role").first()
+    if not wm and not user.is_superuser:
+        return None, None
+    return ws, (wm.role if wm else WorkspaceMember.Role.OWNER)
+
+
+def _is_team_admin(user, team) -> bool:
+    """팀 admin 또는 워크스페이스 admin/owner 이상. 슈퍼유저 우회."""
+    if user.is_superuser:
+        return True
+    if TeamMember.objects.filter(team=team, member=user, role__gte=TeamMember.Role.ADMIN).exists():
+        return True
+    return WorkspaceMember.objects.filter(
+        workspace=team.workspace, member=user,
+        role__gte=WorkspaceMember.Role.ADMIN,
+    ).exists()
+
+
+class TeamListCreateView(generics.ListCreateAPIView):
+    """팀 목록(본인이 멤버인 팀만) + 생성.
+
+    탐색 미지원 정책상 list 는 본인 멤버 팀으로 한정.
+    생성: 워크스페이스 멤버 누구나 가능. 생성자는 자동으로 팀 admin.
+    """
+    serializer_class = TeamSerializer
+    pagination_class = None
+
+    def get_queryset(self):
+        ws, _ = _get_workspace_or_403(self.kwargs["workspace_slug"], self.request.user)
+        if not ws:
+            return Team.objects.none()
+        return Team.objects.filter(
+            workspace=ws,
+            members__member=self.request.user,
+        ).distinct().select_related("created_by")
+
+    def create(self, request, *args, **kwargs):
+        ws, _ = _get_workspace_or_403(self.kwargs["workspace_slug"], request.user)
+        if not ws:
+            return Response({"detail": "워크스페이스 멤버만 팀을 만들 수 있습니다."},
+                            status=status.HTTP_403_FORBIDDEN)
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        # 같은 ws 내 이름 중복은 unique_together 가 막지만 사용자 친화적 메시지 위해 미리 체크
+        if Team.objects.filter(workspace=ws, name=serializer.validated_data["name"]).exists():
+            return Response({"detail": "같은 이름의 팀이 이미 있습니다."},
+                            status=status.HTTP_400_BAD_REQUEST)
+        team = Team.objects.create(
+            workspace=ws,
+            created_by=request.user,
+            **serializer.validated_data,
+        )
+        # 생성자는 자동 admin
+        TeamMember.objects.create(team=team, member=request.user, role=TeamMember.Role.ADMIN)
+        return Response(self.get_serializer(team).data, status=status.HTTP_201_CREATED)
+
+
+class TeamDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """팀 단건 조회/수정/삭제. 조회는 멤버, 편집은 team admin or ws admin."""
+    serializer_class = TeamSerializer
+
+    def get_queryset(self):
+        return Team.objects.filter(workspace__slug=self.kwargs["workspace_slug"])
+
+    def get_object(self):
+        team = super().get_object()
+        # 조회 권한: 본인이 그 팀 멤버 (탐색 비지원 정책 — 비멤버는 진입 불가)
+        if not TeamMember.objects.filter(team=team, member=self.request.user).exists():
+            if not self.request.user.is_superuser:
+                from django.http import Http404
+                raise Http404
+        return team
+
+    def update(self, request, *args, **kwargs):
+        team = self.get_object()
+        if not _is_team_admin(request.user, team):
+            return Response({"detail": "팀 관리자만 수정할 수 있습니다."}, status=status.HTTP_403_FORBIDDEN)
+        return super().update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        team = self.get_object()
+        if not _is_team_admin(request.user, team):
+            return Response({"detail": "팀 관리자만 삭제할 수 있습니다."}, status=status.HTTP_403_FORBIDDEN)
+        return super().destroy(request, *args, **kwargs)
+
+
+class TeamMemberListCreateView(generics.ListCreateAPIView):
+    """팀 멤버 목록 + 추가. 추가는 team admin 만, 추가 대상은 ws 멤버 subset."""
+    serializer_class = TeamMemberSerializer
+    pagination_class = None
+
+    def _get_team(self):
+        team = Team.objects.filter(
+            id=self.kwargs["team_pk"],
+            workspace__slug=self.kwargs["workspace_slug"],
+        ).first()
+        return team
+
+    def get_queryset(self):
+        team = self._get_team()
+        if not team:
+            return TeamMember.objects.none()
+        # 조회: 본인이 그 팀 멤버여야 함
+        if not TeamMember.objects.filter(team=team, member=self.request.user).exists():
+            if not self.request.user.is_superuser:
+                return TeamMember.objects.none()
+        return TeamMember.objects.filter(team=team).select_related("member", "added_by")
+
+    def create(self, request, *args, **kwargs):
+        team = self._get_team()
+        if not team:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        if not _is_team_admin(request.user, team):
+            return Response({"detail": "팀 관리자만 멤버를 추가할 수 있습니다."},
+                            status=status.HTTP_403_FORBIDDEN)
+        target_user_id = request.data.get("member")
+        role = request.data.get("role", TeamMember.Role.MEMBER)
+        if not target_user_id:
+            return Response({"detail": "member 필드가 필요합니다."}, status=status.HTTP_400_BAD_REQUEST)
+        # 워크스페이스 멤버 subset 검증 — 외부 인원 차단
+        if not WorkspaceMember.objects.filter(workspace=team.workspace, member_id=target_user_id).exists():
+            return Response({"detail": "워크스페이스 멤버만 팀에 추가할 수 있습니다."},
+                            status=status.HTTP_400_BAD_REQUEST)
+        tm, created = TeamMember.objects.get_or_create(
+            team=team,
+            member_id=target_user_id,
+            defaults={"role": role, "added_by": request.user},
+        )
+        if not created:
+            return Response({"detail": "이미 팀 멤버입니다."}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(TeamMemberSerializer(tm).data, status=status.HTTP_201_CREATED)
+
+
+class TeamMemberDetailView(APIView):
+    """팀 멤버 단건 — 역할 변경(PATCH) / 제거(DELETE).
+
+    제거: team admin or 본인 탈퇴 모두 가능.
+    역할 변경: team admin 만. 단 마지막 admin 의 강등 차단.
+    """
+
+    def _resolve(self, kwargs):
+        team = Team.objects.filter(
+            id=kwargs["team_pk"],
+            workspace__slug=kwargs["workspace_slug"],
+        ).first()
+        if not team:
+            return None, None
+        tm = TeamMember.objects.filter(team=team, id=kwargs["pk"]).first()
+        return team, tm
+
+    def patch(self, request, **kwargs):
+        team, tm = self._resolve(kwargs)
+        if not team or not tm:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        if not _is_team_admin(request.user, team):
+            return Response({"detail": "팀 관리자만 역할을 변경할 수 있습니다."},
+                            status=status.HTTP_403_FORBIDDEN)
+        new_role = request.data.get("role")
+        if new_role is None:
+            return Response({"detail": "role 필드가 필요합니다."}, status=status.HTTP_400_BAD_REQUEST)
+        # 마지막 admin 강등 차단 — 팀이 admin 없는 상태로 빠지는 것 방지
+        if tm.role == TeamMember.Role.ADMIN and int(new_role) < TeamMember.Role.ADMIN:
+            admin_count = TeamMember.objects.filter(team=team, role=TeamMember.Role.ADMIN).count()
+            if admin_count <= 1:
+                return Response({"detail": "마지막 관리자를 강등할 수 없습니다."},
+                                status=status.HTTP_400_BAD_REQUEST)
+        tm.role = int(new_role)
+        tm.save(update_fields=["role"])
+        return Response(TeamMemberSerializer(tm).data)
+
+    def delete(self, request, **kwargs):
+        team, tm = self._resolve(kwargs)
+        if not team or not tm:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        # 본인 탈퇴는 자유, 그 외는 team admin
+        is_self = tm.member_id == request.user.id
+        if not is_self and not _is_team_admin(request.user, team):
+            return Response({"detail": "팀 관리자만 멤버를 제거할 수 있습니다."},
+                            status=status.HTTP_403_FORBIDDEN)
+        # 마지막 admin 본인이 탈퇴하면 팀에 admin 이 0 — 팀 삭제 권유 / 차단
+        if tm.role == TeamMember.Role.ADMIN:
+            admin_count = TeamMember.objects.filter(team=team, role=TeamMember.Role.ADMIN).count()
+            if admin_count <= 1:
+                return Response(
+                    {"detail": "마지막 관리자는 탈퇴할 수 없습니다. 다른 멤버를 관리자로 승격하거나 팀을 삭제해주세요."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        tm.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+# ══════════════════════════════════════════════════════════════════
+#  Team Calendar — 팀 멤버 담당 이슈 + 본인 PE
+# ══════════════════════════════════════════════════════════════════
+
+def _check_team_access(user, team_pk, workspace_slug):
+    """팀 캘린더 데이터 접근 권한 — 본인이 그 팀 멤버여야 함(슈퍼유저 우회).
+    유효한 team 반환 또는 None.
+    """
+    team = Team.objects.filter(id=team_pk, workspace__slug=workspace_slug).first()
+    if not team:
+        return None
+    if user.is_superuser:
+        return team
+    if TeamMember.objects.filter(team=team, member=user).exists():
+        return team
+    return None
+
+
+class TeamCalendarIssuesView(generics.ListAPIView):
+    """팀 캘린더 — 팀 멤버가 담당자인 이슈.
+
+    누수 차단 정책: 요청자가 멤버가 아닌 프로젝트의 이슈는 응답에서 제외 (비공개 프로젝트
+    포함). 같은 팀이라도 사용자마다 보이는 이슈가 다를 수 있다.
+
+    쿼리:
+      ?from=YYYY-MM-DD&to=YYYY-MM-DD  날짜 범위 (start_date/due_date 둘 중 하나라도 걸치면 포함)
+      ?include_completed=true          완료/취소 상태도 포함
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_serializer_class(self):
+        # 지연 import — issues 도메인 cross dep
+        from apps.issues.serializers import IssueSerializer
+        return IssueSerializer
+
+    def get_queryset(self):
+        from apps.issues.models import Issue
+        from apps.projects.models import ProjectMember
+        from django.db.models import Q
+
+        team = _check_team_access(self.request.user, self.kwargs["team_pk"], self.kwargs["workspace_slug"])
+        if not team:
+            return Issue.objects.none()
+
+        team_member_ids = TeamMember.objects.filter(team=team).values_list("member_id", flat=True)
+        my_project_ids = ProjectMember.objects.filter(member=self.request.user).values_list("project_id", flat=True)
+
+        qs = (
+            Issue.objects
+            .filter(
+                assignees__id__in=team_member_ids,
+                project_id__in=my_project_ids,
+                workspace=team.workspace,
+                deleted_at__isnull=True,
+                archived_at__isnull=True,
+            )
+            .distinct()
+            .select_related("state", "created_by", "project", "workspace")
+            .prefetch_related("assignees", "label")
+            .order_by("-updated_at")
+        )
+        if self.request.query_params.get("include_completed") != "true":
+            qs = qs.exclude(state__group__in=["completed", "cancelled"])
+        date_from = self.request.query_params.get("from")
+        date_to = self.request.query_params.get("to")
+        if date_from:
+            qs = qs.filter(Q(due_date__gte=date_from) | Q(start_date__gte=date_from))
+        if date_to:
+            qs = qs.filter(Q(due_date__lte=date_to) | Q(start_date__lte=date_to))
+        return qs
+
+
+class TeamCalendarPersonalEventsView(generics.ListAPIView):
+    """팀 캘린더 — 본인 PE 만. 다른 멤버 PE 는 보지 못함(현재 정책).
+
+    같은 워크스페이스의 본인 PE 만 노출. 추후 "팀 공유 PE" 도입 시 정책 조정.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_serializer_class(self):
+        from apps.me.serializers import PersonalEventSerializer
+        return PersonalEventSerializer
+
+    def get_queryset(self):
+        from apps.me.models import PersonalEvent
+
+        team = _check_team_access(self.request.user, self.kwargs["team_pk"], self.kwargs["workspace_slug"])
+        if not team:
+            return PersonalEvent.objects.none()
+
+        qs = PersonalEvent.objects.filter(user=self.request.user, workspace=team.workspace)
+        date_from = self.request.query_params.get("from")
+        date_to = self.request.query_params.get("to")
+        if date_from:
+            qs = qs.filter(date__gte=date_from)
+        if date_to:
+            qs = qs.filter(date__lte=date_to)
+        return qs
+
+
+class TeamCalendarProjectEventsView(generics.ListAPIView):
+    """팀 캘린더 — 팀 멤버가 멤버인 프로젝트의 이벤트 (요청자도 그 프로젝트 멤버일 때만)."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_serializer_class(self):
+        from apps.me.serializers import ProjectEventSerializer
+        return ProjectEventSerializer
+
+    def get_queryset(self):
+        from apps.projects.models import ProjectMember, ProjectEvent
+        from django.db.models import Q
+
+        team = _check_team_access(self.request.user, self.kwargs["team_pk"], self.kwargs["workspace_slug"])
+        if not team:
+            return ProjectEvent.objects.none()
+
+        my_project_ids = ProjectMember.objects.filter(member=self.request.user).values_list("project_id", flat=True)
+        team_member_ids = TeamMember.objects.filter(team=team).values_list("member_id", flat=True)
+        # 팀 멤버 중 누군가 멤버인 프로젝트의 이벤트 — 요청자도 멤버여야 함
+        team_project_ids = ProjectMember.objects.filter(
+            member_id__in=team_member_ids,
+        ).values_list("project_id", flat=True)
+        # 교집합
+        accessible_project_ids = set(my_project_ids).intersection(set(team_project_ids))
+
+        qs = (
+            ProjectEvent.objects
+            .filter(project_id__in=accessible_project_ids)
+            .filter(Q(is_global=True) | Q(participants__id__in=team_member_ids))
+            .distinct()
+            .select_related("project", "project__workspace", "created_by")
+            .prefetch_related("participants")
+            .order_by("date")
+        )
+        date_from = self.request.query_params.get("from")
+        date_to = self.request.query_params.get("to")
+        if date_from:
+            qs = qs.filter(date__gte=date_from)
+        if date_to:
+            qs = qs.filter(date__lte=date_to)
+        return qs

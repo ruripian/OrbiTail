@@ -17,13 +17,12 @@ import {
   GripVertical,
   Trash2,
   Lock,
-  Megaphone,
   MessageSquarePlus,
   UserCircle,
+  Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { projectsApi } from "@/api/projects";
-import { announcementsApi } from "@/api/announcements";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
 import { ProjectIcon } from "@/components/ui/project-icon-picker";
 import { AppSwitcher } from "./AppSwitcher";
@@ -293,16 +292,6 @@ function ProjectItem({
   );
 }
 
-/* PASS3-4: AnnouncementsNavItem 제거 — NavItem 의 badge prop 으로 통합. 미읽음 카운트만 inline fetch. */
-function useAnnouncementsUnread(): number {
-  const { data = 0 } = useQuery({
-    queryKey: ["announcements-unread"],
-    queryFn:  announcementsApi.unreadCount,
-    refetchInterval: 60_000,
-  });
-  return data;
-}
-
 export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
   const { t } = useTranslation();
   const { workspaceSlug } = useParams<{ workspaceSlug: string }>();
@@ -335,8 +324,6 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
   const favoriteProjects = visibleProjects.filter((p) => favIds.has(p.id));
   const publicProjects = visibleProjects.filter((p) => !favIds.has(p.id) && p.network === 0);
   const privateProjects = visibleProjects.filter((p) => !favIds.has(p.id) && p.network === 2);
-
-  const announcementsUnread = useAnnouncementsUnread();
 
   /* DnD 상태 — ref로 최신값 유지 (stale closure 방지) */
   const [dragId, setDragId] = useState<string | null>(null);
@@ -482,25 +469,17 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
         />
 
         <NavItem
+          to={`/${workspaceSlug}/teams`}
+          icon={Users}
+          label={t("sidebar.teams", "팀")}
+          active={location.pathname.startsWith(`/${workspaceSlug}/teams`)}
+        />
+
+        <NavItem
           to={`/${workspaceSlug}/projects/discover`}
           icon={Compass}
           label={t("sidebar.discover")}
           active={location.pathname === `/${workspaceSlug}/projects/discover`}
-        />
-
-        <NavItem
-          to={`/${workspaceSlug}/projects/archived`}
-          icon={Archive}
-          label={t("sidebar.archived")}
-          active={location.pathname === `/${workspaceSlug}/projects/archived`}
-        />
-
-        <NavItem
-          to={`/${workspaceSlug}/announcements`}
-          icon={Megaphone}
-          label={t("sidebar.announcements")}
-          active={location.pathname === `/${workspaceSlug}/announcements`}
-          badge={announcementsUnread}
         />
 
         {favoriteProjects.length > 0 && (

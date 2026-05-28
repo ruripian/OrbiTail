@@ -163,3 +163,87 @@ class WorkspaceJoinRequest(models.Model):
 
     def __str__(self):
         return f"JoinRequest {self.user.email} → {self.workspace.name} ({self.status})"
+
+
+class Team(models.Model):
+    """워크스페이스 안의 멤버 그룹.
+
+    - 한 워크스페이스 안에 여러 팀, 멤버는 여러 팀 소속 가능
+    - 비공개 옵션 없음(이번 정책): 팀 정보(이름/멤버) 는 워크스페이스 멤버 누구나 조회 가능.
+      단 사이드바 자동 노출은 "본인이 멤버인 팀" 으로 한정 — 탐색 페이지는 별도 phase.
+    - 이슈/PE 접근권은 Team role 과 무관: 비공개 프로젝트 이슈는 그 프로젝트 멤버에게만,
+      PE 는 본인에게만. Team admin 권한은 팀 관리(이름/멤버/색 편집) 한정.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    workspace = models.ForeignKey(
+        Workspace,
+        on_delete=models.CASCADE,
+        related_name="teams",
+    )
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True, default="")
+    # 캘린더 chip 색 / 팀 아바타 배경에 사용. 빈 문자열 = 토큰 default.
+    color = models.CharField(max_length=32, blank=True, default="")
+    # 다른 도메인(프로젝트/문서스페이스)과 일관된 아이콘 prop ({type, name, color})
+    icon_prop = models.JSONField(null=True, blank=True, default=None)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="created_teams",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "teams"
+        ordering = ["name"]
+        # 같은 워크스페이스 안 팀 이름 중복 방지 — 사이드바/멘션 모호성 회피
+        unique_together = [["workspace", "name"]]
+        indexes = [models.Index(fields=["workspace"])]
+
+    def __str__(self):
+        return f"Team[{self.workspace.slug}] {self.name}"
+
+
+class TeamMember(models.Model):
+    """팀 멤버십.
+
+    role:
+      - MEMBER: 팀 일원 (이름/멤버 조회, 본인 정보)
+      - ADMIN:  + 팀 이름/색/멤버 편집 권한
+    이슈/PE 접근권은 ProjectMember / PE.user 정책이 결정 — 여기 role 과 무관.
+    """
+
+    class Role(models.IntegerChoices):
+        MEMBER = 15, "Member"
+        ADMIN = 20, "Admin"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    team = models.ForeignKey(
+        Team,
+        on_delete=models.CASCADE,
+        related_name="members",
+    )
+    member = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="team_memberships",
+    )
+    role = models.IntegerField(choices=Role.choices, default=Role.MEMBER)
+    added_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="added_team_members",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "team_members"
+        unique_together = [["team", "member"]]
+        indexes = [models.Index(fields=["member"])]
+
+    def __str__(self):
+        return f"{self.member.email} in {self.team.name}"

@@ -41,7 +41,8 @@ import { ProjectTrashPage } from "@/pages/project/ProjectTrashPage";
 import { DiscoverProjectsPage } from "@/pages/project/DiscoverProjectsPage";
 import { ArchivedProjectsPage } from "@/pages/project/ArchivedProjectsPage";
 import { InviteAcceptPage } from "@/pages/invite/InviteAcceptPage";
-import { AnnouncementsPage } from "@/pages/AnnouncementsPage";
+import { TeamListPage } from "@/pages/team/TeamListPage";
+import { TeamDetailPage } from "@/pages/team/TeamDetailPage";
 import { DocumentLayout } from "@/components/layout/DocumentLayout";
 import { RequestSubmitPage } from "@/pages/request/RequestSubmitPage";
 import { ErrorFallback } from "@/components/ErrorFallback";
@@ -166,10 +167,11 @@ export const router = createBrowserRouter([
       { index: true, element: <WorkspaceDashboard />, handle: { chrome: "branded" } satisfies RouteHandle },
       { path: "me", element: <MyPage />, handle: { chrome: "branded" } satisfies RouteHandle },
       { path: "inbox", element: <InboxPage /> },
-      { path: "announcements", element: <AnnouncementsPage /> },
       { path: "projects/create", element: <CreateProjectPage /> },
       { path: "projects/discover", element: <DiscoverProjectsPage /> },
-      { path: "projects/archived", element: <ArchivedProjectsPage /> },
+      /* 팀 — 본인이 멤버인 팀 목록 + 상세(멤버 관리 + 캘린더) */
+      { path: "teams", element: <TeamListPage /> },
+      { path: "teams/:teamId", element: <TeamDetailPage /> },
       /* 이슈 페이지 — ?view=table|board|calendar|timeline, ?issue=uuid */
       { path: "projects/:projectId/issues", element: <ProjectIssuePage /> },
       /* 기존 /board 경로 호환 — 같은 컴포넌트, view=board로 진입 */
@@ -200,7 +202,7 @@ export const router = createBrowserRouter([
         ],
       },
 
-      // 워크스페이스 설정 — 계정 설정과 분리. 멤버 관리, 추후 brand color/integrations 등.
+      // 워크스페이스 설정 — 계정 설정과 분리. 멤버 관리, 보관함, 추후 brand color/integrations 등.
       {
         path: "workspace-settings",
         element: <WorkspaceSettingsLayout />,
@@ -209,8 +211,12 @@ export const router = createBrowserRouter([
           { path: "general", element: <WorkspaceGeneralPage /> },
           { path: "members", element: <WorkspaceMembersPage /> },
           { path: "join-requests", element: <WorkspaceJoinRequestsPage /> },
+          { path: "archived", element: <ArchivedProjectsPage /> },
         ],
       },
+
+      /* 보관함 옛 경로 — 사이드바에서 빠진 후 ws 설정 아래로 이전. 북마크/외부링크 보존. */
+      { path: "projects/archived", element: <Navigate to="../../workspace-settings/archived" replace /> },
 
       // 관리자 페이지 — 워크스페이스 관리자 이상 접근, 일부 탭은 슈퍼유저 전용
       {

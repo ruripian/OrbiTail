@@ -326,6 +326,32 @@ export interface CommentThread {
   comment_count: number;
 }
 
+/* ── 팀 ── */
+export interface Team {
+  id: string;
+  workspace: string;
+  name: string;
+  description: string;
+  /** 캘린더 chip 색 / 팀 아바타 배경. 빈 문자열 = 토큰 default */
+  color: string;
+  icon_prop: Record<string, unknown> | null;
+  created_by: User | null;
+  member_count: number;
+  /** 본인 팀 역할 — 15(MEMBER) / 20(ADMIN) / null(비멤버). admin 액션 분기용 */
+  my_role: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TeamMember {
+  id: string;
+  member: User;
+  /** 15(MEMBER) / 20(ADMIN) */
+  role: number;
+  added_by: User | null;
+  created_at: string;
+}
+
 export interface DocumentIssueLink {
   id: string;
   document: string;

@@ -17,6 +17,13 @@ from .views import (
     AdminWorkspaceCreateView,
     AdminWorkspaceDeleteView,
     AdminWorkspaceOwnerView,
+    TeamListCreateView,
+    TeamDetailView,
+    TeamMemberListCreateView,
+    TeamMemberDetailView,
+    TeamCalendarIssuesView,
+    TeamCalendarPersonalEventsView,
+    TeamCalendarProjectEventsView,
 )
 
 urlpatterns = [
@@ -42,4 +49,13 @@ urlpatterns = [
     # 초대 관리 (워크스페이스 내)
     path("<slug:slug>/invitations/", WorkspaceInvitationListCreateView.as_view(), name="workspace-invitations"),
     path("<slug:slug>/invitations/<uuid:invitation_id>/revoke/", WorkspaceInvitationRevokeView.as_view(), name="workspace-invitation-revoke"),
+    # 팀 — 워크스페이스 안 멤버 그룹
+    path("<slug:workspace_slug>/teams/", TeamListCreateView.as_view(), name="team-list"),
+    path("<slug:workspace_slug>/teams/<uuid:pk>/", TeamDetailView.as_view(), name="team-detail"),
+    path("<slug:workspace_slug>/teams/<uuid:team_pk>/members/", TeamMemberListCreateView.as_view(), name="team-member-list"),
+    path("<slug:workspace_slug>/teams/<uuid:team_pk>/members/<uuid:pk>/", TeamMemberDetailView.as_view(), name="team-member-detail"),
+    # 팀 캘린더 — 멤버 담당 이슈(요청자별 필터) + 본인 PE + 멤버 공통 프로젝트 이벤트
+    path("<slug:workspace_slug>/teams/<uuid:team_pk>/calendar/issues/", TeamCalendarIssuesView.as_view(), name="team-calendar-issues"),
+    path("<slug:workspace_slug>/teams/<uuid:team_pk>/calendar/personal-events/", TeamCalendarPersonalEventsView.as_view(), name="team-calendar-pes"),
+    path("<slug:workspace_slug>/teams/<uuid:team_pk>/calendar/project-events/", TeamCalendarProjectEventsView.as_view(), name="team-calendar-pjes"),
 ]

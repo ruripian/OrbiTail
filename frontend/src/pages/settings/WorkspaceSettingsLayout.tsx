@@ -1,7 +1,7 @@
 import { NavLink, Outlet, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { UsersRound, UserCheck, Building2, Settings } from "lucide-react";
+import { UsersRound, UserCheck, Building2, Settings, Archive } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { workspacesApi } from "@/api/workspaces";
 import { cn } from "@/lib/utils";
@@ -111,6 +111,23 @@ export function WorkspaceSettingsLayout() {
             </NavLink>
           </>
         )}
+
+        {/* 보관함 — 사이드바에서 빠진 후 ws 설정으로 이전.
+            관리 권한 무관하게 모든 ws 멤버가 보관된 프로젝트 조회 가능. */}
+        <NavLink
+          to={`${base}/archived`}
+          className={({ isActive }) =>
+            cn(
+              "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
+              isActive
+                ? "bg-accent text-foreground font-medium"
+                : "text-muted-foreground hover:bg-accent hover:text-foreground",
+            )
+          }
+        >
+          <Archive className="h-4 w-4 shrink-0" />
+          {t("settings.layout.workspaceArchived", "보관함")}
+        </NavLink>
 
       </aside>
 

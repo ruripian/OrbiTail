@@ -769,10 +769,14 @@ export function CalendarMonth({
                 </div>
               )}
 
-              {/* ── 일(day) 셀 그리드 ── */}
+              {/* ── 일(day) 셀 그리드 ──
+                  divide-x 를 cell 의 border-r 로 옮김: divide 가 grid track width 를
+                  1px씩 갉아먹어 bar/chip 의 % 기반 좌표 계산과 셀 경계가 누적 misalign
+                  되던 문제 픽스. cell 안 border-r 은 box-sizing: border-box 영향이지만
+                  bar 의 +3/-6 마진 안에 들어가 시각 영향 없음. */}
               <div
                 className={cn(
-                  "grid divide-x divide-border min-h-full",
+                  "grid min-h-full",
                   settings.hideWeekends ? "grid-cols-5" : "grid-cols-7",
                 )}
               >
@@ -808,10 +812,9 @@ export function CalendarMonth({
                         onDrawerDropDayKeyChange?.(null);
                       }}
                       className={cn(
-                        "relative flex flex-col group transition-colors hover:bg-accent/40",
+                        "relative flex flex-col group transition-colors hover:bg-accent/40 border-r border-border last:border-r-0",
                         !isCurrentMonth && "bg-muted/[0.08]",
-                        /* 오늘은 셀 배경 tint 만 — 숫자 자체에 bg-primary 강조가 이미 있어 ring 불필요.
-                           ring 은 셀 grid border 와 겹쳐 정렬이 어긋나 보였음. */
+                        /* 오늘은 셀 배경 tint 만 — 숫자 자체에 bg-primary 강조가 이미 있어 ring 불필요. */
                         isToday && "bg-primary/[0.08]",
                         isWeekend && !isToday && "bg-muted/[0.15]",
                         drawerDropDayKey === dateKey(day) && "!bg-primary/15 ring-2 ring-primary ring-inset z-[2]",
