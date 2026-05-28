@@ -223,9 +223,17 @@ export const issuesApi = {
         .get<PaginatedResponse<IssueAttachment>>(`/workspaces/${workspaceSlug}/projects/${projectId}/issues/${issueId}/attachments/`)
         .then((r) => r.data.results),
 
-    upload: (workspaceSlug: string, projectId: string, issueId: string, file: File) => {
+    upload: (
+      workspaceSlug: string,
+      projectId: string,
+      issueId: string,
+      file: File,
+      /** 업로드 출처 — "from_comment" 면 댓글 RichEditor 안 드롭/붙여넣기로 들어온 것. 첨부탭에서 배지로 구분. */
+      source?: "direct" | "from_comment",
+    ) => {
       const formData = new FormData();
       formData.append("file", file);
+      if (source) formData.append("source", source);
       return api
         .post<IssueAttachment>(
           `/workspaces/${workspaceSlug}/projects/${projectId}/issues/${issueId}/attachments/`,

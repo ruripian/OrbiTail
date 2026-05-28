@@ -12,7 +12,7 @@ import {
   FileText, Loader2, Pencil, Eye, Share2, MessageSquare, Hash, Plus, Star,
   List, MoreHorizontal, Maximize2, Minimize2,
   History, FolderInput, Download, Printer, FileDown, Trash2, LayoutGrid,
-  FolderOpen, FilePlus, Image as ImageIcon, Lock,
+  FolderOpen, FilePlus, Image as ImageIcon, Lock, Paperclip,
 } from "lucide-react";
 import { documentsApi } from "@/api/documents";
 import { useAuthStore } from "@/stores/authStore";
@@ -1319,31 +1319,59 @@ function LinkedIssuesSection({ workspaceSlug, spaceId, docId, editable, projectI
       {links.length === 0 ? (
         <p className="text-2xs text-muted-foreground/60">연결된 이슈가 없습니다.</p>
       ) : (
-        <ul className="space-y-1">
-          {links.map((link) => (
-            <li key={link.id} className="group flex items-center gap-2 text-sm">
-              <Hash className="h-3 w-3 text-muted-foreground shrink-0" />
-              <button
-                onClick={() => link.project_id && useIssueDialogStore.getState().openIssue(workspaceSlug, link.project_id, link.issue)}
-                className="flex-1 text-left text-xs hover:text-primary transition-colors min-w-0"
-                title={link.issue_title}
-              >
-                <span className="font-mono text-2xs text-muted-foreground mr-1.5">
-                  {link.project_identifier}-{link.issue_sequence_id}
-                </span>
-                <span className="truncate">{link.issue_title}</span>
-              </button>
-              {editable && (
+        /* 카드형 read-only 미러 — 이슈 식별자/제목 + 댓글수/첨부수/최근 댓글 시각.
+           클릭 시 전역 이슈 다이얼로그(useIssueDialogStore.openIssue) 로 위임. */
+        <ul className="space-y-2">
+          {links.map((link) => {
+            const commentCount = link.issue_comment_count ?? 0;
+            const attachmentCount = link.issue_attachment_count ?? 0;
+            const lastCommentAt = link.issue_last_comment_at;
+            return (
+              <li key={link.id} className="group relative rounded-md border border-border bg-card hover:bg-accent/30 hover:border-primary/30 transition-colors">
                 <button
-                  onClick={() => unlinkMut.mutate(link.issue)}
-                  className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive text-2xs transition-opacity"
-                  title="연결 해제"
+                  onClick={() => link.project_id && useIssueDialogStore.getState().openIssue(workspaceSlug, link.project_id, link.issue)}
+                  className="w-full text-left px-3 py-2.5"
+                  title={link.issue_title}
                 >
-                  ✕
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Hash className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <span className="font-mono text-2xs text-muted-foreground shrink-0">
+                      {link.project_identifier}-{link.issue_sequence_id}
+                    </span>
+                    <span className="truncate text-sm">{link.issue_title}</span>
+                  </div>
+                  {(commentCount > 0 || attachmentCount > 0) && (
+                    <div className="flex items-center gap-3 text-2xs text-muted-foreground mt-1 pl-6">
+                      {commentCount > 0 && (
+                        <span className="inline-flex items-center gap-1">
+                          <MessageSquare className="h-2.5 w-2.5" />
+                          {commentCount}
+                          {lastCommentAt && (
+                            <span className="text-muted-foreground/60">· {formatRelativeTime(lastCommentAt)}</span>
+                          )}
+                        </span>
+                      )}
+                      {attachmentCount > 0 && (
+                        <span className="inline-flex items-center gap-1">
+                          <Paperclip className="h-2.5 w-2.5" />
+                          {attachmentCount}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </button>
-              )}
-            </li>
-          ))}
+                {editable && (
+                  <button
+                    onClick={() => unlinkMut.mutate(link.issue)}
+                    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive text-2xs transition-opacity px-1"
+                    title="연결 해제"
+                  >
+                    ✕
+                  </button>
+                )}
+              </li>
+            );
+          })}
         </ul>
       )}
 

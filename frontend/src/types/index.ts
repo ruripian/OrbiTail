@@ -336,6 +336,10 @@ export interface DocumentIssueLink {
   issue_priority: string;
   project_id: string;
   project_identifier: string;
+  /** 미러 카운트 — 문서에서 연결 이슈 활동량 표시용 */
+  issue_comment_count?: number;
+  issue_attachment_count?: number;
+  issue_last_comment_at?: string | null;
   created_at: string;
 }
 
@@ -403,6 +407,7 @@ export interface Issue {
   sub_issues_count: number;
   link_count: number;
   attachment_count: number;
+  comment_count: number;
   sequence_id: number;
   created_by: string;
   created_by_detail: User;
@@ -512,6 +517,8 @@ export interface IssueAttachment {
   filename: string;
   size: number;
   mime_type: string;
+  /** 업로드 출처 — direct=첨부탭 직접 / from_comment=댓글 RichEditor 드롭/붙여넣기. 첨부탭에서 배지 분기. */
+  source?: "direct" | "from_comment";
   uploaded_by: string;
   uploaded_by_detail: User;
   created_at: string;

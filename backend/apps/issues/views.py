@@ -1262,7 +1262,23 @@ class IssueTemplateDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 
 class IssueDocumentLinksView(APIView):
-    """이슈에 연결된 문서 목록 (역방향 조회)"""
+    """이슈에 연결된 문서 목록 (역방향 조회) + 연결 추가.
+
+    GET  → 이 이슈에 연결된 문서들의 요약 리스트
+    POST → body: { document_id }
+           문서 접근 권한 확인 후 DocumentIssueLink 생성 (이미 있으면 기존 반환)
+    """
+
+    @staticmethod
+    def _serialize(link) -> dict:
+        return {
+            "id": str(link.id),
+            "document_id": str(link.document_id),
+            "document_title": link.document.title,
+            "document_icon_prop": link.document.icon_prop,
+            "space_id": str(link.document.space_id),
+            "created_at": link.created_at.isoformat(),
+        }
 
     def get(self, request, workspace_slug, project_pk, pk):
         from apps.documents.models import DocumentIssueLink
@@ -1270,18 +1286,60 @@ class IssueDocumentLinksView(APIView):
             issue_id=pk,
             issue__project_id=project_pk,
         ).select_related("document")
-        data = [
-            {
-                "id": str(link.id),
-                "document_id": str(link.document_id),
-                "document_title": link.document.title,
-                "document_icon_prop": link.document.icon_prop,
-                "space_id": str(link.document.space_id),
-                "created_at": link.created_at.isoformat(),
-            }
-            for link in links
-        ]
-        return Response(data)
+        return Response([self._serialize(link) for link in links])
+
+    def post(self, request, workspace_slug, project_pk, pk):
+        # 이슈 멤버십 검증 — 이 이슈가 속한 프로젝트의 멤버여야 함
+        from apps.projects.models import ProjectMember
+        if not ProjectMember.objects.filter(
+            project_id=project_pk, member=request.user,
+        ).exists():
+            return Response({"detail": "이슈 접근 권한 없음"}, status=status.HTTP_403_FORBIDDEN)
+
+        # 문서 존재/접근 검증
+        from apps.documents.models import Document, DocumentIssueLink
+        from apps.documents.views import _check_space_access
+        document_id = request.data.get("document_id")
+        if not document_id:
+            return Response({"detail": "document_id 필요"}, status=status.HTTP_400_BAD_REQUEST)
+        document = get_object_or_404(
+            Document.objects.select_related("space"),
+            id=document_id,
+            deleted_at__isnull=True,
+        )
+        if not _check_space_access(request.user, document.space):
+            return Response({"detail": "문서 접근 권한 없음"}, status=status.HTTP_403_FORBIDDEN)
+        # 워크스페이스 경계 — URL 의 workspace_slug 와 문서의 워크스페이스가 일치해야 함
+        if document.space.workspace.slug != workspace_slug:
+            return Response({"detail": "다른 워크스페이스 문서"}, status=status.HTTP_400_BAD_REQUEST)
+
+        link, _ = DocumentIssueLink.objects.get_or_create(
+            document=document, issue_id=pk,
+        )
+        # serializer 가 select_related 가정 — 직접 prefetch
+        link.document = document
+        return Response(self._serialize(link), status=status.HTTP_201_CREATED)
+
+
+class IssueDocumentLinkDeleteView(APIView):
+    """이슈-문서 연결 해제. issues/<pk>/documents/<doc_pk>/ DELETE.
+
+    POST 와 동일한 권한 (프로젝트 멤버) 으로 충분 — 연결 해제는 양쪽 어느 도메인에서든 가능해야 함.
+    """
+
+    def delete(self, request, workspace_slug, project_pk, pk, doc_pk):
+        from apps.projects.models import ProjectMember
+        if not ProjectMember.objects.filter(
+            project_id=project_pk, member=request.user,
+        ).exists():
+            return Response({"detail": "이슈 접근 권한 없음"}, status=status.HTTP_403_FORBIDDEN)
+        from apps.documents.models import DocumentIssueLink
+        deleted, _ = DocumentIssueLink.objects.filter(
+            issue_id=pk, document_id=doc_pk,
+        ).delete()
+        if not deleted:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 # ══════════════════════════════════════════════════════════════════

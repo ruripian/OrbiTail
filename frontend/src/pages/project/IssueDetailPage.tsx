@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ChevronLeft, GitBranch, MessageSquare, Activity, Link2, X, AlertTriangle, Paperclip, Copy, Archive, RotateCcw, Share2 } from "lucide-react";
+import { ChevronLeft, GitBranch, MessageSquare, Activity, X, AlertTriangle, Paperclip, Copy, Archive, RotateCcw, Share2 } from "lucide-react";
 import { toast } from "sonner";
 import { issuesApi } from "@/api/issues";
 import { projectsApi } from "@/api/projects";
@@ -22,14 +22,13 @@ import { QUERY_TIERS } from "@/lib/query-defaults";
 import { usePresenceScope } from "@/hooks/usePresenceScope";
 import {
   SubIssuesTab,
-  LinksTab,
   AttachmentsTab,
   CommentsTab,
   ActivityTab,
 } from "./issue-detail/tabs";
 import type { Issue } from "@/types";
 
-type TabId = "sub-issues" | "links" | "nodes" | "attachments" | "comments" | "activity";
+type TabId = "sub-issues" | "nodes" | "attachments" | "comments" | "activity";
 
 interface Props {
   /** 패널 모드에서 URL params 대신 직접 issueId를 주입할 때 사용 */
@@ -111,13 +110,6 @@ export function IssueDetailPage({ issueIdOverride, workspaceSlugOverride, projec
     ...QUERY_TIERS.meta,
   });
 
-  const { data: sprints = [] } = useQuery({
-    queryKey: ["sprints", workspaceSlug, projectId],
-    queryFn: () => projectsApi.sprints.list(workspaceSlug!, projectId!),
-    enabled: !!issue,
-    ...QUERY_TIERS.meta,
-  });
-
   const { data: subIssues = [] } = useQuery({
     queryKey: ["sub-issues", issueId],
     queryFn: () => issuesApi.subIssues.list(workspaceSlug!, projectId!, issueId!),
@@ -133,12 +125,6 @@ export function IssueDetailPage({ issueIdOverride, workspaceSlugOverride, projec
   const { data: activities = [] } = useQuery({
     queryKey: ["activities", issueId],
     queryFn: () => issuesApi.activities(workspaceSlug!, projectId!, issueId!),
-    enabled: !!issue,
-  });
-
-  const { data: links = [] } = useQuery({
-    queryKey: ["links", issueId],
-    queryFn: () => issuesApi.links.list(workspaceSlug!, projectId!, issueId!),
     enabled: !!issue,
   });
 
@@ -322,6 +308,24 @@ export function IssueDetailPage({ issueIdOverride, workspaceSlugOverride, projec
           </Link>
         )}
 
+        {/* 패널(전역 다이얼로그) 모드 — 좌상단에서 곧장 프로젝트 메인으로 점프.
+            프로젝트 단독 라우트는 없고 issues 가 메인 진입점이라 거기로 보낸다.
+            navigate 후 onClose 로 모달을 닫아 페이지 전환을 자연스럽게 만든다. */}
+        {inPanel && project && (
+          <button
+            type="button"
+            onClick={() => {
+              navigate(`/${workspaceSlug}/projects/${projectId}/issues`);
+              onClose?.();
+            }}
+            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground mb-4 transition-colors"
+            title={`${project.name} 프로젝트로 이동`}
+          >
+            <ChevronLeft className="h-3.5 w-3.5" />
+            <span className="truncate max-w-[16rem]">{project.name}</span>
+          </button>
+        )}
+
         {/* 부모 이슈 체인 breadcrumb — 하위 이슈일 때만 표시
              inPanel 모드: searchParams의 ?issue= 만 갱신해 패널 내에서 이슈 전환
              풀 페이지 모드: Link로 이동 */}
@@ -410,7 +414,7 @@ export function IssueDetailPage({ issueIdOverride, workspaceSlugOverride, projec
             aria-label={t("issues.detail.tabs.label", "이슈 상세 탭")}
             className="flex gap-0.5"
             onKeyDown={(e) => {
-              const order: TabId[] = ["sub-issues", "links", "nodes", "attachments", "comments", "activity"];
+              const order: TabId[] = ["sub-issues", "nodes", "attachments", "comments", "activity"];
               const i = order.indexOf(activeTab);
               if (e.key === "ArrowRight") { setActiveTab(order[(i + 1) % order.length]); e.preventDefault(); }
               else if (e.key === "ArrowLeft")  { setActiveTab(order[(i - 1 + order.length) % order.length]); e.preventDefault(); }
@@ -421,7 +425,6 @@ export function IssueDetailPage({ issueIdOverride, workspaceSlugOverride, projec
             {(
               [
                 { id: "sub-issues" as TabId, label: `${t("issues.detail.tabs.subIssues")} (${subIssues.length})`, icon: GitBranch },
-                { id: "links"      as TabId, label: `${t("issues.detail.tabs.links")} (${links.length})`,          icon: Link2 },
                 { id: "nodes"      as TabId, label: `${t("issues.detail.tabs.nodes", "관련 이슈")} (${nodeLinks.length})`, icon: Share2 },
                 { id: "attachments" as TabId, label: `${t("issues.detail.tabs.attachments")} (${attachments.length})`, icon: Paperclip },
                 { id: "comments"   as TabId, label: `${t("issues.detail.tabs.comments")} (${comments.length})`,      icon: MessageSquare },
@@ -460,16 +463,6 @@ export function IssueDetailPage({ issueIdOverride, workspaceSlugOverride, projec
             subIssues={subIssues}
             states={states}
             inPanel={inPanel}
-            readOnly={readOnly}
-          />
-        )}
-
-        {activeTab === "links" && (
-          <LinksTab
-            workspaceSlug={workspaceSlug!}
-            projectId={projectId!}
-            issueId={issueId!}
-            links={links}
             readOnly={readOnly}
           />
         )}
@@ -529,7 +522,6 @@ export function IssueDetailPage({ issueIdOverride, workspaceSlugOverride, projec
         members={members}
         labels={labels}
         categories={categories}
-        sprints={sprints}
         projectIssues={projectIssues}
         parentChain={parentChain}
         onUpdate={(patch) => updateMutation.mutate(patch)}

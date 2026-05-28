@@ -80,8 +80,10 @@ class DocumentTreeSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Document
+        # space 는 검색 결과처럼 URL 에 space_pk 가 없는 응답에서 클라가 후속 호출(연결/이동)에
+        # 필요. 트리/리스트 응답에 포함시켜도 비용 없음.
         fields = [
-            "id", "parent", "title", "icon_prop", "is_folder",
+            "id", "space", "parent", "title", "icon_prop", "is_folder",
             "sort_order", "children_count",
             "created_at", "updated_at",
         ]
@@ -97,6 +99,11 @@ class DocumentIssueLinkSerializer(serializers.ModelSerializer):
     issue_priority = serializers.CharField(source="issue.priority", read_only=True)
     project_id = serializers.UUIDField(source="issue.project_id", read_only=True)
     project_identifier = serializers.CharField(source="issue.project.identifier", read_only=True)
+    # 미러 카운트 — 문서에서 연결된 이슈의 활동량을 한눈에 보여주기 위함.
+    # 연결 수가 보통 한 자리수라 N+1 이 큰 부담은 아님. 폭발 시 prefetch 도입 검토.
+    issue_comment_count = serializers.SerializerMethodField()
+    issue_attachment_count = serializers.SerializerMethodField()
+    issue_last_comment_at = serializers.SerializerMethodField()
 
     class Meta:
         model = DocumentIssueLink
@@ -104,9 +111,20 @@ class DocumentIssueLinkSerializer(serializers.ModelSerializer):
             "id", "document", "issue",
             "issue_title", "issue_sequence_id", "issue_state", "issue_priority",
             "project_id", "project_identifier",
+            "issue_comment_count", "issue_attachment_count", "issue_last_comment_at",
             "created_at",
         ]
         read_only_fields = ["id", "document", "created_at"]
+
+    def get_issue_comment_count(self, obj):
+        return obj.issue.comments.count()
+
+    def get_issue_attachment_count(self, obj):
+        return obj.issue.attachments.filter(deleted_at__isnull=True).count()
+
+    def get_issue_last_comment_at(self, obj):
+        last = obj.issue.comments.order_by("-created_at").only("created_at").first()
+        return last.created_at.isoformat() if last else None
 
 
 class DocumentVersionSerializer(serializers.ModelSerializer):

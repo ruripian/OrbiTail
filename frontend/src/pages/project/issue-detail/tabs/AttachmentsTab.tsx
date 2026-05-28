@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Upload, X, FileText, Image as ImageIcon, ChevronRight, ChevronDown, Layers, Download } from "lucide-react";
+import { Upload, X, FileText, Image as ImageIcon, ChevronRight, ChevronDown, Layers, Download, MessageSquare } from "lucide-react";
 import { issuesApi, type AttachmentTreeNode } from "@/api/issues";
 import { formatLongDate } from "@/utils/date-format";
 import { cn } from "@/lib/utils";
@@ -14,6 +14,20 @@ function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/** 첨부 출처 배지 — 댓글 RichEditor 에서 올라온 첨부에만 표시. 직접 업로드는 라벨 없음(노이즈 회피). */
+function SourceBadge({ source }: { source?: string }) {
+  if (source !== "from_comment") return null;
+  return (
+    <span
+      title="댓글에서 업로드됨"
+      className="inline-flex items-center gap-0.5 text-2xs px-1.5 py-0.5 rounded bg-primary/10 text-primary shrink-0"
+    >
+      <MessageSquare className="h-2.5 w-2.5" />
+      댓글
+    </span>
+  );
 }
 
 /** 강제 다운로드 — nginx Content-Disposition 이 inline 인 이미지/PDF 도 fetch+blob 으로 받아서 저장. */
@@ -129,15 +143,18 @@ export function AttachmentsTab({ workspaceSlug, projectId, projectIdentifier, is
               <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
             )}
             <div className="flex-1 min-w-0">
-              <a
-                href={att.file}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs font-medium text-primary hover:underline truncate block"
-                onClick={(e) => e.stopPropagation()}
-              >
-                {att.filename}
-              </a>
+              <div className="flex items-center gap-1.5 min-w-0">
+                <a
+                  href={att.file}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs font-medium text-primary hover:underline truncate"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {att.filename}
+                </a>
+                <SourceBadge source={att.source} />
+              </div>
               <p className="text-2xs text-muted-foreground">
                 {formatFileSize(att.size)} · {att.uploaded_by_detail?.display_name} · {formatLongDate(att.created_at)}
               </p>
@@ -237,14 +254,17 @@ function AttachmentTreeView({ node, depth, isRoot, projectIdentifier, onDelete, 
                   <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
                 )}
                 <div className="flex-1 min-w-0">
-                  <a
-                    href={att.file}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs font-medium text-primary hover:underline truncate block"
-                  >
-                    {att.filename}
-                  </a>
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <a
+                      href={att.file}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs font-medium text-primary hover:underline truncate"
+                    >
+                      {att.filename}
+                    </a>
+                    <SourceBadge source={att.source} />
+                  </div>
                   <p className="text-2xs text-muted-foreground">
                     {formatFileSize(att.size)} · {att.uploaded_by_detail?.display_name} · {formatLongDate(att.created_at)}
                   </p>

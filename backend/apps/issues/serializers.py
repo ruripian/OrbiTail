@@ -18,6 +18,7 @@ class IssueSerializer(serializers.ModelSerializer):
     sub_issues_count = serializers.SerializerMethodField()
     link_count = serializers.SerializerMethodField()
     attachment_count = serializers.SerializerMethodField()
+    comment_count = serializers.SerializerMethodField()
     project_identifier = serializers.CharField(source="project.identifier", read_only=True)
     project_name = serializers.CharField(source="project.name", read_only=True)
     # 마이 페이지 등 다중 프로젝트 통합 뷰에서 프로젝트 색 결정용 — icon_prop.color 우선 + hash fallback
@@ -35,7 +36,7 @@ class IssueSerializer(serializers.ModelSerializer):
             "assignees", "assignee_details",
             "label", "label_details",
             "category", "sprint",
-            "parent", "sub_issues_count", "link_count", "attachment_count",
+            "parent", "sub_issues_count", "link_count", "attachment_count", "comment_count",
             "sequence_id", "created_by", "created_by_detail",
             "due_date", "start_date", "estimate_point",
             "sort_order", "is_field", "created_at", "updated_at", "archived_at", "deleted_at",
@@ -54,6 +55,9 @@ class IssueSerializer(serializers.ModelSerializer):
 
     def get_attachment_count(self, obj):
         return obj.attachments.count()
+
+    def get_comment_count(self, obj):
+        return obj.comments.count()
 
     def validate_parent(self, value):
         """parent로 자기 자신 또는 자손을 지정하는 시도를 차단.
@@ -231,10 +235,11 @@ class IssueAttachmentSerializer(serializers.ModelSerializer):
     class Meta:
         model = IssueAttachment
         fields = [
-            "id", "file", "filename", "size", "mime_type",
+            "id", "file", "filename", "size", "mime_type", "source",
             "uploaded_by", "uploaded_by_detail", "created_at", "deleted_at",
             "issue_id", "issue_title", "issue_sequence_id",
         ]
+        # source 는 write 허용 — 클라가 업로드 시 "from_comment" 마킹 가능. 미지정 시 모델 default "direct".
         read_only_fields = [
             "id", "filename", "size", "mime_type", "uploaded_by", "created_at", "deleted_at",
             "issue_id", "issue_title", "issue_sequence_id",
@@ -285,7 +290,21 @@ class IssueAttachmentSerializer(serializers.ModelSerializer):
             filename=original_name,
             size=file_obj.size,
             mime_type=getattr(file_obj, "content_type", ""),
+            source=validated_data.get("source", IssueAttachment.Source.DIRECT),
         )
+
+    def to_representation(self, instance):
+        """file 필드를 root-relative URL 로 반환.
+
+        기본 FileField 직렬화는 build_absolute_uri 를 호출해 절대 URL 을 만드는데, vite proxy
+        뒤의 dev 환경에서는 backend 가 받는 Host 가 'backend:8000' 이라 브라우저가 그 호스트를
+        해석 못해 이미지가 깨진다. root-relative '/media/...' 로 반환하면 프론트가 같은 origin 으로
+        요청 → vite 의 /media proxy 가 backend 로 forward.
+        """
+        data = super().to_representation(instance)
+        if instance.file:
+            data["file"] = instance.file.url
+        return data
 
 
 class IssueTemplateSerializer(serializers.ModelSerializer):

@@ -237,12 +237,23 @@ class IssueNodeLink(models.Model):
 class IssueAttachment(models.Model):
     """이슈에 첨부된 파일 (이미지, 문서 등)"""
 
+    class Source(models.TextChoices):
+        DIRECT = "direct", "Direct upload"
+        FROM_COMMENT = "from_comment", "From comment editor"
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     issue = models.ForeignKey(Issue, on_delete=models.CASCADE, related_name="attachments")
     file = models.FileField(upload_to="attachments/%Y/%m/")
     filename = models.CharField(max_length=255)
     size = models.PositiveIntegerField(default=0, help_text="파일 크기 (bytes)")
     mime_type = models.CharField(max_length=100, blank=True, default="")
+    # 첨부 경로 추적 — direct=첨부탭 직접 업로드 / from_comment=댓글 RichEditor 드롭/붙여넣기.
+    # 첨부탭에서 출처 배지로 구분 노출 + 통계/감사에 활용.
+    source = models.CharField(
+        max_length=16,
+        choices=Source.choices,
+        default=Source.DIRECT,
+    )
     uploaded_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,

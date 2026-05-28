@@ -35,6 +35,7 @@ from .views import (
     WorkspaceRecentIssuesView,
     WorkspaceIssueSearchView,
     IssueDocumentLinksView,
+    IssueDocumentLinkDeleteView,
     IssueRequestListCreateView,
     IssueRequestApproveView,
     IssueRequestRejectView,
@@ -225,11 +226,17 @@ urlpatterns = [
         WorkspaceIssueSearchView.as_view(),
         name="workspace-issue-search",
     ),
-    # 이슈에 연결된 문서
+    # 이슈에 연결된 문서 — GET(list), POST(link)
     path(
         "workspaces/<slug:workspace_slug>/projects/<uuid:project_pk>/issues/<uuid:pk>/documents/",
         IssueDocumentLinksView.as_view(),
         name="issue-document-links",
+    ),
+    # 이슈-문서 연결 해제
+    path(
+        "workspaces/<slug:workspace_slug>/projects/<uuid:project_pk>/issues/<uuid:pk>/documents/<uuid:doc_pk>/",
+        IssueDocumentLinkDeleteView.as_view(),
+        name="issue-document-link-delete",
     ),
 
     # 요청 큐 (버그/기능 제출 → 승인/거절)

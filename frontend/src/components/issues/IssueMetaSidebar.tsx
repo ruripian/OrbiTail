@@ -10,7 +10,6 @@ import { PriorityPicker } from "@/components/issues/priority-picker";
 import { AssigneePicker } from "@/components/issues/assignee-picker";
 import { LabelPicker } from "@/components/issues/label-picker";
 import { CategoryPicker } from "@/components/issues/category-picker";
-import { SprintPicker } from "@/components/issues/sprint-picker";
 import { ParentPicker } from "@/components/issues/parent-picker";
 import { DatePicker } from "@/components/ui/date-picker";
 import { DocumentPickerDialog } from "@/components/documents/DocumentPickerDialog";
@@ -18,13 +17,13 @@ import { CreateDocumentDialog } from "@/components/documents/CreateDocumentDialo
 import { formatLongDate } from "@/utils/date-format";
 import { cn } from "@/lib/utils";
 import type {
-  Issue, State, Label, Category, Sprint, ProjectMember,
+  Issue, State, Label, Category, ProjectMember,
 } from "@/types";
 
 /**
  * PASS5-C — IssueDetailPage 우측 사이드바 분리.
  *
- * 7개 picker 그룹 (State/Priority + Assignee/Label + Category/Sprint + Dates + Parent)
+ * picker 그룹 (State/Priority + Assignee/Label + Category + Dates + Parent)
  * + Info + LinkedDocumentsSection + footer slot(children).
  *
  * onUpdate(patch) 한 콜백으로 mutation 을 wrap — IssueDetailPage 가 invalidate/undo 처리.
@@ -40,7 +39,6 @@ export interface IssueMetaSidebarProps {
   members: ProjectMember[];
   labels: Label[];
   categories: Category[];
-  sprints: Sprint[];
   projectIssues: Issue[];
   parentChain: Issue[];
   onUpdate: (patch: Partial<Issue>) => void;
@@ -63,7 +61,6 @@ export function IssueMetaSidebar({
   members,
   labels,
   categories,
-  sprints,
   projectIssues,
   parentChain,
   onUpdate,
@@ -76,6 +73,9 @@ export function IssueMetaSidebar({
   return (
     <div className="w-[26rem] shrink-0 border-l border-border overflow-y-auto bg-muted/5">
       <div className={cn("divide-y divide-border/60", inPanel && "pt-10", readOnly && "pointer-events-none opacity-70")}>
+
+        {/* 연결된 문서 — 사이드바 최상단으로 격상(메인 기능). 진입 즉시 가시 + 빈 상태에 큰 CTA. */}
+        <LinkedDocumentsSection issueId={issue.id} workspaceSlug={workspaceSlug} projectId={projectId} />
 
         {/* Row 1 — State + Priority */}
         <div className="grid grid-cols-2 gap-3 px-4 py-3">
@@ -135,32 +135,19 @@ export function IssueMetaSidebar({
           </div>
         </div>
 
-        {/* Row 3 — Category(Modules) + Sprint */}
-        <div className="grid grid-cols-2 gap-3 px-4 py-3">
-          <div className="min-w-0">
-            <p className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground/70 mb-1.5">
-              {t("sidebar.modules")}
-            </p>
-            <CategoryPicker
-              categories={categories}
-              currentId={issue.category}
-              onChange={(id) => onUpdate({ category: id })}
-              className="border border-border rounded-md bg-input/60 hover:bg-primary/10"
-              disabled={!!issue.parent}
-              disabledReason={issue.parent ? t("issues.categoryInheritsFromParent", "하위 이슈는 상위 이슈의 모듈을 따라갑니다") : undefined}
-            />
-          </div>
-          <div className="min-w-0">
-            <p className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground/70 mb-1.5">
-              {t("views.cycleFilter.label")}
-            </p>
-            <SprintPicker
-              sprints={sprints}
-              currentId={issue.sprint}
-              onChange={(id) => onUpdate({ sprint: id })}
-              className="border border-border rounded-md bg-input/60 hover:bg-primary/10"
-            />
-          </div>
+        {/* Row 3 — Category(Modules). 스프린트 picker 제거. */}
+        <div className="px-4 py-3">
+          <p className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground/70 mb-1.5">
+            {t("sidebar.modules")}
+          </p>
+          <CategoryPicker
+            categories={categories}
+            currentId={issue.category}
+            onChange={(id) => onUpdate({ category: id })}
+            className="border border-border rounded-md bg-input/60 hover:bg-primary/10"
+            disabled={!!issue.parent}
+            disabledReason={issue.parent ? t("issues.categoryInheritsFromParent", "하위 이슈는 상위 이슈의 모듈을 따라갑니다") : undefined}
+          />
         </div>
 
         {/* Row 4 — Dates */}
@@ -223,9 +210,6 @@ export function IssueMetaSidebar({
           </div>
         </div>
 
-        {/* 연결된 문서 */}
-        <LinkedDocumentsSection issueId={issue.id} workspaceSlug={workspaceSlug} projectId={projectId} />
-
         {/* footer — host 가 주입한 액션 버튼 그룹. Archive 인 경우 readOnly 와 무관하게 동작하도록 host 책임. */}
         {children}
       </div>
@@ -235,12 +219,16 @@ export function IssueMetaSidebar({
 
 /* ── 연결된 문서 섹션 (PASS5-C: IssueDetailPage 에서 이동, 외부 export 없음) ── */
 
+/* 5개 초과 시 첫 5개만 노출 + "더보기" 토글. 더 늘리면 사이드바 스크롤이 길어져 다른 메타가 묻힘. */
+const VISIBLE_LINK_LIMIT = 5;
+
 function LinkedDocumentsSection({ issueId, workspaceSlug, projectId }: { issueId: string; workspaceSlug: string; projectId: string }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [showAll, setShowAll] = useState(false);
 
   const { data: links = [] } = useQuery({
     queryKey: ["issue-doc-links", issueId],
@@ -267,43 +255,80 @@ function LinkedDocumentsSection({ issueId, workspaceSlug, projectId }: { issueId
   const projectSpaceId = spaces.find((s) => s.space_type === "project" && s.project === projectId)?.id;
 
   return (
-    <div className="px-4 py-3">
-      <div className="flex items-center justify-between mb-1.5">
-        <p className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground/70">
+    <div className="px-4 py-4 bg-primary/[0.025]">
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-xs font-semibold tracking-wide text-foreground flex items-center gap-1.5">
+          <FileText className="h-3.5 w-3.5 text-primary" />
           {t("issues.detail.linkedDocs")}
+          {links.length > 0 && (
+            <span className="ml-1 rounded-full bg-primary/15 text-primary px-1.5 py-0.5 text-2xs font-bold">
+              {links.length}
+            </span>
+          )}
         </p>
-        <div className="flex items-center gap-2">
-          <button className="text-2xs text-primary hover:underline" onClick={() => setPickerOpen(true)}>
-            + 기존 문서
-          </button>
-          <button className="text-2xs text-primary hover:underline" onClick={() => setCreateOpen(true)}>
-            + 새 문서
-          </button>
-        </div>
       </div>
       {links.length === 0 ? (
-        <p className="text-2xs text-muted-foreground/50">{t("issues.detail.noDocs")}</p>
-      ) : (
-        <div className="space-y-1">
-          {links.map((link) => (
-            <div key={link.id} className="group flex items-center gap-2">
-              <button
-                onClick={() => navigate(`/${workspaceSlug}/documents/space/${link.space_id}/${link.document_id}`)}
-                className="flex items-center gap-2 flex-1 text-left text-xs hover:text-primary transition-colors py-0.5 min-w-0"
-              >
-                <FileText className="h-3 w-3 shrink-0" />
-                <span className="truncate">{link.document_title}</span>
-              </button>
-              <button
-                onClick={() => unlinkMutation.mutate({ docSpaceId: link.space_id, docId: link.document_id })}
-                className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity text-2xs"
-                title="연결 해제"
-              >
-                ✕
-              </button>
-            </div>
-          ))}
+        /* 빈 상태 — primary 한 개(큰 카드: 기존 문서 연결) + secondary 텍스트(새 문서 만들기).
+           위계 분리: 보통 이슈와 연결할 문서는 이미 존재하므로 검색/선택이 주, 신규 생성이 보조. */
+        <div className="space-y-1.5">
+          <button
+            onClick={() => setPickerOpen(true)}
+            className="w-full rounded-md border border-dashed border-primary/40 bg-background/60 px-3 py-3 text-xs text-primary hover:bg-primary/10 hover:border-primary/60 transition-colors flex items-center justify-center gap-1.5 font-medium"
+          >
+            <FileText className="h-3.5 w-3.5" />
+            + 문서 연결
+          </button>
+          <button
+            onClick={() => setCreateOpen(true)}
+            className="block w-full text-center text-2xs text-muted-foreground hover:text-primary transition-colors py-1"
+          >
+            또는 새 문서 만들기
+          </button>
         </div>
+      ) : (
+        <>
+          <div className="space-y-1.5">
+            {(showAll ? links : links.slice(0, VISIBLE_LINK_LIMIT)).map((link) => (
+              <div
+                key={link.id}
+                className="group flex items-center gap-2.5 rounded-md border border-border/40 bg-background/60 hover:bg-background hover:border-primary/40 px-2.5 py-2 transition-colors"
+              >
+                <FileText className="h-4 w-4 shrink-0 text-primary/70" />
+                <button
+                  onClick={() => navigate(`/${workspaceSlug}/documents/space/${link.space_id}/${link.document_id}`)}
+                  className="flex-1 text-left text-sm hover:text-primary transition-colors truncate min-w-0"
+                  title={link.document_title}
+                >
+                  {link.document_title}
+                </button>
+                <button
+                  onClick={() => unlinkMutation.mutate({ docSpaceId: link.space_id, docId: link.document_id })}
+                  className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity text-xs px-1"
+                  title="연결 해제"
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+          </div>
+          {links.length > VISIBLE_LINK_LIMIT && (
+            <button
+              onClick={() => setShowAll((v) => !v)}
+              className="mt-2 w-full text-center text-2xs text-muted-foreground hover:text-primary transition-colors py-1.5 rounded-md hover:bg-background/60"
+            >
+              {showAll ? "접기" : `+ ${links.length - VISIBLE_LINK_LIMIT}개 더보기`}
+            </button>
+          )}
+          <div className="flex items-center gap-2 mt-2 pt-2 border-t border-border/40">
+            <button className="text-2xs text-primary hover:underline" onClick={() => setPickerOpen(true)}>
+              + 문서 연결
+            </button>
+            <span className="text-2xs text-muted-foreground/40">·</span>
+            <button className="text-2xs text-muted-foreground hover:text-primary hover:underline transition-colors" onClick={() => setCreateOpen(true)}>
+              + 새 문서
+            </button>
+          </div>
+        </>
       )}
 
       <DocumentPickerDialog

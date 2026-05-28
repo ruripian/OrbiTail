@@ -6,19 +6,21 @@
  * - onImageUpload: 이미지 업로드 핸들러 (없으면 base64 인라인)
  */
 
-import { useEditor, EditorContent, type Editor } from "@tiptap/react";
+import { useEditor, EditorContent, ReactRenderer, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import Link from "@tiptap/extension-link";
-import Image from "@tiptap/extension-image";
+import { ResizableImage } from "./ResizableImage";
 import Underline from "@tiptap/extension-underline";
 import TextAlign from "@tiptap/extension-text-align";
 import { TextStyle } from "@tiptap/extension-text-style";
 import { Color } from "@tiptap/extension-color";
 import Highlight from "@tiptap/extension-highlight";
-import { useState, useEffect, useCallback, useRef } from "react";
+import Mention from "@tiptap/extension-mention";
+import { useState, useEffect, useCallback, useRef, useMemo, type MutableRefObject } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
+import { MentionList, type MentionItem, type MentionListHandle } from "./MentionList";
 import {
   Bold, Italic, Strikethrough, Code, Quote, List, ListOrdered,
   Link as LinkIcon, Underline as UnderlineIcon, Image as ImageIcon,
@@ -37,8 +39,12 @@ interface Props {
   autoFocus?: boolean;
   /** true면 상단 툴바를 표시 (이미지/제목/정렬 등 전체 기능) */
   showToolbar?: boolean;
+  /** 툴바의 H1/H2/H3 버튼 노출 여부 — 댓글처럼 짧은 입력 컨텍스트에서는 false 권장 */
+  showHeadings?: boolean;
   /** 이미지 업로드 핸들러 — resolve된 URL로 삽입. 미지정 시 base64 임베드. */
   onImageUpload?: (file: File) => Promise<string>;
+  /** 멘션 자동완성 후보. 주어지면 @ 입력 시 dropdown 활성. 미지정/[] 면 멘션 비활성. */
+  mentionItems?: MentionItem[];
 }
 
 export function RichTextEditor({
@@ -50,7 +56,9 @@ export function RichTextEditor({
   minHeight = "80px",
   autoFocus = false,
   showToolbar = false,
+  showHeadings = true,
   onImageUpload,
+  mentionItems,
 }: Props) {
   const { t } = useTranslation();
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -58,6 +66,13 @@ export function RichTextEditor({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
   const [uploading, setUploading] = useState(false);
+
+  /* 멘션 후보를 ref 로 유지 — 부모가 새 배열을 넘겨도 에디터 재초기화 없이 최신 데이터 사용. */
+  const mentionItemsRef = useRef<MentionItem[]>(mentionItems ?? []);
+  useEffect(() => { mentionItemsRef.current = mentionItems ?? []; }, [mentionItems]);
+
+  /* Mention extension 은 한 번만 설정 (suggestion 콜백 안에서 ref 참조해 최신 후보 반영) */
+  const mentionExtension = useMemo(() => buildMentionExtension(mentionItemsRef), []);
 
   const editor = useEditor({
     extensions: [
@@ -72,15 +87,13 @@ export function RichTextEditor({
         HTMLAttributes: { class: "text-primary underline cursor-pointer" },
       }),
       Underline,
-      Image.configure({
-        inline: false,
-        allowBase64: true,
-        HTMLAttributes: { class: "max-w-full rounded-md my-2" },
-      }),
+      /* 리사이즈/정렬 지원 이미지 노드 — DocumentEditor 와 동일한 NodeView 사용. */
+      ResizableImage,
       TextAlign.configure({ types: ["heading", "paragraph"] }),
       TextStyle,
       Color,
       Highlight.configure({ multicolor: false }),
+      mentionExtension,
     ],
     content,
     editable,
@@ -112,12 +125,12 @@ export function RichTextEditor({
     }
   }, [content]);
 
-  /* 드래그 완료(mouseup) 시 선택 영역이 있으면 플로팅 메뉴 표시 */
+  /* 드래그 완료(mouseup) 시 선택 영역이 있으면 플로팅 메뉴 표시.
+   * showToolbar 가 켜져 있으면 상단 툴바와 중복돼 거슬리므로 이벤트 자체를 등록하지 않는다. */
   useEffect(() => {
+    if (!editor || showToolbar) return;
     const handleMouseUp = () => {
-      if (!editor) return;
       requestAnimationFrame(() => {
-        if (!editor) return;
         const { from, to } = editor.state.selection;
         if (from === to) { setMenuPos(null); return; }
         const domSel = window.getSelection();
@@ -135,7 +148,7 @@ export function RichTextEditor({
     };
     document.addEventListener("mouseup", handleMouseUp);
     return () => document.removeEventListener("mouseup", handleMouseUp);
-  }, [editor]);
+  }, [editor, showToolbar]);
 
   /* 링크 삽입 */
   const setLink = useCallback(() => {
@@ -247,7 +260,7 @@ export function RichTextEditor({
 
       {/* 상단 툴바 */}
       {showToolbar && (
-        <Toolbar editor={editor} onLink={setLink} onImage={openImagePicker} uploading={uploading} />
+        <Toolbar editor={editor} onLink={setLink} onImage={openImagePicker} uploading={uploading} showHeadings={showHeadings} />
       )}
 
       {/* 선택 시 플로팅 메뉴 */}
@@ -286,20 +299,25 @@ export function RichTextEditor({
 
 /* ── 상단 툴바 ── */
 function Toolbar({
-  editor, onLink, onImage, uploading,
+  editor, onLink, onImage, uploading, showHeadings,
 }: {
   editor: Editor;
   onLink: () => void;
   onImage: () => void;
   uploading: boolean;
+  showHeadings: boolean;
 }) {
   const { t } = useTranslation();
   return (
     <div className="sticky top-0 z-10 flex flex-wrap items-center gap-0.5 border-b border-border bg-card/95 backdrop-blur-sm px-2 py-1.5 rounded-t-md">
-      <ToolbarBtn active={editor.isActive("heading", { level: 1 })} onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} title="H1"><Heading1 className="h-3.5 w-3.5" /></ToolbarBtn>
-      <ToolbarBtn active={editor.isActive("heading", { level: 2 })} onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} title="H2"><Heading2 className="h-3.5 w-3.5" /></ToolbarBtn>
-      <ToolbarBtn active={editor.isActive("heading", { level: 3 })} onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} title="H3"><Heading3 className="h-3.5 w-3.5" /></ToolbarBtn>
-      <Sep />
+      {showHeadings && (
+        <>
+          <ToolbarBtn active={editor.isActive("heading", { level: 1 })} onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} title="H1"><Heading1 className="h-3.5 w-3.5" /></ToolbarBtn>
+          <ToolbarBtn active={editor.isActive("heading", { level: 2 })} onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} title="H2"><Heading2 className="h-3.5 w-3.5" /></ToolbarBtn>
+          <ToolbarBtn active={editor.isActive("heading", { level: 3 })} onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} title="H3"><Heading3 className="h-3.5 w-3.5" /></ToolbarBtn>
+          <Sep />
+        </>
+      )}
       <ToolbarBtn active={editor.isActive("bold")} onClick={() => editor.chain().focus().toggleBold().run()} title={t("editor.bold")}><Bold className="h-3.5 w-3.5" /></ToolbarBtn>
       <ToolbarBtn active={editor.isActive("italic")} onClick={() => editor.chain().focus().toggleItalic().run()} title={t("editor.italic")}><Italic className="h-3.5 w-3.5" /></ToolbarBtn>
       <ToolbarBtn active={editor.isActive("underline")} onClick={() => editor.chain().focus().toggleUnderline().run()} title={t("editor.underline", "밑줄")}><UnderlineIcon className="h-3.5 w-3.5" /></ToolbarBtn>
@@ -386,4 +404,85 @@ function BubbleBtn({
       {children}
     </button>
   );
+}
+
+/* ── Mention extension 빌더 ──
+ *
+ * suggestion.items 는 ref 를 통해 최신 후보를 읽어 부모 prop 변경 시 에디터 재초기화를 피한다.
+ * render 는 ReactRenderer 로 MentionList 를 마운트하고 fixed-positioned div 로 위치 잡음.
+ * Esc 키는 popup 만 닫는다.
+ */
+function buildMentionExtension(itemsRef: MutableRefObject<MentionItem[]>) {
+  return Mention.configure({
+    HTMLAttributes: {
+      class: "inline-block rounded bg-primary/10 text-primary font-medium px-1",
+    },
+    suggestion: {
+      items: ({ query }) => {
+        const all = itemsRef.current;
+        if (all.length === 0) return [];
+        const q = query.toLowerCase();
+        return all
+          .filter((m) => m.display_name.toLowerCase().includes(q))
+          .slice(0, 8);
+      },
+      render: () => {
+        let component: ReactRenderer<MentionListHandle> | null = null;
+        let popupEl: HTMLDivElement | null = null;
+
+        const updatePos = (clientRect: (() => DOMRect | null) | null | undefined) => {
+          if (!popupEl || !clientRect) return;
+          const rect = clientRect();
+          if (!rect) return;
+          const POPUP_MAX = 280;
+          const spaceBelow = window.innerHeight - rect.bottom;
+          if (spaceBelow < POPUP_MAX) {
+            popupEl.style.top = `${rect.top - POPUP_MAX - 4}px`;
+          } else {
+            popupEl.style.top = `${rect.bottom + 4}px`;
+          }
+          popupEl.style.left = `${rect.left}px`;
+        };
+
+        const mount = (props: any) => {
+          component = new ReactRenderer(MentionList, { props, editor: props.editor });
+          popupEl = document.createElement("div");
+          popupEl.className = "fixed z-[10000]";
+          popupEl.appendChild(component.element);
+          document.body.appendChild(popupEl);
+          updatePos(props.clientRect);
+        };
+
+        const unmount = () => {
+          popupEl?.remove();
+          component?.destroy();
+          popupEl = null;
+          component = null;
+        };
+
+        return {
+          onStart: (props) => {
+            if (!props.clientRect) return;
+            mount(props);
+          },
+          onUpdate: (props) => {
+            if (!component) {
+              if (props.clientRect) mount(props);
+              return;
+            }
+            component.updateProps(props);
+            updatePos(props.clientRect);
+          },
+          onKeyDown: (props) => {
+            if (props.event.key === "Escape") {
+              unmount();
+              return true;
+            }
+            return component?.ref?.onKeyDown(props) ?? false;
+          },
+          onExit: unmount,
+        };
+      },
+    },
+  });
 }

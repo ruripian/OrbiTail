@@ -716,6 +716,20 @@ function MentionView({ node }: NodeViewProps) {
       issuesApi.get(ctx.workspaceSlug!, ctx.projectId!, id).then(setDetails).catch(() => {});
     });
   }, [kind, hoverCard, details, ctx?.workspaceSlug, ctx?.projectId, id]);
+
+  /* 멘션 옆 카운트 배지 — issue 메타 가벼운 fetch. queryKey 가 IssueDetailPage 와 동일해 캐시 공유.
+   * staleTime 60s 로 짧은 시간 안 중복 호출 회피. */
+  const { data: issueMeta } = useQuery({
+    queryKey: ["issue", id],
+    queryFn: async () => {
+      const { issuesApi } = await import("@/api/issues");
+      return issuesApi.get(ctx!.workspaceSlug!, ctx!.projectId!, id);
+    },
+    enabled: kind === "issue" && !!ctx?.workspaceSlug && !!ctx?.projectId && !!id,
+    staleTime: 60_000,
+  });
+  const mentionCommentCount = issueMeta?.comment_count ?? 0;
+  const mentionAttachmentCount = issueMeta?.attachment_count ?? 0;
   useEffect(() => {
     if (!subExpanded || subIssues.length > 0 || !ctx?.workspaceSlug || !ctx?.projectId) return;
     import("@/api/issues").then(({ issuesApi }) => {
@@ -744,6 +758,23 @@ function MentionView({ node }: NodeViewProps) {
       {kind === "doc"  && <FileText className="h-3 w-3" />}
       {kind === "issue" && <span className="doc-mention-id">{identifier}</span>}
       <span className="doc-mention-label">{label}</span>
+      {/* 이슈 멘션 카운트 배지 — 댓글/첨부 활동량 한눈에. 둘 다 0 이면 표시 안 함. */}
+      {kind === "issue" && (mentionCommentCount > 0 || mentionAttachmentCount > 0) && (
+        <span className="inline-flex items-center gap-1 ml-1 text-[0.625rem] text-muted-foreground/80">
+          {mentionCommentCount > 0 && (
+            <span className="inline-flex items-center gap-0.5" title={`댓글 ${mentionCommentCount}`}>
+              <MessageSquare className="h-2.5 w-2.5" />
+              {mentionCommentCount}
+            </span>
+          )}
+          {mentionAttachmentCount > 0 && (
+            <span className="inline-flex items-center gap-0.5" title={`첨부 ${mentionAttachmentCount}`}>
+              <Paperclip className="h-2.5 w-2.5" />
+              {mentionAttachmentCount}
+            </span>
+          )}
+        </span>
+      )}
     </span>
   );
 
