@@ -114,7 +114,7 @@ export const projectsApi = {
   // 캘린더 이벤트 (프로젝트 멤버 공유)
   events: {
     list: (workspaceSlug: string, projectId: string, params?: { from?: string; to?: string }) =>
-      api.get<PaginatedResponse<ProjectEvent>>(`/workspaces/${workspaceSlug}/projects/${projectId}/events/`, { params }).then((r) => r.data.results),
+      api.get<ProjectEvent[]>(`/workspaces/${workspaceSlug}/projects/${projectId}/events/`, { params }).then((r) => r.data),
 
     create: (workspaceSlug: string, projectId: string, data: Partial<ProjectEvent>) =>
       api.post<ProjectEvent>(`/workspaces/${workspaceSlug}/projects/${projectId}/events/`, data).then((r) => r.data),

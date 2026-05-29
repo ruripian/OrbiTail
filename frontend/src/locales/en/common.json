@@ -627,7 +627,8 @@
       "showCompleted": "Show completed issues",
       "hideWeekends": "Hide weekends",
       "showEvents": "Show events",
-      "alwaysExpand": "Always expand"
+      "alwaysExpand": "Always expand",
+      "showFields": "Show field issues"
     },
     "filter": {
       "all": "All",

@@ -54,6 +54,7 @@ class PersonalEventListCreateView(generics.ListCreateAPIView):
     """
     serializer_class = PersonalEventSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = None  # 캘린더는 전체 PE 필요
 
     def get_queryset(self):
         qs = PersonalEvent.objects.filter(user=self.request.user).select_related("workspace")
@@ -96,6 +97,7 @@ class MeIssuesView(generics.ListAPIView):
     """
     serializer_class = IssueSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = None  # 캘린더/그래프는 전체 이슈 필요
 
     def get_queryset(self):
         qs = (
@@ -126,6 +128,7 @@ class MeProjectEventsView(generics.ListAPIView):
     """
     serializer_class = ProjectEventSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = None  # 캘린더는 전체 이벤트 필요
 
     def get_queryset(self):
         user = self.request.user

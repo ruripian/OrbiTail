@@ -69,6 +69,7 @@ export function CalendarSettingsPanel({ settings, onChange, onClose, triggerRef 
           { key: "hideWeekends"  as const, label: t("calendar.settings.hideWeekends") },
           { key: "showEvents"    as const, label: t("calendar.settings.showEvents") },
           { key: "alwaysExpand"  as const, label: t("calendar.settings.alwaysExpand") },
+          { key: "showFields"    as const, label: t("calendar.settings.showFields", "필드 보이기") },
         ] as const).map(({ key, label }) => (
           <label key={key} className="flex items-center gap-3 cursor-pointer group">
             <div
@@ -289,13 +290,13 @@ export function CalendarView({ workspaceSlug, projectId, onIssueClick, issueFilt
   /* CalendarMonth 에 넘길 issues — settings/필터 적용 (드래그는 컴포넌트 내부 처리) */
   const filteredIssues = useMemo(() => {
     return issues.filter((issue) => {
-      if (issue.is_field) return false;
+      if (issue.is_field && !settings.showFields) return false;
       if (!settings.showCompleted && completedStateIds.has(issue.state)) return false;
       if (!issue.start_date && !issue.due_date) return false;
       if (filterUserId && !(issue.assignees ?? []).includes(filterUserId)) return false;
       return true;
     });
-  }, [issues, settings.showCompleted, completedStateIds, filterUserId]);
+  }, [issues, settings.showCompleted, settings.showFields, completedStateIds, filterUserId]);
 
   /* 이벤트 — "내 일정"/특정 사용자 필터 시 글로벌 OR 본인 참여만 */
   const filteredEvents = useMemo(() => {

@@ -458,6 +458,7 @@ class ProjectEventListCreateView(generics.ListCreateAPIView):
     """프로젝트 멤버 전체가 공유하는 캘린더 이벤트.
     ?from=YYYY-MM-DD&to=YYYY-MM-DD 로 날짜 범위 필터 가능."""
     serializer_class = ProjectEventSerializer
+    pagination_class = None  # 캘린더는 전체 이벤트 필요 — PAGE_SIZE(50) 으로 잘리면 표시 누락
 
     def get_queryset(self):
         qs = ProjectEvent.objects.filter(

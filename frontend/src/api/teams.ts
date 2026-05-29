@@ -1,5 +1,5 @@
 import { api } from "@/lib/axios";
-import type { Team, TeamMember, Issue, ProjectEvent, PersonalEvent, PaginatedResponse } from "@/types";
+import type { Team, TeamMember, Issue, ProjectEvent, PersonalEvent } from "@/types";
 
 /**
  * 팀 API — 워크스페이스 안 멤버 그룹.
@@ -46,7 +46,7 @@ export const teamsApi = {
 
   /**
    * 팀 캘린더 데이터 — 3개 endpoint 분리 (마이 페이지 패턴 동일).
-   * 응답은 PaginatedResponse (글로벌 PageNumberPagination) — results 추출.
+   * 응답은 비페이지네이션 배열 (PAGE_SIZE 로 캘린더 표시 누락 차단).
    *
    * 정책 (정보 누수 차단):
    *   - issues: 팀 멤버 담당 이슈 중 요청자가 그 프로젝트 멤버인 경우만 포함
@@ -55,12 +55,12 @@ export const teamsApi = {
    */
   calendar: {
     issues: (workspaceSlug: string, teamId: string, params?: { from?: string; to?: string; include_completed?: string }) =>
-      api.get<PaginatedResponse<Issue>>(`/workspaces/${workspaceSlug}/teams/${teamId}/calendar/issues/`, { params }).then((r) => r.data.results),
+      api.get<Issue[]>(`/workspaces/${workspaceSlug}/teams/${teamId}/calendar/issues/`, { params }).then((r) => r.data),
 
     personalEvents: (workspaceSlug: string, teamId: string, params?: { from?: string; to?: string }) =>
-      api.get<PaginatedResponse<PersonalEvent>>(`/workspaces/${workspaceSlug}/teams/${teamId}/calendar/personal-events/`, { params }).then((r) => r.data.results),
+      api.get<PersonalEvent[]>(`/workspaces/${workspaceSlug}/teams/${teamId}/calendar/personal-events/`, { params }).then((r) => r.data),
 
     projectEvents: (workspaceSlug: string, teamId: string, params?: { from?: string; to?: string }) =>
-      api.get<PaginatedResponse<ProjectEvent>>(`/workspaces/${workspaceSlug}/teams/${teamId}/calendar/project-events/`, { params }).then((r) => r.data.results),
+      api.get<ProjectEvent[]>(`/workspaces/${workspaceSlug}/teams/${teamId}/calendar/project-events/`, { params }).then((r) => r.data),
   },
 };

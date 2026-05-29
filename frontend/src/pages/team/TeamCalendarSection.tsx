@@ -325,6 +325,7 @@ export function TeamCalendarSection({
   const filteredIssues = useMemo(() => {
     return issues.filter((issue) => {
       if (!issue.start_date && !issue.due_date) return false;
+      if (issue.is_field && !settings.showFields) return false;
       if (!settings.showCompleted) {
         const grp = issue.state_detail?.group;
         if (grp === "completed" || grp === "cancelled") return false;
@@ -335,7 +336,7 @@ export function TeamCalendarSection({
       if (!visibleAssignee) return false;
       return true;
     });
-  }, [issues, settings.showCompleted, selectedProjects, selectedMembers]);
+  }, [issues, settings.showCompleted, settings.showFields, selectedProjects, selectedMembers]);
 
   const filteredEvents = useMemo(() => {
     if (!settings.showEvents) return [];

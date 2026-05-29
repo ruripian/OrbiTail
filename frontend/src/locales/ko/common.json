@@ -627,7 +627,8 @@
       "showCompleted": "완료된 이슈 표시",
       "hideWeekends": "주말 숨기기",
       "showEvents": "이벤트 표시",
-      "alwaysExpand": "항상 확장"
+      "alwaysExpand": "항상 확장",
+      "showFields": "필드 이슈 보이기"
     },
     "filter": {
       "all": "전체",

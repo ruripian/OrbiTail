@@ -1052,6 +1052,7 @@ class TeamCalendarIssuesView(generics.ListAPIView):
       ?include_completed=true          완료/취소 상태도 포함
     """
     permission_classes = [permissions.IsAuthenticated]
+    pagination_class = None  # 캘린더는 전체 이슈 필요 — PAGE_SIZE(50) 으로 잘리면 표시 누락
 
     def get_serializer_class(self):
         # 지연 import — issues 도메인 cross dep
@@ -1101,6 +1102,7 @@ class TeamCalendarPersonalEventsView(generics.ListAPIView):
     같은 워크스페이스의 본인 PE 만 노출. 추후 "팀 공유 PE" 도입 시 정책 조정.
     """
     permission_classes = [permissions.IsAuthenticated]
+    pagination_class = None  # 캘린더는 전체 PE 필요
 
     def get_serializer_class(self):
         from apps.me.serializers import PersonalEventSerializer
@@ -1126,6 +1128,7 @@ class TeamCalendarPersonalEventsView(generics.ListAPIView):
 class TeamCalendarProjectEventsView(generics.ListAPIView):
     """팀 캘린더 — 팀 멤버가 멤버인 프로젝트의 이벤트 (요청자도 그 프로젝트 멤버일 때만)."""
     permission_classes = [permissions.IsAuthenticated]
+    pagination_class = None  # 캘린더는 전체 이벤트 필요
 
     def get_serializer_class(self):
         from apps.me.serializers import ProjectEventSerializer

@@ -168,8 +168,7 @@ const BAR_HEIGHT = 30;
 const BAR_GAP = 3;
 /** 셀당 chip 최대 표시 수 — 초과 시 "+N개 더" 버튼이 popover 로 나머지 표시. 셀별 콘텐츠 양을 클램프해 주별 행 높이 격차도 자연스레 줄임. */
 const MAX_VISIBLE_CHIPS = 5;
-/** chip 1줄 + gap 이 차지하는 높이 (cellTotalH 계산 + chip 영역 minHeight 측정 일관) */
-const CHIP_H = 34;
+
 
 /* ── Props ──────────────────────────────────────────── */
 
@@ -440,7 +439,7 @@ export function CalendarMonth({
           });
         } : undefined}
       >
-        <span className="text-sm truncate text-foreground/80 group-hover/chip:text-foreground transition-colors leading-tight flex-1 font-medium">
+        <span className="text-sm truncate text-foreground/80 group-hover/chip:text-foreground transition-colors leading-tight flex-1 min-w-0 font-medium">
           {issue.title}
         </span>
         {canExpand && (
@@ -491,8 +490,16 @@ export function CalendarMonth({
         })}
       </div>
 
-      {/* 월간 그리드 */}
-      <div className="flex-1 flex flex-col overflow-y-auto divide-y divide-border" data-calendar-grid>
+      {/* 월간 그리드 — CSS grid 로 weeks 배치:
+          gridTemplateRows: repeat(N, minmax(min-content, 1fr))
+            min: 콘텐츠 크기 → 콘텐츠 많으면 row 가 자연스레 grow (다른 row 침범 0).
+            max: 1fr → parent 여유 공간 균등 분배 (콘텐츠 없는 달도 화면 꽉 채움).
+          수동 cellTotalH 계산 완전 제거. */}
+      <div
+        className="flex-1 grid overflow-y-auto divide-y divide-border"
+        data-calendar-grid
+        style={{ gridTemplateRows: `repeat(${weeks.length}, minmax(min-content, 1fr))` }}
+      >
         {weeks.map((week, wi) => {
           const weekStart = week[0];
           const weekEnd = week[6];
@@ -519,28 +526,14 @@ export function CalendarMonth({
             }
           }
 
-          /* 행 minHeight — chip + bar 합계로 계산. 콘텐츠가 많으면 행이 늘어나며 페이지 스크롤.
-             chip 은 MAX_VISIBLE_CHIPS 까지만 셀에 표시(초과는 "+N더" 1줄로 클램프)되어 셀 폭증 방지. */
-          const cellTotalH: number[] = new Array(totalCols).fill(0);
-          for (let i = 0; i < week.length; i++) {
-            const day = week[i];
-            if (settings.hideWeekends && (i === 0 || i === 6)) continue;
-            const colIdx = settings.hideWeekends ? i - 1 : i;
-            const chipsCount = getChipsForDay(renderIssues, day, effectiveExpanded).length;
-            const visibleChipsRows = Math.min(chipsCount, MAX_VISIBLE_CHIPS) + (chipsCount > MAX_VISIBLE_CHIPS ? 1 : 0);
-            cellTotalH[colIdx] = 36 + (colBarH[colIdx] || 0) + visibleChipsRows * CHIP_H + 24;
-          }
-          const dynamicMinH = Math.max(120, ...cellTotalH);
-
           return (
             <div
               key={wi}
-              className="relative flex-1"
+              /* CSS grid item — 크기는 부모 gridTemplateRows 의 minmax(min-content, 1fr) 가 결정.
+                 min-content 가 row floor → 콘텐츠 grow, 1fr 가 화면 채움. */
+              className="relative min-w-0"
               data-week-row
-              style={{
-                flexBasis: dynamicMinH,
-                minHeight: dynamicMinH,
-              }}
+              style={{ minHeight: 110 }}
             >
               {/* ── 이슈 bar 레이어 ── */}
               <div className="absolute inset-x-0 top-9 pointer-events-none z-10">
@@ -812,9 +805,11 @@ export function CalendarMonth({
                         onDrawerDropDayKeyChange?.(null);
                       }}
                       className={cn(
-                        "relative flex flex-col group transition-colors hover:bg-accent/40 border-r border-border last:border-r-0",
+                        // bg-clip-padding: highlight bg 가 우측 border 위까지 깔리는 1px 삐짐 방지.
+                        // overflow-x-hidden 만: 가로 침범 차단(긴 chip 제목 등). 세로는 visible →
+                        // 콘텐츠가 많으면 cell 이 아래로 늘어나 row 가 grow → 페이지 스크롤.
+                        "relative flex flex-col group transition-colors hover:bg-accent/40 border-r border-border last:border-r-0 bg-clip-padding overflow-x-hidden min-w-0",
                         !isCurrentMonth && "bg-muted/[0.08]",
-                        /* 오늘은 셀 배경 tint 만 — 숫자 자체에 bg-primary 강조가 이미 있어 ring 불필요. */
                         isToday && "bg-primary/[0.08]",
                         isWeekend && !isToday && "bg-muted/[0.15]",
                         drawerDropDayKey === dateKey(day) && "!bg-primary/15 ring-2 ring-primary ring-inset z-[2]",
@@ -884,7 +879,8 @@ export function CalendarMonth({
                           );
                         })()}
 
-                        {/* 셀 호버 시 추가 버튼 — 콜백 있을 때만 노출 */}
+                        {/* 셀 호버 시 추가 버튼 — 콜백 있을 때만 노출.
+                            opacity 토글이라 layout 차지 → cellTotalH 에서 HOVER_BUTTONS_H 만큼 미리 확보. */}
                         {isCurrentMonth && (onIssueCreate || onEventCreate) && (
                           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                             {onIssueCreate && (
