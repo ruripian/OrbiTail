@@ -120,6 +120,12 @@ class WorkspaceConsumer(AsyncJsonWebsocketConsumer):
         for group in self.secret_project_groups:
             await self.channel_layer.group_add(group, self.channel_name)
 
+        # 사용자 전용 채널 — 본인만 받아야 하는 메시지(notification.new 등) 라우팅.
+        # 액터 본인이 본인이 발신한 알림을 받는 누수 차단. 다중 디바이스/탭 동시 접속 시
+        # 같은 그룹에 모두 join 되어 모든 클라이언트가 수신.
+        self.user_group = f"user_{user.id}"
+        await self.channel_layer.group_add(self.user_group, self.channel_name)
+
         await self.accept()
 
         # Presence: 본인 등록 + 워크스페이스 전체에 갱신된 목록 broadcast
@@ -135,6 +141,8 @@ class WorkspaceConsumer(AsyncJsonWebsocketConsumer):
             await self.channel_layer.group_discard(self.group_name, self.channel_name)
         for group in getattr(self, "secret_project_groups", []):
             await self.channel_layer.group_discard(group, self.channel_name)
+        if hasattr(self, "user_group"):
+            await self.channel_layer.group_discard(self.user_group, self.channel_name)
         if hasattr(self, "user_id"):
             await database_sync_to_async(_presence_remove)(self.workspace_slug, self.user_id)
             await self._broadcast_presence(None)

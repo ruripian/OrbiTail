@@ -69,6 +69,10 @@ def _broadcast_to_project(project, event):
 
     Why: SECRET 프로젝트의 issue_id/메타데이터가 워크스페이스 비멤버에게 노출되지 않도록 차단.
     호출자는 project 와 함께 project.workspace 를 prefetch 한 상태로 넘긴다(추가 쿼리 회피).
+
+    주의: 이벤트성 invalidate 브로드캐스트(issue.updated 등)는 그룹 전체가 받아야 React Query
+    캐시 갱신이 되므로 이 함수가 적합. 단 개인 알림(notification.new)은 액터 본인까지 받는
+    누수가 있으므로 _broadcast_to_user 로 라우팅한다.
     """
     from apps.projects.models import Project
     channel_layer = _get_channel_layer()
@@ -80,6 +84,28 @@ def _broadcast_to_project(project, event):
         group = f"workspace_{project.workspace.slug}"
     try:
         async_to_sync(channel_layer.group_send)(group, event)
+    except Exception:
+        pass
+
+
+def _broadcast_to_user(user_id, event):
+    """사용자 전용 채널 브로드캐스트 — recipient 만 수신.
+
+    사용처:
+      - notification.new: DB Notification 의 recipient 에게만 (액터 본인 누수 차단)
+      - 향후 user-scoped 알림(문서/팀/요청) 도 같은 헬퍼로 일관 처리
+
+    같은 사용자가 여러 워크스페이스/탭/디바이스에서 접속해도 모두 같은 user_{id} 그룹에
+    join 되어 모든 클라이언트에 전달됨 (WorkspaceConsumer.connect 참조).
+    """
+    channel_layer = _get_channel_layer()
+    if not channel_layer:
+        return
+    try:
+        async_to_sync(channel_layer.group_send)(
+            f"user_{user_id}",
+            event,
+        )
     except Exception:
         pass
 
@@ -116,6 +142,11 @@ def _create_notifications(recipients, actor, issue, ntype, message):
 
     추가로 각 수신자의 prefs를 확인해 이메일 발송 태스크를 큐에 적재.
     prefs 체크는 Celery 태스크 안에서 다시 한번 — 큐 적재 후 사용자가 끄는 경우 대비.
+
+    WS 라우팅: 과거에는 _broadcast_to_project 로 그룹 전체에 보냈으나, 액터 본인이
+    같은 그룹에 있으면 본인 브라우저도 notification.new 를 받아 토스트가 잘못 떴다.
+    이제 recipient 별 user 채널(_broadcast_to_user)로 발송 — 그룹 누수 차단 + 향후
+    멘션 본문 같은 민감 페이로드도 비대상자에게 안 흘러감.
     """
     targets = [u for u in recipients if u.id != actor.id]
     if not targets:
@@ -133,14 +164,16 @@ def _create_notifications(recipients, actor, issue, ntype, message):
         for user in targets
     ])
 
-    _broadcast_to_project(issue.project, {
+    payload = {
         "type": "notification.new",
         "notification_type": ntype,
         "message": message,
         "issue_id": str(issue.id),
         "project_id": str(issue.project_id),
         "actor_name": actor.display_name,
-    })
+    }
+    for user in targets:
+        _broadcast_to_user(user.id, payload)
 
     # 이메일 발송 — Celery 태스크로 위임 (실패해도 인앱 알림은 보존)
     from .tasks import send_notification_email
