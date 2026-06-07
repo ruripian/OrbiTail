@@ -420,6 +420,8 @@ export interface Issue {
   project_name?: string;
   /** 마이 페이지 등 다중 프로젝트 통합 뷰에서 프로젝트별 색 결정에 사용 (lucide 아이콘이면 .color 추출) */
   project_icon_prop?: Record<string, unknown> | null;
+  /** "personal" 이면 단발성 이슈(Personal 프로젝트 소속) — IssueDialog 가 공유 토글 노출, 캘린더가 작성자 아바타로 표시. */
+  project_kind?: "normal" | "personal";
   workspace: string;
   workspace_slug?: string;
   workspace_name?: string;
@@ -443,6 +445,8 @@ export interface Issue {
   sort_order: number;
   /** true 면 "필드(Field)" — 상태 없는 폴더 성격 컨테이너. 보드/번다운 제외, 테이블 상태 셀 "—". */
   is_field?: boolean;
+  /** 단발성 이슈(project_kind=personal)의 팀 캘린더 공유 토글. NORMAL 프로젝트 이슈에선 무시. */
+  shared_with_team?: boolean;
   created_at: string;
   updated_at: string;
   archived_at: string | null;

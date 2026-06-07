@@ -2,7 +2,7 @@ import { type ReactNode, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { FileText } from "lucide-react";
+import { FileText, Users, UserX } from "lucide-react";
 import { issuesApi } from "@/api/issues";
 import { documentsApi } from "@/api/documents";
 import { StatePicker } from "@/components/issues/state-picker";
@@ -194,6 +194,38 @@ export function IssueMetaSidebar({
             onChange={(pid) => onUpdate({ parent: pid })}
           />
         </div>
+
+        {/* 단발성 이슈(Personal 프로젝트) 전용 — 팀 캘린더 공유 토글.
+            일반 프로젝트 이슈에선 무의미한 필드이므로 노출 안 함. */}
+        {issue.project_kind === "personal" && (
+          <div className="px-4 py-3">
+            <p className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground/70 mb-1.5">
+              {t("issues.detail.meta.teamShare", "팀 공유")}
+            </p>
+            <button
+              type="button"
+              onClick={() => onUpdate({ shared_with_team: !issue.shared_with_team })}
+              className={cn(
+                "w-full flex items-center gap-2 px-3 py-2 rounded-md border text-sm transition-colors",
+                issue.shared_with_team
+                  ? "border-primary/40 bg-primary/10 text-primary hover:bg-primary/15"
+                  : "border-border bg-muted/30 text-muted-foreground hover:bg-muted/50",
+              )}
+            >
+              {issue.shared_with_team ? (
+                <>
+                  <Users className="h-3.5 w-3.5 shrink-0" />
+                  <span className="flex-1 text-left">{t("issues.detail.meta.sharedWithTeam", "팀 캘린더에 표시")}</span>
+                </>
+              ) : (
+                <>
+                  <UserX className="h-3.5 w-3.5 shrink-0" />
+                  <span className="flex-1 text-left">{t("issues.detail.meta.notSharedWithTeam", "본인만 보기")}</span>
+                </>
+              )}
+            </button>
+          </div>
+        )}
 
         {/* Info */}
         <div className="px-4 py-3">

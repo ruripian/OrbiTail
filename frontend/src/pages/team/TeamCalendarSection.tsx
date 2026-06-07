@@ -32,7 +32,7 @@ import { useIssueDialogStore } from "@/stores/issueDialogStore";
 import { EventDialog } from "@/components/events/EventDialog";
 import { CalendarMonth } from "@/pages/project/views/CalendarMonth";
 import { CalendarSettingsPanel } from "@/pages/project/views/CalendarView";
-import { buildProjectColorMap } from "@/lib/projectColors";
+import { ProjectIcon } from "@/components/ui/project-icon-picker";
 import { cn } from "@/lib/utils";
 import type { CalendarSettings } from "@/hooks/useViewSettings";
 import type { Issue, ProjectEvent, PersonalEvent, TeamMember } from "@/types";
@@ -294,7 +294,14 @@ export function TeamCalendarSection({
     }
     return Array.from(m.values()).sort((a, b) => a.name.localeCompare(b.name));
   }, [issues, projectEvents]);
-  const projectColorMap = useMemo(() => buildProjectColorMap(uniqueProjects), [uniqueProjects]);
+  /* 프로젝트 ID → icon_prop / name — CalendarMonth 좌측 배지 렌더용 (색 대신 아이콘). */
+  const projectIconMap = useMemo<Record<string, { icon_prop: Record<string, unknown> | null | undefined; name?: string }>>(() => {
+    const m: Record<string, { icon_prop: Record<string, unknown> | null | undefined; name?: string }> = {};
+    for (const p of uniqueProjects) {
+      m[p.id] = { icon_prop: p.icon_prop, name: p.name };
+    }
+    return m;
+  }, [uniqueProjects]);
 
   /* 필터 헬퍼 */
   const isProjectVisible = (projectId: string) =>
@@ -464,10 +471,9 @@ export function TeamCalendarSection({
                       onSelect={(e) => { e.preventDefault(); toggleProject(p.id); }}
                       className="text-xs gap-2 cursor-pointer"
                     >
-                      <span
-                        className="h-3 w-3 rounded-sm shrink-0 border"
-                        style={{ backgroundColor: projectColorMap[p.id], borderColor: projectColorMap[p.id] }}
-                      />
+                      <span className="shrink-0">
+                        <ProjectIcon value={p.icon_prop} size={10} className="!rounded" />
+                      </span>
                       <span className="truncate flex-1">{p.name || p.id.slice(0, 6)}</span>
                       {checked && <Check className="h-3 w-3 shrink-0 text-primary" />}
                     </DropdownMenuItem>
@@ -520,7 +526,7 @@ export function TeamCalendarSection({
             onIssueUpdate={handleIssueUpdate}
             onEventUpdate={handleEventUpdate}
             onEventEdit={handleEventEdit}
-            projectColorMap={projectColorMap}
+            projectIconMap={projectIconMap}
           />
         </div>
       )}

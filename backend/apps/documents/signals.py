@@ -5,8 +5,14 @@ from apps.projects.models import Project
 from .models import DocumentSpace
 
 
-def _ensure_space_for_project(project: Project) -> DocumentSpace:
-    """프로젝트에 연결된 project-type 문서 스페이스를 보장 (없으면 생성). 메타 정보도 동기화."""
+def _ensure_space_for_project(project: Project):
+    """프로젝트에 연결된 project-type 문서 스페이스를 보장 (없으면 생성). 메타 정보도 동기화.
+
+    Personal 프로젝트(kind=personal)는 단발성 이슈 컨테이너 전용으로 사이드바·문서 노출이
+    차단되므로 문서 스페이스를 만들지 않는다.
+    """
+    if project.kind == Project.Kind.PERSONAL:
+        return None
     space = DocumentSpace.objects.filter(project=project).first()
     if space is None:
         space = DocumentSpace.objects.create(

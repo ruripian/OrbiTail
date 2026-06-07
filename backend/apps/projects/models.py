@@ -12,6 +12,15 @@ class Project(models.Model):
         ALL = "all", "All members"  # 기본 — 프로젝트 멤버 누구나 승인/거절 가능
         ADMIN = "admin", "Admin only"  # can_edit(관리자급) 만 승인/거절
 
+    class Kind(models.TextChoices):
+        # 일반 프로젝트 — 사이드바/검색/요청/팀 등 모든 노출 지점에 표시.
+        NORMAL = "normal", "Normal"
+        # 사용자별 숨김 시스템 프로젝트 — "내 작업" 단발성 이슈를 담는 컨테이너.
+        # 본인만 read/write, 사이드바·검색·요청 큐 등 모든 글로벌 노출 지점에서 차단.
+        # 단 마이 페이지/팀 캘린더(shared_with_team=True 이슈만)는 예외적으로 포함.
+        # 워크스페이스+사용자별 1개 lazy 생성 (get_or_create_personal_project 헬퍼).
+        PERSONAL = "personal", "Personal"
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=255)
     identifier = models.CharField(max_length=12)  # e.g. "OUR"
@@ -21,6 +30,16 @@ class Project(models.Model):
     )
     network = models.IntegerField(choices=Network.choices, default=Network.SECRET)
     icon_prop = models.JSONField(null=True, blank=True)  # emoji or icon data
+    # 프로젝트 종류 — 기본은 일반. PERSONAL 은 단발성 이슈 컨테이너.
+    kind = models.CharField(max_length=16, choices=Kind.choices, default=Kind.NORMAL)
+    # PERSONAL 종류일 때만 의미 — 해당 사용자만 access. NORMAL 이면 null.
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="owned_personal_projects",
+    )
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -54,6 +73,15 @@ class Project(models.Model):
     class Meta:
         db_table = "projects"
         unique_together = [["workspace", "identifier"]]
+        # (workspace, kind=personal, owner) 유일성 — get_or_create_personal_project 의
+        # 동시 호출 race 차단. NORMAL 프로젝트는 owner=NULL 이라 영향 없음.
+        constraints = [
+            models.UniqueConstraint(
+                fields=["workspace", "kind", "owner"],
+                condition=models.Q(kind="personal"),
+                name="unique_personal_project_per_user_ws",
+            ),
+        ]
 
     def __str__(self):
         return f"{self.identifier} - {self.name}"

@@ -23,6 +23,8 @@ class IssueSerializer(serializers.ModelSerializer):
     project_name = serializers.CharField(source="project.name", read_only=True)
     # 마이 페이지 등 다중 프로젝트 통합 뷰에서 프로젝트 색 결정용 — icon_prop.color 우선 + hash fallback
     project_icon_prop = serializers.JSONField(source="project.icon_prop", read_only=True)
+    # 단발성 이슈 식별용 — "personal" 이면 IssueDialog 가 shared_with_team 토글 노출/캘린더가 아바타 표시.
+    project_kind = serializers.CharField(source="project.kind", read_only=True)
     workspace_slug = serializers.CharField(source="workspace.slug", read_only=True)
     workspace_name = serializers.CharField(source="workspace.name", read_only=True)
 
@@ -31,7 +33,7 @@ class IssueSerializer(serializers.ModelSerializer):
         fields = [
             "id", "title", "description", "description_html",
             "priority", "state", "state_detail",
-            "project", "project_identifier", "project_name", "project_icon_prop",
+            "project", "project_identifier", "project_name", "project_icon_prop", "project_kind",
             "workspace", "workspace_slug", "workspace_name",
             "assignees", "assignee_details",
             "label", "label_details",
@@ -39,7 +41,8 @@ class IssueSerializer(serializers.ModelSerializer):
             "parent", "sub_issues_count", "link_count", "attachment_count", "comment_count",
             "sequence_id", "created_by", "created_by_detail",
             "due_date", "start_date", "estimate_point",
-            "sort_order", "is_field", "created_at", "updated_at", "archived_at", "deleted_at",
+            "sort_order", "is_field", "shared_with_team",
+            "created_at", "updated_at", "archived_at", "deleted_at",
         ]
         read_only_fields = ["id", "sequence_id", "created_by", "workspace", "created_at", "updated_at", "archived_at", "deleted_at"]
         # unique_together (project, sequence_id)는 Model.save()에서 자동으로 안전하게 할당되므로

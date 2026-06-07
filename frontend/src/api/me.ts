@@ -1,5 +1,5 @@
 import { api } from "@/lib/axios";
-import type { Issue, ProjectEvent, PersonalEvent, MeSummary } from "@/types";
+import type { Issue, ProjectEvent, PersonalEvent, MeSummary, Priority } from "@/types";
 import type { NodeGraphResponse } from "./issues";
 
 interface DateRange {
@@ -11,6 +11,18 @@ interface IssueOptions {
   include_completed?: boolean;
 }
 
+/** 단발성 이슈 생성 입력 — Personal 프로젝트는 backend lazy 생성되므로 클라가 알 필요 없음. */
+export interface CreatePersonalIssueInput {
+  title: string;
+  description?: unknown;
+  description_html?: string;
+  priority?: Priority;
+  start_date?: string | null;
+  due_date?: string | null;
+  /** 기본 true — 본인이 속한 팀 캘린더에 노출. false 면 본인만 봄. */
+  shared_with_team?: boolean;
+}
+
 /** /api/me/* — 마이 페이지 ws-scoped 데이터.
  * 모든 메서드가 workspaceSlug 필수 — 워크스페이스는 별개 공간이라 마이 페이지도 그 ws 한정.
  * PersonalEvent 는 user-owned 이지만 ws 별로 분리되어 표시됨 (사용자 멘탈 모델).
@@ -18,16 +30,26 @@ interface IssueOptions {
  * NOTE: detail endpoint(PersonalEvent update/delete)는 ID 기반이라 ws 인자 불필요.
  */
 export const meApi = {
-  /** 본인 담당 이슈 — 해당 ws 안에서. 기본 미완료, ?include_completed=true 로 완료 포함. */
-  issues: (workspaceSlug: string, opts: IssueOptions = {}) =>
-    api
-      .get<Issue[]>("/me/issues/", {
-        params: {
-          workspace: workspaceSlug,
-          ...(opts.include_completed ? { include_completed: "true" } : {}),
-        },
-      })
-      .then((r) => r.data),
+  /** 본인 담당 이슈 — 해당 ws 안에서. 기본 미완료, ?include_completed=true 로 완료 포함.
+   *  create 는 단발성 이슈 생성 — backend 가 Personal 프로젝트(ws+user 별 lazy)에 자동 귀속. */
+  issues: Object.assign(
+    (workspaceSlug: string, opts: IssueOptions = {}) =>
+      api
+        .get<Issue[]>("/me/issues/", {
+          params: {
+            workspace: workspaceSlug,
+            ...(opts.include_completed ? { include_completed: "true" } : {}),
+          },
+        })
+        .then((r) => r.data),
+    {
+      /** 단발성 이슈 생성. 응답은 표준 Issue (project_kind=personal). */
+      create: (workspaceSlug: string, data: CreatePersonalIssueInput) =>
+        api
+          .post<Issue>("/me/issues/", { ...data, workspace_slug: workspaceSlug })
+          .then((r) => r.data),
+    },
+  ),
 
   /** 본인이 참여(is_global=true 포함) 하는 프로젝트 이벤트 — 해당 ws 안에서만. */
   projectEvents: (workspaceSlug: string, opts: DateRange = {}) =>

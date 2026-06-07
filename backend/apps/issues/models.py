@@ -87,6 +87,10 @@ class Issue(models.Model):
     # 주로 장기·비정형 작업 그룹(예: "리서치", "인프라") 을 묶을 때 사용.
     # BoardView/번다운에서 제외, 상태 셀 "—" 로 표시.
     is_field = models.BooleanField(default=False)
+    # 단발성 이슈(Project.kind=personal)의 팀 캘린더 공유 토글.
+    # True (기본): 본인이 속한 팀의 캘린더에 표시(아바타 배지). False: 본인 캘린더만.
+    # 일반 프로젝트 이슈에선 무시 — 프로젝트 멤버 정책이 우선.
+    shared_with_team = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     archived_at = models.DateTimeField(null=True, blank=True)  # 보관 — null이면 활성, 값이 있으면 보관함

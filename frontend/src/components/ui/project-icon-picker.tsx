@@ -109,15 +109,25 @@ export function parseIconProp(value: Record<string, unknown> | null | undefined)
   return { type: "lucide", name, color };
 }
 
-/** 저장된 icon_prop을 화면에 렌더링 — 어디서든 재사용 가능 (사이드바, 카드, 헤더 등) */
+/** 저장된 icon_prop을 화면에 렌더링 — 어디서든 재사용 가능 (사이드바, 카드, 헤더 등).
+ *
+ * bg/iconColor 는 진한 배경 위(예: 캘린더 이벤트 bar)에 ProjectIcon 을 올려야 할 때
+ * inline style 의 themed color 가 묻히는 문제를 해결하기 위한 옵셔널 override.
+ * 미지정 시 기존 동작 그대로 (icon.color+"22" 배경 + icon.color 글리프). */
 export function ProjectIcon({
   value,
   size = 20,
   className = "",
+  bg,
+  iconColor,
 }: {
   value: Record<string, unknown> | null | undefined;
   size?: number;
   className?: string;
+  /** 배경색 강제 — 미지정 시 themed color 의 13% 투명도 사용 */
+  bg?: string;
+  /** 글리프 색 강제 — 미지정 시 themed color 사용 */
+  iconColor?: string;
 }) {
   const icon = parseIconProp(value);
   const box = size + 16;
@@ -138,8 +148,8 @@ export function ProjectIcon({
     <span
       className={`inline-flex items-center justify-center rounded-lg ${className}`}
       style={{
-        backgroundColor: icon.color + "22",
-        color: icon.color,
+        backgroundColor: bg ?? (icon.color + "22"),
+        color: iconColor ?? icon.color,
         width: box,
         height: box,
       }}

@@ -1061,7 +1061,7 @@ class TeamCalendarIssuesView(generics.ListAPIView):
 
     def get_queryset(self):
         from apps.issues.models import Issue
-        from apps.projects.models import ProjectMember
+        from apps.projects.models import ProjectMember, Project
         from django.db.models import Q
 
         team = _check_team_access(self.request.user, self.kwargs["team_pk"], self.kwargs["workspace_slug"])
@@ -1071,15 +1071,28 @@ class TeamCalendarIssuesView(generics.ListAPIView):
         team_member_ids = TeamMember.objects.filter(team=team).values_list("member_id", flat=True)
         my_project_ids = ProjectMember.objects.filter(member=self.request.user).values_list("project_id", flat=True)
 
+        # 일반 프로젝트 이슈 — 기존 정책: 팀 멤버 담당 + 요청자도 그 프로젝트 멤버.
+        normal_q = (
+            Q(assignees__id__in=team_member_ids)
+            & Q(project_id__in=my_project_ids)
+            & Q(project__kind=Project.Kind.NORMAL)
+        )
+        # 단발성 이슈(Personal 프로젝트) — 팀 멤버 본인이 만든 것 중 shared_with_team=True.
+        # 요청자는 그 Personal 프로젝트 멤버가 아니지만, 팀 공유 정책으로 노출 허용.
+        personal_q = (
+            Q(project__kind=Project.Kind.PERSONAL)
+            & Q(project__owner_id__in=team_member_ids)
+            & Q(shared_with_team=True)
+        )
+
         qs = (
             Issue.objects
             .filter(
-                assignees__id__in=team_member_ids,
-                project_id__in=my_project_ids,
                 workspace=team.workspace,
                 deleted_at__isnull=True,
                 archived_at__isnull=True,
             )
+            .filter(normal_q | personal_q)
             .distinct()
             .select_related("state", "created_by", "project", "workspace")
             .prefetch_related("assignees", "label")

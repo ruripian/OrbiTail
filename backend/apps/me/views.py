@@ -16,8 +16,9 @@ from rest_framework.views import APIView
 
 from apps.issues.models import Issue, IssueNodeLink
 from apps.issues.serializers import IssueSerializer
-from apps.projects.models import Project, ProjectEvent, ProjectMember
+from apps.projects.models import Project, ProjectEvent, ProjectMember, State
 from apps.projects.serializers import ProjectEventSerializer
+from apps.projects.services import get_or_create_personal_project
 from apps.workspaces.models import Workspace
 from .models import PersonalEvent
 from .serializers import PersonalEventSerializer
@@ -88,12 +89,16 @@ class PersonalEventDetailView(generics.RetrieveUpdateDestroyAPIView):
         return PersonalEvent.objects.filter(user=self.request.user)
 
 
-class MeIssuesView(generics.ListAPIView):
+class MeIssuesView(generics.ListCreateAPIView):
     """본인이 담당자인 이슈 — 모든 워크스페이스. 마이 페이지의 캘린더/그래프/종합용.
 
-    쿼리 파라미터:
+    GET 쿼리 파라미터:
       ?include_completed=true  완료/취소 상태도 포함 (기본은 미완료만)
       ?workspace=<slug>        특정 워크스페이스로 필터
+
+    POST: 단발성 이슈 생성. 자동으로 Personal 프로젝트(워크스페이스+사용자별 lazy)에 귀속.
+      body: { workspace_slug, title, description?, due_date?, start_date?, priority?,
+              shared_with_team? (default True), state? }
     """
     serializer_class = IssueSerializer
     permission_classes = [IsAuthenticated]
@@ -117,6 +122,47 @@ class MeIssuesView(generics.ListAPIView):
         if ws_slug:
             qs = qs.filter(workspace__slug=ws_slug)
         return qs
+
+    def create(self, request, *args, **kwargs):
+        """단발성 이슈 생성 — Personal 프로젝트에 귀속, 본인 자동 assignee."""
+        ws = _resolve_workspace(request)
+        if ws is None:
+            return Response(
+                {"detail": "workspace_slug가 필요하거나 멤버가 아닙니다."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        personal_project = get_or_create_personal_project(ws, request.user)
+
+        # 기본 state — Personal 프로젝트의 unstarted 상태(서비스에서 자동 생성됨)
+        state_id = request.data.get("state")
+        if not state_id:
+            default_state = (
+                State.objects.filter(project=personal_project, group="unstarted")
+                .order_by("sequence").first()
+            )
+            state_id = default_state.id if default_state else None
+
+        issue = Issue.objects.create(
+            project=personal_project,
+            workspace=ws,
+            title=request.data.get("title", "").strip() or "제목 없음",
+            description=request.data.get("description"),
+            description_html=request.data.get("description_html", ""),
+            priority=request.data.get("priority", Issue.Priority.NONE),
+            state_id=state_id,
+            due_date=request.data.get("due_date") or None,
+            start_date=request.data.get("start_date") or None,
+            shared_with_team=bool(request.data.get("shared_with_team", True)),
+            created_by=request.user,
+        )
+        # 본인 자동 담당자 — me/issues 목록에 즉시 노출
+        issue.assignees.add(request.user)
+
+        return Response(
+            IssueSerializer(issue, context={"request": request}).data,
+            status=status.HTTP_201_CREATED,
+        )
 
 
 class MeProjectEventsView(generics.ListAPIView):

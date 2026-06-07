@@ -30,9 +30,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useIssueDialogStore } from "@/stores/issueDialogStore";
 import { EventDialog } from "@/components/events/EventDialog";
+import { PersonalIssueQuickDialog } from "@/components/issues/PersonalIssueQuickDialog";
 import { CalendarMonth } from "@/pages/project/views/CalendarMonth";
 import { CalendarSettingsPanel } from "@/pages/project/views/CalendarView";
-import { buildProjectColorMap } from "@/lib/projectColors";
+import { ProjectIcon } from "@/components/ui/project-icon-picker";
 import { cn } from "@/lib/utils";
 import type { CalendarSettings } from "@/hooks/useViewSettings";
 import type { Issue, ProjectEvent, PersonalEvent } from "@/types";
@@ -138,6 +139,11 @@ export function MyCalendarTab() {
     event: ProjectEvent | PersonalEvent | null;
     defaultDate?: string;
   }>({ open: false, mode: "me", event: null });
+
+  /* 단발성 이슈 빠른 생성 다이얼로그 — 헤더 + 셀 호버 양쪽에서 호출 */
+  const [issueDialog, setIssueDialog] = useState<{ open: boolean; defaultDueDate?: string }>({
+    open: false,
+  });
 
   /* 데이터 fetch — me API (현재 ws 한정).
      refetchOnMount:"always" — 글로벌 staleTime(60s) 안에 다른 페이지 갔다와도 항상 최신화.
@@ -281,6 +287,11 @@ export function MyCalendarTab() {
     setEventDialog({ open: true, mode: "me", workspaceSlug, event: null, defaultDate: dayKey });
   };
 
+  const handleIssueCreate = (dayKey: string) => {
+    /* 셀 호버 → 단발성 이슈 빠른 생성. 클릭한 셀의 날짜가 기본 마감일로 주입됨 */
+    setIssueDialog({ open: true, defaultDueDate: dayKey });
+  };
+
   const toggleExpand = (id: string) => {
     setExpandedIds((prev) => {
       const next = new Set(prev);
@@ -324,8 +335,15 @@ export function MyCalendarTab() {
     return Array.from(m.values()).sort((a, b) => a.name.localeCompare(b.name));
   }, [issues, projectEvents]);
 
-  /* 프로젝트 ID → 색 — icon_prop.color 우선 + 충돌 시 hash fallback */
-  const projectColorMap = useMemo(() => buildProjectColorMap(uniqueProjects), [uniqueProjects]);
+  /* 프로젝트 ID → icon_prop / name — CalendarMonth 가 bar/chip/event 좌측에 ProjectIcon 배지로 렌더.
+     색 기반 매핑은 폐기 — 아이콘이 색 + 형태 두 정보를 같이 전달해 시각 노이즈가 줄음. */
+  const projectIconMap = useMemo<Record<string, { icon_prop: Record<string, unknown> | null | undefined; name?: string }>>(() => {
+    const m: Record<string, { icon_prop: Record<string, unknown> | null | undefined; name?: string }> = {};
+    for (const p of uniqueProjects) {
+      m[p.id] = { icon_prop: p.icon_prop, name: p.name };
+    }
+    return m;
+  }, [uniqueProjects]);
 
   /* 필터 헬퍼 */
   const isProjectVisible = (projectId: string): boolean => {
@@ -458,10 +476,9 @@ export function MyCalendarTab() {
                       onSelect={(e) => { e.preventDefault(); toggleProject(p.id); }}
                       className="text-xs gap-2 cursor-pointer"
                     >
-                      <span
-                        className="h-3 w-3 rounded-sm shrink-0 border"
-                        style={{ backgroundColor: projectColorMap[p.id], borderColor: projectColorMap[p.id] }}
-                      />
+                      <span className="shrink-0">
+                        <ProjectIcon value={p.icon_prop} size={10} className="!rounded" />
+                      </span>
                       <span className="truncate flex-1">{p.name || p.id.slice(0, 6)}</span>
                       {checked && <Check className="h-3 w-3 shrink-0 text-primary" />}
                     </DropdownMenuItem>
@@ -470,6 +487,10 @@ export function MyCalendarTab() {
               </DropdownMenuContent>
             </DropdownMenu>
           )}
+          <Button size="sm" variant="outline" onClick={() => handleIssueCreate(todayKey)}>
+            <Plus className="h-3.5 w-3.5 mr-1" />
+            {t("me.calendar.newIssue", "새 이슈")}
+          </Button>
           <Button size="sm" onClick={() => handleEventCreate(todayKey)}>
             <Plus className="h-3.5 w-3.5 mr-1" />
             {t("me.calendar.newEvent", "새 이벤트")}
@@ -518,9 +539,10 @@ export function MyCalendarTab() {
             onIssueClick={handleIssueClick}
             onIssueUpdate={handleIssueUpdate}
             onEventUpdate={handleEventUpdate}
+            onIssueCreate={handleIssueCreate}
             onEventCreate={handleEventCreate}
             onEventEdit={handleEventEdit}
-            projectColorMap={projectColorMap}
+            projectIconMap={projectIconMap}
           />
         </div>
       )}
@@ -540,6 +562,13 @@ export function MyCalendarTab() {
         projectId={eventDialog.projectId}
         event={eventDialog.event}
         defaultDate={eventDialog.defaultDate}
+      />
+
+      <PersonalIssueQuickDialog
+        open={issueDialog.open}
+        onOpenChange={(open) => setIssueDialog((s) => ({ ...s, open }))}
+        workspaceSlug={workspaceSlug}
+        defaultDueDate={issueDialog.defaultDueDate}
       />
     </div>
   );

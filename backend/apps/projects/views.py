@@ -13,13 +13,20 @@ from .models import Project, ProjectMember, Category, Sprint, State, ProjectEven
 
 
 def _project_readable_q(user):
-    """프로젝트 읽기 권한 Q 필터 — 멤버이거나 PUBLIC 프로젝트"""
-    return Q(members__member=user) | Q(network=Project.Network.PUBLIC)
+    """프로젝트 읽기 권한 Q 필터 — 멤버이거나 PUBLIC 프로젝트.
+
+    Personal 프로젝트(kind=personal)는 owner 본인에게만 노출.
+    타인의 Personal 은 멤버십 자체가 없어 자연 차단되지만,
+    명시 가드로 향후 멤버 추가 정책 변경 시에도 안전.
+    """
+    base = Q(members__member=user) | Q(network=Project.Network.PUBLIC)
+    return base & (Q(kind=Project.Kind.NORMAL) | Q(owner=user))
 
 
 def _project_readable_via_project_q(user):
     """프로젝트 하위 개체(Category, Sprint 등)용 읽기 권한 Q 필터"""
-    return Q(project__members__member=user) | Q(project__network=Project.Network.PUBLIC)
+    base = Q(project__members__member=user) | Q(project__network=Project.Network.PUBLIC)
+    return base & (Q(project__kind=Project.Kind.NORMAL) | Q(project__owner=user))
 from .serializers import (
     ProjectSerializer,
     ProjectMemberSerializer,
@@ -41,6 +48,10 @@ class ProjectListCreateView(generics.ListCreateAPIView):
         ).filter(
             _project_readable_q(self.request.user)
         ).distinct()
+        # 사이드바/프로젝트 목록에는 NORMAL 만 노출 — Personal 은 마이 페이지 전용.
+        # ?include_personal=true 가 명시되면 본인 Personal 도 포함(향후 디버그/관리 용도).
+        if self.request.query_params.get("include_personal") != "true":
+            qs = qs.filter(kind=Project.Kind.NORMAL)
         # 기본: 보관되지 않은 프로젝트만 반환. ?archived=true 시 보관된 프로젝트도 포함
         if self.request.query_params.get("archived") != "true":
             qs = qs.filter(archived_at__isnull=True)

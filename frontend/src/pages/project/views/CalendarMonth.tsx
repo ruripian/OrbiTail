@@ -22,6 +22,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Maximize2, Minimize2, Plus } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ProjectIcon } from "@/components/ui/project-icon-picker";
+import { AvatarInitials } from "@/components/ui/avatar-initials";
 import { cn } from "@/lib/utils";
 import { EVENT_TYPES } from "@/constants/event-types";
 import type { Issue, ProjectEvent } from "@/types";
@@ -219,9 +221,11 @@ export interface CalendarMonthProps {
   onDrawerDropDayKeyChange?: (key: string | null) => void;
   onDrawerDrop?: (dayKey: string) => void;
 
-  /** 마이 페이지 등 다중 프로젝트 통합 뷰에서 — projectId → 색 매핑.
-   *  주어지면 bar 외곽선/chip 우측 점이 프로젝트 색으로 표시됨. 단일 프로젝트 뷰에선 undefined. */
-  projectColorMap?: Record<string, string>;
+  /** 마이 페이지/팀 캘린더 등 다중 프로젝트 통합 뷰 — projectId → icon_prop / name 매핑.
+   *  주어지면 bar/chip/event 좌측에 ProjectIcon 배지 표시. 단일 프로젝트 뷰에선 undefined.
+   *  단발성 이슈(project_kind=personal)는 이 맵에서 찾는 대신 issue.created_by_detail 의
+   *  아바타로 표시(요청 사양). 다른 멤버가 만든 단발성 이슈를 팀 캘린더에서 구분 가능. */
+  projectIconMap?: Record<string, { icon_prop: Record<string, unknown> | null | undefined; name?: string }>;
 }
 
 /* ── 컴포넌트 ──────────────────────────────────────────── */
@@ -234,7 +238,7 @@ export function CalendarMonth({
   onIssueClick, onIssueUpdate, onEventUpdate,
   onIssueCreate, onEventCreate, onEventEdit,
   drawerDragIdRef, drawerDraggingId, drawerDropDayKey, onDrawerDropDayKeyChange, onDrawerDrop,
-  projectColorMap,
+  projectIconMap,
 }: CalendarMonthProps) {
   const { t } = useTranslation();
   const today = new Date();
@@ -400,7 +404,19 @@ export function CalendarMonth({
      → drag 정확도 떨어지므로 click 만 허용. 변경 원하면 popover 닫고 셀에서 직접 드래그. */
   const renderChip = (issue: Issue, opts?: { onAfterClick?: () => void; disableDrag?: boolean }) => {
     const chipColor = stateColorMap[issue.state] ?? "#888";
-    const projColor = projectColorMap?.[issue.project];
+    const isPersonal = issue.project_kind === "personal";
+    const projectMeta = projectIconMap?.[issue.project];
+    /* 좌측 배지 — 단발성이면 작성자 아바타, 일반이면 ProjectIcon. 단일 프로젝트 뷰엔 maps 없음 → 둘 다 없음. */
+    const leftBadge = isPersonal ? (
+      <AvatarInitials
+        name={issue.created_by_detail?.display_name}
+        avatar={issue.created_by_detail?.avatar}
+        size="xs"
+        title={issue.created_by_detail?.display_name ?? undefined}
+      />
+    ) : projectMeta ? (
+      <ProjectIcon value={projectMeta.icon_prop} size={10} className="!rounded" />
+    ) : null;
     const canExpand = !!issue.due_date;
     const isDraggable = canSchedule && !opts?.disableDrag;
     return (
@@ -413,9 +429,9 @@ export function CalendarMonth({
         style={{
           backgroundColor: `${chipColor}14`,
           borderLeft: `3px solid ${chipColor}`,
-          borderRight: projColor ? `2px solid ${projColor}` : "none",
           opacity: dragState?.targetId === issue.id ? 0.5 : 1,
         }}
+        title={isPersonal && issue.created_by_detail?.display_name ? issue.created_by_detail.display_name : projectMeta?.name}
         onClick={(e) => {
           e.stopPropagation();
           if (dragDistRef.current < 4) {
@@ -439,6 +455,7 @@ export function CalendarMonth({
           });
         } : undefined}
       >
+        {leftBadge}
         <span className="text-sm truncate text-foreground/80 group-hover/chip:text-foreground transition-colors leading-tight flex-1 min-w-0 font-medium">
           {issue.title}
         </span>
@@ -539,10 +556,11 @@ export function CalendarMonth({
               <div className="absolute inset-x-0 top-9 pointer-events-none z-10">
                 {allBars.map((bar) => {
                   const barColor = stateColorMap[bar.issue.state] ?? "#888";
-                  /* 마이 페이지 등 통합 뷰: 외곽선을 프로젝트 색으로 표시. 단일 프로젝트 뷰는 기존 옅은 state 색 */
-                  const projColor = projectColorMap?.[bar.issue.project];
-                  const accentColor = projColor ?? `${barColor}40`;
-                  const accentWidth = projColor ? "2px" : "1px";
+                  /* 외곽선 색은 항상 옅은 state 색 — 프로젝트 구분은 좌측 아이콘/아바타로.
+                     단일 프로젝트 뷰/마이 페이지 모두 동일한 시각, 정보 노이즈 ↓. */
+                  const isPersonal = bar.issue.project_kind === "personal";
+                  const projectMeta = projectIconMap?.[bar.issue.project];
+                  const accentColor = `${barColor}40`;
                   const remapped = settings.hideWeekends ? remapBarForWeekdays(bar.colStart, bar.span) : { colStart: bar.colStart, span: bar.span };
                   if (!remapped) return null;
                   const visibleCols = settings.hideWeekends ? 5 : 7;
@@ -550,6 +568,10 @@ export function CalendarMonth({
                     ? (bar.continuesAfter ? "0" : "0 5px 5px 0")
                     : (bar.continuesAfter ? "5px 0 0 5px" : "5px");
                   const isDraggingThis = dragState?.targetId === bar.issue.id;
+                  /* 좌측 배지 — bar 의 머리(continuesBefore=false)에만 표시. 연속 bar 의 꼬리에는 X. */
+                  const tooltipName = isPersonal
+                    ? bar.issue.created_by_detail?.display_name
+                    : (projectMeta?.name ?? bar.issue.project_name);
 
                   return (
                     <div
@@ -562,15 +584,15 @@ export function CalendarMonth({
                         height: BAR_HEIGHT,
                         backgroundColor: `${barColor}26`,
                         borderLeft: bar.continuesBefore ? "none" : `3px solid ${barColor}`,
-                        borderRight: bar.continuesAfter ? "none" : `${accentWidth} solid ${accentColor}`,
-                        borderTop: `${accentWidth} solid ${accentColor}`,
-                        borderBottom: `${accentWidth} solid ${accentColor}`,
+                        borderRight: bar.continuesAfter ? "none" : `1px solid ${accentColor}`,
+                        borderTop: `1px solid ${accentColor}`,
+                        borderBottom: `1px solid ${accentColor}`,
                         borderRadius: br,
                         zIndex: isDraggingThis ? 50 : 10,
                         boxShadow: isDraggingThis ? `0 4px 14px ${barColor}50` : "none",
                         transition: isDraggingThis ? "none" : "background-color 0.15s",
                       }}
-                      title={projColor && bar.issue.project_name ? bar.issue.project_name : undefined}
+                      title={tooltipName ?? undefined}
                     >
                       {/* 좌측 핸들 */}
                       <div
@@ -614,6 +636,19 @@ export function CalendarMonth({
                       >
                         {!bar.continuesBefore && (
                           <>
+                            {/* 좌측 배지 — 단발성=작성자 아바타, 일반=ProjectIcon. 단일 프로젝트 뷰에선 누락 */}
+                            {isPersonal ? (
+                              <AvatarInitials
+                                name={bar.issue.created_by_detail?.display_name}
+                                avatar={bar.issue.created_by_detail?.avatar}
+                                size="xs"
+                                className="shrink-0 mr-1.5"
+                              />
+                            ) : projectMeta ? (
+                              <span className="shrink-0 mr-1.5">
+                                <ProjectIcon value={projectMeta.icon_prop} size={10} className="!rounded" />
+                              </span>
+                            ) : null}
                             <span className="text-sm font-medium text-foreground/80 pointer-events-none truncate flex-1">
                               {bar.issue.title}
                             </span>
@@ -658,8 +693,9 @@ export function CalendarMonth({
                 <div className="absolute inset-x-0 pointer-events-none z-10" style={{ top: 36 + issuesBarsH }}>
                   {allEventBars.map((bar) => {
                     const barColor = bar.event.color;
-                    /* 마이 페이지: 이벤트도 프로젝트 외곽선 (PersonalEvent 는 project_id="" 라 자동 무시) */
-                    const projColor = bar.event.project ? projectColorMap?.[bar.event.project] : undefined;
+                    /* 이벤트 — PersonalEvent 는 project="" 라 메타 없음 → 아이콘 없음(현 동작 유지).
+                       ProjectEvent 는 메타 맵에서 lookup 해 본체 좌측에 ProjectIcon 추가. */
+                    const eventProjectMeta = bar.event.project ? projectIconMap?.[bar.event.project] : undefined;
                     const remapped = settings.hideWeekends ? remapBarForWeekdays(bar.colStart, bar.span) : { colStart: bar.colStart, span: bar.span };
                     if (!remapped) return null;
                     const visibleCols = settings.hideWeekends ? 5 : 7;
@@ -678,15 +714,12 @@ export function CalendarMonth({
                           top: bar.lane * (BAR_HEIGHT + BAR_GAP),
                           height: BAR_HEIGHT,
                           backgroundColor: barColor,
-                          /* 이벤트 본체는 색이 진해서 외곽선이 잘 보이려면 box-shadow 로 띄움 */
-                          boxShadow: isDraggingThis
-                            ? `0 4px 14px ${barColor}80`
-                            : projColor ? `0 0 0 2px ${projColor}` : "none",
+                          boxShadow: isDraggingThis ? `0 4px 14px ${barColor}80` : "none",
                           borderRadius: br,
                           zIndex: isDraggingThis ? 50 : 10,
                           transition: isDraggingThis ? "none" : "background-color 0.15s",
                         }}
-                        title={projColor && bar.event.project_name ? bar.event.project_name : undefined}
+                        title={eventProjectMeta?.name ?? bar.event.project_name ?? undefined}
                       >
                         <div
                           className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-black/20 z-20 rounded-l-[5px] transition-colors"
@@ -731,6 +764,20 @@ export function CalendarMonth({
                             return (
                               <>
                                 <TypeIcon className="h-3.5 w-3.5 text-white shrink-0" strokeWidth={2.5} />
+                                {/* 프로젝트 아이콘 — 통합 뷰에서 어떤 프로젝트 이벤트인지 즉시 식별.
+                                    이벤트 본체가 진한 색이라 themed color 가 묻히는 문제 해결:
+                                    반투명 흰색 backdrop + 흰색 글리프로 명도 대비 확보. */}
+                                {eventProjectMeta && (
+                                  <span className="ml-1 shrink-0">
+                                    <ProjectIcon
+                                      value={eventProjectMeta.icon_prop}
+                                      size={10}
+                                      bg="rgba(255,255,255,0.22)"
+                                      iconColor="white"
+                                      className="!rounded-sm"
+                                    />
+                                  </span>
+                                )}
                                 <span className="text-2xs font-bold text-white pointer-events-none truncate flex-1 ml-1.5">
                                   {bar.event.title}
                                 </span>
