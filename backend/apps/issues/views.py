@@ -135,14 +135,25 @@ class IssueDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
         from apps.projects.models import Project
+        user = self.request.user
+        # 단발성 이슈 팀 공유 — 소유자와 같은 팀인 사용자는 상세를 "읽을" 수 있다.
+        # 팀 캘린더 목록(TeamCalendarIssuesView)은 노출하는데 상세는 멤버만 허용해서
+        # 다른 팀원이 클릭 시 404 나던 문제를 맞춰줌. 수정/삭제는 update/destroy 의
+        # _check_perm(멤버 한정)이 별도로 막으므로 이 확장은 읽기 전용에 그친다.
+        team_shared = (
+            Q(project__kind=Project.Kind.PERSONAL)
+            & Q(shared_with_team=True)
+            & Q(project__owner__team_memberships__team__members__member=user)
+        )
         return (
             Issue.objects.filter(
                 project_id=self.kwargs["project_pk"],
                 deleted_at__isnull=True,
             )
             .filter(
-                Q(project__members__member=self.request.user) |
-                Q(project__network=Project.Network.PUBLIC)
+                Q(project__members__member=user) |
+                Q(project__network=Project.Network.PUBLIC) |
+                team_shared
             )
             .distinct()
             .prefetch_related("assignees", "label")
