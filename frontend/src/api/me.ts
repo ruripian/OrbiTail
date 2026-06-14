@@ -1,5 +1,5 @@
 import { api } from "@/lib/axios";
-import type { Issue, ProjectEvent, PersonalEvent, MeSummary, Priority } from "@/types";
+import type { Issue, ProjectEvent, PersonalEvent, MeSummary, Priority, State } from "@/types";
 import type { NodeGraphResponse } from "./issues";
 
 interface DateRange {
@@ -17,6 +17,8 @@ export interface CreatePersonalIssueInput {
   description?: unknown;
   description_html?: string;
   priority?: Priority;
+  /** Personal 프로젝트 State id — 미지정 시 backend 가 unstarted 기본 상태로 설정. */
+  state?: string;
   start_date?: string | null;
   due_date?: string | null;
   /** 기본 true — 본인이 속한 팀 캘린더에 노출. false 면 본인만 봄. */
@@ -50,6 +52,13 @@ export const meApi = {
           .then((r) => r.data),
     },
   ),
+
+  /** 단발성 이슈 생성 창의 상태 선택용 — 본인 Personal 프로젝트 State 목록.
+   *  backend 가 Personal 프로젝트를 보장(get_or_create)하므로 항상 5개 반환. */
+  personalStates: (workspaceSlug: string) =>
+    api
+      .get<State[]>("/me/personal-states/", { params: { workspace: workspaceSlug } })
+      .then((r) => r.data),
 
   /** 본인이 참여(is_global=true 포함) 하는 프로젝트 이벤트 — 해당 ws 안에서만. */
   projectEvents: (workspaceSlug: string, opts: DateRange = {}) =>

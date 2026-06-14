@@ -1041,11 +1041,43 @@ def _check_team_access(user, team_pk, workspace_slug):
     return None
 
 
+def _team_visible_normal_project_ids(user, team):
+    """팀 캘린더에서 요청자가 볼 수 있는 NORMAL 프로젝트 id.
+
+    정책:
+      - 공개(PUBLIC) 프로젝트: 팀원 중 누군가 멤버이면 모든 팀원에게 공개
+        (요청자가 그 프로젝트 멤버가 아니어도 보임)
+      - 비공개(SECRET) 프로젝트: 팀장(ADMIN)에게만 공개. 단 요청자가 직접
+        멤버인 비공개 프로젝트는 본인 권한으로 항상 보임.
+    """
+    from apps.projects.models import ProjectMember, Project
+    from django.db.models import Q
+
+    team_member_ids = TeamMember.objects.filter(team=team).values_list("member_id", flat=True)
+    team_normal_ids = ProjectMember.objects.filter(
+        member_id__in=team_member_ids,
+        project__kind=Project.Kind.NORMAL,
+    ).values_list("project_id", flat=True)
+
+    is_team_admin = user.is_superuser or TeamMember.objects.filter(
+        team=team, member=user, role=TeamMember.Role.ADMIN,
+    ).exists()
+    if is_team_admin:
+        return Project.objects.filter(id__in=team_normal_ids).values_list("id", flat=True)
+
+    my_project_ids = ProjectMember.objects.filter(member=user).values_list("project_id", flat=True)
+    return Project.objects.filter(id__in=team_normal_ids).filter(
+        Q(network=Project.Network.PUBLIC) | Q(id__in=my_project_ids),
+    ).values_list("id", flat=True)
+
+
 class TeamCalendarIssuesView(generics.ListAPIView):
     """팀 캘린더 — 팀 멤버가 담당자인 이슈.
 
-    누수 차단 정책: 요청자가 멤버가 아닌 프로젝트의 이슈는 응답에서 제외 (비공개 프로젝트
-    포함). 같은 팀이라도 사용자마다 보이는 이슈가 다를 수 있다.
+    노출 정책: 팀원이 멤버인 공개(PUBLIC) 프로젝트는 모든 팀원에게 보이고,
+    비공개(SECRET) 프로젝트는 팀장(ADMIN) 또는 본인이 멤버일 때만 보인다
+    (_team_visible_normal_project_ids 참고). 따라서 같은 팀이라도 역할/멤버십에
+    따라 보이는 이슈가 다를 수 있다.
 
     쿼리:
       ?from=YYYY-MM-DD&to=YYYY-MM-DD  날짜 범위 (start_date/due_date 둘 중 하나라도 걸치면 포함)
@@ -1061,7 +1093,7 @@ class TeamCalendarIssuesView(generics.ListAPIView):
 
     def get_queryset(self):
         from apps.issues.models import Issue
-        from apps.projects.models import ProjectMember, Project
+        from apps.projects.models import Project
         from django.db.models import Q
 
         team = _check_team_access(self.request.user, self.kwargs["team_pk"], self.kwargs["workspace_slug"])
@@ -1069,12 +1101,12 @@ class TeamCalendarIssuesView(generics.ListAPIView):
             return Issue.objects.none()
 
         team_member_ids = TeamMember.objects.filter(team=team).values_list("member_id", flat=True)
-        my_project_ids = ProjectMember.objects.filter(member=self.request.user).values_list("project_id", flat=True)
+        visible_project_ids = _team_visible_normal_project_ids(self.request.user, team)
 
-        # 일반 프로젝트 이슈 — 기존 정책: 팀 멤버 담당 + 요청자도 그 프로젝트 멤버.
+        # 일반 프로젝트 이슈 — 팀 멤버 담당 + 요청자가 볼 수 있는 프로젝트(공개=전체, 비공개=팀장/본인).
         normal_q = (
             Q(assignees__id__in=team_member_ids)
-            & Q(project_id__in=my_project_ids)
+            & Q(project_id__in=visible_project_ids)
             & Q(project__kind=Project.Kind.NORMAL)
         )
         # 단발성 이슈(Personal 프로젝트) — 팀 멤버 본인이 만든 것 중 shared_with_team=True.
@@ -1139,7 +1171,11 @@ class TeamCalendarPersonalEventsView(generics.ListAPIView):
 
 
 class TeamCalendarProjectEventsView(generics.ListAPIView):
-    """팀 캘린더 — 팀 멤버가 멤버인 프로젝트의 이벤트 (요청자도 그 프로젝트 멤버일 때만)."""
+    """팀 캘린더 — 팀원이 멤버인 프로젝트의 이벤트.
+
+    노출 정책: 공개(PUBLIC) 프로젝트는 모든 팀원에게, 비공개(SECRET)는 팀장(ADMIN)
+    또는 본인이 멤버일 때만 (_team_visible_normal_project_ids 참고).
+    """
     permission_classes = [permissions.IsAuthenticated]
     pagination_class = None  # 캘린더는 전체 이벤트 필요
 
@@ -1148,25 +1184,19 @@ class TeamCalendarProjectEventsView(generics.ListAPIView):
         return ProjectEventSerializer
 
     def get_queryset(self):
-        from apps.projects.models import ProjectMember, ProjectEvent
+        from apps.projects.models import ProjectEvent
         from django.db.models import Q
 
         team = _check_team_access(self.request.user, self.kwargs["team_pk"], self.kwargs["workspace_slug"])
         if not team:
             return ProjectEvent.objects.none()
 
-        my_project_ids = ProjectMember.objects.filter(member=self.request.user).values_list("project_id", flat=True)
         team_member_ids = TeamMember.objects.filter(team=team).values_list("member_id", flat=True)
-        # 팀 멤버 중 누군가 멤버인 프로젝트의 이벤트 — 요청자도 멤버여야 함
-        team_project_ids = ProjectMember.objects.filter(
-            member_id__in=team_member_ids,
-        ).values_list("project_id", flat=True)
-        # 교집합
-        accessible_project_ids = set(my_project_ids).intersection(set(team_project_ids))
+        visible_project_ids = _team_visible_normal_project_ids(self.request.user, team)
 
         qs = (
             ProjectEvent.objects
-            .filter(project_id__in=accessible_project_ids)
+            .filter(project_id__in=visible_project_ids)
             .filter(Q(is_global=True) | Q(participants__id__in=team_member_ids))
             .distinct()
             .select_related("project", "project__workspace", "created_by")

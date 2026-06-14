@@ -3,7 +3,8 @@
  *
  * 정책:
  *   - 단발성 이슈는 Project.kind=personal 컨테이너에 자동 귀속 (backend lazy 생성)
- *   - 빠른 폼 — 제목 + 우선순위 + 시작/마감일 + 팀 공유 토글 만 노출
+ *   - 폼 — 제목 + 설명 + 우선순위 + 상태 + 시작/마감일 + 팀 공유 토글
+ *     (프로젝트 이슈 생성 폼에서 카테고리/스프린트/담당자만 제외한 구성)
  *   - 디테일 편집(라벨/하위/연결문서/댓글)은 생성 후 IssueDialog 에서
  *
  * 재사용성:
@@ -12,7 +13,7 @@
  */
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Users, UserX } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -21,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DatePicker } from "@/components/ui/date-picker";
 import { PriorityPicker } from "@/components/issues/priority-picker";
+import { StatePicker } from "@/components/issues/state-picker";
 import { cn } from "@/lib/utils";
 import { meApi } from "@/api/me";
 import { useIssueDialogStore } from "@/stores/issueDialogStore";
@@ -42,15 +44,26 @@ export function PersonalIssueQuickDialog({
   const openIssueDialog = useIssueDialogStore((s) => s.openIssue);
 
   const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
   const [priority, setPriority] = useState<Priority>("none");
+  const [stateId, setStateId] = useState<string | null>(null);
   const [startDate, setStartDate] = useState<string | null>(null);
   const [dueDate, setDueDate] = useState<string | null>(null);
   const [sharedWithTeam, setSharedWithTeam] = useState(true);
 
+  /* Personal 프로젝트 상태 목록 — 다이얼로그 열릴 때만 조회 (backend 가 5개 보장) */
+  const { data: states = [] } = useQuery({
+    queryKey: ["me", "personal-states", workspaceSlug],
+    queryFn: () => meApi.personalStates(workspaceSlug),
+    enabled: open && !!workspaceSlug,
+  });
+
   useEffect(() => {
     if (!open) {
       setTitle("");
+      setDescription("");
       setPriority("none");
+      setStateId(null);
       setStartDate(null);
       setDueDate(null);
       setSharedWithTeam(true);
@@ -59,10 +72,19 @@ export function PersonalIssueQuickDialog({
     if (defaultDueDate) setDueDate(defaultDueDate);
   }, [open, defaultDueDate]);
 
+  /* 상태 미선택 시 기본값 — default 플래그(unstarted) 또는 첫 상태로 프리필 */
+  useEffect(() => {
+    if (open && stateId === null && states.length > 0) {
+      setStateId((states.find((s) => s.default) ?? states[0]).id);
+    }
+  }, [open, stateId, states]);
+
   const createMutation = useMutation({
     mutationFn: () => meApi.issues.create(workspaceSlug, {
       title: title.trim(),
+      description_html: description.trim() || undefined,
       priority,
+      state: stateId ?? undefined,
       start_date: startDate,
       due_date: dueDate,
       shared_with_team: sharedWithTeam,
@@ -107,6 +129,18 @@ export function PersonalIssueQuickDialog({
             />
           </div>
 
+          <div className="space-y-1">
+            <Label htmlFor="personal-issue-desc">{t("issues.detail.description", "설명")}</Label>
+            <textarea
+              id="personal-issue-desc"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={3}
+              placeholder={t("me.personalIssue.fields.descPlaceholder", "메모 (선택)")}
+              className="w-full text-sm bg-input/60 border border-border rounded-md px-3 py-2 outline-none focus:border-primary/60 resize-y"
+            />
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label>{t("issues.detail.meta.startDate", "시작일")}</Label>
@@ -132,13 +166,24 @@ export function PersonalIssueQuickDialog({
             </div>
           </div>
 
-          <div className="space-y-1">
-            <Label>{t("issues.detail.meta.priority", "우선순위")}</Label>
-            <PriorityPicker
-              currentPriority={priority}
-              onChange={setPriority}
-              className="border border-border rounded-md bg-input/60 hover:bg-primary/10"
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label>{t("issues.detail.meta.priority", "우선순위")}</Label>
+              <PriorityPicker
+                currentPriority={priority}
+                onChange={setPriority}
+                className="border border-border rounded-md bg-input/60 hover:bg-primary/10"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>{t("issues.detail.meta.state", "상태")}</Label>
+              <StatePicker
+                states={states}
+                currentStateId={stateId}
+                onChange={setStateId}
+                className="border border-border rounded-md bg-input/60 hover:bg-primary/10 py-2"
+              />
+            </div>
           </div>
 
           {/* 팀 공유 토글 — 기본 ON (사용자 결정).

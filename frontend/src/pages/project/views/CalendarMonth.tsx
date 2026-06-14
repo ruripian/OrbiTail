@@ -226,6 +226,10 @@ export interface CalendarMonthProps {
    *  단발성 이슈(project_kind=personal)는 이 맵에서 찾는 대신 issue.created_by_detail 의
    *  아바타로 표시(요청 사양). 다른 멤버가 만든 단발성 이슈를 팀 캘린더에서 구분 가능. */
   projectIconMap?: Record<string, { icon_prop: Record<string, unknown> | null | undefined; name?: string }>;
+
+  /** 칩/바에 담당자 아바타 스택 표시 — 팀 캘린더처럼 "누가 담당인지"가 핵심인 뷰에서만 켠다.
+   *  단일 프로젝트 캘린더는 사용자 필터가 이미 있어 기본 off. */
+  showAssignees?: boolean;
 }
 
 /* ── 컴포넌트 ──────────────────────────────────────────── */
@@ -238,7 +242,7 @@ export function CalendarMonth({
   onIssueClick, onIssueUpdate, onEventUpdate,
   onIssueCreate, onEventCreate, onEventEdit,
   drawerDragIdRef, drawerDraggingId, drawerDropDayKey, onDrawerDropDayKeyChange, onDrawerDrop,
-  projectIconMap,
+  projectIconMap, showAssignees,
 }: CalendarMonthProps) {
   const { t } = useTranslation();
   const today = new Date();
@@ -402,6 +406,30 @@ export function CalendarMonth({
   /* chip 렌더 — 셀 안 + overflow popover 두 곳에서 재사용.
      opts.disableDrag: popover 안 chip 은 portal 이라 closest('[data-week-row]') 가 null 이라 cellWidth 측정 불가
      → drag 정확도 떨어지므로 click 만 허용. 변경 원하면 popover 닫고 셀에서 직접 드래그. */
+  /* 담당자 아바타 스택 — showAssignees 뷰에서만. 최대 3명 겹쳐 표시 + 초과 시 +N */
+  const renderAssignees = (issue: Issue) => {
+    if (!showAssignees) return null;
+    const list = issue.assignee_details ?? [];
+    if (list.length === 0) return null;
+    const shown = list.slice(0, 3);
+    const extra = list.length - shown.length;
+    return (
+      <span className="shrink-0 flex items-center -space-x-1 ml-0.5">
+        {shown.map((u) => (
+          <AvatarInitials
+            key={u.id}
+            name={u.display_name}
+            avatar={u.avatar}
+            size="xs"
+            title={u.display_name}
+            className="ring-1 ring-background"
+          />
+        ))}
+        {extra > 0 && <span className="text-2xs text-muted-foreground pl-0.5">+{extra}</span>}
+      </span>
+    );
+  };
+
   const renderChip = (issue: Issue, opts?: { onAfterClick?: () => void; disableDrag?: boolean }) => {
     const chipColor = stateColorMap[issue.state] ?? "#888";
     const isPersonal = issue.project_kind === "personal";
@@ -459,6 +487,7 @@ export function CalendarMonth({
         <span className="text-sm truncate text-foreground/80 group-hover/chip:text-foreground transition-colors leading-tight flex-1 min-w-0 font-medium">
           {issue.title}
         </span>
+        {renderAssignees(issue)}
         {canExpand && (
           <button
             type="button"
@@ -652,6 +681,7 @@ export function CalendarMonth({
                             <span className="text-sm font-medium text-foreground/80 pointer-events-none truncate flex-1">
                               {bar.issue.title}
                             </span>
+                            {renderAssignees(bar.issue)}
                             <button
                               type="button"
                               onClick={(e) => { e.stopPropagation(); onToggleExpand(bar.issue.id); }}

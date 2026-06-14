@@ -7,9 +7,9 @@
  *   - 멤버 색 dot/border: 후속 phase (이번엔 기본 시각 유지)
  *
  * 정책 메모:
- *   - issues: 팀 멤버가 담당자인 이슈 중 요청자가 그 프로젝트 멤버일 때만
+ *   - issues: 팀원이 담당자인 이슈 — 공개 프로젝트는 전체 팀원, 비공개는 팀장/본인만
  *   - personalEvents: 본인 PE 만 (다른 멤버 PE 안 보임)
- *   - projectEvents: 팀 멤버 공통 프로젝트 + 요청자도 멤버
+ *   - projectEvents: 팀원이 멤버인 프로젝트 — 공개는 전체, 비공개는 팀장/본인만
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -379,10 +379,10 @@ export function TeamCalendarSection({
   const isLoading = loadingIssues || loadingProj || loadingPersonal;
 
   return (
-    <div className="flex flex-col">
+    <div className="glass rounded-xl border overflow-hidden flex flex-col select-none shadow-sm h-[85vh] min-h-[720px]">
       {/* ── 멤버 칩 바 (팀 캘린더 고유) ──────────────────── */}
       {teamMembers.length > 0 && (
-        <div className="flex items-center gap-1.5 flex-wrap mb-3 px-1">
+        <div className="flex items-center gap-1.5 flex-wrap px-4 py-2.5 border-b border-border shrink-0">
           <span className="text-2xs text-muted-foreground mr-1">멤버:</span>
           {teamMembers.map((tm) => {
             const visible = isMemberVisible(tm.member.id);
@@ -417,7 +417,7 @@ export function TeamCalendarSection({
       )}
 
       {/* ── 헤더 ─────────────────────────────────────────── */}
-      <div className="flex items-center gap-1.5 mb-2 shrink-0">
+      <div className="flex items-center gap-1.5 px-4 py-2.5 border-b border-border shrink-0">
         <button
           onClick={prevMonth}
           className="h-8 w-8 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
@@ -507,28 +507,27 @@ export function TeamCalendarSection({
         </div>
       </div>
 
-      {/* ── 캘린더 본체 — 팀 페이지의 메인이라 큰 높이 확보 ─── */}
+      {/* ── 캘린더 본체 — 카드 내 남은 공간 flex-1 채움 ─── */}
       {isLoading ? (
-        <Skeleton className="h-[78vh] min-h-[640px] rounded-md" />
+        <Skeleton className="flex-1 rounded-none" />
       ) : (
-        <div className="rounded-md border border-border bg-card overflow-hidden flex flex-col h-[78vh] min-h-[640px]">
-          <CalendarMonth
-            year={year}
-            month={month}
-            issues={filteredIssues}
-            events={filteredEvents}
-            stateColorMap={stateColorMap}
-            settings={settings}
-            expandedIds={expandedIds}
-            onToggleExpand={toggleExpand}
-            canSchedule={true}
-            onIssueClick={handleIssueClick}
-            onIssueUpdate={handleIssueUpdate}
-            onEventUpdate={handleEventUpdate}
-            onEventEdit={handleEventEdit}
-            projectIconMap={projectIconMap}
-          />
-        </div>
+        <CalendarMonth
+          year={year}
+          month={month}
+          issues={filteredIssues}
+          events={filteredEvents}
+          stateColorMap={stateColorMap}
+          settings={settings}
+          expandedIds={expandedIds}
+          onToggleExpand={toggleExpand}
+          canSchedule={true}
+          onIssueClick={handleIssueClick}
+          onIssueUpdate={handleIssueUpdate}
+          onEventUpdate={handleEventUpdate}
+          onEventEdit={handleEventEdit}
+          projectIconMap={projectIconMap}
+          showAssignees
+        />
       )}
 
       <EventDialog

@@ -17,7 +17,7 @@ from rest_framework.views import APIView
 from apps.issues.models import Issue, IssueNodeLink
 from apps.issues.serializers import IssueSerializer
 from apps.projects.models import Project, ProjectEvent, ProjectMember, State
-from apps.projects.serializers import ProjectEventSerializer
+from apps.projects.serializers import ProjectEventSerializer, StateSerializer
 from apps.projects.services import get_or_create_personal_project
 from apps.workspaces.models import Workspace
 from .models import PersonalEvent
@@ -163,6 +163,27 @@ class MeIssuesView(generics.ListCreateAPIView):
             IssueSerializer(issue, context={"request": request}).data,
             status=status.HTTP_201_CREATED,
         )
+
+
+class MePersonalStatesView(APIView):
+    """단발성 이슈 생성 창의 상태 선택용 — 본인 Personal 프로젝트의 State 목록.
+
+    Personal 프로젝트는 lazy 생성이라 아직 없을 수 있어 get_or_create 로 보장한다
+    (서비스가 기본 State 5개를 자동 생성). 이 endpoint 를 호출하는 시점 = 단발성 이슈
+    생성 의도이므로, 빈 Personal 프로젝트가 미리 생성되는 부작용은 허용한다.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        ws = _resolve_workspace(request)
+        if ws is None:
+            return Response(
+                {"detail": "workspace가 필요하거나 멤버가 아닙니다."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        project = get_or_create_personal_project(ws, request.user)
+        states = State.objects.filter(project=project).order_by("sequence")
+        return Response(StateSerializer(states, many=True).data)
 
 
 class MeProjectEventsView(generics.ListAPIView):

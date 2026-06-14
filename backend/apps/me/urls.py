@@ -3,6 +3,7 @@ from .views import (
     PersonalEventListCreateView,
     PersonalEventDetailView,
     MeIssuesView,
+    MePersonalStatesView,
     MeProjectEventsView,
     MeSummaryView,
     MeNodeGraphView,
@@ -10,6 +11,7 @@ from .views import (
 
 urlpatterns = [
     path("issues/",          MeIssuesView.as_view(),               name="me-issues"),
+    path("personal-states/", MePersonalStatesView.as_view(),       name="me-personal-states"),
     path("project-events/",  MeProjectEventsView.as_view(),        name="me-project-events"),
     path("personal-events/", PersonalEventListCreateView.as_view(), name="me-personal-events"),
     path("personal-events/<uuid:pk>/", PersonalEventDetailView.as_view(), name="me-personal-event-detail"),

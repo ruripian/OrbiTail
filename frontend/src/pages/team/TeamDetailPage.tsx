@@ -124,7 +124,7 @@ export function TeamDetailPage() {
           )}
         </header>
 
-        {/* 팀 캘린더 — 멤버 칩 토글 + 본인 PE + 비공개 프로젝트 누수 차단(요청자별) */}
+        {/* 팀 캘린더 — 멤버 칩 토글 + 본인 PE + 공개 프로젝트 전체 공유, 비공개는 팀장/본인만 */}
         <section className="mb-6">
           <TeamCalendarSection
             workspaceSlug={workspaceSlug}
