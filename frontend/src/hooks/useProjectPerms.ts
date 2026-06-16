@@ -24,9 +24,14 @@ const NO_PERMS: EffectivePerms = {
 /**
  * 현재 유저의 프로젝트 effective_perms를 반환.
  * members 쿼리를 공유하므로 이미 캐시되어 있으면 추가 요청 없음.
+ *
+ * 인자 우선 — 패널(마이페이지/문서/검색)에서 라우트 params 없이 이슈를 열 때
+ * 호출부가 ws/project 를 직접 넘긴다. 미지정 시 라우트 params 사용.
  */
-export function useProjectPerms() {
-  const { workspaceSlug, projectId } = useParams();
+export function useProjectPerms(workspaceSlugArg?: string, projectIdArg?: string) {
+  const params = useParams();
+  const workspaceSlug = workspaceSlugArg ?? params.workspaceSlug;
+  const projectId = projectIdArg ?? params.projectId;
   const user = useAuthStore((s) => s.user);
 
   const { data: members = [] } = useQuery<ProjectMember[]>({

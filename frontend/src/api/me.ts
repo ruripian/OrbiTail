@@ -60,6 +60,16 @@ export const meApi = {
       .get<State[]>("/me/personal-states/", { params: { workspace: workspaceSlug } })
       .then((r) => r.data),
 
+  /** 본인 Personal 프로젝트("내 작업") — 사이드바 바로가기용 최소 메타.
+   *  일반 프로젝트 목록에 안 잡히므로 별도 조회. backend get_or_create 로 항상 존재. */
+  personalProject: (workspaceSlug: string) =>
+    api
+      .get<{ id: string; name: string; identifier: string; icon_prop: Record<string, unknown> | null }>(
+        "/me/personal-project/",
+        { params: { workspace: workspaceSlug } },
+      )
+      .then((r) => r.data),
+
   /** 본인이 참여(is_global=true 포함) 하는 프로젝트 이벤트 — 해당 ws 안에서만. */
   projectEvents: (workspaceSlug: string, opts: DateRange = {}) =>
     api

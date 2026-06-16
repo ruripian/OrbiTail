@@ -186,6 +186,31 @@ class MePersonalStatesView(APIView):
         return Response(StateSerializer(states, many=True).data)
 
 
+class MePersonalProjectView(APIView):
+    """본인 Personal 프로젝트("내 작업") — 사이드바 바로가기용.
+
+    kind=personal 프로젝트는 일반 프로젝트 목록에서 제외되므로 사이드바가 직접 조회한다.
+    get_or_create 로 보장 — 아직 단발성 이슈를 안 만든 사용자도 링크가 항상 동작.
+    응답은 사이드바 SubLink 렌더에 필요한 최소 필드.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        ws = _resolve_workspace(request)
+        if ws is None:
+            return Response(
+                {"detail": "workspace가 필요하거나 멤버가 아닙니다."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        project = get_or_create_personal_project(ws, request.user)
+        return Response({
+            "id": str(project.id),
+            "name": project.name,
+            "identifier": project.identifier,
+            "icon_prop": project.icon_prop,
+        })
+
+
 class MeProjectEventsView(generics.ListAPIView):
     """본인이 참여하는 프로젝트 이벤트 — 모든 워크스페이스. is_global=True 면 멤버 전체 참여로 간주.
 

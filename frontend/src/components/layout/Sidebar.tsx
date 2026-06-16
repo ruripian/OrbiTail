@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { projectsApi } from "@/api/projects";
+import { meApi } from "@/api/me";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
 import { ProjectIcon } from "@/components/ui/project-icon-picker";
 import { AppSwitcher } from "./AppSwitcher";
@@ -304,7 +305,19 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
     enabled: !!workspaceSlug,
   });
 
+  /* Personal 프로젝트("내 작업") — 일반 목록에서 제외되므로 별도 조회해 내 작업 밑에 링크 */
+  const { data: personalProject } = useQuery({
+    queryKey: ["me", "personal-project", workspaceSlug],
+    queryFn: () => meApi.personalProject(workspaceSlug!),
+    enabled: !!workspaceSlug,
+  });
+
   const slug = workspaceSlug ?? "";
+
+  /* 현재 활성 프로젝트는 URL 기준 — currentProject store 는 /me 등 비프로젝트 라우트로 가도
+     유지되어 사이드바 프로젝트 강조가 안 풀리는 버그가 있었다. 라우트가 단일 진리. */
+  const pathParts = location.pathname.split("/").filter(Boolean);
+  const activeProjectId = pathParts[1] === "projects" ? (pathParts[2] ?? null) : null;
   const favIds = new Set(favorites[slug] ?? []);
   const order = projectOrder[slug] ?? [];
 
@@ -415,7 +428,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
       key={project.id}
       project={project}
       workspaceSlug={slug}
-      isActive={currentProject?.id === project.id}
+      isActive={activeProjectId === project.id}
       isExpanded={expandedSet.has(project.id)}
       isFavorite={favIds.has(project.id)}
       onSelect={handleSelectProject}
@@ -467,6 +480,18 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
           label={t("sidebar.myPage", "내 작업")}
           active={location.pathname === `/${workspaceSlug}/me`}
         />
+
+        {/* Personal 프로젝트 바로가기 — 단발성 이슈가 쌓이는 숨김 프로젝트 진입점 */}
+        {personalProject && (
+          <div className="ml-3 pl-4 border-l-2 border-primary/20 space-y-0.5">
+            <SubLink
+              to={`/${workspaceSlug}/projects/${personalProject.id}/issues`}
+              icon={ListChecks}
+              label={t("sidebar.myIssues", "내 이슈")}
+              active={activeProjectId === personalProject.id}
+            />
+          </div>
+        )}
 
         <NavItem
           to={`/${workspaceSlug}/teams`}

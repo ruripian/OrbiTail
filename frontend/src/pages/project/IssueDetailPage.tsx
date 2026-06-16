@@ -60,7 +60,7 @@ export function IssueDetailPage({ issueIdOverride, workspaceSlugOverride, projec
   usePresenceScope(projectId ? `project:${projectId}` : null);
 
   const user = useAuthStore((s) => s.user);
-  const { perms } = useProjectPerms();
+  const { perms } = useProjectPerms(workspaceSlug, projectId);
   const pushUndo = useUndoStore((s) => s.push);
   const qc = useQueryClient();
   const { refresh, refreshWithArchive, refreshIssue } = useIssueRefresh(workspaceSlug!, projectId!);
