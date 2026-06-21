@@ -167,7 +167,12 @@ class ProjectDiscoverView(generics.ListAPIView):
 
 
 class ProjectJoinView(APIView):
-    """공개 프로젝트에 즉시 MEMBER 역할로 참가"""
+    """공개 프로젝트에 즉시 VIEWER(읽기 전용) 역할로 입장.
+
+    탐색의 '프로젝트 보기'로 들어오면 기본 viewer 권한 — 내용은 보되 편집은 불가.
+    이후 편집이 필요하면 프로젝트 Admin이 역할을 Member/Admin으로 승격한다.
+    (viewer는 수동 배정 UI에 노출하지 않고 이 경로로만 부여)
+    """
 
     def post(self, request, workspace_slug, pk):
         project = get_object_or_404(
@@ -184,7 +189,7 @@ class ProjectJoinView(APIView):
         pm = ProjectMember.objects.create(
             project=project,
             member=request.user,
-            role=ProjectMember.Role.MEMBER,
+            role=ProjectMember.Role.VIEWER,
         )
         return Response(ProjectMemberSerializer(pm).data, status=status.HTTP_201_CREATED)
 

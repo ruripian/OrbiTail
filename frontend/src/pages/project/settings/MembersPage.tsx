@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -7,12 +7,15 @@ import { projectsApi } from "@/api/projects";
 import { workspacesApi } from "@/api/workspaces";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { UserPicker, membersToUsers } from "@/components/ui/user-picker";
 import { AvatarInitials } from "@/components/ui/avatar-initials";
-import { Trash2, Crown, Search, ChevronDown } from "lucide-react";
+import { useAuthStore } from "@/stores/authStore";
+import { Trash2, Crown } from "lucide-react";
 import type { ProjectMember } from "@/types";
 
-const ROLES = [
-  { value: 10, key: "viewer" },
+/* 수동 배정 가능한 역할 — Viewer(10)는 제외.
+   Viewer는 탐색 '프로젝트 보기'로만 자동 부여되고, 여기선 Member/Admin 으로만 올린다. */
+const ASSIGNABLE_ROLES = [
   { value: 15, key: "member" },
   { value: 20, key: "admin" },
 ] as const;
@@ -24,12 +27,19 @@ export function MembersPage() {
   }>();
   const { t } = useTranslation();
   const qc = useQueryClient();
+  const currentUser = useAuthStore((s) => s.user);
   const [addUserId, setAddUserId] = useState("");
 
   const { data: members = [] } = useQuery({
     queryKey: ["project-members", workspaceSlug, projectId],
     queryFn: () => projectsApi.members.list(workspaceSlug!, projectId!),
   });
+
+  /* 본인이 이 프로젝트 Admin인지 — 멤버 추가·역할변경·제거·권한토글은 Admin만.
+     (백엔드도 강제하지만 UI에서도 가드해 비관리자에겐 컨트롤을 숨긴다) */
+  const isAdmin = members.some(
+    (m: ProjectMember) => m.member.id === currentUser?.id && m.role === 20,
+  );
 
   const { data: wsMembers = [] } = useQuery({
     queryKey: ["workspace-members", workspaceSlug],
@@ -112,16 +122,27 @@ export function MembersPage() {
         </p>
       </div>
 
-      {/* 멤버 추가 — 검색 가능한 드롭다운 */}
-      {available.length > 0 && (
-        <SearchableMemberAdd
-          available={available}
-          addUserId={addUserId}
-          setAddUserId={setAddUserId}
-          onAdd={(id) => addMutation.mutate(id)}
-          isPending={addMutation.isPending}
-          t={t}
-        />
+      {/* 멤버 추가 — Admin만. 검색 가능한 단일 선택 + 추가 버튼 */}
+      {isAdmin && available.length > 0 && (
+        <div className="flex items-center gap-2 max-w-md">
+          <div className="flex-1">
+            <UserPicker
+              variant="field"
+              mode="single"
+              users={membersToUsers(available)}
+              value={addUserId ? [addUserId] : []}
+              onChange={(ids) => setAddUserId(ids[0] ?? "")}
+              placeholder={t("project.settings.members.selectUser")}
+            />
+          </div>
+          <Button
+            size="sm"
+            disabled={!addUserId || addMutation.isPending}
+            onClick={() => addUserId && addMutation.mutate(addUserId)}
+          >
+            {t("project.settings.members.add")}
+          </Button>
+        </div>
       )}
 
       {/* 멤버 목록 */}
@@ -133,10 +154,8 @@ export function MembersPage() {
               key={pm.id}
               className="flex items-center gap-3 rounded-lg border glass p-3"
             >
-              {/* 아바타 */}
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary shrink-0">
-                {pm.member.display_name[0]?.toUpperCase()}
-              </span>
+              {/* 아바타 — 실제 프로필 사진 우선(없으면 이니셜) */}
+              <AvatarInitials name={pm.member.display_name} avatar={pm.member.avatar} size="md" className="h-8 w-8 shrink-0" />
 
               {/* 이름/이메일 + 리더 배지 */}
               <div className="flex-1 min-w-0">
@@ -152,8 +171,8 @@ export function MembersPage() {
                 <p className="text-xs text-muted-foreground truncate">{pm.member.email}</p>
               </div>
 
-              {/* 리더 버튼: 리더가 아니고 Admin이면 "리더로 지정", 리더면 "리더 해제" */}
-              {isLead ? (
+              {/* 리더 버튼 — Admin만. 리더면 "해제", Admin 멤버면 "리더로 지정" */}
+              {isAdmin && (isLead ? (
                 <Button
                   variant="ghost"
                   size="sm"
@@ -173,38 +192,52 @@ export function MembersPage() {
                 >
                   {t("project.settings.members.setLead")}
                 </Button>
-              ) : null}
+              ) : null)}
 
-              {/* 역할 변경 */}
-              <Select
-                value={String(pm.role)}
-                onValueChange={(v) => roleMutation.mutate({ id: pm.id, role: Number(v) })}
-              >
-                <SelectTrigger className="w-28">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {ROLES.map((r) => (
-                    <SelectItem key={r.value} value={String(r.value)}>
-                      {t(`project.settings.members.role.${r.key}`)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {/* 역할 — Admin만 변경. 비관리자에겐 라벨로 표시. Viewer는 수동 배정 불가(현재 viewer면 표시용 disabled) */}
+              {isAdmin ? (
+                <Select
+                  value={String(pm.role)}
+                  onValueChange={(v) => roleMutation.mutate({ id: pm.id, role: Number(v) })}
+                >
+                  <SelectTrigger className="w-28">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {pm.role === 10 && (
+                      <SelectItem value="10" disabled>
+                        {t("project.settings.members.role.viewer")}
+                      </SelectItem>
+                    )}
+                    {ASSIGNABLE_ROLES.map((r) => (
+                      <SelectItem key={r.value} value={String(r.value)}>
+                        {t(`project.settings.members.role.${r.key}`)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <span className="w-28 text-center text-xs text-muted-foreground">
+                  {t(`project.settings.members.role.${pm.role === 10 ? "viewer" : pm.role === 20 ? "admin" : "member"}`)}
+                </span>
+              )}
 
-              {/* 제거 — 리더도 제거 가능(백엔드에서 자동으로 lead=null 처리) */}
-              <button
-                onClick={() => removeMutation.mutate(pm.id)}
-                className="p-1.5 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
+              {/* 제거 — Admin만. 리더도 제거 가능(백엔드에서 자동으로 lead=null 처리) */}
+              {isAdmin && (
+                <button
+                  onClick={() => removeMutation.mutate(pm.id)}
+                  className="p-1.5 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              )}
             </div>
           );
         })}
       </div>
 
-      {/* ── 세분화 권한 — Admin 미만 멤버에게만 적용. Admin은 전체 자동 허용 ── */}
+      {/* ── 세분화 권한 — Admin만 관리. Member(15)에게만 적용; Viewer는 읽기 전용, Admin은 전체 자동 허용 ── */}
+      {isAdmin && (
       <div className="mt-8 space-y-2">
         <h2 className="text-sm font-semibold">{t("project.settings.members.permsTitle")}</h2>
         <p className="text-xs text-muted-foreground mb-3">{t("project.settings.members.permsHint")}</p>
@@ -214,7 +247,7 @@ export function MembersPage() {
               <tr>
                 <th className="text-left px-3 py-2 font-semibold">{t("project.settings.members.permMember")}</th>
                 {(["can_edit", "can_archive", "can_delete", "can_purge", "can_schedule"] as const).map((k) => {
-                  const nonAdmins = members.filter((m) => m.role < 20);
+                  const nonAdmins = members.filter((m) => m.role === 15);
                   const allOn  = nonAdmins.length > 0 && nonAdmins.every((m) => m[k]);
                   const someOn = !allOn && nonAdmins.some((m) => m[k]);
                   const tKey = k === "can_edit" ? "permEdit" : k === "can_archive" ? "permArchive" : k === "can_delete" ? "permDelete" : k === "can_purge" ? "permPurge" : "permSchedule";
@@ -248,7 +281,7 @@ export function MembersPage() {
               </tr>
             </thead>
             <tbody>
-              {members.filter((m) => m.role < 20).map((pm) => {
+              {members.filter((m) => m.role === 15).map((pm) => {
                 const togglePerm = (k: "can_edit" | "can_archive" | "can_delete" | "can_purge" | "can_schedule") =>
                   permsMutation.mutate({ id: pm.id, data: { [k]: !pm[k] } });
                 return (
@@ -267,7 +300,7 @@ export function MembersPage() {
                   </tr>
                 );
               })}
-              {members.filter((m) => m.role < 20).length === 0 && (
+              {members.filter((m) => m.role === 15).length === 0 && (
                 <tr>
                   <td colSpan={6} className="text-center text-xs text-muted-foreground py-4">
                     {t("project.settings.members.permEmpty")}
@@ -278,124 +311,8 @@ export function MembersPage() {
           </table>
         </div>
       </div>
+      )}
     </div>
   );
 }
 
-/* ── 검색 가능한 멤버 추가 드롭다운 ── */
-
-function SearchableMemberAdd({
-  available, addUserId, setAddUserId, onAdd, isPending, t,
-}: {
-  available: { member: { id: string; display_name: string; email: string; avatar?: string | null } }[];
-  addUserId: string;
-  setAddUserId: (id: string) => void;
-  onAdd: (id: string) => void;
-  isPending: boolean;
-  t: (key: string) => string;
-}) {
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const containerRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false);
-        setQuery("");
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [open]);
-
-  useEffect(() => {
-    if (open) setTimeout(() => inputRef.current?.focus(), 50);
-  }, [open]);
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return available;
-    return available.filter(
-      (wm) =>
-        wm.member.display_name.toLowerCase().includes(q) ||
-        wm.member.email.toLowerCase().includes(q),
-    );
-  }, [available, query]);
-
-  const selected = available.find((wm) => wm.member.id === addUserId);
-
-  return (
-    <div className="flex items-center gap-2 max-w-md">
-      <div ref={containerRef} className="relative flex-1">
-        <button
-          type="button"
-          onClick={() => setOpen((v) => !v)}
-          className="flex w-full min-h-9 items-center gap-2 rounded-md border border-border bg-input/60 px-3 py-1.5 text-sm text-left transition-colors hover:border-primary/50"
-        >
-          {selected ? (
-            <span className="flex items-center gap-2 truncate">
-              <AvatarInitials name={selected.member.display_name} avatar={selected.member.avatar} size="xs" />
-              {selected.member.display_name}
-            </span>
-          ) : (
-            <span className="text-muted-foreground">{t("project.settings.members.selectUser")}</span>
-          )}
-          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground ml-auto shrink-0" />
-        </button>
-
-        {open && (
-          <div className="absolute left-0 right-0 top-full z-50 mt-1 rounded-lg border glass shadow-lg overflow-hidden">
-            <div className="flex items-center gap-2 border-b border-border px-3 py-2">
-              <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-              <input
-                ref={inputRef}
-                type="text"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder={t("project.settings.members.selectUser")}
-                autoComplete="off"
-                className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-              />
-            </div>
-            <div className="overflow-y-auto py-1" style={{ maxHeight: 200 }}>
-              {filtered.length === 0 ? (
-                <div className="px-3 py-4 text-center text-xs text-muted-foreground">
-                  {t("issues.picker.noResults")}
-                </div>
-              ) : (
-                filtered.map((wm) => (
-                  <button
-                    key={wm.member.id}
-                    type="button"
-                    onClick={() => {
-                      setAddUserId(wm.member.id);
-                      setOpen(false);
-                      setQuery("");
-                    }}
-                    className="flex w-full items-center gap-2.5 px-3 py-1.5 text-sm hover:bg-muted/50 cursor-pointer transition-colors"
-                  >
-                    <AvatarInitials name={wm.member.display_name} avatar={wm.member.avatar} size="sm" />
-                    <div className="flex-1 min-w-0 text-left">
-                      <div className="text-xs font-medium truncate">{wm.member.display_name}</div>
-                      <div className="text-2xs text-muted-foreground truncate">{wm.member.email}</div>
-                    </div>
-                  </button>
-                ))
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-      <Button
-        size="sm"
-        disabled={!addUserId || isPending}
-        onClick={() => addUserId && onAdd(addUserId)}
-      >
-        {t("project.settings.members.add")}
-      </Button>
-    </div>
-  );
-}

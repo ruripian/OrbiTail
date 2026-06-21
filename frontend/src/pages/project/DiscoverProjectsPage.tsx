@@ -26,7 +26,7 @@ export function DiscoverProjectsPage() {
     onSuccess: (_, projectId) => {
       qc.invalidateQueries({ queryKey: ["projects", workspaceSlug] });
       qc.invalidateQueries({ queryKey: ["projects-discover", workspaceSlug] });
-      toast.success(t("discover.joined"));
+      toast.success(t("discover.viewing", "보기 권한으로 입장했습니다"));
       navigate(`/${workspaceSlug}/projects/${projectId}/issues`);
     },
     onError: () => toast.error(t("discover.joinFailed")),
@@ -82,13 +82,13 @@ export function DiscoverProjectsPage() {
                 </p>
               </div>
 
-              {/* 참가 버튼 */}
+              {/* 프로젝트 보기 — viewer(읽기 전용)로 입장 */}
               <Button
                 size="sm"
                 onClick={() => joinMutation.mutate(project.id)}
                 disabled={joinMutation.isPending}
               >
-                {t("discover.join")}
+                {t("discover.view", "프로젝트 보기")}
               </Button>
             </div>
           ))}
