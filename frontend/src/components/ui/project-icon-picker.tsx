@@ -117,12 +117,15 @@ export function parseIconProp(value: Record<string, unknown> | null | undefined)
 export function ProjectIcon({
   value,
   size = 20,
+  box: boxProp,
   className = "",
   bg,
   iconColor,
 }: {
   value: Record<string, unknown> | null | undefined;
   size?: number;
+  /** 컨테이너(박스) 크기(px) 명시 — 미지정 시 size+16. 기존 `!w-4 !h-4` 강제 override 대체용 */
+  box?: number;
   className?: string;
   /** 배경색 강제 — 미지정 시 themed color 의 13% 투명도 사용 */
   bg?: string;
@@ -130,7 +133,7 @@ export function ProjectIcon({
   iconColor?: string;
 }) {
   const icon = parseIconProp(value);
-  const box = size + 16;
+  const box = boxProp ?? size + 16;
 
   if (icon.type === "image") {
     return (

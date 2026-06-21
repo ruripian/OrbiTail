@@ -53,7 +53,7 @@ export function CategoryPicker({ categories, currentId, onChange, className, dis
           )}
         >
           {cur ? (
-            <ProjectIcon value={cur.icon_prop} size={12} className="!w-4 !h-4" />
+            <ProjectIcon value={cur.icon_prop} size={12} box={16} />
           ) : (
             <Box className="h-3.5 w-3.5 shrink-0 text-muted-foreground/40" />
           )}
@@ -83,7 +83,7 @@ export function CategoryPicker({ categories, currentId, onChange, className, dis
               className="gap-2 rounded-lg text-xs cursor-pointer"
               onClick={() => onChange(m.id)}
             >
-              <ProjectIcon value={m.icon_prop} size={12} className="!w-4 !h-4" />
+              <ProjectIcon value={m.icon_prop} size={12} box={16} />
               <span className="flex-1 truncate">{m.name}</span>
               {currentId === m.id && <Check className="h-3 w-3 text-primary shrink-0" />}
             </DropdownMenuItem>

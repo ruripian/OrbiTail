@@ -256,7 +256,7 @@ function ProjectItem({
                 catDragId === cat.id && "opacity-50",
               )}
             >
-              <ProjectIcon value={cat.icon_prop} size={10} className="!w-4 !h-4 shrink-0" />
+              <ProjectIcon value={cat.icon_prop} size={10} box={16} className="shrink-0" />
               <span className="truncate">{cat.name}</span>
             </Link>
           ))}

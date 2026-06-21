@@ -14,6 +14,7 @@ import { List, LayoutGrid, Calendar, GanttChart, Zap, Layers, ChevronDown, Check
 import { issuesApi } from "@/api/issues";
 import { projectsApi } from "@/api/projects";
 import { cn } from "@/lib/utils";
+import { ProjectIcon } from "@/components/ui/project-icon-picker";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -255,6 +256,20 @@ export function ProjectIssuePage() {
         {projectId && <PresenceStack scope={`project:${projectId}`} />}
 
       </div>
+
+      {/* 카테고리 컨텍스트 헤더 — 카테고리 선택 진입 시 상단에 아이콘+이름(+프로젝트)을 시각화 */}
+      {activeCategory && (
+        <div className="px-3 sm:px-5 py-2 border-b border-border bg-muted/10 shrink-0 flex items-center gap-2 text-sm">
+          <ProjectIcon value={activeCategory.icon_prop} size={14} className="shrink-0" />
+          <span className="font-semibold truncate">{activeCategory.name}</span>
+          {project && (
+            <span className="text-muted-foreground truncate hidden sm:inline">· {project.name}</span>
+          )}
+          <span className="text-2xs text-muted-foreground shrink-0 ml-1">
+            {t("modules.issueCount", { count: activeCategory.issue_count })}
+          </span>
+        </div>
+      )}
 
       {activeSprint && sprintIssues.length > 0 && (() => {
         // 필드(Field) 는 상태 없는 컨테이너 → 스프린트 집계에서 제외.
