@@ -97,9 +97,12 @@ export function BoardView({ workspaceSlug, projectId, onIssueClick, issueFilter,
     },
   });
 
+  // 보드에는 진행 중 컬럼만 — 완료(completed)/취소(cancelled) 그룹은 제외(사용자 요청).
+  // 해당 상태의 이슈는 보드에 나타나지 않으며, 테이블/타임라인 등 다른 뷰에서 확인.
+  const boardStates = states.filter((s) => s.group !== "completed" && s.group !== "cancelled");
   // 필드(Field) 이슈는 상태가 없는 상위 컨테이너 → 보드에서 제외.
   const taskIssues = issues.filter((i) => !i.is_field);
-  const issuesByState = states.reduce<Record<string, Issue[]>>((acc, state) => {
+  const issuesByState = boardStates.reduce<Record<string, Issue[]>>((acc, state) => {
     acc[state.id] = taskIssues.filter((i) => i.state === state.id);
     return acc;
   }, {});
@@ -108,7 +111,7 @@ export function BoardView({ workspaceSlug, projectId, onIssueClick, issueFilter,
     <div className="p-2 sm:p-4 h-full flex flex-col overflow-hidden">
       {/* 칸반 컬럼 — min-w로 최소 너비 보장, flex-1로 균등 분배, 모바일 터치 스크롤 */}
       <div className="flex gap-2 sm:gap-3 overflow-x-auto flex-1 pb-4 snap-x snap-mandatory sm:snap-none">
-        {states.map((state) => (
+        {boardStates.map((state) => (
           <div
             key={state.id}
             className={cn(
@@ -220,9 +223,18 @@ export function BoardView({ workspaceSlug, projectId, onIssueClick, issueFilter,
                         diff < 0      ? "text-red-500 font-medium" :
                         diff <= 3     ? "text-orange-400 font-medium" :
                         "text-muted-foreground";
+                      /* 남은 일수 D-day 배지 — 의미를 한눈에. 진행 중 상태 + 마감일 있을 때만.
+                         지남=빨강 / 임박(≤3일)=주황 / 그 외=은은한 muted. */
+                      const showDday = isActiveState && diff !== null;
+                      const ddayLabel = diff === null ? "" : diff < 0 ? `D+${-diff}` : diff === 0 ? "D-DAY" : `D-${diff}`;
+                      const ddayClass =
+                        diff === null ? "" :
+                        diff < 0  ? "bg-red-500/15 text-red-500" :
+                        diff <= 3 ? "bg-orange-400/15 text-orange-500" :
+                        "bg-muted text-muted-foreground";
                       return (
-                        <div className="flex items-center gap-1.5 mb-2 text-2xs">
-                          <CalendarRange className="h-3 w-3 text-muted-foreground/60 shrink-0" />
+                        <div className="flex items-center gap-1.5 mb-2 text-xs">
+                          <CalendarRange className="h-3.5 w-3.5 text-muted-foreground/60 shrink-0" />
                           <span className="text-muted-foreground">
                             {issue.start_date ? formatDate(issue.start_date) : "—"}
                           </span>
@@ -230,6 +242,11 @@ export function BoardView({ workspaceSlug, projectId, onIssueClick, issueFilter,
                           <span className={dueClass}>
                             {issue.due_date ? formatDate(issue.due_date) : "—"}
                           </span>
+                          {showDday && (
+                            <span className={cn("ml-auto rounded px-1.5 py-0.5 text-3xs font-semibold shrink-0", ddayClass)}>
+                              {ddayLabel}
+                            </span>
+                          )}
                         </div>
                       );
                     })()}
@@ -240,16 +257,16 @@ export function BoardView({ workspaceSlug, projectId, onIssueClick, issueFilter,
                       {issue.assignee_details.length > 0 ? (
                         <div className="flex -space-x-1">
                           {issue.assignee_details.slice(0, 3).map((a) => (
-                            <AvatarInitials key={a.id} name={a.display_name} avatar={a.avatar} size="xs" ring title={a.display_name} />
+                            <AvatarInitials key={a.id} name={a.display_name} avatar={a.avatar} size="sm" ring title={a.display_name} />
                           ))}
                           {issue.assignee_details.length > 3 && (
-                            <span className="h-5 w-5 rounded-full bg-muted text-3xs flex items-center justify-center border-2 border-background text-muted-foreground">
+                            <span className="h-6 w-6 rounded-full bg-muted text-2xs flex items-center justify-center border-2 border-background text-muted-foreground">
                               +{issue.assignee_details.length - 3}
                             </span>
                           )}
                         </div>
                       ) : (
-                        <span className="text-2xs text-muted-foreground/50">{t("issues.picker.none")}</span>
+                        <span className="text-xs text-muted-foreground/50">{t("issues.picker.none")}</span>
                       )}
                       <span title={t(PRIORITY_LABEL_KEY[issue.priority])} className="inline-flex">
                         <PriorityGlyph priority={issue.priority} size={12} />
