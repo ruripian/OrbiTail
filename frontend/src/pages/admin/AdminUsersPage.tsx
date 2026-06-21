@@ -12,6 +12,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { AvatarInitials } from "@/components/ui/avatar-initials";
 import type { AdminUser } from "@/types";
 
 type Tab = UserStatusFilter | "all";
@@ -186,9 +187,7 @@ function UserRow({
   return (
     <div className="flex items-center justify-between rounded-lg border bg-card p-4 shadow-sm">
       <div className="flex items-start gap-3 min-w-0">
-        <div className="h-10 w-10 shrink-0 rounded-full bg-muted flex items-center justify-center text-muted-foreground font-semibold">
-          {user.display_name.charAt(0).toUpperCase()}
-        </div>
+        <AvatarInitials name={user.display_name} avatar={user.avatar} size="lg" className="h-10 w-10 shrink-0" />
         <div className="space-y-1 min-w-0">
           <p className="text-sm font-medium leading-none truncate">
             {user.display_name}

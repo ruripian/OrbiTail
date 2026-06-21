@@ -1,11 +1,16 @@
-import { ChevronDown, Check, Tag } from "lucide-react";
+import { useState } from "react";
+import { ChevronDown, Check, Tag, Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { issuesApi } from "@/api/issues";
 import { cn } from "@/lib/utils";
 import type { Label } from "@/types";
 
@@ -30,12 +35,32 @@ interface Props {
   currentDetails?: Label[] | null;
   onChange:        (ids: string[]) => void;
   className?:      string;
+  /** ws/project 지정 시 드롭다운 하단에 "라벨 추가"가 노출되어 즉석 생성 가능 */
+  workspaceSlug?:  string;
+  projectId?:      string;
 }
 
-export function LabelPicker({ labels, currentIds, currentDetails, onChange, className }: Props) {
+export function LabelPicker({ labels, currentIds, currentDetails, onChange, className, workspaceSlug, projectId }: Props) {
   const { t } = useTranslation();
+  const qc = useQueryClient();
   const details: Label[] =
     currentDetails ?? labels.filter((l) => currentIds.includes(l.id));
+
+  /* 즉석 라벨 생성 — 색은 기본값. 생성 후 라벨 목록 갱신 + 새 라벨 자동 선택 */
+  const canCreate = !!workspaceSlug && !!projectId;
+  const [adding, setAdding] = useState(false);
+  const [newName, setNewName] = useState("");
+  const createMutation = useMutation({
+    mutationFn: (name: string) =>
+      issuesApi.labels.create(workspaceSlug!, projectId!, { name, color: "#5E6AD2" }),
+    onSuccess: (label) => {
+      qc.invalidateQueries({ queryKey: ["labels"] });
+      onChange([...currentIds, label.id]);
+      setNewName("");
+      setAdding(false);
+    },
+    onError: () => toast.error(t("labels.createFailed")),
+  });
 
   return (
     <DropdownMenu>
@@ -101,6 +126,42 @@ export function LabelPicker({ labels, currentIds, currentDetails, onChange, clas
               </DropdownMenuItem>
             );
           })
+        )}
+
+        {/* 라벨 즉석 추가 — ws/project 가 있을 때만 */}
+        {canCreate && (
+          <>
+            <DropdownMenuSeparator />
+            {adding ? (
+              <div className="px-1 py-0.5" onClick={(e) => e.stopPropagation()}>
+                <input
+                  autoFocus
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  onKeyDown={(e) => {
+                    /* Radix 메뉴 타입어헤드가 입력을 가로채지 않도록 전파 차단 */
+                    e.stopPropagation();
+                    if (e.key === "Enter" && newName.trim() && !createMutation.isPending) {
+                      createMutation.mutate(newName.trim());
+                    } else if (e.key === "Escape") {
+                      setAdding(false);
+                      setNewName("");
+                    }
+                  }}
+                  placeholder={t("labels.namePlaceholder", "라벨 이름 (Enter)")}
+                  className="w-full bg-transparent text-xs outline-none border border-border rounded-md px-2 py-1 placeholder:text-muted-foreground"
+                />
+              </div>
+            ) : (
+              <DropdownMenuItem
+                className="gap-2 rounded-lg text-xs cursor-pointer text-primary"
+                onSelect={(e) => { e.preventDefault(); setAdding(true); }}
+              >
+                <Plus className="h-3 w-3 shrink-0" />
+                {t("labels.add", "라벨 추가")}
+              </DropdownMenuItem>
+            )}
+          </>
         )}
       </DropdownMenuContent>
     </DropdownMenu>

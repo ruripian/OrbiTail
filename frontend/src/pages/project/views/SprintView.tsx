@@ -14,6 +14,7 @@ import {
   Zap, CheckCircle2, Circle, Clock, Plus, ChevronRight, ChevronDown, Trash2,
 } from "lucide-react";
 import { projectsApi } from "@/api/projects";
+import { AvatarInitials } from "@/components/ui/avatar-initials";
 import { issuesApi } from "@/api/issues";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -376,9 +377,7 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
                           {issue.assignee_details.length > 0 ? (
                             <div className="flex -space-x-1">
                               {issue.assignee_details.slice(0, 3).map((a) => (
-                                <div key={a.id} className="h-5 w-5 rounded-full bg-primary/10 text-2xs flex items-center justify-center border border-background font-medium" title={a.display_name}>
-                                  {a.display_name[0].toUpperCase()}
-                                </div>
+                                <AvatarInitials key={a.id} name={a.display_name} avatar={a.avatar} size="xs" ring title={a.display_name} />
                               ))}
                             </div>
                           ) : (

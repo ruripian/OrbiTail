@@ -7,6 +7,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip,
   LineChart, Line, CartesianGrid,
 } from "recharts";
+import { AvatarInitials } from "@/components/ui/avatar-initials";
 import type { IssueStats } from "@/types";
 
 /* 우선순위 → 고정 색상 */
@@ -122,9 +123,7 @@ export function StatsCharts({ stats, t }: Props) {
               const pct = maxCount > 0 ? (a.count / maxCount) * 100 : 0;
               return (
                 <div key={a.user_id} className="flex items-center gap-3">
-                  <div className="h-7 w-7 rounded-full bg-primary/15 text-xs font-bold flex items-center justify-center text-primary shrink-0">
-                    {a.display_name[0]?.toUpperCase()}
-                  </div>
+                  <AvatarInitials name={a.display_name} avatar={a.avatar} size="md" className="shrink-0" />
                   <span className="text-sm truncate w-24">{a.display_name}</span>
                   <div className="flex-1 h-5 bg-muted rounded-full overflow-hidden">
                     <div className="h-full bg-primary/60 rounded-full transition-all" style={{ width: `${pct}%` }} />

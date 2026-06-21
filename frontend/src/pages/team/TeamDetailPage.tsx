@@ -22,6 +22,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { AvatarInitials } from "@/components/ui/avatar-initials";
+import { UserPicker, membersToUsers } from "@/components/ui/user-picker";
 import { cn } from "@/lib/utils";
 
 export function TeamDetailPage() {
@@ -83,7 +84,9 @@ export function TeamDetailPage() {
 
   return (
     <div className="h-full overflow-y-auto bg-background">
-      <div className="max-w-[1600px] mx-auto px-6 py-6">
+      <div className="px-6 py-6">
+        {/* 헤더 — 가독성 위해 1600px 중앙 유지 */}
+        <div className="max-w-[1600px] mx-auto">
         <button
           onClick={() => navigate(`/${workspaceSlug}/teams`)}
           className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground mb-4 transition-colors"
@@ -123,8 +126,9 @@ export function TeamDetailPage() {
             </div>
           )}
         </header>
+        </div>
 
-        {/* 팀 캘린더 — 멤버 칩 토글 + 본인 PE + 공개 프로젝트 전체 공유, 비공개는 팀장/본인만 */}
+        {/* 팀 캘린더 — 전체폭(헤더/멤버는 1600 중앙, 캘린더만 해상도 따라 화면을 채움) */}
         <section className="mb-6">
           <TeamCalendarSection
             workspaceSlug={workspaceSlug}
@@ -133,7 +137,8 @@ export function TeamDetailPage() {
           />
         </section>
 
-        {/* 멤버 목록 */}
+        {/* 멤버 목록 — 1600px 중앙 유지 */}
+        <div className="max-w-[1600px] mx-auto">
         <section className="rounded-xl border bg-card overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b">
             <h2 className="text-sm font-semibold">멤버 ({members.length})</h2>
@@ -196,6 +201,7 @@ export function TeamDetailPage() {
             })}
           </ul>
         </section>
+        </div>
       </div>
 
       {/* 편집 다이얼로그 */}
@@ -306,9 +312,6 @@ function AddMemberDialog({
   onClose: () => void;
   onAdded: () => void;
 }) {
-  const [q, setQ] = useState("");
-  const [adding, setAdding] = useState<string | null>(null);
-
   const { data: wsMembers = [] } = useQuery({
     queryKey: ["workspace-members", workspaceSlug],
     queryFn: () => workspacesApi.members(workspaceSlug),
@@ -320,58 +323,22 @@ function AddMemberDialog({
     onError: (e: any) => toast.error(e?.response?.data?.detail ?? "추가 실패"),
   });
 
-  const filtered = wsMembers.filter((wm) => {
-    if (excludeIds.includes(wm.member.id)) return false;
-    if (!q.trim()) return true;
-    const ql = q.toLowerCase();
-    return wm.member.display_name.toLowerCase().includes(ql) || wm.member.email.toLowerCase().includes(ql);
-  });
-
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>멤버 추가</DialogTitle>
         </DialogHeader>
-        <div className="space-y-2">
-          <input
-            type="text"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="이름 또는 이메일 검색"
-            autoFocus
-            className="w-full text-sm bg-background border rounded-lg px-3 py-2 outline-none focus:border-primary/60"
-          />
-          <div className="max-h-72 overflow-y-auto -mx-2">
-            {filtered.length === 0 ? (
-              <p className="text-xs text-muted-foreground text-center py-6">
-                {q ? "검색 결과 없음" : "추가 가능한 워크스페이스 멤버 없음"}
-              </p>
-            ) : (
-              <ul>
-                {filtered.map((wm) => (
-                  <li key={wm.id}>
-                    <button
-                      disabled={adding !== null}
-                      onClick={() => {
-                        setAdding(wm.member.id);
-                        addMutation.mutate(wm.member.id, { onSettled: () => setAdding(null) });
-                      }}
-                      className={cn(
-                        "flex items-center gap-2 w-full text-left px-3 py-2 text-sm rounded-md hover:bg-muted/40 transition-colors",
-                        adding && "opacity-60 cursor-wait",
-                      )}
-                    >
-                      <AvatarInitials name={wm.member.display_name} avatar={wm.member.avatar} size="xs" />
-                      <span className="flex-1 truncate">{wm.member.display_name}</span>
-                      <span className="text-2xs text-muted-foreground truncate">{wm.member.email}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </div>
+        {/* 단일 선택 — 고르면 즉시 추가. 이미 팀원은 excludeIds로 후보에서 제외 */}
+        <UserPicker
+          variant="field"
+          mode="single"
+          users={membersToUsers(wsMembers)}
+          excludeIds={excludeIds}
+          value={[]}
+          onChange={(ids) => { if (ids[0]) addMutation.mutate(ids[0]); }}
+          placeholder="이름 또는 이메일 검색"
+        />
       </DialogContent>
     </Dialog>
   );

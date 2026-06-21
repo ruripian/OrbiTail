@@ -5,6 +5,7 @@ import { Loader2, Search } from "lucide-react";
 
 import { adminApi } from "@/api/admin";
 import { Input } from "@/components/ui/input";
+import { AvatarInitials } from "@/components/ui/avatar-initials";
 import { cn } from "@/lib/utils";
 
 /**
@@ -72,9 +73,7 @@ export function UserPicker({
                 u.id === value ? "bg-primary/10 text-foreground" : "hover:bg-muted/60",
               )}
             >
-              <div className="h-7 w-7 shrink-0 rounded-full bg-muted flex items-center justify-center text-xs font-semibold text-muted-foreground">
-                {u.display_name.charAt(0).toUpperCase()}
-              </div>
+              <AvatarInitials name={u.display_name} avatar={u.avatar} size="md" className="shrink-0" />
               <div className="min-w-0 flex-1">
                 <p className="truncate font-medium leading-tight">{u.display_name}</p>
                 <p className="truncate text-xs text-muted-foreground leading-tight">{u.email}</p>

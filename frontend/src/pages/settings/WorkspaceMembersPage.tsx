@@ -10,6 +10,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { AvatarInitials } from "@/components/ui/avatar-initials";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -311,10 +312,8 @@ export function WorkspaceMembersPage() {
               key={wm.id}
               className="flex items-center gap-3 rounded-lg border glass p-3"
             >
-              {/* 아바타 */}
-              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary shrink-0">
-                {wm.member.display_name[0]?.toUpperCase()}
-              </span>
+              {/* 아바타 — 실제 프로필 사진 우선(없으면 이니셜) */}
+              <AvatarInitials name={wm.member.display_name} avatar={wm.member.avatar} size="lg" className="shrink-0" />
 
               {/* 이름/이메일 + Owner 배지 */}
               <div className="flex-1 min-w-0">
