@@ -12,9 +12,10 @@ import { createPortal } from "react-dom";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { Search, FileText, ArrowRight, X, StickyNote } from "lucide-react";
+import { Search, ArrowRight, X, StickyNote } from "lucide-react";
 import { issuesApi } from "@/api/issues";
 import { documentsApi } from "@/api/documents";
+import { ProjectIcon } from "@/components/ui/project-icon-picker";
 import { useIssueDialogStore } from "@/stores/issueDialogStore";
 import { cn } from "@/lib/utils";
 import { Z_SEARCH } from "@/constants/z-index";
@@ -217,7 +218,7 @@ export function CommandSearchDialog({ open, onOpenChange, documentMode = false }
                   i === selectedIndex ? "bg-accent" : "hover:bg-accent/50"
                 )}
               >
-                <FileText className="h-4 w-4 shrink-0" style={{ color: `var(--priority-${issue.priority})` }} />
+                <ProjectIcon value={issue.project_icon_prop} size={14} className="shrink-0" />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-mono text-muted-foreground shrink-0">

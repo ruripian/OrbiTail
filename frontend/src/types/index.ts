@@ -537,6 +537,7 @@ export interface IssueSearchResult {
   project: string;
   project_identifier: string;
   project_name: string;
+  project_icon_prop?: Record<string, unknown> | null;
   sequence_id: number;
   updated_at: string;
 }

@@ -113,12 +113,14 @@ class IssueSearchSerializer(serializers.ModelSerializer):
     state_detail = StateSerializer(source="state", read_only=True)
     project_identifier = serializers.CharField(source="project.identifier", read_only=True)
     project_name = serializers.CharField(source="project.name", read_only=True)
+    # 검색 결과도 사이드바·통합뷰와 동일한 프로젝트 아이콘을 그리도록 icon_prop 동봉
+    project_icon_prop = serializers.JSONField(source="project.icon_prop", read_only=True)
 
     class Meta:
         model = Issue
         fields = [
             "id", "title", "priority", "state", "state_detail",
-            "project", "project_identifier", "project_name",
+            "project", "project_identifier", "project_name", "project_icon_prop",
             "sequence_id", "parent", "updated_at",
         ]
 
