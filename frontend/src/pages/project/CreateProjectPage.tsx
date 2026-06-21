@@ -15,12 +15,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
-import {
   ProjectIconPicker, type IconProp,
 } from "@/components/ui/project-icon-picker";
-import { MemberMultiSelect } from "@/components/ui/member-multi-select";
+import { UserPicker, membersToUsers } from "@/components/ui/user-picker";
 
 /**
  * 프로젝트 생성 페이지 — 대시보드 스타일 넓은 카드 레이아웃
@@ -242,24 +239,15 @@ export function CreateProjectPage() {
                   control={control}
                   name="lead"
                   render={({ field }) => (
-                    <Select
-                      value={field.value ?? ""}
-                      onValueChange={(v) => field.onChange(v || null)}
-                    >
-                      <SelectTrigger id="lead">
-                        <SelectValue placeholder={t("project.create.leadPlaceholder")} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {wsMembers.map((wm) => (
-                          <SelectItem key={wm.member.id} value={wm.member.id}>
-                            {wm.member.display_name}
-                            {wm.member.id === currentUser?.id
-                              ? ` (${t("project.create.leadYou")})`
-                              : ""}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <UserPicker
+                      variant="field"
+                      mode="single"
+                      users={membersToUsers(wsMembers)}
+                      value={field.value ? [field.value] : []}
+                      onChange={(ids) => field.onChange(ids[0] ?? null)}
+                      getBadge={(id) => (id === currentUser?.id ? `(${t("project.create.leadYou")})` : null)}
+                      placeholder={t("project.create.leadPlaceholder")}
+                    />
                   )}
                 />
               </div>
@@ -305,13 +293,6 @@ export function CreateProjectPage() {
                 /* UI 표시용 전체 selectedIds = lockedIds ∪ memberIds (중복 제거) */
                 const allSelected = Array.from(new Set([...lockedIds, ...memberIds]));
 
-                const options = wsMembers.map((wm) => ({
-                  id: wm.member.id,
-                  name: wm.member.display_name,
-                  email: wm.member.email,
-                  avatar: wm.member.avatar,
-                }));
-
                 const getBadge = (id: string): string | null => {
                   if (id === currentUser?.id) return `(${t("project.create.leadYou")})`;
                   if (id === leadId) return "★";
@@ -326,9 +307,11 @@ export function CreateProjectPage() {
                         {t("project.create.membersHint")}
                       </span>
                     </div>
-                    <MemberMultiSelect
-                      options={options}
-                      selectedIds={allSelected}
+                    <UserPicker
+                      variant="field"
+                      mode="multi"
+                      users={membersToUsers(wsMembers)}
+                      value={allSelected}
                       lockedIds={lockedIds}
                       getBadge={getBadge}
                       placeholder={t("project.create.membersPlaceholder")}

@@ -16,10 +16,9 @@ import { useState, useMemo, useRef, Fragment, useEffect, createContext, useConte
 import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { motion } from "framer-motion";
 import { useRecentChangesStore } from "@/stores/recentChangesStore";
 import {
-  Plus, SlidersHorizontal, Check, X, Inbox,
+  Plus, SlidersHorizontal, Check, X, Inbox, Search,
   GitBranch, Link2, LayoutGrid, ChevronDown, ChevronRight,
   GripVertical, MoreHorizontal, Trash2, CheckCircle2, Copy, Archive, Share2, Layers, Circle,
   ArrowUp, ArrowDown, ArrowUpDown, RotateCcw,
@@ -33,7 +32,7 @@ import { IssueCreateDialog } from "@/components/issues/IssueCreateDialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { StatePicker } from "@/components/issues/state-picker";
 import { PriorityPicker } from "@/components/issues/priority-picker";
-import { AssigneePicker } from "@/components/issues/assignee-picker";
+import { UserPicker, membersToUsers, mergeUsers } from "@/components/ui/user-picker";
 import { CategoryPicker } from "@/components/issues/category-picker";
 import { SprintPicker } from "@/components/issues/sprint-picker";
 import { LabelPicker } from "@/components/issues/label-picker";
@@ -1690,10 +1689,11 @@ function IssueCard({
 
       case "assignee":
         return (
-          <AssigneePicker
-            members={members}
-            currentIds={issue.assignees}
-            currentDetails={issue.assignee_details}
+          <UserPicker
+            variant="avatars"
+            mode="multi"
+            users={mergeUsers(membersToUsers(members), issue.assignee_details)}
+            value={issue.assignees ?? []}
             onChange={(ids) => updateMutation.mutate({ assignees: ids })}
           />
         );
@@ -1736,6 +1736,8 @@ function IssueCard({
             currentIds={issue.label}
             currentDetails={issue.label_details}
             onChange={(ids) => updateMutation.mutate({ label: ids })}
+            workspaceSlug={workspaceSlug}
+            projectId={projectId}
           />
         );
 
@@ -1897,13 +1899,9 @@ function IssueCard({
               className="shrink-0 flex items-center truncate overflow-hidden"
               style={{ width: "var(--col-w-_id)", minWidth: "var(--col-w-_id)" }}
             >
-              {/* Phase 3.3 — IssueDetailPage의 issueRef와 같은 layoutId. 모달 열림 시 자연 이어짐 */}
-              <motion.span
-                layoutId={`issue-ref-${issue.id}`}
-                className="font-mono text-xs font-semibold text-muted-foreground/70 truncate"
-              >
+              <span className="font-mono text-xs font-semibold text-muted-foreground/70 truncate">
                 {projectIdentifier ? `${projectIdentifier}-${issue.sequence_id}` : `#${issue.sequence_id}`}
-              </motion.span>
+              </span>
             </div>
 
             <div className="w-[10px] self-stretch shrink-0 flex items-center text-transparent">|</div>
@@ -2186,7 +2184,14 @@ function FilterDropdown({
   /** grid: 토글 버튼 2열 그리드 (클릭해도 팝오버 유지) / checkbox: 체크박스 리스트 (담당자처럼 많을 때) */
   variant?:   "grid" | "checkbox";
 }) {
+  const { t } = useTranslation();
   const count = selected.size;
+  /* checkbox 변형(담당자 등 사용자 목록)은 상단 검색칸으로 빠르게 찾기 */
+  const [query, setQuery] = useState("");
+  const q = query.trim().toLowerCase();
+  const shownItems = variant === "checkbox" && q
+    ? items.filter((it) => it.label.toLowerCase().includes(q))
+    : items;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -2240,21 +2245,39 @@ function FilterDropdown({
             })}
           </div>
         ) : (
-          /* 체크박스 리스트 — 담당자처럼 많을 때 */
-          items.map((item) => (
-            <DropdownMenuCheckboxItem
-              key={item.id}
-              checked={selected.has(item.id)}
-              onSelect={(e) => e.preventDefault()}
-              onCheckedChange={() => onToggle(item.id)}
-              className="text-xs gap-2 rounded-lg"
-            >
-              {item.color && (
-                <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: item.color }} />
-              )}
-              {item.label}
-            </DropdownMenuCheckboxItem>
-          ))
+          /* 체크박스 리스트 — 담당자처럼 많을 때. 최상단 검색칸 + 리스트 */
+          <>
+            {/* 검색칸 — Radix 메뉴 타입어헤드가 입력을 가로채지 않도록 keydown 전파 차단 */}
+            <div className="flex items-center gap-1.5 px-2 py-1.5 mb-1 border-b border-border">
+              <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <input
+                autoFocus
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => e.stopPropagation()}
+                placeholder={t("common.search", "검색")}
+                className="flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground min-w-0"
+              />
+            </div>
+            {shownItems.length === 0 ? (
+              <p className="text-xs text-muted-foreground px-2 py-1.5">{emptyLabel}</p>
+            ) : (
+              shownItems.map((item) => (
+                <DropdownMenuCheckboxItem
+                  key={item.id}
+                  checked={selected.has(item.id)}
+                  onSelect={(e) => e.preventDefault()}
+                  onCheckedChange={() => onToggle(item.id)}
+                  className="text-xs gap-2 rounded-lg"
+                >
+                  {item.color && (
+                    <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: item.color }} />
+                  )}
+                  {item.label}
+                </DropdownMenuCheckboxItem>
+              ))
+            )}
+          </>
         )}
         {/* 선택 해제 — 드롭다운 맨 아래. 아이템 위치가 바뀌지 않도록 하단 고정 */}
         {count > 0 && onClear && (

@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DatePicker } from "@/components/ui/date-picker";
-import { AssigneePicker } from "@/components/issues/assignee-picker";
+import { UserPicker, membersToUsers } from "@/components/ui/user-picker";
 import { cn } from "@/lib/utils";
 import { projectsApi } from "@/api/projects";
 import { meApi } from "@/api/me";
@@ -250,10 +250,11 @@ export function EventDialog({
             <>
               <div className="space-y-1">
                 <Label>{t("events.fields.participants")}</Label>
-                <AssigneePicker
-                  members={members}
-                  currentIds={participants}
-                  currentDetails={null}
+                <UserPicker
+                  variant="avatars"
+                  mode="multi"
+                  users={membersToUsers(members)}
+                  value={participants}
                   onChange={setParticipants}
                   className="w-full justify-start"
                 />

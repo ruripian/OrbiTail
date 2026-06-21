@@ -35,7 +35,7 @@ import { AvatarInitials } from "@/components/ui/avatar-initials";
 import { StatePicker } from "@/components/issues/state-picker";
 import { CategoryPicker } from "@/components/issues/category-picker";
 import { SprintPicker } from "@/components/issues/sprint-picker";
-import { AssigneePicker } from "@/components/issues/assignee-picker";
+import { UserPicker, membersToUsers } from "@/components/ui/user-picker";
 
 import { useRequestDialogStore } from "@/stores/requestDialogStore";
 import { useIssueDialogStore } from "@/stores/issueDialogStore";
@@ -398,7 +398,7 @@ function ApproveForm({
 
           <div>
             <label className="block text-xs font-medium mb-1 text-muted-foreground">담당자</label>
-            <AssigneePicker members={members} currentIds={assigneeIds} onChange={setAssigneeIds} />
+            <UserPicker variant="avatars" mode="multi" users={membersToUsers(members)} value={assigneeIds} onChange={setAssigneeIds} />
           </div>
         </div>
 

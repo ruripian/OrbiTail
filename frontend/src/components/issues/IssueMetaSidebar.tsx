@@ -7,7 +7,7 @@ import { issuesApi } from "@/api/issues";
 import { documentsApi } from "@/api/documents";
 import { StatePicker } from "@/components/issues/state-picker";
 import { PriorityPicker } from "@/components/issues/priority-picker";
-import { AssigneePicker } from "@/components/issues/assignee-picker";
+import { UserPicker, membersToUsers, mergeUsers } from "@/components/ui/user-picker";
 import { LabelPicker } from "@/components/issues/label-picker";
 import { CategoryPicker } from "@/components/issues/category-picker";
 import { ParentPicker } from "@/components/issues/parent-picker";
@@ -113,10 +113,11 @@ export function IssueMetaSidebar({
             <p className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground/70 mb-1.5">
               {t("issues.detail.meta.assignee")}
             </p>
-            <AssigneePicker
-              members={members}
-              currentIds={issue.assignees}
-              currentDetails={issue.assignee_details}
+            <UserPicker
+              variant="avatars"
+              mode="multi"
+              users={mergeUsers(membersToUsers(members), issue.assignee_details)}
+              value={issue.assignees ?? []}
               onChange={(ids) => onUpdate({ assignees: ids })}
               className="border border-border rounded-md bg-input/60 hover:bg-primary/10 min-h-[32px]"
             />
@@ -130,6 +131,8 @@ export function IssueMetaSidebar({
               currentIds={issue.label}
               currentDetails={issue.label_details}
               onChange={(ids) => onUpdate({ label: ids })}
+              workspaceSlug={workspaceSlug}
+              projectId={projectId}
               className="border border-border rounded-md bg-input/60 hover:bg-primary/10 min-h-[32px]"
             />
           </div>

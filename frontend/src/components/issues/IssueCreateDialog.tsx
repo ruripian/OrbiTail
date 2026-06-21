@@ -4,7 +4,7 @@
  * 필드: 제목, 설명, 상태, 우선순위, 담당자, 시작일, 마감일, 카테고리, 스프린트
  * 컨텍스트 자동 할당: 카테고리/스프린트 뷰에서 열면 해당 값이 기본 선택됨
  */
-import { useEffect, useState, useMemo } from "react";
+import { useEffect } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -17,7 +17,7 @@ import { projectsApi } from "@/api/projects";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DatePicker } from "@/components/ui/date-picker";
-import { AvatarInitials } from "@/components/ui/avatar-initials";
+import { UserPicker, membersToUsers } from "@/components/ui/user-picker";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
@@ -27,7 +27,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { TemplatePicker } from "./template-picker";
-import type { State, Category, Sprint, ProjectMember, IssueTemplate } from "@/types";
+import type { State, Category, Sprint, IssueTemplate } from "@/types";
 
 const schema = z.object({
   title: z.string().min(1),
@@ -186,16 +186,6 @@ export function IssueCreateDialog({
     },
   });
 
-  /* 담당자 토글 — 다중 선택 */
-  const toggleAssignee = (userId: string) => {
-    const current = selectedAssignees;
-    if (current.includes(userId)) {
-      setValue("assignees", current.filter((id) => id !== userId));
-    } else {
-      setValue("assignees", [...current, userId]);
-    }
-  };
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
@@ -283,13 +273,17 @@ export function IssueCreateDialog({
             </div>
           </div>
 
-          {/* 담당자 — 다중 선택 (체크박스 스타일 + 검색) */}
-          <AssigneeSelector
-            members={members}
-            selectedAssignees={selectedAssignees}
-            onToggle={toggleAssignee}
-            t={t}
-          />
+          {/* 담당자 — 다중 선택 (검색 + 칩) */}
+          <div className="space-y-1">
+            <Label>{t("issues.create.assignees")}</Label>
+            <UserPicker
+              variant="field"
+              mode="multi"
+              users={membersToUsers(members)}
+              value={selectedAssignees}
+              onChange={(ids) => setValue("assignees", ids)}
+            />
+          </div>
 
           {/* 시작일 + 마감일 — 커스텀 DatePicker */}
           <div className="grid grid-cols-2 gap-3">
@@ -383,65 +377,3 @@ export function IssueCreateDialog({
   );
 }
 
-/* ── 검색 가능한 담당자 선택기 ── */
-
-function AssigneeSelector({
-  members, selectedAssignees, onToggle, t,
-}: {
-  members: ProjectMember[];
-  selectedAssignees: string[];
-  onToggle: (id: string) => void;
-  t: (key: string) => string;
-}) {
-  const [query, setQuery] = useState("");
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return members;
-    return members.filter((m: ProjectMember) =>
-      m.member.display_name.toLowerCase().includes(q),
-    );
-  }, [members, query]);
-
-  return (
-    <div className="space-y-1">
-      <Label>{t("issues.create.assignees")}</Label>
-      {members.length > 5 && (
-        <Input
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder={t("issues.picker.searchPlaceholder")}
-          autoComplete="off"
-          className="h-7 text-xs mb-1"
-        />
-      )}
-      <div className="flex flex-wrap gap-1.5 p-2 border rounded-lg min-h-[40px] max-h-[120px] overflow-y-auto">
-        {members.length === 0 ? (
-          <span className="text-xs text-muted-foreground">{t("issues.create.noMembers")}</span>
-        ) : filtered.length === 0 ? (
-          <span className="text-xs text-muted-foreground">{t("issues.picker.noResults")}</span>
-        ) : (
-          filtered.map((m: ProjectMember) => {
-            const selected = selectedAssignees.includes(m.member.id);
-            return (
-              <button
-                key={m.member.id}
-                type="button"
-                onClick={() => onToggle(m.member.id)}
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
-                  selected
-                    ? "bg-primary/15 text-primary border border-primary/30"
-                    : "bg-muted text-muted-foreground hover:bg-muted/80 border border-transparent"
-                }`}
-              >
-                <AvatarInitials name={m.member.display_name} avatar={m.member.avatar} size="xs" />
-                {m.member.display_name}
-              </button>
-            );
-          })
-        )}
-      </div>
-    </div>
-  );
-}

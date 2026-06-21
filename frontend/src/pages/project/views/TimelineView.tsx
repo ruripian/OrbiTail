@@ -20,7 +20,7 @@ import { useTranslation } from "react-i18next";
 import { Settings2, ChevronDown, Plus, ChevronRight } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { StatePicker } from "@/components/issues/state-picker";
-import { AssigneePicker } from "@/components/issues/assignee-picker";
+import { UserPicker, membersToUsers, mergeUsers } from "@/components/ui/user-picker";
 import { issuesApi } from "@/api/issues";
 import { projectsApi } from "@/api/projects";
 import { cn } from "@/lib/utils";
@@ -1532,10 +1532,11 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
                         className="flex items-center px-2 overflow-hidden"
                         style={{ width: COL_ASSIGNEE }}
                       >
-                        <AssigneePicker
-                          members={members}
-                          currentIds={row.issue.assignees}
-                          currentDetails={row.issue.assignee_details}
+                        <UserPicker
+                          variant="avatars"
+                          mode="multi"
+                          users={mergeUsers(membersToUsers(members), row.issue.assignee_details)}
+                          value={row.issue.assignees ?? []}
                           onChange={(ids) => updateMutation.mutate({ id: row.issue.id, data: { assignees: ids } })}
                         />
                       </div>

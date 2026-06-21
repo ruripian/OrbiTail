@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ProjectIcon } from "@/components/ui/project-icon-picker";
-import { MemberMultiSelect } from "@/components/ui/member-multi-select";
+import { UserPicker, membersToUsers } from "@/components/ui/user-picker";
 import { PageTransition } from "@/components/motion";
 import type { DocumentSpace } from "@/types";
 
@@ -184,13 +184,7 @@ export default function DocumentsHomePage() {
     );
   };
 
-  /* 멤버 셀렉트 옵션 — 본인은 lockedIds로 항상 포함 */
-  const memberOptions = wsMembers.map((wm) => ({
-    id: wm.member.id,
-    name: wm.member.display_name,
-    email: wm.member.email,
-    avatar: wm.member.avatar,
-  }));
+  /* 멤버 셀렉트용 — 본인은 lockedIds로 항상 포함 */
   const lockedIds = currentUser?.id ? [currentUser.id] : [];
   const allSelected = Array.from(new Set([...lockedIds, ...newMemberIds]));
 
@@ -307,9 +301,11 @@ export default function DocumentsHomePage() {
               <label className="text-xs font-medium text-muted-foreground">
                 참여자 {newIsPrivate && <span className="text-rose-500">*</span>}
               </label>
-              <MemberMultiSelect
-                options={memberOptions}
-                selectedIds={allSelected}
+              <UserPicker
+                variant="field"
+                mode="multi"
+                users={membersToUsers(wsMembers)}
+                value={allSelected}
                 lockedIds={lockedIds}
                 getBadge={(id) => (id === currentUser?.id ? "(나)" : null)}
                 placeholder="참여자 추가"
