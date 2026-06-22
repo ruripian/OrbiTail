@@ -21,16 +21,21 @@ export function DiscoverProjectsPage() {
     queryFn: () => projectsApi.discover(workspaceSlug!),
   });
 
+  // 참여 — MEMBER 로 합류해 편집 권한을 얻고 사이드바에 고정. '보기'와 구분된다.
   const joinMutation = useMutation({
     mutationFn: (projectId: string) => projectsApi.join(workspaceSlug!, projectId),
     onSuccess: (_, projectId) => {
       qc.invalidateQueries({ queryKey: ["projects", workspaceSlug] });
       qc.invalidateQueries({ queryKey: ["projects-discover", workspaceSlug] });
-      toast.success(t("discover.viewing", "보기 권한으로 입장했습니다"));
+      toast.success(t("discover.joined", "프로젝트에 참여했습니다"));
       navigate(`/${workspaceSlug}/projects/${projectId}/issues`);
     },
     onError: () => toast.error(t("discover.joinFailed")),
   });
+
+  // 보기 — 멤버십을 만들지 않고 공개 열람만. 편집은 백엔드가 차단한다.
+  const openView = (projectId: string) =>
+    navigate(`/${workspaceSlug}/projects/${projectId}/issues`);
 
   const filtered = projects.filter((p: Project) =>
     p.name.toLowerCase().includes(search.toLowerCase()),
@@ -82,14 +87,23 @@ export function DiscoverProjectsPage() {
                 </p>
               </div>
 
-              {/* 프로젝트 보기 — viewer(읽기 전용)로 입장 */}
-              <Button
-                size="sm"
-                onClick={() => joinMutation.mutate(project.id)}
-                disabled={joinMutation.isPending}
-              >
-                {t("discover.view", "프로젝트 보기")}
-              </Button>
+              {/* 보기(열람만) / 참여(멤버 합류) 분리 */}
+              <div className="flex items-center gap-2 shrink-0">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => openView(project.id)}
+                >
+                  {t("discover.view", "보기")}
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => joinMutation.mutate(project.id)}
+                  disabled={joinMutation.isPending}
+                >
+                  {t("discover.join", "참여")}
+                </Button>
+              </div>
             </div>
           ))}
         </div>

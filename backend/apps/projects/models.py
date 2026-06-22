@@ -116,9 +116,13 @@ class ProjectMember(models.Model):
 
     @property
     def effective_perms(self) -> dict:
-        """역할(role)이 ADMIN이면 모든 권한 자동 허용. 그 미만은 플래그 값 사용."""
+        """역할(role) 기준 권한. ADMIN은 전체 허용, VIEWER는 읽기 전용(전체 거부),
+        그 사이(MEMBER)만 개별 플래그 값을 사용한다.
+        VIEWER 가드가 없으면 can_edit 기본값(True) 때문에 읽기 전용 멤버도 편집이 뚫린다."""
         if self.role >= self.Role.ADMIN:
             return {"can_edit": True, "can_archive": True, "can_delete": True, "can_purge": True, "can_schedule": True}
+        if self.role < self.Role.MEMBER:
+            return {"can_edit": False, "can_archive": False, "can_delete": False, "can_purge": False, "can_schedule": False}
         return {
             "can_edit":    self.can_edit,
             "can_archive": self.can_archive,

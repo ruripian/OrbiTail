@@ -331,8 +331,9 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
     return ai - bi;
   });
 
-  /* 내가 참여한 프로젝트만 사이드바에 노출. 미참여 프로젝트는 /projects/discover (탐색) 에서. */
-  const visibleProjects = sortedProjects.filter((p) => p.is_member);
+  /* 참여(MEMBER 이상)한 프로젝트만 사이드바에 노출. '보기'(viewer/비멤버)는 제외 —
+     단순 열람은 /projects/discover (탐색) 에서만, 사이드바는 실제 참여 프로젝트 전용. */
+  const visibleProjects = sortedProjects.filter((p) => (p.user_role ?? 0) >= 15);
 
   const favoriteProjects = visibleProjects.filter((p) => favIds.has(p.id));
   const publicProjects = visibleProjects.filter((p) => !favIds.has(p.id) && p.network === 0);

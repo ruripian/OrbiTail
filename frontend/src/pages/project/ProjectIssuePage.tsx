@@ -111,7 +111,9 @@ export function ProjectIssuePage() {
     queryKey: ["project", workspaceSlug, projectId],
     queryFn:  () => projectsApi.get(workspaceSlug!, projectId!),
   });
-  const readOnly = project ? !project.is_member : false;
+  /* 읽기 전용 판별 — MEMBER(15) 이상만 편집 가능. viewer(10)/비멤버(null)는 읽기 전용.
+     '보기'로 들어온 비멤버와 권한 강등된 viewer를 모두 차단한다. */
+  const readOnly = (project?.user_role ?? 0) < 15;
 
   /* 이슈 목록 페이지용 state 데이터 (CreateDialog에 필요) */
   const { data: states = [] } = useQuery({
@@ -374,6 +376,7 @@ export function ProjectIssuePage() {
             issueFilter={issueFilter}
             settings={settings.timeline}
             onSettingsChange={updateTimeline}
+            readOnly={readOnly}
           />
         )}
 

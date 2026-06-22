@@ -68,15 +68,28 @@ export function RegisterPage() {
   const [successState, setSuccessState] = useState<
     | null
     | { kind: "verify-email"; email: string }
-    | { kind: "auto-activated"; redirectTo: string }
+    | { kind: "auto-activated"; redirectTo: string; selfSignup: boolean }
+  >(null);
+
+  // 서버 검증 실패 사유 — 이메일 중복이면 로그인 유도 링크를 함께 노출
+  const [serverError, setServerError] = useState<
+    | null
+    | { message: string; emailTaken?: boolean }
   >(null);
 
   const mutation = useMutation({
     mutationFn: authApi.register,
+    onMutate: () => setServerError(null),
     onSuccess: (data: any, variables: any) => {
-      /* 자동 활성화 — 초대 가입 또는 SMTP 미설정 시. 바로 로그인 가능 */
+      /* 자동 활성화 — 초대 가입 / 첫 관리자 / SMTP 미설정 셀프 가입.
+         셀프 가입은 계정 로그인은 되지만 워크스페이스 입장은 관리자 승인이 필요하므로
+         "바로 입장 가능"으로 오인되지 않도록 메시지를 구분한다. */
       if (data.auto_activated) {
-        toast.success(t("auth.register.successAutoActivated"), { duration: 8000 });
+        const selfSignup = !inviteToken && !data.bootstrap_superuser;
+        toast.success(
+          t(selfSignup ? "auth.register.successSelfActivated" : "auth.register.successAutoActivated"),
+          { duration: 8000 },
+        );
         // 초대 가입은 이미 멤버가 만들어졌고 invitation 은 ACCEPTED 상태라
         // /invite/{token} 으로 다시 보내면 "만료된 초대" 에러가 난다.
         // workspace_slug 가 응답에 있으면 로그인 후 그 워크스페이스로 직진,
@@ -84,8 +97,9 @@ export function RegisterPage() {
         const redirectTo = data.workspace_slug
           ? `/auth/login?redirect=/${data.workspace_slug}`
           : "/auth/login";
-        setSuccessState({ kind: "auto-activated", redirectTo });
-        setTimeout(() => navigate(redirectTo), 2000);
+        setSuccessState({ kind: "auto-activated", redirectTo, selfSignup });
+        // 셀프 가입은 승인 안내를 읽을 시간을 더 준다
+        setTimeout(() => navigate(redirectTo), selfSignup ? 3500 : 2000);
         return;
       }
       if (data.email_verification_required) {
@@ -96,8 +110,28 @@ export function RegisterPage() {
       }
       navigate(inviteToken ? `/auth/login?redirect=/invite/${inviteToken}` : "/auth/login");
     },
-    onError: () => {
-      toast.error(t("auth.register.error"));
+    onError: (err: any) => {
+      // DRF 필드 에러 응답: { email: ["..."], password: ["..."], ... }
+      const data = err?.response?.data;
+      if (data && typeof data === "object" && !Array.isArray(data)) {
+        const emailErrs = Array.isArray(data.email) ? data.email : [];
+        if (emailErrs.some((m: string) => /exist/i.test(m))) {
+          setServerError({ message: t("auth.register.emailTaken"), emailTaken: true });
+          return;
+        }
+        if (data.password) {
+          // 백엔드 비밀번호 검증(too common / 이메일과 유사 등) — 영문 메시지 대신 한국어 안내
+          setServerError({ message: t("auth.register.passwordRejected") });
+          return;
+        }
+        // 그 외 필드 에러 — 첫 메시지를 그대로 노출
+        const first = Object.values(data).flat()[0];
+        if (typeof first === "string") {
+          setServerError({ message: first });
+          return;
+        }
+      }
+      setServerError({ message: t("auth.register.error") });
     },
   });
 
@@ -147,7 +181,16 @@ export function RegisterPage() {
           <div className="mx-auto h-14 w-14 rounded-full bg-emerald-500/15 flex items-center justify-center">
             <ShieldCheck className="h-7 w-7 text-emerald-600 dark:text-emerald-400" />
           </div>
-          <p className="text-base font-bold">{t("auth.register.successAutoActivated")}</p>
+          <p className="text-base font-bold">
+            {t(successState.selfSignup
+              ? "auth.register.successSelfActivated"
+              : "auth.register.successAutoActivated")}
+          </p>
+          {successState.selfSignup && (
+            <p className="text-sm text-muted-foreground">
+              {t("auth.register.selfActivatedApprovalHint")}
+            </p>
+          )}
           <p className="text-xs text-muted-foreground">
             {t("auth.register.autoRedirecting", "잠시 후 로그인 화면으로 이동합니다...")}
           </p>
@@ -307,8 +350,18 @@ export function RegisterPage() {
           )}
         </div>
 
-        {mutation.isError && (
-          <p className="text-xs text-destructive">{t("auth.register.error")}</p>
+        {serverError && (
+          <div className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2.5">
+            <p className="text-xs text-destructive">{serverError.message}</p>
+            {serverError.emailTaken && (
+              <Link
+                to="/auth/login"
+                className="mt-1 inline-block text-xs font-medium text-primary hover:text-primary/80"
+              >
+                {t("auth.register.emailTakenAction")}
+              </Link>
+            )}
+          </div>
         )}
 
         <Button type="submit" className="w-full font-semibold tracking-widest" disabled={mutation.isPending}>

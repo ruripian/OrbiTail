@@ -25,6 +25,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { DatePicker } from "@/components/ui/date-picker";
 import { PageTransition, StaggerList, StaggerItem } from "@/components/motion";
 import { SprintBurndown } from "@/components/charts/SprintBurndown";
+import { useProjectPerms } from "@/hooks/useProjectPerms";
 import type { Sprint, SprintStatus, Issue, State } from "@/types";
 
 const STATUS_STYLE: Record<SprintStatus, { bg: string; icon: React.ElementType }> = {
@@ -59,6 +60,8 @@ interface Props {
 export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
   const { t } = useTranslation();
   const qc = useQueryClient();
+  // viewer/비멤버는 스프린트 생성·삭제 불가. 조회는 그대로 허용한다.
+  const { perms } = useProjectPerms(workspaceSlug, projectId);
   const [selectedSprintId, setSelectedSprintId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
@@ -174,10 +177,13 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
   return (
     <PageTransition className="flex h-full overflow-hidden">
       <div className="w-72 shrink-0 border-r overflow-y-auto p-3 space-y-4">
-        <Button size="sm" onClick={() => setCreateOpen(true)} className="w-full gap-1.5 rounded-xl">
-          <Plus className="h-3.5 w-3.5" />
-          {t("cycles.create")}
-        </Button>
+        {/* 편집 권한자만 스프린트 생성 가능 */}
+        {perms.can_edit && (
+          <Button size="sm" onClick={() => setCreateOpen(true)} className="w-full gap-1.5 rounded-xl">
+            <Plus className="h-3.5 w-3.5" />
+            {t("cycles.create")}
+          </Button>
+        )}
 
         {groupOrder.map((status) => {
           const list = grouped[status];
@@ -233,15 +239,18 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
                             </span>
                           </div>
                         </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (window.confirm(t("cycles.deleteConfirm"))) deleteMutation.mutate(sprint.id);
-                          }}
-                          className="absolute top-2 right-2 p-1 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
+                        {/* 삭제 권한자만 hover 삭제 아이콘 노출 */}
+                        {perms.can_delete && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (window.confirm(t("cycles.deleteConfirm"))) deleteMutation.mutate(sprint.id);
+                            }}
+                            className="absolute top-2 right-2 p-1 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
                       </div>
                     </StaggerItem>
                   );

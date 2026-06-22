@@ -87,6 +87,12 @@ const COL_DEFS: ColDef[] = [
   { id: "updatedAt", tKey: "issues.table.cols.updatedAt", width: 130, defaultVisible: false },
 ];
 
+/* 인라인 picker로 값을 변경하는(편집 트리거가 있는) 컬럼 — 읽기 전용일 때 클릭 차단 대상.
+   subIssues(확장 토글)·links·createdAt·updatedAt·id 는 표시 전용이라 제외 */
+const EDITABLE_COL_IDS = new Set<ColId>([
+  "state", "priority", "assignee", "startDate", "dueDate", "label", "category", "sprint",
+]);
+
 const COL_STORAGE_KEY = "orbitail_table_v2";
 
 type SortDir = "asc" | "desc";
@@ -595,6 +601,8 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
   };
 
   const handleDragStart = (issue: Issue) => {
+    // 읽기 전용이면 드래그 시작 자체를 차단
+    if (readOnly) return;
     dragIdRef.current     = issue.id;
     dragParentRef.current = issue.parent ?? null;
     /* 새 드래그 시작 시 stale 참조 제거 — clearDrag와 동일한 이유 */
@@ -707,6 +715,8 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
   }, [dragId, dropTarget, dropZone, topLevelFiltered]);
 
   const handleDrop = (target: Issue) => {
+    // 읽기 전용(viewer/비멤버)일 때는 드래그앤드롭 이동·네스트·재정렬 전부 차단
+    if (readOnly) { clearDrag(); return; }
     // ref에서 직접 읽어 stale closure 완전 방지
     const id          = dragIdRef.current;
     const oldParentId = dragParentRef.current;
@@ -1170,6 +1180,7 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
                   onToggleSelect={toggleSelect}
                   selectedIds={selectedIds}
                   showId={prefs.showId}
+                  readOnly={readOnly}
                 />
               ))}
 
@@ -1279,6 +1290,7 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
         selectedIds={Array.from(selectedIds)}
         allIssues={issues}
         onDone={() => setSelectedIds(new Set())}
+        readOnly={readOnly}
       />
     )}
     </RelHighlightContext.Provider>
@@ -1287,7 +1299,7 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
 }
 
 function BulkToolbar({
-  selectedCount, states, members, workspaceSlug, projectId, selectedIds, onDone, allIssues,
+  selectedCount, states, members, workspaceSlug, projectId, selectedIds, onDone, allIssues, readOnly = false,
 }: {
   selectedCount: number;
   states: State[];
@@ -1297,6 +1309,8 @@ function BulkToolbar({
   selectedIds: string[];
   onDone: () => void;
   allIssues: Issue[];
+  /* 읽기 전용 — 상태/우선순위/담당자 일괄 변경 액션 숨김 */
+  readOnly?: boolean;
 }) {
   const { t } = useTranslation();
   const { perms } = useProjectPerms();
@@ -1375,6 +1389,9 @@ function BulkToolbar({
 
       <div className="h-5 w-px bg-border" />
 
+      {/* 읽기 전용이면 상태/우선순위/담당자 일괄 변경 액션 숨김 */}
+      {!readOnly && (
+        <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" size="sm" className="text-xs gap-1.5">
@@ -1433,6 +1450,8 @@ function BulkToolbar({
           ))}
         </DropdownMenuContent>
       </DropdownMenu>
+        </>
+      )}
 
       {perms.can_delete && (
         <Button
@@ -1479,13 +1498,15 @@ interface IssueCardProps {
   onToggleSelect?:    (id: string, shiftKey: boolean) => void;
   selectedIds?:       Set<string>;
   showId?:            boolean;
+  /* 읽기 전용(viewer/비멤버) — 드래그·셀 인라인 편집 차단, 표시만 유지 */
+  readOnly?:          boolean;
 }
 
 function IssueCard({
   issue, activeCols, states, members, labels,
   workspaceSlug, projectId, projectIdentifier, depth, onIssueClick,
   categories, sprints, hideCompleted, selected, onToggleSelect, selectedIds,
-  showId = true,
+  showId = true, readOnly = false,
 }: IssueCardProps) {
   const { t } = useTranslation();
   const { perms } = useProjectPerms();
@@ -1804,16 +1825,20 @@ function IssueCard({
   return (
     <div>
       <div
-        draggable={true}
+        draggable={!readOnly}
         data-recently-changed={isRecent ? "true" : undefined}
         style={isRecent && recentColor ? ({ ["--recent-color" as never]: recentColor } as React.CSSProperties) : undefined}
         onDragStart={(e) => {
+          // 읽기 전용이면 드래그 시작 차단
+          if (readOnly) return;
           e.stopPropagation();
           e.dataTransfer.setData("text/plain", `issue-${issue.id}`);
           e.dataTransfer.effectAllowed = "move";
           onDragStart(issue);
         }}
         onDragOver={(e) => {
+          // 읽기 전용이면 drop 위치 인디케이터 계산 자체를 건너뜀
+          if (readOnly) return;
           e.preventDefault(); e.stopPropagation();
           const rect = e.currentTarget.getBoundingClientRect();
           const relY = (e.clientY - rect.top) / rect.height;
@@ -1824,7 +1849,7 @@ function IssueCard({
           onDragOver(e, issue, zone);
         }}
         onDragEnd={(e) => { e.stopPropagation(); onDragEnd(); }}
-        onDrop={(e) => { e.stopPropagation(); onDrop(issue); }}
+        onDrop={(e) => { if (readOnly) return; e.stopPropagation(); onDrop(issue); }}
         className={cn(
           // transition: 드래그 중 liveDisplayOrder로 카드 순서가 바뀔 때 부드럽게 이동
           "relative flex items-center gap-3 bg-card rounded-xl border border-border shadow-sm px-4 py-3 group mb-1.5 transition-[opacity,transform,box-shadow,filter] duration-base",
@@ -1959,7 +1984,10 @@ function IssueCard({
               <div className="w-px bg-border/60 self-stretch" />
             </div>
             <div style={{ width: `var(--col-w-${col.id})`, minWidth: `var(--col-w-${col.id})` }} className="shrink-0 flex flex-col justify-center min-w-0 overflow-hidden">
-              {cellContent(col)}
+              {/* 읽기 전용이면 편집 picker 셀의 클릭/변경을 pointer-events로 차단 — 현재 값 표시는 유지 */}
+              {readOnly && EDITABLE_COL_IDS.has(col.id)
+                ? <div className="pointer-events-none">{cellContent(col)}</div>
+                : cellContent(col)}
             </div>
           </Fragment>
         ))}
@@ -2098,6 +2126,7 @@ function IssueCard({
               onToggleSelect={onToggleSelect}
               selectedIds={selectedIds}
               showId={showId}
+              readOnly={readOnly}
             />
           ))}
         </div>

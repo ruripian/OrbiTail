@@ -277,9 +277,11 @@ interface Props {
   issueFilter?:     { sprint?: string; category?: string };
   settings:         TimelineSettings;
   onSettingsChange: (s: Partial<TimelineSettings>) => void;
+  /* viewer/비멤버 읽기 전용 — 이슈 생성·드래그 편집 차단 */
+  readOnly?:        boolean;
 }
 
-export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilter, settings, onSettingsChange }: Props) {
+export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilter, settings, onSettingsChange, readOnly = false }: Props) {
   const { t } = useTranslation();
   const { refresh } = useIssueRefresh(workspaceSlug, projectId);
   const pushUndo = useUndoStore((s) => s.push);
@@ -1482,7 +1484,8 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
                           </span>
                         )}
                         <div className="flex items-center gap-0.5 shrink-0">
-                          {/* 하위 이슈 추가 버튼 — 호버 시 등장 */}
+                          {/* 하위 이슈 추가 버튼 — 호버 시 등장 (읽기 전용 시 숨김) */}
+                          {!readOnly && (
                           <button
                             type="button"
                             onClick={(e) => {
@@ -1495,6 +1498,7 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
                           >
                             <Plus className="h-3 w-3" />
                           </button>
+                          )}
                           {/* Expand/Collapse chevron — 자식이 있을 때만 */}
                           {row.hasChildren && (
                             <button
@@ -1734,8 +1738,9 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
                       >
                         {/* 좌측 리사이즈 핸들 */}
                         <div
-                          className="absolute left-0 top-0 bottom-0 w-2.5 cursor-ew-resize hover:bg-black/15 transition-colors z-20 rounded-l-[5px]"
+                          className={cn("absolute left-0 top-0 bottom-0 w-2.5 hover:bg-black/15 transition-colors z-20 rounded-l-[5px]", !readOnly && "cursor-ew-resize")}
                           onMouseDown={(e) => {
+                            if (readOnly) return; // 읽기 전용: 리사이즈 차단
                             e.stopPropagation();
                             setEventDragState({
                               eventId: row.event.id,
@@ -1749,8 +1754,9 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
                         />
                         {/* 본문 — 이동 */}
                         <div
-                          className="flex-1 h-full flex items-center px-3 cursor-grab active:cursor-grabbing overflow-hidden z-10"
+                          className={cn("flex-1 h-full flex items-center px-3 overflow-hidden z-10", !readOnly && "cursor-grab active:cursor-grabbing")}
                           onMouseDown={(e) => {
+                            if (readOnly) return; // 읽기 전용: 이동 차단
                             setEventDragState({
                               eventId: row.event.id,
                               type: "both",
@@ -1767,8 +1773,9 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
                         </div>
                         {/* 우측 리사이즈 핸들 */}
                         <div
-                          className="absolute right-0 top-0 bottom-0 w-2.5 cursor-ew-resize hover:bg-black/15 transition-colors z-20 rounded-r-[5px]"
+                          className={cn("absolute right-0 top-0 bottom-0 w-2.5 hover:bg-black/15 transition-colors z-20 rounded-r-[5px]", !readOnly && "cursor-ew-resize")}
                           onMouseDown={(e) => {
+                            if (readOnly) return; // 읽기 전용: 리사이즈 차단
                             e.stopPropagation();
                             setEventDragState({
                               eventId: row.event.id,
@@ -1848,8 +1855,9 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
                       >
                         {/* Drag Handle: Start */}
                         <div
-                          className="absolute left-0 top-0 bottom-0 w-2.5 cursor-ew-resize hover:bg-black/10 transition-colors z-20 rounded-l-[6px]"
+                          className={cn("absolute left-0 top-0 bottom-0 w-2.5 hover:bg-black/10 transition-colors z-20 rounded-l-[6px]", !readOnly && "cursor-ew-resize")}
                           onMouseDown={(e) => {
+                            if (readOnly) return; // 읽기 전용: 리사이즈 차단
                             e.stopPropagation();
                             setDragState({
                               issueId: row.issue.id,
@@ -1864,9 +1872,10 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
 
                         {/* 제목 텍스트 (본문 드래그 이동) */}
                         <div
-                          className="flex-1 h-full flex items-center px-3 cursor-grab active:cursor-grabbing overflow-hidden z-10"
+                          className={cn("flex-1 h-full flex items-center px-3 overflow-hidden z-10", readOnly ? "cursor-pointer" : "cursor-grab active:cursor-grabbing")}
                           onClick={() => { if (!dragState && !suppressClickRef.current) onIssueClick(row.issue.id); }}
                           onMouseDown={(e) => {
+                            if (readOnly) return; // 읽기 전용: 이동 차단 (클릭으로 이슈 열기는 유지)
                             // Only trigger both/move if we didn't click handles
                             setDragState({
                               issueId: row.issue.id,
@@ -1885,8 +1894,9 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
 
                         {/* Drag Handle: End */}
                         <div
-                          className="absolute right-0 top-0 bottom-0 w-2.5 cursor-ew-resize hover:bg-black/10 transition-colors z-20 rounded-r-[6px]"
+                          className={cn("absolute right-0 top-0 bottom-0 w-2.5 hover:bg-black/10 transition-colors z-20 rounded-r-[6px]", !readOnly && "cursor-ew-resize")}
                           onMouseDown={(e) => {
+                            if (readOnly) return; // 읽기 전용: 리사이즈 차단
                             e.stopPropagation();
                             setDragState({
                               issueId: row.issue.id,
@@ -1903,8 +1913,8 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
                   })()}
                 </div>
               </div>
-              {/* 하위 이슈 인라인 입력 — addingChildFor 활성화 시 해당 행 바로 아래 */}
-              {row.type === "issue" && addingChildFor === row.issue.id && (
+              {/* 하위 이슈 인라인 입력 — addingChildFor 활성화 시 해당 행 바로 아래 (읽기 전용 시 숨김) */}
+              {!readOnly && row.type === "issue" && addingChildFor === row.issue.id && (
                 <div className="flex border-b border-dashed border-primary/30 bg-primary/[0.03]" style={{ height: ROW_H }}>
                   <div
                     data-no-pan
@@ -1986,7 +1996,8 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
             </div>
           )}
 
-          {/* 하단 "+ 이슈 추가" 행 — 인라인 텍스트 입력 방식 */}
+          {/* 하단 "+ 이슈 추가" 행 — 인라인 텍스트 입력 방식 (읽기 전용 시 숨김) */}
+          {!readOnly && (
           <div className="flex group/addrow hover:bg-primary/[0.04] transition-colors border-b border-border" style={{ height: 40 }}>
             <div
               data-no-pan
@@ -2060,6 +2071,7 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
               )}
             </div>
           </div>
+          )}
 
           {/* 빈 공간 filler — 이슈가 적을 때 세로 공간을 column grid로 채움 */}
           {(
