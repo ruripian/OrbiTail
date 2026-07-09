@@ -27,6 +27,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { TemplatePicker } from "./template-picker";
+import { StatePicker } from "./state-picker";
+import { PriorityPicker } from "./priority-picker";
 import type { State, Category, Sprint, IssueTemplate } from "@/types";
 
 const schema = z.object({
@@ -236,40 +238,23 @@ export function IssueCreateDialog({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label>{t("issues.create.status")}</Label>
-              <Select
-                value={watch("state")}
-                onValueChange={(v) => setValue("state", v)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={t("issues.create.status")} />
-                </SelectTrigger>
-                <SelectContent>
-                  {states.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      <div className="flex items-center gap-2">
-                        <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: s.color }} />
-                        {s.name}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {/* 테이블/인라인 편집과 동일한 StatePicker 재사용 — 상태 아이콘 소스 통일 */}
+              <StatePicker
+                states={states}
+                currentStateId={watch("state")}
+                onChange={(id) => setValue("state", id)}
+                className="border border-border bg-input/60 h-9"
+              />
             </div>
 
             <div className="space-y-1">
               <Label>{t("issues.create.priority")}</Label>
-              <Select value={watch("priority")} onValueChange={(v) => setValue("priority", v as FormValues["priority"])}>
-                <SelectTrigger>
-                  <SelectValue placeholder={t("issues.create.priority")} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">{t("issues.priority.none")}</SelectItem>
-                  <SelectItem value="urgent">{t("issues.priority.urgent")}</SelectItem>
-                  <SelectItem value="high">{t("issues.priority.high")}</SelectItem>
-                  <SelectItem value="medium">{t("issues.priority.medium")}</SelectItem>
-                  <SelectItem value="low">{t("issues.priority.low")}</SelectItem>
-                </SelectContent>
-              </Select>
+              {/* 테이블/인라인 편집과 동일한 PriorityPicker 재사용 — PriorityGlyph 형태 시그널 통일 */}
+              <PriorityPicker
+                currentPriority={watch("priority")}
+                onChange={(p) => setValue("priority", p as FormValues["priority"])}
+                className="border border-border bg-input/60 h-9"
+              />
             </div>
           </div>
 

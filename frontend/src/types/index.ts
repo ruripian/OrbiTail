@@ -223,6 +223,10 @@ export interface PersonalEvent {
   event_type: "meeting" | "trip" | "deadline" | "presentation" | "milestone" | "other";
   color: string;
   description: string;
+  /** 팀 캘린더 공유 여부 — True 면 같은 팀 멤버의 팀 캘린더에 노출 */
+  shared_with_team?: boolean;
+  /** 소유자 user id — 팀 캘린더 멤버 필터 판별용(읽기 전용) */
+  user?: string;
   created_at: string;
   updated_at: string;
 }

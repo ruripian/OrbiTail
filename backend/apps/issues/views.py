@@ -188,13 +188,14 @@ class IssueDetailView(generics.RetrieveUpdateDestroyAPIView):
         old_values = {
             "title":    old.title,
             "priority": old.priority,
-            "state":    str(old.state_id) if old.state_id else "",
+            # 활동 로그에는 UUID가 아닌 사람이 읽는 상태 이름을 저장
+            "state":    old.state.name if old.state_id else "",
         }
         updated = serializer.save()
         new_values = {
             "title":    updated.title,
             "priority": updated.priority,
-            "state":    str(updated.state_id) if updated.state_id else "",
+            "state":    updated.state.name if updated.state_id else "",
         }
         # 변경된 필드에 대한 활동 로그를 일괄 생성
         activities = [
@@ -247,14 +248,21 @@ class IssueActivityListView(generics.ListAPIView):
 
 
 class WorkspaceRecentIssuesView(generics.ListAPIView):
-    """본인이 담당자인 이슈 중 최근 수정된 10개 — 대시보드 우측 위젯용.
+    """본인이 담당자인 이슈 중 최근 수정된 것 — 대시보드 위젯(기본 10) + 전용 '모두보기' 페이지 공용.
 
     좌측 'WorkspaceMyIssuesView' 는 미완료(=할 일) 한정이고, 여기는 완료/취소 포함
     전체에서 최근 수정 순으로 보여 두 위젯이 차별화된다.
+
+    ?limit=N  반환 개수(기본 10, 최대 100). 모두보기 페이지가 더 큰 값을 요청.
     """
     serializer_class = IssueSerializer
 
     def get_queryset(self):
+        try:
+            limit = int(self.request.query_params.get("limit", 10))
+        except (TypeError, ValueError):
+            limit = 10
+        limit = max(1, min(limit, 100))
         return (
             Issue.objects.filter(
                 workspace__slug=self.kwargs["workspace_slug"],
@@ -265,7 +273,7 @@ class WorkspaceRecentIssuesView(generics.ListAPIView):
             .distinct()
             .prefetch_related("assignees", "label")
             .select_related("state", "created_by", "project")
-            .order_by("-updated_at")[:10]
+            .order_by("-updated_at")[:limit]
         )
 
 
@@ -1056,12 +1064,18 @@ class IssueBulkUpdateView(APIView):
                 issue.label.set(labels)
 
         # 활동 로그 일괄 생성
+        # state 필드는 UUID 대신 사람이 읽는 상태 이름으로 기록
+        from apps.projects.models import State
+        state_name = None
+        if updates.get("state"):
+            state_name = State.objects.filter(id=updates["state"]).values_list("name", flat=True).first()
         activities = []
         for field, value in {**updates, **({"assignees": assignees} if assignees else {}), **({"label": labels} if labels else {})}.items():
+            display = state_name if (field == "state" and state_name) else str(value)
             for issue in issues:
                 activities.append(IssueActivity(
                     issue=issue, actor=request.user, verb="updated",
-                    field=field, new_value=str(value),
+                    field=field, new_value=display,
                 ))
         if activities:
             IssueActivity.objects.bulk_create(activities)

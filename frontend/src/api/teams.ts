@@ -50,7 +50,7 @@ export const teamsApi = {
    *
    * 정책 (정보 누수 차단):
    *   - issues: 팀 멤버 담당 이슈 중 요청자가 그 프로젝트 멤버인 경우만 포함
-   *   - personalEvents: 본인 PE 만 (다른 멤버 PE 안 보임)
+   *   - personalEvents: 팀원이 shared_with_team=True 로 공유한 PE (미공유 PE 는 마이 페이지 전용)
    *   - projectEvents: 팀 멤버가 멤버인 프로젝트의 이벤트 중 요청자도 멤버인 것만
    */
   calendar: {

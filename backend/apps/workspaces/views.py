@@ -1142,9 +1142,10 @@ class TeamCalendarIssuesView(generics.ListAPIView):
 
 
 class TeamCalendarPersonalEventsView(generics.ListAPIView):
-    """팀 캘린더 — 본인 PE 만. 다른 멤버 PE 는 보지 못함(현재 정책).
+    """팀 캘린더 — 팀 멤버가 팀에 공유(shared_with_team=True)한 PE.
 
-    같은 워크스페이스의 본인 PE 만 노출. 추후 "팀 공유 PE" 도입 시 정책 조정.
+    단발성 이슈와 동일 정책: 공유한 PE 만 팀 캘린더에 노출된다(본인이 공유하지 않은
+    PE 는 마이 페이지에만 표시). 멤버별 표시/숨김은 프론트 멤버 필터가 담당.
     """
     permission_classes = [permissions.IsAuthenticated]
     pagination_class = None  # 캘린더는 전체 PE 필요
@@ -1160,7 +1161,12 @@ class TeamCalendarPersonalEventsView(generics.ListAPIView):
         if not team:
             return PersonalEvent.objects.none()
 
-        qs = PersonalEvent.objects.filter(user=self.request.user, workspace=team.workspace)
+        team_member_ids = TeamMember.objects.filter(team=team).values_list("member_id", flat=True)
+        qs = PersonalEvent.objects.filter(
+            user_id__in=team_member_ids,
+            workspace=team.workspace,
+            shared_with_team=True,
+        )
         date_from = self.request.query_params.get("from")
         date_to = self.request.query_params.get("to")
         if date_from:

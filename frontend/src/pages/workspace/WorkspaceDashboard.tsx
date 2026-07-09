@@ -106,7 +106,7 @@ function formatDateRange(start: string | null, end: string | null): string | nul
   return fmt(start ?? end!);
 }
 
-function IssueRow({ issue, workspaceSlug }: { issue: Issue; workspaceSlug: string }) {
+export function IssueRow({ issue, workspaceSlug }: { issue: Issue; workspaceSlug: string }) {
   const { t } = useTranslation();
   const openIssue = useOpenIssue();
   const dateRange = formatDateRange(issue.start_date, issue.due_date);
@@ -486,7 +486,7 @@ export function WorkspaceDashboard() {
               </div>
               <div className="px-5 py-3 border-t border-border">
                 <Link
-                  to={`/${workspaceSlug}/discover`}
+                  to={`/${workspaceSlug}/recent`}
                   className="flex items-center justify-center gap-1 text-sm text-primary hover:underline"
                 >
                   {t("dashboard.viewAll")}

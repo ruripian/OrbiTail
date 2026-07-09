@@ -270,9 +270,9 @@ export const issuesApi = {
       .get<PaginatedResponse<IssueActivity>>(`/workspaces/${workspaceSlug}/projects/${projectId}/issues/${issueId}/activities/`)
       .then((r) => r.data.results),
 
-  recentByWorkspace: (workspaceSlug: string) =>
+  recentByWorkspace: (workspaceSlug: string, params?: { limit?: number }) =>
     api
-      .get<PaginatedResponse<Issue>>(`/workspaces/${workspaceSlug}/issues/recent/`)
+      .get<PaginatedResponse<Issue>>(`/workspaces/${workspaceSlug}/issues/recent/`, { params })
       .then((r) => r.data.results),
 
   /** 이슈 일괄 업데이트 */

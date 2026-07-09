@@ -55,6 +55,8 @@ export function EventDialog({
   const [description, setDescription] = useState("");
   const [isGlobal, setIsGlobal] = useState(true);
   const [participants, setParticipants] = useState<string[]>([]);
+  /* me 모드 전용 — 팀 캘린더 공유 여부 */
+  const [sharedWithTeam, setSharedWithTeam] = useState(false);
 
   /* 프로젝트 모드에서만 멤버 fetch — me 모드는 참여자 개념 없음 */
   const { data: members = [] } = useQuery({
@@ -71,6 +73,7 @@ export function EventDialog({
       setDescription("");
       setIsGlobal(true);
       setParticipants([]);
+      setSharedWithTeam(false);
       return;
     }
     if (event) {
@@ -84,6 +87,7 @@ export function EventDialog({
       const proj = event as ProjectEvent;
       setIsGlobal(proj.is_global ?? true);
       setParticipants(proj.participants ?? []);
+      setSharedWithTeam((event as PersonalEvent).shared_with_team ?? false);
     } else {
       const today = new Date().toISOString().slice(0, 10);
       const initial = defaultDate ?? today;
@@ -96,6 +100,7 @@ export function EventDialog({
       setDescription("");
       setIsGlobal(true);
       setParticipants([]);
+      setSharedWithTeam(false);
     }
   }, [open, event, defaultDate]);
 
@@ -108,11 +113,12 @@ export function EventDialog({
     }
   };
 
-  const createMutation = useMutation({
+  const createMutation = useMutation<ProjectEvent | PersonalEvent>({
     mutationFn: () => isMe
       ? meApi.personalEvents.create(workspaceSlug!, {
           title, date, end_date: endDate,
           event_type: eventType, color, description,
+          shared_with_team: sharedWithTeam,
         })
       : projectsApi.events.create(workspaceSlug!, projectId!, {
           title, date, end_date: endDate, event_type: eventType, color, description,
@@ -122,11 +128,12 @@ export function EventDialog({
     onError: () => toast.error(t("events.createFailed")),
   });
 
-  const updateMutation = useMutation({
+  const updateMutation = useMutation<ProjectEvent | PersonalEvent>({
     mutationFn: () => isMe
       ? meApi.personalEvents.update(event!.id, {
           title, date, end_date: endDate,
           event_type: eventType, color, description,
+          shared_with_team: sharedWithTeam,
         })
       : projectsApi.events.update(workspaceSlug!, projectId!, event!.id, {
           title, date, end_date: endDate, event_type: eventType, color, description,
@@ -286,6 +293,35 @@ export function EventDialog({
                 </div>
               </button>
             </>
+          )}
+
+          {/* 팀 공유 토글 — me 모드에서만. 켜면 같은 팀 멤버의 팀 캘린더에 노출 */}
+          {isMe && (
+            <button
+              type="button"
+              onClick={() => setSharedWithTeam((v) => !v)}
+              className={cn(
+                "flex items-center gap-2 w-full rounded-lg border px-3 py-2 text-sm transition-all",
+                sharedWithTeam
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-border text-muted-foreground hover:border-primary/50"
+              )}
+            >
+              <Users className="h-4 w-4 shrink-0" />
+              <div className="flex-1 text-left">
+                <div className="font-medium">{t("events.fields.shareWithTeam", "팀과 공유")}</div>
+                <div className="text-2xs opacity-70">{t("events.fields.shareWithTeamHint", "켜면 같은 팀 멤버의 팀 캘린더에 표시됩니다")}</div>
+              </div>
+              <div className={cn(
+                "h-5 w-9 rounded-full border flex items-center px-0.5",
+                sharedWithTeam ? "bg-primary border-primary" : "bg-muted/40 border-border"
+              )}>
+                <div className={cn(
+                  "h-4 w-4 rounded-full transition-all",
+                  sharedWithTeam ? "translate-x-4 bg-primary-foreground" : "bg-muted-foreground/60"
+                )} />
+              </div>
+            </button>
           )}
 
           {/* 설명 */}

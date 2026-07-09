@@ -1,14 +1,23 @@
 import { useTranslation } from "react-i18next";
 import { formatLongDate } from "@/utils/date-format";
-import type { IssueActivity } from "@/types";
+import type { IssueActivity, State } from "@/types";
 
 /** PASS5-D — Activity tab (read-only feed). 자체 mutation 없음. */
 interface Props {
   activities: IssueActivity[];
+  /** 과거 로그에 UUID로 저장된 state 값을 이름으로 폴백 변환하기 위한 상태 목록 */
+  states?: State[];
 }
 
-export function ActivityTab({ activities }: Props) {
+/* UUID 형태(과거 state 로그)면 states에서 이름으로 치환. 이미 이름이면 그대로. */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function ActivityTab({ activities, states = [] }: Props) {
   const { t } = useTranslation();
+  const resolve = (val: string | null | undefined) => {
+    if (!val || !UUID_RE.test(val)) return val;
+    return states.find((s) => s.id === val)?.name ?? val;
+  };
 
   return (
     <div className="space-y-3">
@@ -26,10 +35,10 @@ export function ActivityTab({ activities }: Props) {
             <span className="text-muted-foreground">
               <span className="font-medium text-foreground/70">{act.field}</span>
               {act.old_value
-                ? ` ${t("issues.detail.activity.changed")} ${t("issues.detail.activity.from")} "${act.old_value}" `
+                ? ` ${t("issues.detail.activity.changed")} ${t("issues.detail.activity.from")} "${resolve(act.old_value)}" `
                 : ` ${t("issues.detail.activity.changed")} `}
               {act.new_value
-                ? `${t("issues.detail.activity.to")} "${act.new_value}"`
+                ? `${t("issues.detail.activity.to")} "${resolve(act.new_value)}"`
                 : `(${t("issues.detail.activity.deleted")})`}
             </span>
             <span className="text-muted-foreground/60 ml-1">

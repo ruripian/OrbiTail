@@ -8,7 +8,7 @@
  *
  * 정책 메모:
  *   - issues: 팀원이 담당자인 이슈 — 공개 프로젝트는 전체 팀원, 비공개는 팀장/본인만
- *   - personalEvents: 본인 PE 만 (다른 멤버 PE 안 보임)
+ *   - personalEvents: 팀원이 shared_with_team=True 로 공유한 PE (편집/이동은 본인 것만)
  *   - projectEvents: 팀원이 멤버인 프로젝트 — 공개는 전체, 비공개는 팀장/본인만
  */
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -63,7 +63,8 @@ function normalizePersonalEvent(pe: PersonalEvent): ProjectEvent {
     is_global: false,
     participants: [],
     participant_details: [],
-    created_by: null,
+    /* 소유자 id 를 실어 팀 캘린더 멤버 필터가 PE 도 필터할 수 있게 함 */
+    created_by: pe.user ?? null,
     created_by_detail: null,
     created_at: pe.created_at,
     updated_at: pe.updated_at,
@@ -192,6 +193,11 @@ export function TeamCalendarSection({
   });
 
   const personalIds = useMemo(() => new Set(personalEvents.map((pe) => pe.id)), [personalEvents]);
+  /* 본인 소유 PE — 편집/이동은 본인 것만 허용(타인 PE 는 읽기 전용) */
+  const ownPersonalIds = useMemo(
+    () => new Set(personalEvents.filter((pe) => pe.user === currentUser?.id).map((pe) => pe.id)),
+    [personalEvents, currentUser],
+  );
 
   const normalizedEvents = useMemo<ProjectEvent[]>(() => {
     return [...projectEvents, ...personalEvents.map(normalizePersonalEvent)];
@@ -231,6 +237,7 @@ export function TeamCalendarSection({
   };
   const handleEventUpdate = (id: string, data: Partial<ProjectEvent>) => {
     if (personalIds.has(id)) {
+      if (!ownPersonalIds.has(id)) return; // 타인 PE 는 이동 불가
       personalMutation.mutate({ id, data: { date: data.date, end_date: data.end_date } });
     } else {
       const pe = projectEvents.find((e) => e.id === id);
@@ -245,6 +252,7 @@ export function TeamCalendarSection({
   };
   const handleEventEdit = (event: ProjectEvent) => {
     if (personalIds.has(event.id)) {
+      if (!ownPersonalIds.has(event.id)) return; // 타인 PE 는 편집 불가
       const pe = personalEvents.find((e) => e.id === event.id);
       if (pe) setEventDialog({ open: true, mode: "me", workspaceSlug, event: pe });
     } else {
@@ -328,7 +336,7 @@ export function TeamCalendarSection({
     });
   };
 
-  /* 필터 적용 — 이슈는 멤버 + 프로젝트 둘 다. 이벤트는 프로젝트만(PE 는 본인). */
+  /* 필터 적용 — 이슈는 멤버 + 프로젝트 둘 다. 이벤트는 프로젝트(PE 는 소유자 멤버 필터). */
   const filteredIssues = useMemo(() => {
     return issues.filter((issue) => {
       if (!issue.start_date && !issue.due_date) return false;
@@ -348,10 +356,11 @@ export function TeamCalendarSection({
   const filteredEvents = useMemo(() => {
     if (!settings.showEvents) return [];
     return normalizedEvents.filter((ev) => {
-      if (!ev.project) return true; // PE 는 항상 (본인 거니까)
+      // PE(프로젝트 없음) 는 소유자 멤버 필터로 판별 — 팀원 공유 PE 포함
+      if (!ev.project) return ev.created_by ? isMemberVisible(ev.created_by) : true;
       return isProjectVisible(ev.project);
     });
-  }, [normalizedEvents, settings.showEvents, selectedProjects]);
+  }, [normalizedEvents, settings.showEvents, selectedProjects, selectedMembers]);
 
   const stateColorMap = useMemo(() => {
     const m: Record<string, string> = {};

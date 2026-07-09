@@ -505,7 +505,7 @@ export function IssueDetailPage({ issueIdOverride, workspaceSlugOverride, projec
         )}
 
         {activeTab === "activity" && (
-          <ActivityTab activities={activities} />
+          <ActivityTab activities={activities} states={states} />
         )}
         </div>
       </div>

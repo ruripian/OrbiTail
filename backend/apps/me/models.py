@@ -39,6 +39,9 @@ class PersonalEvent(models.Model):
     event_type  = models.CharField(max_length=20, choices=EventType.choices, default=EventType.OTHER)
     color       = models.CharField(max_length=7, default="#5E6AD2")
     description = models.TextField(blank=True, default="")
+    # 팀 캘린더 공유 — True 면 같은 팀 멤버들의 팀 캘린더에 노출(단발성 이슈 shared_with_team 과 동일 정책).
+    # 기본 False 로 개인 일정의 "본인만" 성격 유지.
+    shared_with_team = models.BooleanField(default=False)
     created_at  = models.DateTimeField(auto_now_add=True)
     updated_at  = models.DateTimeField(auto_now=True)
 
