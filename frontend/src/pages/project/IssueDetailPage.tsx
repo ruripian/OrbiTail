@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ChevronLeft, GitBranch, MessageSquare, Activity, X, AlertTriangle, Paperclip, Copy, Archive, RotateCcw, Share2 } from "lucide-react";
+import { ChevronLeft, GitBranch, MessageSquare, Activity, X, AlertTriangle, Paperclip, Copy, Archive, RotateCcw, Share2, Link2 } from "lucide-react";
 import { toast } from "sonner";
 import { issuesApi } from "@/api/issues";
 import { projectsApi } from "@/api/projects";
@@ -203,6 +203,15 @@ export function IssueDetailPage({ issueIdOverride, workspaceSlugOverride, projec
     });
   };
 
+  /* 이슈 딥링크 복사 — ?issue= 파라미터로 열리는 정식 URL.
+     '복사'(handleCopyIssue)는 이슈 복제라 이름을 '링크 복사'로 구분한다. */
+  const handleCopyLink = () => {
+    const url = `${window.location.origin}/${workspaceSlug}/projects/${projectId}/issues?issue=${issueId}`;
+    navigator.clipboard.writeText(url).then(() => {
+      toast.success(t("issues.detail.linkCopied"));
+    });
+  };
+
   const handleArchiveIssue = () => {
     if (!issue) return;
     issuesApi.archive(workspaceSlug!, projectId!, issue.id).then(() => {
@@ -337,9 +346,20 @@ export function IssueDetailPage({ issueIdOverride, workspaceSlugOverride, projec
           />
         )}
 
-        <p className="text-xs font-mono text-muted-foreground mb-2">
-          {issueRef}
-        </p>
+        <div className="flex items-center gap-2 mb-2">
+          <p className="text-xs font-mono text-muted-foreground">
+            {issueRef}
+          </p>
+          <button
+            type="button"
+            onClick={handleCopyLink}
+            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            title={t("issues.detail.copyLink")}
+          >
+            <Link2 className="h-3.5 w-3.5" />
+            {t("issues.detail.copyLink")}
+          </button>
+        </div>
 
         {isArchived && (
           <div className="flex items-center gap-2 mb-3 px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-600 dark:text-amber-400">

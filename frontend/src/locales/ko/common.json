@@ -233,6 +233,7 @@
         "activity": "활동 로그"
       },
       "meta": {
+        "title": "제목",
         "state": "상태",
         "priority": "우선순위",
         "assignee": "담당자",
@@ -274,12 +275,13 @@
       "createDoc": "새 문서",
       "noDocs": "연결된 문서 없음",
       "deleting": "삭제 중...",
+      "copyLink": "링크 복사",
+      "linkCopied": "이슈 링크가 복사되었습니다",
       "activity": {
         "empty": "아직 활동 기록이 없습니다",
-        "changed": "을(를) 변경",
-        "from": "에서",
-        "to": "으로",
-        "deleted": "삭제"
+        "changedFromTo": "{{field}}을(를) \"{{from}}\"에서 \"{{to}}\"(으)로 변경",
+        "setTo": "{{field}}을(를) \"{{to}}\"(으)로 설정",
+        "cleared": "{{field}}을(를) 삭제"
       },
       "toast": {
         "updateFailed": "변경에 실패했습니다.",

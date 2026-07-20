@@ -33,13 +33,17 @@ export function ActivityTab({ activities, states = [] }: Props) {
             <span className="font-medium">{act.actor_detail?.display_name}</span>
             {" "}
             <span className="text-muted-foreground">
-              <span className="font-medium text-foreground/70">{act.field}</span>
-              {act.old_value
-                ? ` ${t("issues.detail.activity.changed")} ${t("issues.detail.activity.from")} "${resolve(act.old_value)}" `
-                : ` ${t("issues.detail.activity.changed")} `}
-              {act.new_value
-                ? `${t("issues.detail.activity.to")} "${resolve(act.new_value)}"`
-                : `(${t("issues.detail.activity.deleted")})`}
+              {(() => {
+                /* 필드명은 meta 라벨(상태/우선순위/제목)로, 없으면 원시값 폴백 */
+                const rawField = act.field ?? "";
+                const field = t(`issues.detail.meta.${rawField}`, { defaultValue: rawField });
+                const from = resolve(act.old_value);
+                const to = resolve(act.new_value);
+                /* old→new 유무에 따라 한/영 어순이 자연스러운 3가지 문형으로 분기 */
+                if (from && to) return t("issues.detail.activity.changedFromTo", { field, from, to });
+                if (to) return t("issues.detail.activity.setTo", { field, to });
+                return t("issues.detail.activity.cleared", { field });
+              })()}
             </span>
             <span className="text-muted-foreground/60 ml-1">
               · {formatLongDate(act.created_at)}

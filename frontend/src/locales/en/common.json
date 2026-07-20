@@ -228,6 +228,7 @@
         "activity": "Activity"
       },
       "meta": {
+        "title": "Title",
         "state": "State",
         "priority": "Priority",
         "assignee": "Assignee",
@@ -269,12 +270,13 @@
       "createDoc": "New document",
       "noDocs": "No linked documents",
       "deleting": "Deleting...",
+      "copyLink": "Copy link",
+      "linkCopied": "Issue link copied",
       "activity": {
         "empty": "No activity yet",
-        "changed": "changed",
-        "from": "from",
-        "to": "to",
-        "deleted": "removed"
+        "changedFromTo": "changed {{field}} from \"{{from}}\" to \"{{to}}\"",
+        "setTo": "set {{field}} to \"{{to}}\"",
+        "cleared": "cleared {{field}}"
       },
       "toast": {
         "updateFailed": "Failed to update.",
