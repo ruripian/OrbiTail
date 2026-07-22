@@ -59,9 +59,10 @@ import { PRIORITY_COLOR, PRIORITY_LIST } from "@/constants/priority";
 import { EmptyState } from "@/components/ui/empty-state";
 
 type ColId =
+  | "title" | "id"
   | "state" | "priority" | "assignee"
   | "startDate" | "dueDate" | "label"
-  | "subIssues" | "links" | "category" | "sprint" | "id"
+  | "subIssues" | "links" | "category" | "sprint"
   | "createdAt" | "updatedAt";
 
 interface ColDef {
@@ -70,9 +71,14 @@ interface ColDef {
   /** 헤더/행 간 정렬 일치를 위해 고정 px 너비 사용 */
   width: number;
   defaultVisible: boolean;
+  /** 숨길 수 없는 컬럼 — 제목은 행을 식별하는 유일한 수단이라 항상 표시.
+      순서 이동은 자유(다른 컬럼을 제목 앞에 둘 수 있음). */
+  locked?: boolean;
 }
 
 const COL_DEFS: ColDef[] = [
+  { id: "title",     tKey: "issues.table.cols.title",     width: 320, defaultVisible: true, locked: true },
+  { id: "id",        tKey: "issues.table.cols.id",        width: 80,  defaultVisible: true },
   { id: "state",     tKey: "issues.table.cols.state",     width: 170, defaultVisible: true },
   { id: "priority",  tKey: "issues.table.cols.priority",  width: 145, defaultVisible: true },
   { id: "assignee",  tKey: "issues.table.cols.assignee",  width: 155, defaultVisible: true },
@@ -93,25 +99,25 @@ const EDITABLE_COL_IDS = new Set<ColId>([
   "state", "priority", "assignee", "startDate", "dueDate", "label", "category", "sprint",
 ]);
 
-const COL_STORAGE_KEY = "orbitail_table_v2";
+/* v2 → v3: 제목/ID가 order 에 없던 구조라 이관이 불가능해 폐기 후 기본값으로 재구성 */
+const COL_STORAGE_KEY = "orbitail_table_v3";
+const COL_STORAGE_KEY_LEGACY = "orbitail_table_v2";
 
 type SortDir = "asc" | "desc";
-type SortKey = ColId | "_id" | "_title";
-interface SortBy { colId: SortKey; dir: SortDir }
+interface SortBy { colId: ColId; dir: SortDir }
 
 interface ColPrefs {
   order:   ColId[];
   visible: ColId[];
   /** 컬럼별 커스텀 너비 (px). 없으면 COL_DEFS 기본값 사용 */
   widths:  Partial<Record<ColId, number>>;
-  /** ID 컬럼 표시 여부 (헤더/행 모두) */
-  showId:  boolean;
   /** 컬럼별 정렬 — null 이면 사용자 수동 정렬(sort_order) 따름 */
   sortBy:  SortBy | null;
 }
 
 function loadPrefs(): ColPrefs {
   try {
+    localStorage.removeItem(COL_STORAGE_KEY_LEGACY);
     const raw = localStorage.getItem(COL_STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as Partial<ColPrefs>;
@@ -134,12 +140,15 @@ function loadPrefs(): ColPrefs {
       } else {
         visible = visible.filter(id => defaultOrder.includes(id as ColId));
       }
+      /* locked 컬럼은 저장값이 어떻든 항상 표시 — 제목이 빠지면 행을 식별할 수 없음 */
+      for (const c of COL_DEFS) {
+        if (c.locked && !visible.includes(c.id)) visible.push(c.id);
+      }
 
       return {
         order:   order,
         visible: visible,
         widths:  parsed.widths  ?? {},
-        showId:  parsed.showId !== undefined ? !!parsed.showId : true,
         sortBy:  parsed.sortBy ?? null,
       };
     }
@@ -148,7 +157,6 @@ function loadPrefs(): ColPrefs {
     order:   COL_DEFS.map((c) => c.id),
     visible: COL_DEFS.filter((c) => c.defaultVisible).map((c) => c.id),
     widths:  {},
-    showId:  true,
     sortBy:  null,
   };
 }
@@ -159,11 +167,10 @@ function savePrefs(prefs: ColPrefs) {
 
 /** 정렬용 키 추출 — 컬럼별로 비교 가능한 string/number 반환 */
 const PRIORITY_RANK: Record<string, number> = { urgent: 0, high: 1, medium: 2, low: 3, none: 4 };
-function getSortValue(issue: Issue, key: SortKey): string | number {
+function getSortValue(issue: Issue, key: ColId): string | number {
   switch (key) {
-    case "_id":
     case "id":         return issue.sequence_id;
-    case "_title":     return (issue.title ?? "").toLowerCase();
+    case "title":      return (issue.title ?? "").toLowerCase();
     case "state":      return issue.state_detail?.name ?? "";
     case "priority":   return PRIORITY_RANK[issue.priority] ?? 99;
     case "assignee":   return (issue.assignee_details?.[0]?.display_name ?? "").toLowerCase();
@@ -370,6 +377,7 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
   const updatePrefs = (next: ColPrefs) => { setPrefs(next); savePrefs(next); };
 
   const toggleVisible = (id: ColId) => {
+    if (COL_DEFS.find((c) => c.id === id)?.locked) return;
     const visible = prefs.visible.includes(id)
       ? prefs.visible.filter((v) => v !== id)
       : [...prefs.visible, id];
@@ -377,7 +385,7 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
   };
 
   /* 컬럼 헤더 클릭 시 정렬 사이클: none → asc → desc → none */
-  const cycleSort = (colId: SortKey) => {
+  const cycleSort = (colId: ColId) => {
     const cur = prefs.sortBy;
     let next: SortBy | null;
     if (!cur || cur.colId !== colId) next = { colId, dir: "asc" };
@@ -403,28 +411,48 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
     })
     .filter((col): col is ColDef => col !== null);
 
+  /* ── 컬럼 순서 DnD ──
+     드롭 지점을 "컬럼 위"가 아니라 "컬럼 사이 경계"로 다룬다.
+     boundary N = activeCols[N] 바로 앞 (N === length 면 맨 뒤).
+     경계 기준이라 좌/우 어느 방향으로 끌어도 결과가 같고, boundary 0 으로
+     드롭하면 제목을 포함한 첫 컬럼 앞에 삽입된다. */
   const dragColRef = useRef<ColId | null>(null);
   /* 시각 피드백용 state (ref는 리렌더를 유발하지 않으므로 별도 관리) */
   const [dragColId, setDragColId] = useState<ColId | null>(null);
-  const [dropColId, setDropColId] = useState<ColId | null>(null);
+  const [dropBoundary, setDropBoundary] = useState<number | null>(null);
+  /* drop 핸들러가 stale state 를 읽지 않도록 ref 병행 */
+  const dropBoundaryRef = useRef<number | null>(null);
 
   const onColDragStart = (id: ColId) => { dragColRef.current = id; setDragColId(id); };
-  const onColDragOver  = (e: React.DragEvent, id: ColId) => { e.preventDefault(); setDropColId(id); };
-  const onColDragEnd   = () => { dragColRef.current = null; setDragColId(null); setDropColId(null); };
-  const onColDrop = (targetId: ColId) => {
+  const onColDragEnd   = () => {
+    dragColRef.current = null;
+    dropBoundaryRef.current = null;
+    setDragColId(null);
+    setDropBoundary(null);
+  };
+  const markBoundary = (e: React.DragEvent, boundary: number) => {
+    /* dragover 에서 preventDefault 를 호출해야만 drop 이벤트가 발생한다 (HTML5 DnD 규약) */
+    e.preventDefault();
+    if (!dragColRef.current) return;
+    dropBoundaryRef.current = boundary;
+    setDropBoundary(boundary);
+  };
+  const onColDrop = (e: React.DragEvent) => {
+    e.preventDefault();
     const src = dragColRef.current;
-    if (!src || src === targetId) { onColDragEnd(); return; }
-    const order = [...prefs.order];
-    const from  = order.indexOf(src);
-    const to    = order.indexOf(targetId);
-    order.splice(from, 1);
-    order.splice(to, 0, src);
+    const boundary = dropBoundaryRef.current;
+    if (!src || boundary === null) { onColDragEnd(); return; }
+    /* activeCols 기준 경계를 prefs.order(숨긴 컬럼 포함) 기준 위치로 환산 */
+    const anchor = activeCols[boundary]?.id ?? null;
+    const order  = prefs.order.filter((id) => id !== src);
+    const at     = anchor ? order.indexOf(anchor) : -1;
+    order.splice(at < 0 ? order.length : at, 0, src);
     updatePrefs({ ...prefs, order });
     onColDragEnd();
   };
 
-  const [resizingCol, setResizingCol] = useState<ColId | "_title" | "_id" | null>(null);
-  const resizingColRef = useRef<ColId | "_title" | "_id" | null>(null);
+  const [resizingCol, setResizingCol] = useState<ColId | null>(null);
+  const resizingColRef = useRef<ColId | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -439,13 +467,11 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
     };
   }, [resizingCol]);
 
-  const startResize = (e: React.MouseEvent, colId: ColId | "_title" | "_id") => {
+  const startResize = (e: React.MouseEvent, colId: ColId) => {
     e.preventDefault();
     e.stopPropagation();
     const startX = e.clientX;
-    const startW = colId === "_title" ? (prefs.widths["_title" as ColId] ?? 320) 
-                 : colId === "_id"    ? (prefs.widths["id" as ColId] ?? 80)
-                 : (prefs.widths[colId as ColId] ?? COL_DEFS.find((c) => c.id === colId)!.width);
+    const startW = prefs.widths[colId] ?? COL_DEFS.find((c) => c.id === colId)!.width;
     resizingColRef.current = colId;
     setResizingCol(colId);
 
@@ -462,9 +488,8 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
       setResizingCol(null);
       resizingColRef.current = null;
       /* 최종 widths 를 localStorage 에 저장 (리렌더링은 마우스업 시점에만 발생) */
-      const storeKey = colId === "_id" ? "id" : colId;
-      setPrefs((prev) => { 
-        const next = { ...prev, widths: { ...prev.widths, [storeKey]: finalW } };
+      setPrefs((prev) => {
+        const next = { ...prev, widths: { ...prev.widths, [colId]: finalW } };
         savePrefs(next); 
         return next; 
       });
@@ -819,8 +844,6 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
     activeCols.forEach((col) => {
       s[`--col-w-${col.id}`] = `${col.width}px`;
     });
-    s["--col-w-_title"] = `${prefs.widths["_title" as ColId] ?? 320}px`;
-    s["--col-w-_id"]    = `${prefs.widths["id" as ColId] ?? 80}px`;
     return s as React.CSSProperties;
   }, [activeCols, prefs.widths]);
 
@@ -972,20 +995,6 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
               {t("issues.table.columns")}
             </p>
             <div className="grid grid-cols-2 gap-1">
-              {/* ID 컬럼 토글 — 별도 처리 (COL_DEFS 외부) */}
-              <button
-                type="button"
-                onClick={(e) => { e.preventDefault(); updatePrefs({ ...prefs, showId: !prefs.showId }); }}
-                className={cn(
-                  "flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium rounded-md border transition-all",
-                  prefs.showId
-                    ? "bg-primary/10 text-primary border-primary/30"
-                    : "text-muted-foreground border-border hover:bg-muted/40 hover:text-foreground"
-                )}
-              >
-                {prefs.showId && <Check className="h-3 w-3 shrink-0" />}
-                <span className="truncate">{t("issues.table.cols.id")}</span>
-              </button>
               {prefs.order.map((id) => {
                 const col = COL_DEFS.find((c) => c.id === id);
                 if (!col) return null;
@@ -994,12 +1003,15 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
                   <button
                     key={id}
                     type="button"
+                    disabled={col.locked}
                     onClick={(e) => { e.preventDefault(); toggleVisible(id); }}
                     className={cn(
                       "flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium rounded-md border transition-all",
                       active
                         ? "bg-primary/10 text-primary border-primary/30"
-                        : "text-muted-foreground border-border hover:bg-muted/40 hover:text-foreground"
+                        : "text-muted-foreground border-border hover:bg-muted/40 hover:text-foreground",
+                      /* 제목은 숨길 수 없음 — 켜진 상태 그대로 두고 클릭만 막음 */
+                      col.locked && "cursor-default opacity-60",
                     )}
                   >
                     {active && <Check className="h-3 w-3 shrink-0" />}
@@ -1057,51 +1069,18 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
                 onChange={() => toggleSelectAll()}
               />
 
-              {prefs.showId && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => cycleSort("_id")}
-                    className="flex items-center gap-1 text-xs font-semibold text-muted-foreground/70 hover:text-foreground uppercase tracking-wide select-none shrink-0 overflow-hidden text-ellipsis"
-                    style={{ width: "var(--col-w-_id)", minWidth: "var(--col-w-_id)" }}
-                  >
-                    <span>{t("issues.table.cols.id")}</span>
-                    <SortIndicator active={prefs.sortBy?.colId === "_id"} dir={prefs.sortBy?.dir} />
-                  </button>
-
-                  <ColDropIndicator
-                    active={false}
-                    onResizeStart={(e) => startResize(e, "_id")}
-                    isResizing={resizingCol === "_id"}
-                  />
-                </>
-              )}
-
-              <div
-                className="flex items-center gap-2 shrink-0 overflow-hidden"
-                style={{ width: "var(--col-w-_title)", minWidth: "var(--col-w-_title)" }}
-              >
-                <div className="w-5 shrink-0" />
-                <button
-                  type="button"
-                  onClick={() => cycleSort("_title")}
-                  className="flex items-center gap-1 text-xs font-semibold text-muted-foreground/70 hover:text-foreground uppercase tracking-wide select-none overflow-hidden text-ellipsis"
-                >
-                  <span>{t("issues.table.cols.title")}</span>
-                  <SortIndicator active={prefs.sortBy?.colId === "_title"} dir={prefs.sortBy?.dir} />
-                </button>
-              </div>
-              
               {activeCols.map((col, i) => {
                 const isDraggingThis = dragColId === col.id;
-                const showIndicator  = dropColId === col.id && dragColId !== null && !isDraggingThis;
-                const prevColId      = i > 0 ? activeCols[i - 1].id : "_title";
+                /* 리사이즈는 "앞 컬럼의 폭"을 조절 — 경계 0(맨 앞)에는 앞 컬럼이 없어 핸들 없음 */
+                const prevColId = i > 0 ? activeCols[i - 1].id : null;
                 return (
                   <Fragment key={col.id}>
                     <ColDropIndicator
-                      active={showIndicator}
-                      onResizeStart={!dragColId ? (e) => startResize(e, prevColId) : undefined}
-                      isResizing={resizingCol === prevColId}
+                      active={dropBoundary === i}
+                      onResizeStart={prevColId && !dragColId ? (e) => startResize(e, prevColId) : undefined}
+                      isResizing={!!prevColId && resizingCol === prevColId}
+                      onDragOver={(e) => markBoundary(e, i)}
+                      onDrop={onColDrop}
                     />
                     <div
                       draggable
@@ -1110,17 +1089,20 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
                         e.dataTransfer.effectAllowed = "move";
                         onColDragStart(col.id);
                       }}
-                      onDragOver={(e) => onColDragOver(e, col.id)}
+                      /* 컬럼 몸통도 드롭을 받는다 — 커서가 왼쪽 절반이면 앞 경계, 오른쪽 절반이면 뒤 경계.
+                         이렇게 해야 헤더 전 영역이 드롭 가능해져 "놓아도 제자리" 가 사라짐 */
+                      onDragOver={(e) => {
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        markBoundary(e, e.clientX < rect.left + rect.width / 2 ? i : i + 1);
+                      }}
                       onDragEnd={onColDragEnd}
-                      onDrop={() => onColDrop(col.id)}
+                      onDrop={onColDrop}
                       style={{ width: `var(--col-w-${col.id})`, minWidth: `var(--col-w-${col.id})` }}
                       className={cn(
                         "flex items-center gap-1 text-xs font-semibold uppercase tracking-wide cursor-grab active:cursor-grabbing select-none group shrink-0 overflow-hidden transition-all duration-fast",
                         isDraggingThis
                           ? "opacity-20 scale-[0.95] text-muted-foreground/40"
-                          : showIndicator
-                            ? "text-primary/80"
-                            : "text-muted-foreground/70",
+                          : "text-muted-foreground/70",
                       )}
                     >
                       <GripVertical className="h-3 w-3 opacity-0 group-hover:opacity-40 transition-opacity shrink-0" />
@@ -1135,12 +1117,14 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
                   </Fragment>
                 );
               })}
-              {/* 마지막 컬럼 뒤 리사이즈 핸들 — 마지막 컬럼도 늘릴 수 있도록 */}
+              {/* 마지막 경계 — 맨 뒤로 옮기는 드롭 지점 겸 마지막 컬럼 리사이즈 핸들 */}
               {activeCols.length > 0 && (
                 <ColDropIndicator
-                  active={false}
+                  active={dropBoundary === activeCols.length}
                   onResizeStart={!dragColId ? (e) => startResize(e, activeCols[activeCols.length - 1].id) : undefined}
                   isResizing={resizingCol === activeCols[activeCols.length - 1].id}
+                  onDragOver={(e) => markBoundary(e, activeCols.length)}
+                  onDrop={onColDrop}
                 />
               )}
             </div>
@@ -1179,7 +1163,6 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
                   selected={selectedIds.has(issue.id)}
                   onToggleSelect={toggleSelect}
                   selectedIds={selectedIds}
-                  showId={prefs.showId}
                   readOnly={readOnly}
                 />
               ))}
@@ -1497,7 +1480,6 @@ interface IssueCardProps {
   selected?:          boolean;
   onToggleSelect?:    (id: string, shiftKey: boolean) => void;
   selectedIds?:       Set<string>;
-  showId?:            boolean;
   /* 읽기 전용(viewer/비멤버) — 드래그·셀 인라인 편집 차단, 표시만 유지 */
   readOnly?:          boolean;
 }
@@ -1506,7 +1488,7 @@ function IssueCard({
   issue, activeCols, states, members, labels,
   workspaceSlug, projectId, projectIdentifier, depth, onIssueClick,
   categories, sprints, hideCompleted, selected, onToggleSelect, selectedIds,
-  showId = true, readOnly = false,
+  readOnly = false,
 }: IssueCardProps) {
   const { t } = useTranslation();
   const { perms } = useProjectPerms();
@@ -1680,6 +1662,59 @@ function IssueCard({
 
   const cellContent = (col: ColDef): React.ReactNode => {
     switch (col.id) {
+
+      case "id":
+        return (
+          <span className="font-mono text-xs font-semibold text-muted-foreground/70 truncate">
+            {projectIdentifier ? `${projectIdentifier}-${issue.sequence_id}` : `#${issue.sequence_id}`}
+          </span>
+        );
+
+      /* 제목 셀 — 하위 이슈 들여쓰기를 이 셀 안쪽 padding 으로 처리한다.
+         행 전체를 밀지 않으므로 제목이 몇 번째 컬럼에 있든 나머지 컬럼의 세로 정렬이 유지된다. */
+      case "title":
+        return (
+          <div className="flex items-center gap-2 w-full overflow-hidden" style={{ paddingLeft: indent }}>
+            {/* 확장 토글 / 그립 아이콘 (w-5 고정) */}
+            <div className="w-5 h-5 shrink-0 flex items-center justify-center">
+              {hasChildren ? (
+                <button
+                  onClick={toggleExpand}
+                  className="rounded p-0.5 hover:bg-muted/60 transition-colors"
+                >
+                  {expanded
+                    ? <ChevronDown  className="h-3.5 w-3.5 text-muted-foreground" />
+                    : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                  }
+                </button>
+              ) : (
+                <GripVertical className="h-3.5 w-3.5 text-muted-foreground/0 group-hover:text-muted-foreground/35 transition-colors" />
+              )}
+            </div>
+
+            <div
+              className="flex items-center gap-2 cursor-pointer flex-1 min-w-0"
+              onClick={() => onIssueClick(issue.id)}
+            >
+              <span
+                className={cn(
+                  "text-sm font-medium text-foreground group-hover:text-primary transition-colors line-clamp-1",
+                  /* Phase 2.2 — cancelled state 이슈는 취소선 표시 */
+                  issue.state_detail?.group === "cancelled" && "line-through text-muted-foreground",
+                )}
+              >
+                {issue.title}
+              </span>
+              <button
+                onClick={(e) => { e.stopPropagation(); setAddingChild(true); setExpanded(true); }}
+                title={t("issues.table.addSubIssue")}
+                className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-muted/60 shrink-0"
+              >
+                <Plus className="h-3 w-3 text-muted-foreground" />
+              </button>
+            </div>
+          </div>
+        );
 
       case "state":
         // 필드(Field) — 상태 없음. 그래프 뷰와 동일한 라벤더(violet) 칩으로 표시.
@@ -1918,70 +1953,12 @@ function IssueCard({
           </span>
         )}
 
-        {showId && (
-          <>
-            <div
-              className="shrink-0 flex items-center truncate overflow-hidden"
-              style={{ width: "var(--col-w-_id)", minWidth: "var(--col-w-_id)" }}
-            >
-              <span className="font-mono text-xs font-semibold text-muted-foreground/70 truncate">
-                {projectIdentifier ? `${projectIdentifier}-${issue.sequence_id}` : `#${issue.sequence_id}`}
-              </span>
-            </div>
-
-            <div className="w-[10px] self-stretch shrink-0 flex items-center text-transparent">|</div>
-          </>
-        )}
-
-        {/* 제목 영역 (인덴트를 제목 패딩으로 이동시켜 전체 컬럼 정렬 유지) */}
-        <div
-          className="flex items-center gap-2 shrink-0 overflow-hidden"
-          style={{ width: "var(--col-w-_title)", minWidth: "var(--col-w-_title)", paddingLeft: indent }}
-        >
-          {/* 확장 토글 / 그립 아이콘 (w-5 고정) */}
-          <div className="w-5 h-5 shrink-0 flex items-center justify-center">
-          {hasChildren ? (
-            <button
-              onClick={toggleExpand}
-              className="rounded p-0.5 hover:bg-muted/60 transition-colors"
-            >
-              {expanded
-                ? <ChevronDown  className="h-3.5 w-3.5 text-muted-foreground" />
-                : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-              }
-            </button>
-          ) : (
-            <GripVertical className="h-3.5 w-3.5 text-muted-foreground/0 group-hover:text-muted-foreground/35 transition-colors" />
-          )}
-        </div>
-
-        <div
-          className="flex items-center gap-2 cursor-pointer shrink-0 flex-1 min-w-0"
-          onClick={() => onIssueClick(issue.id)}
-        >
-          <span
-            className={cn(
-              "text-sm font-medium text-foreground group-hover:text-primary transition-colors line-clamp-1",
-              /* Phase 2.2 — cancelled state 이슈는 취소선 표시 */
-              issue.state_detail?.group === "cancelled" && "line-through text-muted-foreground",
-            )}
-          >
-            {issue.title}
-          </span>
-          <button
-            onClick={(e) => { e.stopPropagation(); setAddingChild(true); setExpanded(true); }}
-            title={t("issues.table.addSubIssue")}
-            className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-muted/60 shrink-0"
-          >
-            <Plus className="h-3 w-3 text-muted-foreground" />
-          </button>
-        </div>
-        </div>
-
-        {activeCols.map((col) => (
+        {/* 헤더의 ColDropIndicator 와 폭(10px)·위치가 1:1 대응해야 컬럼이 세로로 정렬된다 */}
+        {activeCols.map((col, i) => (
           <Fragment key={col.id}>
             <div className="w-[10px] self-stretch flex items-stretch justify-center shrink-0">
-              <div className="w-px bg-border/60 self-stretch" />
+              {/* 맨 앞(체크박스 옆) 구분선은 폭만 차지하고 선은 그리지 않음 */}
+              {i > 0 && <div className="w-px bg-border/60 self-stretch" />}
             </div>
             <div style={{ width: `var(--col-w-${col.id})`, minWidth: `var(--col-w-${col.id})` }} className="shrink-0 flex flex-col justify-center min-w-0 overflow-hidden">
               {/* 읽기 전용이면 편집 picker 셀의 클릭/변경을 pointer-events로 차단 — 현재 값 표시는 유지 */}
@@ -2125,7 +2102,6 @@ function IssueCard({
               selected={selectedIds?.has(sub.id)}
               onToggleSelect={onToggleSelect}
               selectedIds={selectedIds}
-              showId={showId}
               readOnly={readOnly}
             />
           ))}
@@ -2158,10 +2134,15 @@ function ColDropIndicator({
   active,
   onResizeStart,
   isResizing,
+  onDragOver,
+  onDrop,
 }: {
   active:          boolean;
   onResizeStart?:  (e: React.MouseEvent) => void;
   isResizing?:     boolean;
+  /* 컬럼 순서 DnD — 이 경계에 드롭하면 끌던 컬럼이 여기로 삽입된다 */
+  onDragOver?:     (e: React.DragEvent) => void;
+  onDrop?:         (e: React.DragEvent) => void;
 }) {
   const [hovered, setHovered] = useState(false);
   const highlighted = active || hovered || isResizing;
@@ -2169,12 +2150,17 @@ function ColDropIndicator({
 
   return (
     <div
-      className="self-stretch shrink-0 flex items-stretch justify-center"
+      className="relative self-stretch shrink-0 flex items-stretch justify-center"
       style={{ width: 10, cursor: canResize ? "col-resize" : "default", flexShrink: 0 }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onMouseDown={onResizeStart}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
     >
+      {/* 히트 영역만 좌우 12px(부모의 gap-3) 씩 확장 — 레이아웃 폭은 그대로 두고
+          컬럼 사이 여백까지 드롭·리사이즈를 받게 해 "빈 틈에 놓으면 무반응" 을 없앰 */}
+      <div className="absolute inset-y-0 -left-3 -right-3" />
       <div
         className="self-stretch rounded-full transition-all duration-fast"
         style={{

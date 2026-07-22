@@ -681,6 +681,35 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
   const totalWidth = columns.length * colW;
   const pxPerDay   = colW / (settings.scale === "day" ? 1 : settings.scale === "week" ? 7 : 30);
 
+  /* ── 열 가상화 ──
+     열 격자는 이슈 행마다 다시 그려지므로 DOM 수가 (행 × 열)로 늘어난다.
+     day 스케일에서 범위가 1년이면 열만 365개라 행이 조금만 많아도 수만 개가 되어 느려진다.
+     열 셀은 전부 absolute(left = i * colW) 배치라 보이는 구간만 그려도 위치가 어긋나지 않는다.
+     VCHUNK 배수로 스냅해 스크롤 도중 범위가 바뀌는(=리렌더) 횟수를 줄인다. */
+  const VCHUNK = 12;
+  const [colRange, setColRange] = useState({ start: 0, end: VCHUNK * 4 });
+
+  const recalcColRange = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    /* 좌측 고정 3컬럼은 sticky 라 날짜 격자의 원점이 LEFT_W 만큼 밀려 있다 */
+    const first = (el.scrollLeft - LEFT_W) / colW;
+    const last  = (el.scrollLeft + el.clientWidth - LEFT_W) / colW;
+    const start = Math.max(0, Math.floor(first / VCHUNK) * VCHUNK - VCHUNK);
+    const end   = Math.min(columns.length, Math.ceil(last / VCHUNK) * VCHUNK + VCHUNK);
+    setColRange((prev) => (prev.start === start && prev.end === end ? prev : { start, end }));
+  }, [colW, columns.length, LEFT_W]);
+
+  /* 스케일 전환·범위 확장·좌측 폭 변경 직후엔 스크롤 이벤트가 없으므로 직접 재계산 */
+  useEffect(() => { recalcColRange(); }, [recalcColRange]);
+
+  const visibleCols = useMemo(() => {
+    const out: Array<{ col: Column; i: number }> = [];
+    const end = Math.min(colRange.end, columns.length);
+    for (let i = Math.max(0, colRange.start); i < end; i++) out.push({ col: columns[i], i });
+    return out;
+  }, [columns, colRange]);
+
   /* 스케일 변경 시 화면 중앙 날짜 보존 — 변경 직전 중앙 날짜를 ref에 저장하고
      변경 후 effect에서 새 픽셀 좌표로 스크롤 복원 */
   const handleSettingsChange = useCallback((s: Partial<TimelineSettings>) => {
@@ -1229,6 +1258,7 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
         onScroll={(e) => {
           const el = e.currentTarget;
           const { scrollLeft, scrollWidth, clientWidth } = el;
+          recalcColRange();
           /* 오른쪽 끝 근접 (200px 이내) — 미래 CHUNK_DAYS 확장 */
           if (scrollLeft + clientWidth > scrollWidth - 200) {
             setRangeEnd((prev) => addDays(prev, CHUNK_DAYS));
@@ -1319,7 +1349,7 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
               ))}
 
               {/* 하단 30px: 일/주/월 컬럼 레이블 — day scale은 날짜+요일 이중 표기 */}
-              {columns.map((col, i) => {
+              {visibleCols.map(({ col, i }) => {
                 const isToday = settings.scale === "day" && col.start.toDateString() === today.toDateString();
                 const dow = col.start.getDay(); // 0=일, 6=토
                 const isWeekend = settings.scale === "day" && (dow === 0 || dow === 6);
@@ -1598,7 +1628,7 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
                   }}
                 >
                   {/* 열 구분선 + 오늘 컬럼 배경 + 주/월 경계 강조 */}
-                  {columns.map((col, ci) => {
+                  {visibleCols.map(({ col, i: ci }) => {
                     const isToday = settings.scale === "day" && col.start.toDateString() === today.toDateString();
                     return (
                       <div
@@ -1978,7 +2008,7 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
                 </p>
               </div>
               <div className="relative flex-shrink-0" style={{ width: totalWidth }}>
-                {columns.map((col, i) => {
+                {visibleCols.map(({ col, i }) => {
                   const isToday = settings.scale === "day" && col.start.toDateString() === today.toDateString();
                   return (
                     <div
@@ -2041,7 +2071,7 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
             </div>
             {/* 오른쪽 — 컬럼 그리드 + 오늘선으로 통일감 유지 */}
             <div className="relative flex-shrink-0" style={{ width: totalWidth }}>
-              {columns.map((col, i) => {
+              {visibleCols.map(({ col, i }) => {
                 const dow = col.start.getDay();
                 const isWeekend = settings.scale === "day" && (dow === 0 || dow === 6);
                 const isToday = settings.scale === "day" && col.start.toDateString() === today.toDateString();
@@ -2085,7 +2115,7 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
                 }}
               />
               <div className="relative flex-shrink-0" style={{ width: totalWidth }}>
-                {columns.map((col, i) => {
+                {visibleCols.map(({ col, i }) => {
                   const dow = col.start.getDay();
                   const isWeekend = settings.scale === "day" && (dow === 0 || dow === 6);
                   const isToday = settings.scale === "day" && col.start.toDateString() === today.toDateString();
