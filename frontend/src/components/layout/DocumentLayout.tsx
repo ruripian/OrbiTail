@@ -16,7 +16,7 @@ import {
   Lock, Layers, User as UserIcon, Users,
 } from "lucide-react";
 import { documentsApi } from "@/api/documents";
-import { ProjectIcon } from "@/components/ui/project-icon-picker";
+import { ProjectIcon, type IconProp } from "@/components/ui/project-icon-picker";
 import type { DocumentSpace } from "@/types";
 
 /** 사이드바/드롭다운에서 쓰는 스페이스 아이콘. project 스페이스는 프로젝트 아이콘 동기화. */
@@ -466,7 +466,7 @@ function TreeNode({
   onDelete: (id: string) => void;
   onRename: (id: string, title: string) => void;
   onCreate: (parentId: string | null, isFolder: boolean) => void;
-  onIconChange?: (id: string, icon: any) => void;
+  onIconChange?: (id: string, icon: IconProp) => void;
   onMove: (docId: string, targetId: string, position: "before" | "after" | "inside") => void;
   onDragStartGlobal?: (id: string) => void;
   onDragEndGlobal?: () => void;

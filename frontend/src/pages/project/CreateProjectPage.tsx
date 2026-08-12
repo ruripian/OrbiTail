@@ -174,7 +174,7 @@ export function CreateProjectPage() {
                       setValue("name", e.target.value);
                       setValue(
                         "identifier",
-                        e.target.value.toUpperCase().replace(/[^A-Z0-9_\-]/g, "").slice(0, 12),
+                        e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, "").slice(0, 12),
                       );
                     }}
                   />
@@ -200,7 +200,7 @@ export function CreateProjectPage() {
                   className="font-mono uppercase"
                   onChange={(e) => {
                     /* 사용자가 소문자/특수문자 입력해도 자동으로 A-Z/0-9 대문자로 변환 */
-                    const sanitized = e.target.value.toUpperCase().replace(/[^A-Z0-9_\-]/g, "").slice(0, 12);
+                    const sanitized = e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, "").slice(0, 12);
                     setValue("identifier", sanitized, { shouldValidate: true });
                   }}
                 />

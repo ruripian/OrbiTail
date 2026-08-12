@@ -3,6 +3,8 @@ import type {
   Workspace,
   WorkspaceMember,
   WorkspaceInvitation,
+  WorkspaceJoinRequest,
+  JoinRequestResult,
   InvitationInfo,
   PaginatedResponse,
 } from "@/types";
@@ -23,11 +25,11 @@ export const workspacesApi = {
   joinRequests: {
     /** 워크스페이스에 가입 신청 (PENDING 생성) — 이미 멤버면 already_member=true 응답 */
     create: (slug: string, message?: string) =>
-      api.post<any>(`/workspaces/${slug}/join-request/`, message ? { message } : {}).then((r) => r.data),
+      api.post<JoinRequestResult>(`/workspaces/${slug}/join-request/`, message ? { message } : {}).then((r) => r.data),
 
     /** 내가 보낸 신청 목록 (모든 상태) */
     listMine: () =>
-      api.get<PaginatedResponse<any>>(`/workspaces/join-requests/mine/`).then((r) => r.data?.results ?? []),
+      api.get<PaginatedResponse<WorkspaceJoinRequest>>(`/workspaces/join-requests/mine/`).then((r) => r.data?.results ?? []),
 
     /** 내 PENDING 신청 취소 */
     cancel: (requestId: string) =>
@@ -37,7 +39,7 @@ export const workspacesApi = {
   /** 가입 신청 관련 — 워크스페이스 어드민 측 */
   joinRequestsAdmin: {
     list: (slug: string, statusFilter: "pending" | "all" = "pending") =>
-      api.get<PaginatedResponse<any>>(`/workspaces/${slug}/join-requests/?status=${statusFilter}`).then((r) => r.data?.results ?? []),
+      api.get<PaginatedResponse<WorkspaceJoinRequest>>(`/workspaces/${slug}/join-requests/?status=${statusFilter}`).then((r) => r.data?.results ?? []),
     decide: (slug: string, requestId: string, action: "approve" | "reject") =>
       api.post(`/workspaces/${slug}/join-requests/${requestId}/decision/`, { action }).then((r) => r.data),
   },

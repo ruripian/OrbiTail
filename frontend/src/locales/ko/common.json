@@ -149,6 +149,7 @@
       "archived": "이슈가 보관되었습니다",
       "delete": "삭제",
       "deleted": "이슈가 삭제되었습니다",
+      "deleteFailed": "이슈 삭제에 실패했습니다",
       "deletedWithChildren": "하위 이슈 {{count}}개도 함께 삭제됩니다",
       "undo": "되돌리기",
       "nestHere": "하위로 편입",
@@ -671,7 +672,7 @@
       "descriptionPlaceholder": "메모 또는 참고사항",
       "participants": "참여자",
       "global": "프로젝트 전체 일정",
-      "globalHint": "이 프로젝트에 참여하는 모든 멤버에게 해당되는 일정입니다"
+      "globalHint": "프로젝트·팀 캘린더에만 표시되고, 멤버 개인 일정에는 들어가지 않습니다"
     },
     "type": {
       "meeting": "회의",
@@ -868,6 +869,10 @@
       "densityCompact": "조밀",
       "densityComfortable": "보통",
       "densitySpacious": "여유",
+      "fontFamily": "서체",
+      "fontMono": "고정폭 서체",
+      "fontScale": "글자 배율",
+      "fontReset": "기본값으로",
       "sectionAppearance": "외관",
       "sectionLocale": "언어 및 지역",
       "language": "언어",

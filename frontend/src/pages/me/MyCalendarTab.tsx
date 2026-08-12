@@ -10,7 +10,7 @@
  *   - 권한은 항상 true (백엔드 검증 + 403 시 toast)
  *   - drawer/멤버 필터 없음 (마이 페이지엔 의미 없음)
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -345,10 +345,10 @@ export function MyCalendarTab() {
     return m;
   }, [uniqueProjects]);
 
-  /* 필터 헬퍼 */
-  const isProjectVisible = (projectId: string): boolean => {
+  /* 필터 헬퍼 — 아래 useMemo 들의 deps 로 쓰이므로 selectedProjects 가 바뀔 때만 새로 만든다 */
+  const isProjectVisible = useCallback((projectId: string): boolean => {
     return selectedProjects === null || selectedProjects.has(projectId);
-  };
+  }, [selectedProjects]);
   const toggleProject = (id: string) => {
     setSelectedProjects((cur) => {
       /* null(전체)에서 첫 토글 시 — 그 항목만 빼고 나머지 다 선택된 Set 으로 시작 */
@@ -376,7 +376,7 @@ export function MyCalendarTab() {
       if (!isProjectVisible(issue.project)) return false;
       return true;
     });
-  }, [issues, settings.showCompleted, settings.showFields, selectedProjects]);
+  }, [issues, settings.showCompleted, settings.showFields, isProjectVisible]);
 
   const filteredEvents = useMemo(() => {
     if (!settings.showEvents) return [];
@@ -385,7 +385,7 @@ export function MyCalendarTab() {
       if (!ev.project) return true;
       return isProjectVisible(ev.project);
     });
-  }, [normalizedEvents, settings.showEvents, selectedProjects]);
+  }, [normalizedEvents, settings.showEvents, isProjectVisible]);
 
   /* 상태 ID → 색상 맵 — me API 가 issue.state_detail 채워주므로 거기서 추출 */
   const stateColorMap = useMemo(() => {

@@ -3,6 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation } from "@tanstack/react-query";
+import { apiErrorMessage } from "@/lib/api-error";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -44,10 +45,8 @@ export function ResetPasswordPage() {
       toast.success(t("auth.resetPassword.success"));
       navigate("/auth/login");
     },
-    onError: (err: any) => {
-      const msg = err.response?.data?.detail || err.message || t("auth.resetPassword.error");
-      toast.error(msg);
-    },
+    /* err.message 폴백은 뺐다 — "Request failed with status code 400" 같은 내부 문구가 노출된다 */
+    onError: (e) => toast.error(apiErrorMessage(e, t("auth.resetPassword.error"))),
   });
 
   if (!token) {

@@ -150,9 +150,11 @@ function ImageGalleryView({ node, updateAttributes, editor }: NodeViewProps) {
   const [uploading, setUploading] = useState(false);
   const editable = editor.isEditable;
 
-  const onUploadStorage = (editor as any).storage?.fileUpload?.uploadFn as
-    | ((file: File) => Promise<{ url: string; filename: string }>)
-    | undefined;
+  /* FileUploadStore 확장이 editor.storage 에 심어두는 업로더 —
+     TipTap storage 는 확장별 자유 형태라 여기서 우리가 아는 모양으로 좁힌다. */
+  const onUploadStorage = (editor.storage as unknown as Record<string, {
+    uploadFn?: (file: File) => Promise<{ url: string; filename: string }>;
+  } | undefined>)?.fileUpload?.uploadFn;
 
   const handleFiles = async (files: FileList | File[]) => {
     const arr = Array.from(files).filter((f) => f.type.startsWith("image/"));

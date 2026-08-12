@@ -3,6 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation } from "@tanstack/react-query";
+import { apiErrorMessage } from "@/lib/api-error";
 import { useNavigate, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -33,10 +34,7 @@ export function ForgotPasswordPage() {
       setIsSuccess(true);
       toast.success(t("auth.forgotPassword.successToast"));
     },
-    onError: (err: any) => {
-      const msg = err.response?.data?.detail || t("auth.forgotPassword.error");
-      toast.error(msg);
-    },
+    onError: (e) => toast.error(apiErrorMessage(e, t("auth.forgotPassword.error"))),
   });
 
   return (

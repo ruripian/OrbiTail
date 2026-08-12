@@ -84,6 +84,8 @@ export function LoginPage() {
               type="email"
               placeholder={t("auth.login.emailPlaceholder")}
               tabIndex={1}
+              /* 브라우저 비밀번호 관리자가 저장·자동완성을 인식하려면 username/current-password 쌍이 필요 */
+              autoComplete="username"
               {...register("email")}
             />
             {errors.email && (
@@ -100,6 +102,7 @@ export function LoginPage() {
                 type={showPassword ? "text" : "password"}
                 placeholder={t("auth.login.passwordPlaceholder")}
                 tabIndex={2}
+                autoComplete="current-password"
                 {...register("password")}
                 className="pr-10"
               />

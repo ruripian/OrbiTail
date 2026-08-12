@@ -18,6 +18,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { apiErrorMessage } from "@/lib/api-error";
 import { Upload, Trash2, AlertTriangle, RotateCcw } from "lucide-react";
 import { workspacesApi } from "@/api/workspaces";
 import { Button } from "@/components/ui/button";
@@ -69,6 +70,9 @@ export function WorkspaceGeneralPage() {
     setDescription(workspace.description ?? "");
     setBrandColor(workspace.brand_color ?? "");
     setPriorityColors(workspace.priority_colors ?? {});
+    /* 다른 워크스페이스로 바뀔 때만 폼을 다시 채운다 — workspace 객체를 deps 에 넣으면
+       자동저장 후 refetch 로 참조가 바뀔 때마다 입력 중이던 값이 되돌아간다. */
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspace?.id]);
 
   const updateMutation = useMutation({
@@ -77,10 +81,9 @@ export function WorkspaceGeneralPage() {
       qc.setQueryData(["workspace", workspaceSlug], updated);
       qc.invalidateQueries({ queryKey: ["workspaces"] });
     },
-    onError: (e: any) => {
-      const msg = e?.response?.data?.detail ?? t("workspaceSettings.general.updateFailed", "변경에 실패했습니다");
-      toast.error(msg);
-    },
+    onError: (e) => toast.error(
+      apiErrorMessage(e, t("workspaceSettings.general.updateFailed", "변경에 실패했습니다")),
+    ),
   });
 
   /* slug 변경은 별도 mutation — 성공 시 새 slug 로 라우트 이동 (URL 자체가 바뀌므로) */
@@ -94,12 +97,10 @@ export function WorkspaceGeneralPage() {
       const path = window.location.pathname.replace(`/${workspaceSlug}/`, `/${updated.slug}/`);
       navigate(path, { replace: true });
     },
-    onError: (e: any) => {
-      const msg = e?.response?.data?.slug?.[0]
-        ?? e?.response?.data?.detail
-        ?? t("workspaceSettings.general.slugFailed", "주소 변경에 실패했습니다");
-      toast.error(msg);
-    },
+    /* slug 중복은 필드 검증 에러({slug: [...]})로 오는데 apiErrorMessage 가 그 형태도 처리한다 */
+    onError: (e) => toast.error(
+      apiErrorMessage(e, t("workspaceSettings.general.slugFailed", "주소 변경에 실패했습니다")),
+    ),
   });
 
   /* 로고 — File 직접 업로드 */

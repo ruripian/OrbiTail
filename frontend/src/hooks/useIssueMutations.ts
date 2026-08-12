@@ -43,3 +43,17 @@ export function useIssueRefresh(workspaceSlug: string, projectId: string) {
 
   return { refresh, refreshWithArchive, refreshIssue };
 }
+
+/**
+ * 낙관적 업데이트의 "되돌리기"용 — 이번에 바꾸는 키들의 변경 전 값만 뽑는다.
+ *
+ * onMutate 에서 캡처해 두었다가 undo 토스트에서 그대로 PATCH 하면 원상복구된다.
+ * Table/Calendar/Timeline/Detail 이 같은 코드를 각자 들고 있어 한곳으로 모았다.
+ */
+export function capturePrevious<T extends object>(source: T, changed: Partial<T>): Partial<T> {
+  const prev: Partial<T> = {};
+  for (const key of Object.keys(changed) as (keyof T)[]) {
+    prev[key] = source[key];
+  }
+  return prev;
+}

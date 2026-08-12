@@ -11,7 +11,7 @@
  *   - personalEvents: 팀원이 shared_with_team=True 로 공유한 PE (편집/이동은 본인 것만)
  *   - projectEvents: 팀원이 멤버인 프로젝트 — 공개는 전체, 비공개는 팀장/본인만
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -312,10 +312,11 @@ export function TeamCalendarSection({
   }, [uniqueProjects]);
 
   /* 필터 헬퍼 */
-  const isProjectVisible = (projectId: string) =>
-    selectedProjects === null || selectedProjects.has(projectId);
-  const isMemberVisible = (userId: string) =>
-    selectedMembers === null || selectedMembers.has(userId);
+  /* 아래 useMemo 들의 deps 로 쓰이므로 선택값이 바뀔 때만 새로 만든다 */
+  const isProjectVisible = useCallback((projectId: string) =>
+    selectedProjects === null || selectedProjects.has(projectId), [selectedProjects]);
+  const isMemberVisible = useCallback((userId: string) =>
+    selectedMembers === null || selectedMembers.has(userId), [selectedMembers]);
 
   const toggleProject = (id: string) => {
     setSelectedProjects((cur) => {
@@ -351,7 +352,7 @@ export function TeamCalendarSection({
       if (!visibleAssignee) return false;
       return true;
     });
-  }, [issues, settings.showCompleted, settings.showFields, selectedProjects, selectedMembers]);
+  }, [issues, settings.showCompleted, settings.showFields, isProjectVisible, isMemberVisible]);
 
   const filteredEvents = useMemo(() => {
     if (!settings.showEvents) return [];
@@ -360,7 +361,7 @@ export function TeamCalendarSection({
       if (!ev.project) return ev.created_by ? isMemberVisible(ev.created_by) : true;
       return isProjectVisible(ev.project);
     });
-  }, [normalizedEvents, settings.showEvents, selectedProjects, selectedMembers]);
+  }, [normalizedEvents, settings.showEvents, isProjectVisible, isMemberVisible]);
 
   const stateColorMap = useMemo(() => {
     const m: Record<string, string> = {};

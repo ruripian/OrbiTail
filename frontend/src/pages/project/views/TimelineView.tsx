@@ -14,7 +14,7 @@ import { useState, useMemo, useRef, useEffect, useCallback, Fragment } from "rea
 import { createPortal } from "react-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocalState } from "@/hooks/useLocalState";
-import { useIssueRefresh } from "@/hooks/useIssueMutations";
+import { useIssueRefresh, capturePrevious } from "@/hooks/useIssueMutations";
 import { useUndoStore } from "@/stores/undoStore";
 import { useTranslation } from "react-i18next";
 import { Settings2, ChevronDown, Plus, ChevronRight } from "lucide-react";
@@ -360,10 +360,7 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
       if (scrollRef.current) savedScrollLeft.current = scrollRef.current.scrollLeft;
       const issue = issues.find((i) => i.id === id);
       if (!issue) return;
-      const prev: Partial<Issue> = {};
-      for (const key of Object.keys(data) as (keyof Issue)[]) {
-        (prev as any)[key] = (issue as any)[key];
-      }
+      const prev = capturePrevious(issue, data);
       return { id, prev };
     },
     onSuccess: (_result, variables, context) => {
@@ -671,10 +668,11 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
     setRangeEnd((prev) => (maxEnd > prev ? addDays(maxEnd, 7) : prev));
   }, [filteredIssues]);
 
-  const tMonth = (idx: number) => t(MONTH_KEYS[idx]);
+  /* useCallback 이라 언어가 바뀔 때만 새로 만들어진다 — 매 렌더 새 함수면 아래 useMemo 가 무력해진다. */
+  const tMonth = useCallback((idx: number) => t(MONTH_KEYS[idx]), [t]);
   const columns = useMemo(
     () => buildColumns(rangeStart, rangeEnd, settings.scale, tMonth, settings.hideWeekends),
-    [rangeStart, rangeEnd, settings.scale, settings.hideWeekends, t]
+    [rangeStart, rangeEnd, settings.scale, settings.hideWeekends, tMonth]
   );
 
   const colW       = COL_WIDTH[settings.scale];
@@ -1009,7 +1007,7 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
     } else {
       apply();
     }
-  }, [todayLeft, columns.length]);
+  }, [todayLeft, columns.length, LEFT_W]);
 
   /* 오늘로 이동 핸들러 (툴바 버튼) */
   const scrollToToday = () => {
@@ -1082,7 +1080,9 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
 
     if (headers.length > 0) headers[headers.length - 1].width = columns.length * colW - startLeft;
     return headers;
-  }, [columns, colW, settings.scale, t]);
+    /* firstDow 가 빠져 있으면 주 시작 요일을 바꿔도 헤더 병합이 갱신되지 않아,
+       렌더 중 계산되는 세로 구분선과 헤더 경계가 어긋난다. */
+  }, [columns, colW, settings.scale, t, firstDow]);
 
   type Row =
     | { type: "group"; group: Group }

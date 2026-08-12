@@ -96,6 +96,13 @@ export function CommandSearchDialog({ open, onOpenChange, documentMode = false }
     setSelectedIndex(0);
   }, [results]);
 
+  /* handleKeyDown 보다 먼저 선언해야 deps 에 넣을 수 있다 —
+     아래에 두면 키보드 핸들러가 이전 렌더의 함수를 붙잡아 workspaceSlug 가 낡을 수 있다. */
+  const navigateToIssue = useCallback((issue: IssueSearchResult) => {
+    onOpenChange(false);
+    useIssueDialogStore.getState().openIssue(workspaceSlug!, issue.project, issue.id);
+  }, [onOpenChange, workspaceSlug]);
+
   // 키보드 네비게이션
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -112,7 +119,7 @@ export function CommandSearchDialog({ open, onOpenChange, documentMode = false }
         onOpenChange(false);
       }
     },
-    [results, selectedIndex, onOpenChange]
+    [results, selectedIndex, onOpenChange, navigateToIssue]
   );
 
   // 선택 항목이 보이도록 스크롤
@@ -133,10 +140,6 @@ export function CommandSearchDialog({ open, onOpenChange, documentMode = false }
     return () => document.removeEventListener("mousedown", handleMouseDown);
   }, [open, onOpenChange]);
 
-  const navigateToIssue = (issue: IssueSearchResult) => {
-    onOpenChange(false);
-    useIssueDialogStore.getState().openIssue(workspaceSlug!, issue.project, issue.id);
-  };
 
   const navigateToDoc = (doc: DocType) => {
     onOpenChange(false);

@@ -185,9 +185,11 @@
   /* Phase 2.6 — Density 토글이 root font-size 스케일을 분기.
      Tailwind text/spacing 모두 rem 기반이라 root만 바뀌면 전체 비례 확대/축소.
      PASS2-4 — 격차 확대해 토글 효과를 명확히. FHD 1920px 기준 13 / ~17 / 20px. */
-  html[data-density="compact"]     { font-size: clamp(12px, 0.78vw, 14px); }
-  html[data-density="comfortable"] { font-size: clamp(14px, 0.875vw, 17px); }
-  html[data-density="spacious"]    { font-size: clamp(16px, 1.05vw, 20px); }
+  /* --app-font-scale(0.8~1.4)은 밀도 위에 곱해지는 개인 배율. 밀도로 잡은 톤은 유지한 채
+     같은 밀도 안에서 미세 조정하는 용도 (설정 > 외관 > 글자 크기). */
+  html[data-density="compact"]     { font-size: calc(clamp(12px, 0.78vw, 14px)  * var(--app-font-scale, 1)); }
+  html[data-density="comfortable"] { font-size: calc(clamp(14px, 0.875vw, 17px) * var(--app-font-scale, 1)); }
+  html[data-density="spacious"]    { font-size: calc(clamp(16px, 1.05vw, 20px)  * var(--app-font-scale, 1)); }
 
   /*
    * body — 전역 배경 레이어 (3개)
@@ -377,6 +379,9 @@
 /* ── 문서 에디터 타이포그래피 ── */
 /* doc-frame이 --doc-fs-* 변수를 정의하면 본문/제목/헤더가 사용자 설정대로 표시 (이 문서 한정).
    기본값은 폴백 — 사용자가 한 번도 안 바꿨거나 변수가 누락된 경우. */
+/* --doc-font 은 읽는 사람 개인 설정(localStorage). 미설정이면 앱 서체를 그대로 쓴다. */
+.doc-frame .doc-title,
+.doc-frame .doc-editor { font-family: var(--doc-font, var(--font-sans)); }
 .doc-frame .doc-title { font-size: var(--doc-fs-h1, 36px); }
 .doc-editor {
   font-size: var(--doc-fs-body, 18px);

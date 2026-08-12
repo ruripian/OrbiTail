@@ -33,9 +33,7 @@ export function AdminAuditLogPage() {
   const { t } = useTranslation();
   const user = useAuthStore((s) => s.user);
 
-  if (!user?.is_superuser) {
-    return <p className="text-sm text-muted-foreground">{t("admin.common.superOnly")}</p>;
-  }
+  const isSuper = !!user?.is_superuser;
 
   const [actionFilter, setActionFilter] = useState<AuditAction | "all">("all");
 
@@ -58,9 +56,16 @@ export function AdminAuditLogPage() {
       return Number(url.searchParams.get("page"));
     },
     initialPageParam: 1,
+    /* 권한 없으면 요청 자체를 보내지 않는다 — 훅은 항상 같은 순서로 호출되어야 하므로
+       early return 대신 enabled 로 끈다. */
+    enabled: isSuper,
   });
 
   const logs = data?.pages.flatMap((p) => p.results) ?? [];
+
+  if (!isSuper) {
+    return <p className="text-sm text-muted-foreground">{t("admin.common.superOnly")}</p>;
+  }
 
   return (
     <div className="space-y-6 max-w-4xl">

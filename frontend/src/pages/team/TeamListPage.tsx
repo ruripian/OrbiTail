@@ -8,6 +8,7 @@ import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { apiErrorMessage } from "@/lib/api-error";
 import { Plus, Users, ArrowRight } from "lucide-react";
 import { teamsApi } from "@/api/teams";
 import { Button } from "@/components/ui/button";
@@ -127,10 +128,7 @@ function CreateTeamDialog({
       setName(""); setDescription(""); setColor("");
       onCreated(team);
     },
-    onError: (e: any) => {
-      const msg = e?.response?.data?.detail ?? "팀 생성에 실패했습니다.";
-      toast.error(msg);
-    },
+    onError: (e) => toast.error(apiErrorMessage(e, "팀 생성에 실패했습니다.")),
   });
 
   return (

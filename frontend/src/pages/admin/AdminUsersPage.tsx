@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { apiErrorMessage } from "@/lib/api-error";
 import {
   Ban, Crown, Loader2, MailWarning, Search, ShieldCheck,
   Trash2, UserCheck, UserX,
@@ -58,7 +59,7 @@ export function AdminUsersPage() {
   const approveMutation = useMutation({
     mutationFn: (id: string) => adminApi.approveUser(id),
     onSuccess: () => { toast.success(t("admin.users.approveSuccess")); invalidate(); },
-    onError:   (e: any) => toast.error(e.response?.data?.detail || t("admin.users.approveError")),
+    onError:   (e) => toast.error(apiErrorMessage(e, t("admin.users.approveError"))),
   });
 
   const suspendMutation = useMutation({
@@ -68,20 +69,20 @@ export function AdminUsersPage() {
       toast.success(vars.value ? t("admin.users.suspendSuccess") : t("admin.users.unsuspendSuccess"));
       invalidate();
     },
-    onError: (e: any) => toast.error(e.response?.data?.detail || t("admin.users.actionError")),
+    onError: (e) => toast.error(apiErrorMessage(e, t("admin.users.actionError"))),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => adminApi.deleteUser(id),
     onSuccess: () => { toast.success(t("admin.users.deleteSuccess")); invalidate(); },
-    onError: (e: any) => toast.error(e.response?.data?.detail || t("admin.users.actionError")),
+    onError: (e) => toast.error(apiErrorMessage(e, t("admin.users.actionError"))),
   });
 
   const superuserMutation = useMutation({
     mutationFn: ({ id, value }: { id: string; value: boolean }) =>
       adminApi.toggleSuperuser(id, value),
     onSuccess: () => { toast.success(t("admin.users.superuserToggled")); invalidate(); },
-    onError: (e: any) => toast.error(e.response?.data?.detail || t("admin.users.actionError")),
+    onError: (e) => toast.error(apiErrorMessage(e, t("admin.users.actionError"))),
   });
 
   return (

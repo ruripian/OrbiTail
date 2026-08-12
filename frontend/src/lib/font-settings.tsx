@@ -2,12 +2,15 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import { useAuthStore } from "@/stores/authStore";
 import { settingsApi } from "@/api/settings";
 
-/* 보기 설정 — 사용자 선호 글자 크기/폰트 패밀리. 즉시 :root 적용 + 백엔드 debounce 저장. */
+/* 앱 전역 글꼴 설정 — 사용자 선호 서체/고정폭/글자 배율. 즉시 :root 적용 + 백엔드 debounce 저장.
+   계정 단위라 다른 사람 화면에는 영향이 없다.
+   문서 본문 한정 글꼴은 hooks/useDocReadingPrefs(로컬 전용) 쪽이다.
+   캘린더/타임라인 뷰 옵션인 hooks/useViewSettings 와는 무관하니 혼동 주의. */
 
 export type FontFamilyKey = "pretendard" | "system" | "noto" | "nanum-gothic" | "nanum-myeongjo";
 export type FontMonoKey = "jetbrains" | "d2coding" | "system";
 
-const FONT_SANS: Record<FontFamilyKey, string> = {
+export const FONT_SANS: Record<FontFamilyKey, string> = {
   pretendard: '"Pretendard", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
   system: '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
   noto: '"Noto Sans KR", "Pretendard", -apple-system, sans-serif',
@@ -37,7 +40,7 @@ export const FONT_MONO_LABELS: Array<{ value: FontMonoKey; label: string }> = [
 
 /* 한글 웹폰트 — 필요할 때만 로드. 한 번만 <link> 추가 */
 const LOADED_LINKS = new Set<string>();
-function loadWebFont(key: FontFamilyKey | FontMonoKey) {
+export function loadWebFont(key: FontFamilyKey | FontMonoKey) {
   const href: string | null = (() => {
     switch (key) {
       case "noto":            return "https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap";
@@ -55,19 +58,19 @@ function loadWebFont(key: FontFamilyKey | FontMonoKey) {
   LOADED_LINKS.add(href);
 }
 
-export interface ViewSettingsState {
+export interface FontSettingsState {
   fontScale: number;          // 0.8 ~ 1.4
   fontFamily: FontFamilyKey;
   fontMono: FontMonoKey;
 }
 
-const DEFAULT_STATE: ViewSettingsState = {
+const DEFAULT_STATE: FontSettingsState = {
   fontScale: 1.0,
   fontFamily: "pretendard",
   fontMono: "jetbrains",
 };
 
-function readLocal(): ViewSettingsState {
+function readLocal(): FontSettingsState {
   try {
     const raw = localStorage.getItem("view_settings");
     if (!raw) return DEFAULT_STATE;
@@ -86,7 +89,7 @@ function clampScale(v: number) {
   return Math.max(0.8, Math.min(1.4, v));
 }
 
-function applyToRoot(s: ViewSettingsState) {
+function applyToRoot(s: FontSettingsState) {
   const root = document.documentElement;
   root.style.setProperty("--app-font-scale", String(s.fontScale));
   root.style.setProperty("--font-sans", FONT_SANS[s.fontFamily] ?? FONT_SANS.pretendard);
@@ -95,64 +98,74 @@ function applyToRoot(s: ViewSettingsState) {
   loadWebFont(s.fontMono);
 }
 
-interface ViewSettingsCtx extends ViewSettingsState {
+interface FontSettingsCtx extends FontSettingsState {
   setFontScale: (v: number) => void;
   setFontFamily: (v: FontFamilyKey) => void;
   setFontMono: (v: FontMonoKey) => void;
   reset: () => void;
 }
 
-const Ctx = createContext<ViewSettingsCtx | null>(null);
+const Ctx = createContext<FontSettingsCtx | null>(null);
 
-export function ViewSettingsProvider({ children }: { children: React.ReactNode }) {
-  const [state, setState] = useState<ViewSettingsState>(() => readLocal());
-  const user = useAuthStore((s) => s.user);
+export function FontSettingsProvider({ children }: { children: React.ReactNode }) {
+  const [state, setState] = useState<FontSettingsState>(() => readLocal());
+  const userId = useAuthStore((s) => s.user?.id);
+  const userFontScale = useAuthStore((s) => s.user?.ui_font_scale);
+  const userFontFamily = useAuthStore((s) => s.user?.ui_font_family);
+  const userFontMono = useAuthStore((s) => s.user?.ui_font_mono);
   const updateUser = useAuthStore((s) => s.updateUser);
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  /* 로그인 시 서버 값이 있으면 우선 적용 — localStorage는 비로그인 시 fallback */
+  /* 서버에서 받아온 값을 그대로 서버로 되돌려보내지 않기 위한 가드.
+     true 인 동안의 state 변화는 "밖에서 들어온 것"이라 저장하지 않는다.
+     첫 마운트(localStorage 복원)도 저장 대상이 아니므로 true 로 시작. */
+  const fromServer = useRef(true);
+
+  /* 로그인·계정 전환 시 그 계정의 설정을 적용 — localStorage는 비로그인 시 fallback.
+     deps 가 userId 뿐인 건 의도적이다. 같은 계정이 유지되는 동안에는 사용자가 방금 바꾼
+     값을 서버 응답이 덮어쓰면 안 되기 때문. */
   useEffect(() => {
-    if (!user) return;
-    const next: ViewSettingsState = {
-      fontScale: clampScale(user.ui_font_scale ?? DEFAULT_STATE.fontScale),
-      fontFamily: (user.ui_font_family as FontFamilyKey) || DEFAULT_STATE.fontFamily,
-      fontMono: (user.ui_font_mono as FontMonoKey) || DEFAULT_STATE.fontMono,
-    };
-    setState(next);
-  }, [user?.id]);
+    if (!userId) return;
+    fromServer.current = true;
+    setState({
+      fontScale: clampScale(userFontScale ?? DEFAULT_STATE.fontScale),
+      fontFamily: (userFontFamily as FontFamilyKey) || DEFAULT_STATE.fontFamily,
+      fontMono: (userFontMono as FontMonoKey) || DEFAULT_STATE.fontMono,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
 
+  /* 적용 + 저장. 서버 PATCH 는 state 가 확정된 뒤 400ms debounce —
+     effect cleanup 이 이전 타이머를 지우므로 슬라이더 드래그 중 중간값은 전송되지 않는다. */
   useEffect(() => {
     applyToRoot(state);
     localStorage.setItem("view_settings", JSON.stringify(state));
-  }, [state]);
 
-  /* 서버 저장 debounce — 슬라이더 드래그 중 중간값 전송 방지 */
-  const persist = useCallback((next: ViewSettingsState) => {
-    if (!user) return;
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(async () => {
+    if (fromServer.current) {
+      fromServer.current = false;
+      return;
+    }
+    if (!userId) return;
+
+    const timer = setTimeout(async () => {
       try {
         const updated = await settingsApi.updatePreferences({
-          ui_font_scale: next.fontScale,
-          ui_font_family: next.fontFamily,
-          ui_font_mono: next.fontMono,
+          ui_font_scale: state.fontScale,
+          ui_font_family: state.fontFamily,
+          ui_font_mono: state.fontMono,
         });
         updateUser(updated);
       } catch {
         /* 조용히 실패 — localStorage에는 이미 저장됨 */
       }
     }, 400);
-  }, [user, updateUser]);
+    return () => clearTimeout(timer);
+  }, [state, userId, updateUser]);
 
-  const commit = useCallback((patch: Partial<ViewSettingsState>) => {
-    setState((prev) => {
-      const next = { ...prev, ...patch };
-      persist(next);
-      return next;
-    });
-  }, [persist]);
+  const commit = useCallback((patch: Partial<FontSettingsState>) => {
+    setState((prev) => ({ ...prev, ...patch }));
+  }, []);
 
-  const value: ViewSettingsCtx = {
+  const value: FontSettingsCtx = {
     ...state,
     setFontScale: (v) => commit({ fontScale: clampScale(v) }),
     setFontFamily: (v) => commit({ fontFamily: v }),
@@ -163,8 +176,8 @@ export function ViewSettingsProvider({ children }: { children: React.ReactNode }
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
-export function useViewSettings() {
+export function useFontSettings() {
   const v = useContext(Ctx);
-  if (!v) throw new Error("useViewSettings must be used within ViewSettingsProvider");
+  if (!v) throw new Error("useFontSettings must be used within FontSettingsProvider");
   return v;
 }

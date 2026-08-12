@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { apiErrorMessage } from "@/lib/api-error";
 import {
   Crown, Loader2, Plus, Search, Trash2, Users as UsersIcon,
 } from "lucide-react";
@@ -27,9 +28,7 @@ export function AdminWorkspacesPage() {
   const [transfer, setTransfer] = useState<Workspace | null>(null);
 
   // 슈퍼유저만 접근하지만 이중 안전장치
-  if (!user?.is_superuser) {
-    return <p className="text-sm text-muted-foreground">{t("admin.common.superOnly")}</p>;
-  }
+  const isSuper = !!user?.is_superuser;
 
   const {
     data,
@@ -47,6 +46,9 @@ export function AdminWorkspacesPage() {
       return Number(url.searchParams.get("page"));
     },
     initialPageParam: 1,
+    /* 권한 없으면 요청 자체를 보내지 않는다 — 훅은 항상 같은 순서로 호출되어야 하므로
+       early return 대신 enabled 로 끈다. */
+    enabled: isSuper,
   });
 
   const workspaces = data?.pages.flatMap((p) => p.results) ?? [];
@@ -56,8 +58,12 @@ export function AdminWorkspacesPage() {
   const deleteMutation = useMutation({
     mutationFn: (slug: string) => adminApi.deleteWorkspace(slug),
     onSuccess: () => { toast.success(t("admin.workspaces.deleteSuccess")); invalidate(); },
-    onError: (e: any) => toast.error(e.response?.data?.detail || t("admin.common.error")),
+    onError: (e) => toast.error(apiErrorMessage(e, t("admin.common.error"))),
   });
+
+  if (!isSuper) {
+    return <p className="text-sm text-muted-foreground">{t("admin.common.superOnly")}</p>;
+  }
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -191,7 +197,7 @@ function CreateWorkspaceDialog({
       onOpenChange(false);
       onCreated();
     },
-    onError: (e: any) => toast.error(e.response?.data?.detail || t("admin.common.error")),
+    onError: (e) => toast.error(apiErrorMessage(e, t("admin.common.error"))),
   });
 
   const canSubmit = name.trim() && slug.trim() && ownerId && !mutation.isPending;
@@ -253,7 +259,7 @@ function TransferOwnerDialog({
       onTransferred();
       onClose();
     },
-    onError: (e: any) => toast.error(e.response?.data?.detail || t("admin.common.error")),
+    onError: (e) => toast.error(apiErrorMessage(e, t("admin.common.error"))),
   });
 
   return (

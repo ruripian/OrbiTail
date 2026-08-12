@@ -35,10 +35,12 @@ import { CharacterCount } from "@tiptap/extension-character-count";
 import GlobalDragHandle from "tiptap-extension-global-drag-handle";
 import { SearchAndReplace } from "@memfoldai/tiptap-search-and-replace";
 import { Node, Extension, Mark, mergeAttributes } from "@tiptap/core";
+import type { SingleCommands } from "@tiptap/core";
 import { common, createLowlight } from "lowlight";
 import { Collaboration } from "@tiptap/extension-collaboration";
 import { yCursorPlugin, defaultSelectionBuilder } from "@tiptap/y-tiptap";
 import type { DocCollab } from "@/hooks/useDocumentWebSocket";
+import type { Issue, IssueSearchResult, User, WorkspaceMember, Document as DocType } from "@/types";
 import { IssueViewEmbed } from "./IssueViewEmbed";
 import { BookmarkCard, ImageGallery } from "./RichBlocks";
 
@@ -130,6 +132,7 @@ import {
   ArrowLeftToLine, ArrowRightToLine, ArrowUpToLine, ArrowDownToLine,
   PanelTop, PanelLeft, MessageSquare,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const lowlight = createLowlight(common);
@@ -477,7 +480,20 @@ function AttachmentCardView({ node }: NodeViewProps) {
 /* ── Callout 노드 — info/success/warning/danger 4종 ── */
 type CalloutKind = "info" | "success" | "warning" | "danger";
 
-const CALLOUT_META: Record<CalloutKind, { icon: any; label: string }> = {
+/* 커스텀 확장이 추가하는 커맨드를 TipTap 타입에 등록 —
+   이게 없으면 editor.chain().setCallout() 이 타입 에러라 호출부마다 as any 를 붙이게 된다. */
+declare module "@tiptap/core" {
+  interface Commands<ReturnType> {
+    callout: {
+      setCallout: (kind?: CalloutKind) => ReturnType;
+    };
+    toggle: {
+      setToggle: () => ReturnType;
+    };
+  }
+}
+
+const CALLOUT_META: Record<CalloutKind, { icon: LucideIcon; label: string }> = {
   info:    { icon: Info,         label: "Info" },
   success: { icon: CheckCircle2, label: "Success" },
   warning: { icon: AlertTriangle, label: "Warning" },
@@ -563,13 +579,13 @@ const Callout = Node.create({
   addCommands() {
     return {
       /* 슬래시 메뉴에서는 항상 새 callout 삽입. kind 변경은 CalloutView 내부 메뉴로 */
-      setCallout: (kind: CalloutKind = "info") => ({ commands }: any) =>
+      setCallout: (kind: CalloutKind = "info") => ({ commands }: { commands: SingleCommands }) =>
         commands.insertContent({
           type: "callout",
           attrs: { kind },
           content: [{ type: "paragraph" }],
         }),
-    } as any;
+    };
   },
 });
 
@@ -620,13 +636,13 @@ const Toggle = Node.create({
   addNodeView() { return ReactNodeViewRenderer(ToggleView); },
   addCommands() {
     return {
-      setToggle: () => ({ commands }: any) =>
+      setToggle: () => ({ commands }: { commands: SingleCommands }) =>
         commands.insertContent({
           type: "toggle",
           attrs: { open: true },
           content: [{ type: "paragraph" }],
         }),
-    } as any;
+    };
   },
 });
 
@@ -707,9 +723,9 @@ function MentionView({ node }: NodeViewProps) {
 
   /* 이슈 멘션에 상세 정보 hover card */
   const [hoverCard, setHoverCard] = useState(false);
-  const [details, setDetails] = useState<any>(null);
+  const [details, setDetails] = useState<Issue | null>(null);
   const [subExpanded, setSubExpanded] = useState(false);
-  const [subIssues, setSubIssues] = useState<any[]>([]);
+  const [subIssues, setSubIssues] = useState<Issue[]>([]);
   useEffect(() => {
     if (kind !== "issue" || !hoverCard || details || !ctx?.workspaceSlug || !ctx?.projectId) return;
     import("@/api/issues").then(({ issuesApi }) => {
@@ -787,14 +803,14 @@ function MentionView({ node }: NodeViewProps) {
       {hoverCard && kind === "issue" && details && (
         <span className="doc-mention-card" contentEditable={false}>
           <span className="doc-mention-card-header">
-            <span className="doc-mention-card-id">{details.identifier || identifier}</span>
+            <span className="doc-mention-card-id">{identifier}</span>
             <span className="doc-mention-card-title">{details.title}</span>
           </span>
           <span className="doc-mention-card-meta">
-            {details.assignees_detail?.length > 0 && (
+            {details.assignee_details?.length > 0 && (
               <span className="doc-mention-card-row">
                 <span className="doc-mention-card-k">담당자</span>
-                <span>{details.assignees_detail.map((a: any) => a.display_name).join(", ")}</span>
+                <span>{details.assignee_details.map((a) => a.display_name).join(", ")}</span>
               </span>
             )}
             {(details.start_date || details.due_date) && (
@@ -824,7 +840,7 @@ function MentionView({ node }: NodeViewProps) {
                 <span className="doc-mention-card-sub-list">
                   {subIssues.length === 0 ? (
                     <span className="doc-mention-card-sub-empty">불러오는 중...</span>
-                  ) : subIssues.map((s: any) => (
+                  ) : subIssues.map((s) => (
                     <a key={s.id}
                       href={`/${ctx?.workspaceSlug}/projects/${ctx?.projectId}/issues?issue=${s.id}`}
                       className="doc-mention-card-sub-item"
@@ -836,7 +852,7 @@ function MentionView({ node }: NodeViewProps) {
                         openIssueDialog(ctx.workspaceSlug, ctx.projectId, s.id);
                       }}
                     >
-                      <span className="doc-mention-card-id">{s.identifier || `${s.project_identifier ?? ""}-${s.sequence_id ?? ""}`}</span>
+                      <span className="doc-mention-card-id">{`${s.project_identifier ?? ""}-${s.sequence_id ?? ""}`}</span>
                       <span className="truncate">{s.title}</span>
                     </a>
                   ))}
@@ -881,9 +897,9 @@ function IssueCardView({ node }: NodeViewProps) {
   const id: string = node.attrs.id ?? "";
   const fallbackIdentifier: string = node.attrs.identifier ?? "";
   const fallbackLabel: string = node.attrs.label ?? "";
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<Issue | null>(null);
   const [subOpen, setSubOpen] = useState(false);
-  const [subs, setSubs] = useState<any[]>([]);
+  const [subs, setSubs] = useState<Issue[]>([]);
 
   useEffect(() => {
     if (!ctx?.workspaceSlug || !ctx?.projectId || !id) return;
@@ -899,7 +915,7 @@ function IssueCardView({ node }: NodeViewProps) {
     });
   }, [subOpen, subs.length, ctx?.workspaceSlug, ctx?.projectId, id]);
 
-  const identifier = data?.identifier || (data?.project_identifier ? `${data.project_identifier}-${data.sequence_id}` : fallbackIdentifier);
+  const identifier = data?.project_identifier ? `${data.project_identifier}-${data.sequence_id}` : fallbackIdentifier;
   const title = data?.title ?? fallbackLabel;
   const href = `/${ctx?.workspaceSlug}/projects/${ctx?.projectId}/issues?issue=${id}`;
   const hasSubs = (data?.sub_issues_count ?? 0) > 0;
@@ -927,11 +943,11 @@ function IssueCardView({ node }: NodeViewProps) {
       </div>
       {data && (
         <div className="doc-issue-card-meta">
-          {data.assignees_detail?.length > 0 && (
+          {data.assignee_details?.length > 0 && (
             <div className="doc-issue-card-row">
               <span className="doc-issue-card-k">담당자</span>
               <span className="doc-issue-card-assignees">
-                {data.assignees_detail.map((a: any) => (
+                {data.assignee_details.map((a) => (
                   <span key={a.id} className="doc-issue-card-assignee">
                     <span className="doc-issue-card-avatar">{(a.display_name ?? "?")[0]}</span>
                     {a.display_name}
@@ -961,20 +977,20 @@ function IssueCardView({ node }: NodeViewProps) {
             onClick={() => setSubOpen(!subOpen)}
           >
             {subOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-            <span>하위 이슈 {data.sub_issues_count}개</span>
+            <span>하위 이슈 {data?.sub_issues_count}개</span>
           </button>
           {subOpen && (
             <div className="doc-issue-card-sub-list">
               {subs.length === 0 ? (
                 <div className="doc-issue-card-sub-empty">불러오는 중...</div>
-              ) : subs.map((s: any) => (
+              ) : subs.map((s) => (
                 <a key={s.id}
                   href={`/${ctx?.workspaceSlug}/projects/${ctx?.projectId}/issues?issue=${s.id}`}
                   className="doc-issue-card-sub-item"
                   onMouseDown={(e) => e.stopPropagation()}
                   onClick={(e) => handleIssueLinkClick(e, s.id)}
                 >
-                  <span className="doc-issue-card-id">{s.identifier || `${s.project_identifier ?? ""}-${s.sequence_id ?? ""}`}</span>
+                  <span className="doc-issue-card-id">{`${s.project_identifier ?? ""}-${s.sequence_id ?? ""}`}</span>
                   <span className="truncate">{s.title}</span>
                   {s.state_detail && <span style={{ color: s.state_detail.color }}>● {s.state_detail.name}</span>}
                 </a>
@@ -1262,8 +1278,8 @@ function StatusView({ node, updateAttributes, editor }: NodeViewProps) {
   return (
     <NodeViewWrapper as="span" className="doc-status" contentEditable={false}
       style={{ background: `${hex}22`, color: hex, borderColor: `${hex}55` }}
-      onMouseDown={(e: any) => e.stopPropagation()}
-      onClick={(e: any) => { e.stopPropagation(); if (editor.isEditable) { setDraft(label); setEditing(true); } }}
+      onMouseDown={(e: React.MouseEvent) => e.stopPropagation()}
+      onClick={(e: React.MouseEvent) => { e.stopPropagation(); if (editor.isEditable) { setDraft(label); setEditing(true); } }}
     >
       <span className="doc-status-dot" style={{ background: hex }} />
       {label}
@@ -1366,7 +1382,7 @@ interface Props {
 interface SlashCmd {
   title: string;
   icon: React.ElementType;
-  cmd: (e: any) => void;
+  cmd: (editor: Editor) => void;
   category: "기본" | "리스트" | "블록" | "삽입" | "이슈";
   description?: string;
   keywords?: string;  // 검색 매칭 (별칭/영문)
@@ -1548,7 +1564,7 @@ export function DocumentEditor({ content, onChange, onBlur, placeholder: _placeh
       const me  = txt.match(/(?:^|[^\w]):([\w]*)$/);
       const mAt  = txt.match(/(?:^|[^\w])@([\w가-힣ㄱ-ㅎㅏ-ㅣ\- ]*)$/);
       const mHash = txt.match(/(?:^|[^\w])#([\w가-힣ㄱ-ㅎㅏ-ㅣ\- ]*)$/);
-      const mDollar = txt.match(/(?:^|[^\w])\$([\w\-]*)$/);
+      const mDollar = txt.match(/(?:^|[^\w])\$([\w-]*)$/);
       /* 팝업 위치 계산 — 뷰포트 벗어나면 위로 뒤집고, 좌우도 clamp */
       const placePopup = (coords: { top: number; bottom: number; left: number }, w: number, h: number) => {
         const topCandidate = coords.bottom + 4;
@@ -1776,11 +1792,12 @@ export function DocumentEditor({ content, onChange, onBlur, placeholder: _placeh
       try {
         if (kind === "user") {
           const wkMod = await import("@/api/workspaces");
-          const members = await wkMod.workspacesApi.members(workspaceSlug).catch(() => [] as any[]);
+          const members = await wkMod.workspacesApi.members(workspaceSlug)
+            .catch((): WorkspaceMember[] => []);
           /* 본인도 포함 — members에 없더라도 currentUser 추가 */
-          const pool = [
+          const pool: Array<{ member: User }> = [
             ...(currentUser ? [{ member: currentUser }] : []),
-            ...(members as any[]).filter((m) => m.member?.id !== currentUser?.id),
+            ...members.filter((m) => m.member?.id !== currentUser?.id),
           ];
           const items = pool
             .filter((m) => !q || m.member?.display_name?.toLowerCase().includes(q) || m.member?.email?.toLowerCase().includes(q))
@@ -1789,14 +1806,16 @@ export function DocumentEditor({ content, onChange, onBlur, placeholder: _placeh
           setMentionResults(items);
         } else if (kind === "doc") {
           const docMod = await import("@/api/documents");
-          const docs = await docMod.documentsApi.search(workspaceSlug, q || "").catch(() => [] as any[]);
-          const items = (docs as any[]).slice(0, 10).map((d) => ({ kind: "doc" as MentionKind, id: d.id, label: d.title }));
+          const docs = await docMod.documentsApi.search(workspaceSlug, q || "")
+            .catch((): DocType[] => []);
+          const items = docs.slice(0, 10).map((d) => ({ kind: "doc" as MentionKind, id: d.id, label: d.title }));
           setMentionResults(items);
         } else if (kind === "issue") {
           if (!projectId) { setMentionResults([]); return; }
           const issueMod = await import("@/api/issues");
-          const raw = await issueMod.issuesApi.searchByWorkspace(workspaceSlug, q || "").catch(() => [] as any[]);
-          const filtered = (raw as any[]).filter((i) => i.project === projectId || i.project_id === projectId);
+          const raw = await issueMod.issuesApi.searchByWorkspace(workspaceSlug, q || "")
+            .catch((): IssueSearchResult[] => []);
+          const filtered = raw.filter((i) => i.project === projectId);
           /* 트리 빌드 — parent가 결과 내에 있으면 children으로, 없으면 root로 취급 */
           const byId = new Map(filtered.map((i) => [i.id, i] as const));
           const childrenOf = new Map<string | null, string[]>();
@@ -1812,7 +1831,7 @@ export function DocumentEditor({ content, onChange, onBlur, placeholder: _placeh
               const hasChildren = (childrenOf.get(cid) ?? []).length > 0;
               ordered.push({
                 kind: "issue" as MentionKind, id: it.id, label: it.title,
-                identifier: it.identifier || (it.project_identifier ? `${it.project_identifier}-${it.sequence_id}` : ""),
+                identifier: it.project_identifier ? `${it.project_identifier}-${it.sequence_id}` : "",
                 parent: it.parent ?? null, depth, hasChildren,
               });
               walk(cid, depth + 1);
@@ -1836,7 +1855,7 @@ export function DocumentEditor({ content, onChange, onBlur, placeholder: _placeh
       ? /(?:^|[^\w])@([\w가-힣ㄱ-ㅎㅏ-ㅣ\- ]*)$/
       : item.kind === "doc"
         ? /(?:^|[^\w])#([\w가-힣ㄱ-ㅎㅏ-ㅣ\- ]*)$/
-        : /(?:^|[^\w])\$([\w\-]*)$/;
+        : /(?:^|[^\w])\$([\w-]*)$/;
     const m = txt.match(regex);
     let df = from;
     if (m) df = from - m[0].length + (m[0].startsWith(" ") ? 1 : 0);
@@ -1971,7 +1990,7 @@ export function DocumentEditor({ content, onChange, onBlur, placeholder: _placeh
       /* 2) 문서 링크 자동 변환 — /:ws/documents/space/:space/:doc 패턴이면 doc mention 노드로 */
       const text = e.clipboardData?.getData("text/plain")?.trim();
       if (!text || !editor) return;
-      const docMatch = text.match(/\/([^\/]+)\/documents\/space\/([0-9a-f-]{36})\/([0-9a-f-]{36})/);
+      const docMatch = text.match(/\/([^/]+)\/documents\/space\/([0-9a-f-]{36})\/([0-9a-f-]{36})/);
       if (docMatch) {
         const [, , , docId] = docMatch;
         e.preventDefault();
@@ -1993,7 +2012,7 @@ export function DocumentEditor({ content, onChange, onBlur, placeholder: _placeh
         return;
       }
       /* 3) 이슈 링크 자동 변환 — /:ws/projects/:project/issues/:issue */
-      const issueMatch = text.match(/\/([^\/]+)\/projects\/([0-9a-f-]{36})\/issues\/([0-9a-f-]{36})/);
+      const issueMatch = text.match(/\/([^/]+)\/projects\/([0-9a-f-]{36})\/issues\/([0-9a-f-]{36})/);
       if (issueMatch && projectId) {
         const [, , , issueId] = issueMatch;
         e.preventDefault();
@@ -2021,7 +2040,10 @@ export function DocumentEditor({ content, onChange, onBlur, placeholder: _placeh
       el.removeEventListener("dragover", onOver, true);
       el.removeEventListener("paste", onPaste, true);
     };
-  }, [insertFile]);
+    /* paste 핸들러가 링크 자동 변환에 workspaceSlug/projectId 를 직접 쓴다 —
+       빠뜨리면 다른 문서로 이동한 뒤에도 이전 값으로 변환을 시도한다.
+       deps 변화 시엔 리스너를 다시 붙이기만 하므로 부작용이 없다. */
+  }, [insertFile, editor, workspaceSlug, projectId]);
 
   const [linkEditorOpen, setLinkEditorOpen] = useState(false);
   /* 링크 편집을 인라인 UI로 처리 — BubbleMenu 내부에서 사용 */

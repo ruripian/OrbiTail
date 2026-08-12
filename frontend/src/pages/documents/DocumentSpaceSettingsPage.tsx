@@ -53,6 +53,9 @@ export default function DocumentSpaceSettingsPage() {
       setName(space.name);
       setDescription(space.description ?? "");
     }
+    /* 필요한 필드만 deps 에 둔다 — space 객체를 통째로 넣으면 refetch 참조 변경만으로도
+       effect 가 돌아 입력 중이던 값이 되돌아간다. */
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [space?.id, space?.name, space?.description]);
 
   const { data: wsMembers = [] } = useQuery({

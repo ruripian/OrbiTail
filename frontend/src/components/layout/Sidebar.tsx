@@ -459,7 +459,6 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
 
       <AppSwitcher />
 
-      {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events */}
       <nav
         className="flex flex-col flex-1 overflow-y-auto p-3 gap-1"
         /* 스크롤바 자리 항상 예약 — 컨텐츠 양에 따라 사이드바 폭 흔들리는 현상 방지 */

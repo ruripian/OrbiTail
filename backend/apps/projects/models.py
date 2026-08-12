@@ -223,8 +223,9 @@ class ProjectEvent(models.Model):
     color       = models.CharField(max_length=7, default="#5E6AD2")  # hex
     description = models.TextField(blank=True, default="")
     # is_global=True (기본): 이 프로젝트의 모든 멤버에게 해당되는 일정.
-    #   → 누구나 "내 일정" 필터에서도 보임. 사실상 participants 미지정 = 전체 선택.
-    # is_global=False: 명시된 participants 에게만 해당. "내 일정"은 본인이 포함될 때만 표시.
+    #   → 프로젝트 캘린더와 팀 캘린더에만 노출. 개인 캘린더("내 작업")에는 넣지 않는다 —
+    #     기본값이 True 라 전체 일정이 전 멤버의 개인 일정을 채워버리기 때문.
+    # is_global=False: 명시된 participants 에게만 해당. 개인 캘린더는 본인이 포함될 때만 표시.
     is_global   = models.BooleanField(default=True)
     participants = models.ManyToManyField(
         settings.AUTH_USER_MODEL,

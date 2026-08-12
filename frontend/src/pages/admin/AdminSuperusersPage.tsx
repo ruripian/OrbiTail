@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { apiErrorMessage } from "@/lib/api-error";
 import { Crown, Loader2, Search, UserPlus, UserX } from "lucide-react";
 
 import { adminApi } from "@/api/admin";
@@ -40,13 +41,13 @@ export function AdminSuperusersPage() {
       setPickerValue(null);
       invalidate();
     },
-    onError: (e: any) => toast.error(e.response?.data?.detail || t("admin.common.error")),
+    onError: (e) => toast.error(apiErrorMessage(e, t("admin.common.error"))),
   });
 
   const demote = useMutation({
     mutationFn: (id: string) => adminApi.toggleSuperuser(id, false),
     onSuccess: () => { toast.success(t("admin.superusers.demoteSuccess")); invalidate(); },
-    onError: (e: any) => toast.error(e.response?.data?.detail || t("admin.common.error")),
+    onError: (e) => toast.error(apiErrorMessage(e, t("admin.common.error"))),
   });
 
   // 모든 hook 호출 후 권한 게이트 — Rules of Hooks 준수

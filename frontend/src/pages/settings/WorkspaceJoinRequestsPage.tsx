@@ -3,6 +3,7 @@ import { useParams, Navigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { apiErrorMessage } from "@/lib/api-error";
 import { Check, X as XIcon, Inbox } from "lucide-react";
 
 import { workspacesApi } from "@/api/workspaces";
@@ -49,9 +50,7 @@ export function WorkspaceJoinRequestsPage() {
           : t("settings.workspaceJoinRequests.rejected", "가입 신청을 거절했습니다."),
       );
     },
-    onError: (err: any) => {
-      toast.error(err?.response?.data?.detail ?? t("common.error", "처리에 실패했습니다."));
-    },
+    onError: (e) => toast.error(apiErrorMessage(e, t("common.error", "처리에 실패했습니다."))),
   });
 
   if (!membersLoading && !canEdit) {
@@ -93,7 +92,7 @@ export function WorkspaceJoinRequestsPage() {
         <p className="text-sm text-muted-foreground py-8 text-center">
           {t("common.loading", "로딩 중...")}
         </p>
-      ) : (requests as any[]).length === 0 ? (
+      ) : requests.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground space-y-2">
           <Inbox className="h-8 w-8 opacity-50" />
           <p className="text-sm">
@@ -104,7 +103,7 @@ export function WorkspaceJoinRequestsPage() {
         </div>
       ) : (
         <div className="space-y-2">
-          {(requests as any[]).map((jr) => {
+          {requests.map((jr) => {
             const isPending = jr.status === "pending";
             const statusBadge =
               jr.status === "pending" ? "bg-amber-500/10 text-amber-500 border-amber-500/30" :

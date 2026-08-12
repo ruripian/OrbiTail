@@ -81,7 +81,7 @@ export function UserPicker({
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const selectedIds = value ?? [];
+  const selectedIds = useMemo(() => value ?? [], [value]);
   const lockedSet = useMemo(() => new Set(lockedIds), [lockedIds]);
   const excludeSet = useMemo(() => new Set(excludeIds), [excludeIds]);
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);

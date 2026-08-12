@@ -10,7 +10,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { issuesApi } from "@/api/issues";
+import { issuesApi, type NodeGraphResponse } from "@/api/issues";
 import { meApi } from "@/api/me";
 import { projectsApi } from "@/api/projects";
 import { useIssueDialogStore } from "@/stores/issueDialogStore";
@@ -30,18 +30,8 @@ import { cn } from "@/lib/utils";
 
 const ME_GRAPH_PROJECT_FILTER_KEY = "orbitail_me_graph_projects";
 
-type Node = {
-  id: string;
-  title: string;
-  sequence_id: number;
-  project_id: string | null;
-  project_identifier: string | null;
-  state_group: string | null;
-  state_color?: string | null;
-  labels: Array<{ id: string; name: string; color: string }>;
-  external?: boolean;
-  category_id?: string | null;
-  is_field?: boolean;
+/** 시뮬레이션 노드 = 그래프 노드 + 물리 좌표. 필드를 따로 복제하지 않아 API 변경에 자동으로 따라간다. */
+type Node = GraphNode & {
   x: number;
   y: number;
   vx: number;
@@ -49,6 +39,13 @@ type Node = {
   fx?: number | null;
   fy?: number | null;
 };
+
+/* 그래프에 들어가는 노드/엣지 = 서버가 준 것 + 프론트가 합성한 프로젝트 super-node.
+   super-node 는 "마이/워크스페이스 통합 그래프"에서 프로젝트별 묶음 중심점 역할만 하고
+   서버에는 존재하지 않으므로 API 타입에 optional 확장을 얹어서 한 배열로 다룬다. */
+type ApiNode = NodeGraphResponse["nodes"][number];
+type GraphNode = ApiNode & { is_project_super?: boolean };
+type GraphEdge = NodeGraphResponse["edges"][number];
 
 type LinkTypeValue = "relates_to" | "blocks";
 const LINK_TYPES: { value: LinkTypeValue; label: string; short: string; desc: string; icon: React.ComponentType<{ className?: string }> }[] = [
@@ -189,7 +186,7 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick, 
         m.set(n.project_id, {
           id: n.project_id,
           identifier: n.project_identifier,
-          name: (n as any).project_name ?? n.project_identifier ?? "",
+          name: n.project_name ?? n.project_identifier ?? "",
           icon_prop: n.project_icon_prop ?? null,
           count: 1,
         });
@@ -228,7 +225,7 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick, 
    *  → orbit 모드는 자동으로 super-node 중심 궤도 형성, force 모드는 super-node spring.
    *  본인 담당 이슈만 super-node 의 자식. external(외부 조상) 은 super-node 와 무관 — 트리 연결만.
    *  가짜 노드 ID prefix: "__proj__<projectId>". is_project_super=true 로 시각 분기. */
-  const augmentedData = useMemo(() => {
+  const augmentedData = useMemo((): { nodes: GraphNode[]; edges: GraphEdge[] } | undefined => {
     if (!rawData) return rawData;
     if (!isMe) return rawData;
 
@@ -238,7 +235,7 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick, 
       if (projects.has(n.project_id)) continue;
       projects.set(n.project_id, {
         id: n.project_id,
-        name: (n as any).project_name ?? n.project_identifier ?? "",
+        name: n.project_name ?? n.project_identifier ?? "",
         identifier: n.project_identifier,
         icon_prop: n.project_icon_prop ?? null,
       });
@@ -271,8 +268,8 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick, 
       }));
 
     return {
-      nodes: [...rawData.nodes, ...superNodes as any],
-      edges: [...rawData.edges, ...superEdges],
+      nodes: [...rawData.nodes, ...superNodes] as GraphNode[],
+      edges: [...rawData.edges, ...superEdges] as GraphEdge[],
     };
   }, [rawData, isMe]);
 
@@ -288,7 +285,7 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick, 
     /* 1) 선택된 프로젝트의 본인 담당 이슈 + 해당 super-node ID 수집 */
     const visible = new Set<string>();
     for (const n of augmentedData.nodes) {
-      const isSuper = (n as any).is_project_super === true;
+      const isSuper = n.is_project_super === true;
       if (isSuper) {
         if (n.project_id && selectedProjects.has(n.project_id)) visible.add(n.id);
         continue;
@@ -299,7 +296,7 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick, 
     /* 2) 본인 이슈의 부모 chain 추가 (외부 조상도 트리 연결 위해 표시) */
     const parentMap = new Map<string, string>();
     for (const e of augmentedData.edges) {
-      if ((e as any).link_type === "parent") parentMap.set(e.target, e.source);
+      if (e.link_type === "parent") parentMap.set(e.target, e.source);
     }
     const initial = Array.from(visible);
     for (const id of initial) {
@@ -376,13 +373,15 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick, 
   }, [editMode]);
 
   // 계층(depth) 맵 — parent 엣지 BFS. 계층 패널 + 편집 필터용.
-  const depthMap = (() => {
+  /* 노드 깊이(부모 체인 기준 BFS) — data 가 그대로면 재계산하지 않는다.
+     매 렌더 새 Map 을 만들면 이걸 쓰는 애니메이션 effect 가 계속 재시작된다. */
+  const depthMap = useMemo(() => {
     const map = new Map<string, number>();
     if (!data) return map;
     const children = new Map<string, string[]>();
     const hasParent = new Set<string>();
     for (const e of data.edges) {
-      if ((e as any).link_type !== "parent") continue;
+      if (e.link_type !== "parent") continue;
       if (!children.has(e.source)) children.set(e.source, []);
       children.get(e.source)!.push(e.target);
       hasParent.add(e.target);
@@ -397,12 +396,12 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick, 
     let maxD = 0; for (const v of map.values()) if (v > maxD) maxD = v;
     for (const n of data.nodes) if (!map.has(n.id)) map.set(n.id, maxD + 1);
     return map;
-  })();
-  const depthCounts = (() => {
+  }, [data]);
+  const depthCounts = useMemo(() => {
     const counts = new Map<number, number>();
     for (const d of depthMap.values()) counts.set(d, (counts.get(d) ?? 0) + 1);
     return Array.from(counts.entries()).sort((a, b) => a[0] - b[0]);
-  })();
+  }, [depthMap]);
 
   // 노드-링크 삭제 (해제 모드) — 즉시 삭제 + "되돌리기" undo toast
   const deleteLinkMutation = useMutation({
@@ -464,7 +463,7 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick, 
     const parentOf = new Map<string, string>();
     const childrenOf = new Map<string, string[]>();
     for (const e of data.edges) {
-      if ((e as any).link_type !== "parent") continue;
+      if (e.link_type !== "parent") continue;
       if (!data.nodes.find((n) => n.id === e.source) || !data.nodes.find((n) => n.id === e.target)) continue;
       parentOf.set(e.target, e.source);
       if (!childrenOf.has(e.source)) childrenOf.set(e.source, []);
@@ -627,7 +626,7 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick, 
       running = false;
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [data, layoutMode, animating, orbitSpeed]);
+  }, [data, layoutMode, animating, orbitSpeed, depthMap]);
 
   // ===== 포스 레이아웃 물리 =====
   useEffect(() => {
@@ -710,7 +709,7 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick, 
         // 부모-자식 스프링 — 정상시엔 3.3x, 드래그 중엔 8x 추가 증폭 → 끌려오는 감 확실.
         const dragBoost = dragRef.current ? 8 : 1;
         const parentSpring = SPRING * 3.3 * dragBoost;
-        const spring = (e as any).link_type === "parent" ? parentSpring : parentSpring * 0.3;
+        const spring = e.link_type === "parent" ? parentSpring : parentSpring * 0.3;
         const f = (d - IDEAL_LEN) * spring;
         const fx = (dx / d) * f;
         const fy = (dy / d) * f;
@@ -763,7 +762,7 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick, 
       running = false;
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [data, simKick, animating, layoutMode, repulsionLevel]);
+  }, [data, simKick, animating, layoutMode, repulsionLevel, depthMap]);
 
   // 드래그 / 팬 상태는 ref 로 관리 — 전역 mousemove 리스너가 최신 값을 즉시 보도록 (state closure 지연 제거)
   // affected: 드래그 시 함께 움직일 노드 목록. 각각 factor(0~1)로 델타 비례 반영.
@@ -892,7 +891,7 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick, 
   const parentOfMap = (() => {
     const m = new Map<string, string>();
     if (!data) return m;
-    for (const e of data.edges) if ((e as any).link_type === "parent") m.set(e.target, e.source);
+    for (const e of data.edges) if (e.link_type === "parent") m.set(e.target, e.source);
     return m;
   })();
 
@@ -1390,7 +1389,7 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick, 
               const s = nodesRef.current.get(e.source);
               const tgt = nodesRef.current.get(e.target);
               if (!s || !tgt) return null;
-              const lt = (e as any).link_type as string;
+              const lt = e.link_type as string;
               const isParent = lt === "parent";
               const isLabel = lt === "shared_label";
               const isRelates = lt === "relates_to";
@@ -1475,7 +1474,7 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick, 
             {nodes.map((n) => {
               /* 가짜 super-node (마이 모드의 프로젝트 노드) — 큰 원 + 프로젝트 색 + identifier 텍스트.
                  클릭/연결 비활성, 자식 이슈들의 부모로서 클러스터 중심 역할. */
-              const isSuper = (n as any).is_project_super === true;
+              const isSuper = n.is_project_super === true;
               if (isSuper) {
                 const projColor = n.project_id ? projectColorMap?.[n.project_id] ?? "#6b7280" : "#6b7280";
                 const sR = 22;
@@ -1592,7 +1591,7 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick, 
                       }
                       // 한 쌍은 하나의 연결만 — 이미 수동 엣지가 있으면 차단
                       const already = edges.some((ed) => {
-                        const lt = (ed as any).link_type;
+                        const lt = ed.link_type;
                         if (lt === "parent" || lt === "shared_label") return false;
                         return (
                           (ed.source === pendingSource && ed.target === n.id) ||

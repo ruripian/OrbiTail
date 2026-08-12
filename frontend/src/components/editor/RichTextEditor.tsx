@@ -118,12 +118,14 @@ export function RichTextEditor({
     },
   });
 
-  /* 외부 content 변경 시 에디터 동기화 */
+  /* 외부 content 변경 시 에디터 동기화.
+     editor 는 처음엔 null 이라 deps 에 포함해야 인스턴스가 준비된 뒤에도 한 번 맞춰준다.
+     내용이 같으면 setContent 를 건너뛰므로 커서가 튀지 않는다. */
   useEffect(() => {
     if (editor && content !== editor.getHTML()) {
       editor.commands.setContent(content, { emitUpdate: false });
     }
-  }, [content]);
+  }, [content, editor]);
 
   /* 드래그 완료(mouseup) 시 선택 영역이 있으면 플로팅 메뉴 표시.
    * showToolbar 가 켜져 있으면 상단 툴바와 중복돼 거슬리므로 이벤트 자체를 등록하지 않는다. */
@@ -187,6 +189,7 @@ export function RichTextEditor({
       }
       editor.chain().focus().setImage({ src: url }).run();
     } catch (e) {
+      // eslint-disable-next-line no-console
       console.error(e);
       alert("이미지 업로드 실패");
     } finally {

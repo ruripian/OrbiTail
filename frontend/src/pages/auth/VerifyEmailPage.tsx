@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useMutation } from "@tanstack/react-query";
+import { apiErrorMessage } from "@/lib/api-error";
 import { authApi } from "@/api/auth";
 import { AuthCard, AuthCardHeader } from "@/components/auth/AuthCard";
 import { Button } from "@/components/ui/button";
@@ -17,13 +18,13 @@ export function VerifyEmailPage() {
 
   const verifyMutation = useMutation({
     mutationFn: authApi.verifyEmail,
-    onSuccess: (data: any) => {
+    onSuccess: (data) => {
       setStatus("success");
       setAutoRequested(data?.auto_requested_workspace ?? null);
     },
-    onError: (err: any) => {
+    onError: (e) => {
       setStatus("error");
-      setErrorMessage(err.response?.data?.detail || t("auth.verifyEmail.defaultError"));
+      setErrorMessage(apiErrorMessage(e, t("auth.verifyEmail.defaultError")));
     },
   });
 

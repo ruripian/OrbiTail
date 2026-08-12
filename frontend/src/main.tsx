@@ -18,7 +18,7 @@ runLocalStorageMigrations();
 import { ThemeProvider } from "./lib/theme-provider";
 import { MotionProvider } from "./lib/motion-provider";
 import { DensityProvider } from "./lib/density-provider";
-import { ViewSettingsProvider } from "./lib/view-settings";
+import { FontSettingsProvider } from "./lib/font-settings";
 import { setupApi } from "./api/setup";
 import { SetupPage } from "./pages/setup/SetupPage";
 import { Toaster } from "sonner";
@@ -66,13 +66,13 @@ createRoot(document.getElementById("root")!).render(
     <ThemeProvider>
       <MotionProvider>
         <DensityProvider>
-          <ViewSettingsProvider>
+          <FontSettingsProvider>
             <QueryClientProvider client={queryClient}>
               <AppBootstrap />
               <Toaster position="top-right" richColors closeButton />
               {/* DevTools는 개발 환경에서만 표시 — 프로덕션 빌드 시 제거됨 */}
             </QueryClientProvider>
-          </ViewSettingsProvider>
+          </FontSettingsProvider>
         </DensityProvider>
       </MotionProvider>
     </ThemeProvider>

@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState } from "react";
+import { useAuthStore } from "@/stores/authStore";
 
 export type ThemeValue = "light" | "dark" | "system";
 
@@ -18,12 +19,23 @@ const ThemeContext = createContext<{
   setTheme: (t: ThemeValue) => void;
 }>({ theme: "system", resolvedTheme: "light", setTheme: () => {} });
 
-/** 앱 최상단을 감싸는 테마 프로바이더. localStorage에 테마를 저장한다. */
+/** 앱 최상단을 감싸는 테마 프로바이더. localStorage에 테마를 저장한다.
+    로그인 시에는 계정에 저장된 테마를 우선 적용한다 — 글꼴 설정(font-settings)과 같은 규칙.
+    이게 없으면 다른 기기에서 로그인했을 때 화면 테마(localStorage)와
+    설정 화면이 표시하는 값(user.theme)이 어긋난다. */
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<ThemeValue>(
     () => (localStorage.getItem("theme") as ThemeValue) ?? "system"
   );
   const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">(() => resolveTheme(theme));
+  const userId = useAuthStore((s) => s.user?.id);
+  const userTheme = useAuthStore((s) => s.user?.theme);
+
+  /* 로그인·계정 전환 시 1회 동기화. 이후 토글은 setTheme 이 localStorage 와 서버 양쪽을 갱신. */
+  useEffect(() => {
+    if (userId && userTheme) setThemeState(userTheme as ThemeValue);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
 
   useEffect(() => {
     const resolved = resolveTheme(theme);

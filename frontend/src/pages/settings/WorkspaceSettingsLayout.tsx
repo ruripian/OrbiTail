@@ -103,9 +103,9 @@ export function WorkspaceSettingsLayout() {
                 <UserCheck className="h-4 w-4 shrink-0" />
                 {t("settings.layout.workspaceJoinRequests", "가입 승인")}
               </span>
-              {(pendingRequests as any[]).length > 0 && (
+              {pendingRequests.length > 0 && (
                 <span className="inline-flex items-center justify-center text-2xs font-bold rounded-full bg-amber-500/15 text-amber-500 border border-amber-500/30 h-4 min-w-[16px] px-1.5">
-                  {(pendingRequests as any[]).length}
+                  {pendingRequests.length}
                 </span>
               )}
             </NavLink>

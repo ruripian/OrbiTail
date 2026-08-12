@@ -13,10 +13,10 @@
  * 마이 페이지(다중 워크스페이스 통합)와 같은 컴포넌트 재사용.
  */
 
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useIssueRefresh } from "@/hooks/useIssueMutations";
+import { useIssueRefresh, capturePrevious } from "@/hooks/useIssueMutations";
 import { useUndoStore } from "@/stores/undoStore";
 import { useTranslation } from "react-i18next";
 import { ChevronLeft, ChevronRight, Settings2, Inbox, GripVertical, X as XIcon, ChevronDown, User as UserIcon, Users } from "lucide-react";
@@ -123,14 +123,14 @@ export function CalendarView({ workspaceSlug, projectId, onIssueClick, issueFilt
 
   /* drawer 설정 — projectId 별 localStorage 영속 */
   const DRAWER_KEY = `orbitail_cal_drawer_${projectId}`;
-  const loadDrawerPrefs = (): { stateIds: string[] | null; meOnly: boolean; open: boolean } => {
+  const loadDrawerPrefs = useCallback((): { stateIds: string[] | null; meOnly: boolean; open: boolean } => {
     try {
       const raw = localStorage.getItem(DRAWER_KEY);
       if (raw) return JSON.parse(raw);
     } catch {}
     return { stateIds: null, meOnly: false, open: false };
-  };
-  const initialDrawer = useMemo(() => loadDrawerPrefs(), [projectId]);
+  }, [DRAWER_KEY]);
+  const initialDrawer = useMemo(() => loadDrawerPrefs(), [loadDrawerPrefs]);
   const [drawerOpen, setDrawerOpen] = useState(initialDrawer.open);
   const [drawerStateIds, setDrawerStateIds] = useState<Set<string> | null>(
     initialDrawer.stateIds ? new Set(initialDrawer.stateIds) : null,
@@ -230,10 +230,7 @@ export function CalendarView({ workspaceSlug, projectId, onIssueClick, issueFilt
     onMutate: ({ id, data }) => {
       const issue = issues.find((i) => i.id === id);
       if (!issue) return;
-      const prev: Partial<Issue> = {};
-      for (const key of Object.keys(data) as (keyof Issue)[]) {
-        (prev as any)[key] = (issue as any)[key];
-      }
+      const prev = capturePrevious(issue, data);
       return { id, prev };
     },
     onSuccess: (_, variables, context) => {

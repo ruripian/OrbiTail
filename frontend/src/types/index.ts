@@ -77,6 +77,27 @@ export interface WorkspaceMember {
   created_at: string;
 }
 
+/** 가입 신청 POST 응답 — 이미 멤버면 신청을 만들지 않고 already_member 로 알려준다. */
+export interface JoinRequestResult {
+  already_member?: boolean;
+  workspace_slug?: string;
+  detail?: string;
+}
+
+/** 워크스페이스 가입 신청 — 본인 조회(/join-requests/mine)와 어드민 조회가 같은 형태. */
+export interface WorkspaceJoinRequest {
+  id: string;
+  workspace: string;
+  workspace_name: string;
+  workspace_slug: string;
+  user: User;
+  status: "pending" | "approved" | "rejected" | "canceled";
+  message: string;
+  decided_by: User | null;
+  decided_at: string | null;
+  created_at: string;
+}
+
 export interface State {
   id: string;
   name: string;
@@ -206,7 +227,7 @@ export interface ProjectEvent {
   event_type: "meeting" | "trip" | "deadline" | "presentation" | "milestone" | "other";
   color: string;              // hex
   description: string;
-  is_global: boolean;          // 워크스페이스 전역 공유
+  is_global: boolean;          // 프로젝트 전체 일정 — 프로젝트·팀 캘린더에만 노출
   participants: string[];      // user id 배열
   participant_details: User[]; // 읽기 전용
   created_by: string | null;
@@ -543,7 +564,24 @@ export interface IssueSearchResult {
   project_name: string;
   project_icon_prop?: Record<string, unknown> | null;
   sequence_id: number;
+  /** 부모 이슈 id — 멘션 검색 결과를 트리로 묶는 데 쓴다 */
+  parent: string | null;
   updated_at: string;
+}
+
+/** 문서 첨부파일 — 이슈 첨부(IssueAttachment)와 필드명이 달라 별도 타입.
+    file_url 은 서버가 만들어주는 상대 경로, file 은 원본 필드. */
+export interface DocumentAttachment {
+  id: string;
+  document: string;
+  file: string;
+  file_url: string | null;
+  filename: string;
+  file_size: number;
+  content_type: string;
+  uploaded_by: string;
+  uploaded_by_detail: User;
+  created_at: string;
 }
 
 export interface IssueAttachment {

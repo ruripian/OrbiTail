@@ -41,7 +41,12 @@
       "successWithEmail": "Account created! Please check your email to verify.",
       "successNoEmail": "Account created! You can sign in after admin approval.",
       "successAutoActivated": "Invitation accepted! You can sign in now.",
+      "successSelfActivated": "Account created",
+      "selfActivatedApprovalHint": "You can sign in now, but joining a workspace requires admin approval.",
       "error": "Registration failed. Please try again.",
+      "emailTaken": "This email is already registered.",
+      "emailTakenAction": "Go to sign in",
+      "passwordRejected": "That password is too simple or easy to guess. Please choose another one",
       "haveAccount": "Already have an account?",
       "signInLink": "Sign in",
       "lastName": "Last Name",
@@ -144,6 +149,7 @@
       "archived": "Issue archived",
       "delete": "Delete",
       "deleted": "Issue deleted",
+      "deleteFailed": "Failed to delete issue",
       "deletedWithChildren": "{{count}} sub-issue(s) also deleted",
       "undo": "Undo",
       "nestHere": "Make child",
@@ -509,7 +515,8 @@
     "noDescription": "No description",
     "join": "Join",
     "joined": "Joined the project",
-    "joinFailed": "Failed to join"
+    "joinFailed": "Failed to join",
+    "view": "View"
   },
   "modules": {
     "title": "Categories",
@@ -665,7 +672,7 @@
       "descriptionPlaceholder": "Notes or details",
       "participants": "Participants",
       "global": "Project-wide event",
-      "globalHint": "Applies to all members of this project"
+      "globalHint": "Shown only on project and team calendars, not on members' personal calendars"
     },
     "type": {
       "meeting": "Meeting",
@@ -862,6 +869,10 @@
       "densityCompact": "Compact",
       "densityComfortable": "Comfortable",
       "densitySpacious": "Spacious",
+      "fontFamily": "Font",
+      "fontMono": "Monospace font",
+      "fontScale": "Text scale",
+      "fontReset": "Reset to default",
       "sectionAppearance": "Appearance",
       "sectionLocale": "Locale & Region",
       "language": "Language",

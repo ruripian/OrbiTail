@@ -1,6 +1,7 @@
 import { useRef, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiErrorMessage } from "@/lib/api-error";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Shield, Mail, Quote, Crown } from "lucide-react";
@@ -50,10 +51,7 @@ export function InviteAcceptPage() {
       toast.success(t("invite.acceptSuccess"));
       navigate(`/${data.workspace_slug}`);
     },
-    onError: (err: any) => {
-      const detail = err?.response?.data?.detail;
-      toast.error(detail || t("invite.acceptError"));
-    },
+    onError: (e) => toast.error(apiErrorMessage(e, t("invite.acceptError"))),
   });
 
   // 로그인 상태이고 이메일이 일치하는지 확인
@@ -69,6 +67,9 @@ export function InviteAcceptPage() {
       autoAccepted.current = true;
       acceptMutation.mutate();
     }
+    /* acceptMutation 은 매 렌더 새 객체라 deps 에 넣으면 effect 가 계속 돌아 재수락을 반복한다.
+       중복 실행은 autoAccepted ref 로 이미 막고 있다. */
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [emailMatch, invitation]);
 
   if (isLoading) {

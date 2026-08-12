@@ -10,6 +10,7 @@ import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { apiErrorMessage } from "@/lib/api-error";
 import {
   ArrowLeft, Settings, Trash2, UserPlus, Shield, X as XIcon,
 } from "lucide-react";
@@ -52,7 +53,7 @@ export function TeamDetailPage() {
       qc.invalidateQueries({ queryKey: ["teams", workspaceSlug] });
       navigate(`/${workspaceSlug}/teams`);
     },
-    onError: (e: any) => toast.error(e?.response?.data?.detail ?? "삭제 실패"),
+    onError: (e) => toast.error(apiErrorMessage(e, "삭제 실패")),
   });
 
   const removeMemberMutation = useMutation({
@@ -61,7 +62,7 @@ export function TeamDetailPage() {
       qc.invalidateQueries({ queryKey: ["team-members", teamId] });
       qc.invalidateQueries({ queryKey: ["team", teamId] });
     },
-    onError: (e: any) => toast.error(e?.response?.data?.detail ?? "멤버 제거 실패"),
+    onError: (e) => toast.error(apiErrorMessage(e, "멤버 제거 실패")),
   });
 
   const updateRoleMutation = useMutation({
@@ -70,7 +71,7 @@ export function TeamDetailPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["team-members", teamId] });
     },
-    onError: (e: any) => toast.error(e?.response?.data?.detail ?? "역할 변경 실패"),
+    onError: (e) => toast.error(apiErrorMessage(e, "역할 변경 실패")),
   });
 
   if (isLoading) {
@@ -251,7 +252,7 @@ function EditTeamDialog({
   const updateMutation = useMutation({
     mutationFn: () => teamsApi.update(workspaceSlug, team.id, { name: name.trim(), description, color }),
     onSuccess: () => { toast.success("팀 설정이 저장되었습니다."); onSaved(); },
-    onError: (e: any) => toast.error(e?.response?.data?.detail ?? "저장 실패"),
+    onError: (e) => toast.error(apiErrorMessage(e, "저장 실패")),
   });
 
   return (
@@ -320,7 +321,7 @@ function AddMemberDialog({
   const addMutation = useMutation({
     mutationFn: (memberId: string) => teamsApi.members.add(workspaceSlug, teamId, { member: memberId }),
     onSuccess: () => onAdded(),
-    onError: (e: any) => toast.error(e?.response?.data?.detail ?? "추가 실패"),
+    onError: (e) => toast.error(apiErrorMessage(e, "추가 실패")),
   });
 
   return (

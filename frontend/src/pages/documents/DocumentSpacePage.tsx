@@ -8,9 +8,10 @@ import { useParams, useOutletContext, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { apiErrorStatus } from "@/lib/api-error";
 import {
   FileText, Loader2, Pencil, Eye, Share2, MessageSquare, Hash, Plus, Star,
-  List, MoreHorizontal, Maximize2, Minimize2,
+  List, MoreHorizontal, Maximize2, Minimize2, ALargeSmall,
   History, FolderInput, Download, Printer, FileDown, Trash2, LayoutGrid,
   FolderOpen, FilePlus, Image as ImageIcon, Lock, Paperclip,
 } from "lucide-react";
@@ -25,12 +26,18 @@ import { CoverEditDialog } from "@/components/documents/CoverEditDialog";
 import { CoverView } from "@/components/documents/CoverView";
 import { IssuePickerDialog } from "@/components/documents/IssuePickerDialog";
 import { useDocumentWebSocket } from "@/hooks/useDocumentWebSocket";
+import {
+  useDocReadingPrefs, adjustFontSizes, docFontCss,
+  DOC_FS_DEFAULT, DOC_FS_RANGE, DOC_FONT_LABELS,
+  type DocFontSizes, type DocFontKey,
+} from "@/hooks/useDocReadingPrefs";
 import { AvatarInitials } from "@/components/ui/avatar-initials";
 import { ResizableAside } from "@/components/ui/resizable-aside";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuSeparator, DropdownMenuTrigger,
+  DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger,
 } from "@/components/ui/dropdown-menu";
 import { PanelHeader } from "@/components/ui/panel-header";
 import { UserLine } from "@/components/ui/user-line";
@@ -140,9 +147,7 @@ function DocumentEditorView({
   const currentUser = useAuthStore((s) => s.user);
   const isAuthor = !!currentUser && doc.created_by === currentUser.id;
 
-  /* 작성자가 본인 화면 너비를 바꾸면 그 값이 자동으로 '추천 너비'로 저장됨 (디바운스).
-     작성자가 의도적으로 토글할 필요 없이 본인이 보는 모드 그대로 추천. */
-  /* 즐겨찾기 — 사용자별 toggle. 아이콘은 메타 라인의 점세개 옆. */
+  /* 즐겨찾기 — 사용자별 toggle. 버튼은 상단 도구 모음. */
   const { data: bookmarks = [] } = useQuery({
     queryKey: ["doc-bookmarks", workspaceSlug],
     queryFn: () => documentsApi.bookmarks.list(workspaceSlug!),
@@ -156,6 +161,8 @@ function DocumentEditorView({
     onSuccess: () => qc.invalidateQueries({ queryKey: ["doc-bookmarks", workspaceSlug] }),
   });
 
+  /* 작성자가 본인 화면 너비를 바꾸면 그 값이 자동으로 '추천 너비'로 저장됨 (디바운스).
+     작성자가 의도적으로 토글할 필요 없이 본인이 보는 모드 그대로 추천. */
   const widthSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (!isAuthor) return;
@@ -174,69 +181,19 @@ function DocumentEditorView({
   const [moveOpen, setMoveOpen] = useState(false);
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
-  /* 문서 단위 글자 크기 — 백엔드 필드에 저장, 모든 협업자에게 동일 표시.
-     슬라이더 드래그 중 중간값을 매번 PATCH 하지 않도록 로컬 draft + 400ms debounce. */
-  type DocFs = { body: number; h3: number; h2: number; h1: number };
-  const DOC_FS_DEFAULT: DocFs = { body: 18, h3: 22, h2: 28, h1: 36 };
-  const DOC_FS_RANGE: Record<keyof DocFs, [number, number]> = {
-    body: [14, 24], h3: [16, 32], h2: [20, 44], h1: [24, 60],
-  };
-  const fromDoc: DocFs = {
+  /* 글자 크기·서체는 보는 사람 본인 화면에만 적용(localStorage).
+     문서의 font_size_* 서버 필드는 개인 설정이 없을 때의 문서 기본값으로만 읽는다 —
+     읽는 사람이 자기 눈에 맞게 키웠다고 다른 협업자 화면까지 바뀌면 안 되기 때문. */
+  const docPrefs = useDocReadingPrefs();
+  const docFs: DocFontSizes = docPrefs.fontSize ?? {
     body: doc.font_size_body ?? DOC_FS_DEFAULT.body,
     h3:   doc.font_size_h3   ?? DOC_FS_DEFAULT.h3,
     h2:   doc.font_size_h2   ?? DOC_FS_DEFAULT.h2,
     h1:   doc.font_size_h1   ?? DOC_FS_DEFAULT.h1,
   };
-  const [docFs, setDocFsState] = useState<DocFs>(fromDoc);
-  /* 다른 문서로 이동 또는 서버 값 변경 시 동기화 */
-  useEffect(() => {
-    setDocFsState({
-      body: doc.font_size_body ?? DOC_FS_DEFAULT.body,
-      h3:   doc.font_size_h3   ?? DOC_FS_DEFAULT.h3,
-      h2:   doc.font_size_h2   ?? DOC_FS_DEFAULT.h2,
-      h1:   doc.font_size_h1   ?? DOC_FS_DEFAULT.h1,
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [doc.id, doc.font_size_body, doc.font_size_h3, doc.font_size_h2, doc.font_size_h1]);
-
-  const fsSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const persistDocFs = (next: DocFs) => {
-    if (fsSaveTimer.current) clearTimeout(fsSaveTimer.current);
-    fsSaveTimer.current = setTimeout(() => {
-      onUpdate({
-        font_size_body: next.body,
-        font_size_h3: next.h3,
-        font_size_h2: next.h2,
-        font_size_h1: next.h1,
-      });
-    }, 400);
+  const setDocFsKey = (key: keyof DocFontSizes, val: number) => {
+    docPrefs.setFontSize(adjustFontSizes(docFs, key, val));
   };
-  /* 슬라이더는 각자 절대 min/max 범위 안에서 자유롭게 움직임.
-     바뀐 단계에 맞춰 다른 단계들이 자동으로 밀려올라가거나 내려감.
-     e.g. body를 20으로 높이면 h3/h2/h1이 최소 21/22/23으로 자동 상승.
-          h1을 26으로 내리면 h2/h3/body가 최대 25/24/23으로 자동 하강. */
-  const setDocFsKey = (key: keyof DocFs, val: number) => {
-    const [lo, hi] = DOC_FS_RANGE[key];
-    const v = Math.max(lo, Math.min(hi, Math.round(val)));
-    setDocFsState((prev) => {
-      const next: DocFs = { ...prev, [key]: v };
-      const ORDER: (keyof DocFs)[] = ["body", "h3", "h2", "h1"];
-      const idx = ORDER.indexOf(key);
-      /* 위쪽 단계 밀어올리기 */
-      for (let i = idx + 1; i < ORDER.length; i++) {
-        const prevKey = ORDER[i - 1];
-        if (next[ORDER[i]] <= next[prevKey]) next[ORDER[i]] = next[prevKey] + 1;
-      }
-      /* 아래쪽 단계 끌어내리기 */
-      for (let i = idx - 1; i >= 0; i--) {
-        const upper = ORDER[i + 1];
-        if (next[ORDER[i]] >= next[upper]) next[ORDER[i]] = next[upper] - 1;
-      }
-      persistDocFs(next);
-      return next;
-    });
-  };
-  const resetDocFs = () => { setDocFsState(DOC_FS_DEFAULT); persistDocFs(DOC_FS_DEFAULT); };
   const contentRef = useRef(doc.content_html);
   /* doc.id 바뀌면 초기화 */
   useEffect(() => { contentRef.current = doc.content_html; }, [doc.id, doc.content_html]);
@@ -515,7 +472,7 @@ function DocumentEditorView({
 
         <div className="w-px h-5 bg-border mx-1" />
 
-        {/* 너비 토글 — 본인 세션만 영향 (저장 X). 추천 너비는 점세개 메뉴 안에서 작성자가 변경. */}
+        {/* 너비 토글 — 본인 세션만 영향. 단 작성자가 토글하면 그 값이 문서의 추천 너비로 자동 저장된다. */}
         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setFullWidth(!fullWidth)}
           title={fullWidth ? "좁게 보기" : "넓게 보기"}>
           {fullWidth ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
@@ -533,6 +490,63 @@ function DocumentEditorView({
               <LayoutGrid className="h-3.5 w-3.5 mr-2" />
               {t("documents.explorer")}
             </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            {/* 보기 설정 — 내 화면에만 적용. 서브메뉴라 슬라이더를 만져도 상위 메뉴가 닫히지 않는다. */}
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <ALargeSmall className="h-3.5 w-3.5 mr-2" />
+                글자 크기 · 서체
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent className="w-64 p-2">
+                <div className="px-1 py-1 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-2xs font-semibold text-foreground">내 화면에만 적용</span>
+                    <button
+                      onClick={docPrefs.reset}
+                      disabled={!docPrefs.isCustom}
+                      className="text-3xs text-muted-foreground hover:text-foreground disabled:opacity-40 disabled:hover:text-muted-foreground"
+                    >
+                      기본값
+                    </button>
+                  </div>
+
+                  <div>
+                    <span className="text-3xs text-muted-foreground">서체</span>
+                    <select
+                      value={docPrefs.font}
+                      onChange={(e) => docPrefs.setFont(e.target.value as DocFontKey)}
+                      className="mt-0.5 w-full h-7 rounded-md border bg-background px-1.5 text-2xs"
+                    >
+                      {DOC_FONT_LABELS.map((f) => (
+                        <option key={f.value} value={f.value}>{f.label}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {(["body", "h3", "h2", "h1"] as const).map((k) => {
+                    const labels = { body: "본문", h3: "헤더 3", h2: "헤더 2", h1: "헤더 1" } as const;
+                    const [lo, hi] = DOC_FS_RANGE[k];
+                    return (
+                      <div key={k}>
+                        <div className="flex items-center justify-between mb-0.5">
+                          <span className="text-3xs text-muted-foreground">{labels[k]}</span>
+                          <span className="text-3xs tabular-nums text-muted-foreground">{docFs[k]}px</span>
+                        </div>
+                        <input
+                          type="range"
+                          min={lo}
+                          max={hi}
+                          step={1}
+                          value={docFs[k]}
+                          onChange={(e) => setDocFsKey(k, Number(e.target.value))}
+                          className="w-full accent-primary"
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => setHistoryOpen(!historyOpen)}>
               <History className="h-3.5 w-3.5 mr-2" />
@@ -588,6 +602,7 @@ function DocumentEditorView({
                 ["--doc-fs-h3" as string]:   `${docFs.h3}px`,
                 ["--doc-fs-h2" as string]:   `${docFs.h2}px`,
                 ["--doc-fs-h1" as string]:   `${docFs.h1}px`,
+                ["--doc-font" as string]:    docFontCss(docPrefs.font),
               }}
             >
               {/* 커버 이미지 배너 — CoverView 공용 렌더러 (다이얼로그 미리보기와 동일 공식) */}
@@ -633,7 +648,7 @@ function DocumentEditorView({
                 onBlur={() => { if (title.trim() !== doc.title) onUpdate({ title: title.trim() }); }}
                 readOnly={!editMode}
               />
-              {/* 작성자 + 작성일 — 제목 바로 아래 메타 정보. 우측에 문서 속성(글자 크기/추천 너비) 점세개 */}
+              {/* 작성자 + 작성일 — 제목 바로 아래 메타 정보 */}
               <div className="flex items-center gap-2 text-xs text-muted-foreground mb-3">
                 {doc.created_by_detail && (
                   <>
@@ -651,53 +666,6 @@ function DocumentEditorView({
                     <span>{new Date(doc.created_at).toLocaleDateString()}</span>
                   </>
                 )}
-                <div className="ml-auto flex items-center gap-0.5" data-print-hide>
-                  {/* 즐겨찾기는 상단 도구 모음에서 노출 — 메타라인 중복 제거 */}
-                  {editMode && (
-                  <>
-                    {/* 문서 글자 크기 */}
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <button
-                          className="h-6 w-6 rounded-md hover:bg-muted/50 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
-                          title="문서 글자 크기"
-                        >
-                          <MoreHorizontal className="h-3.5 w-3.5" />
-                        </button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-64 p-2">
-                        <div className="px-1 py-1 space-y-2">
-                          <div className="flex items-center justify-between">
-                            <span className="text-2xs font-semibold text-foreground">글자 크기</span>
-                            <button onClick={resetDocFs} className="text-3xs text-muted-foreground hover:text-foreground">기본값</button>
-                          </div>
-                          {(["body", "h3", "h2", "h1"] as const).map((k) => {
-                            const labels = { body: "본문", h3: "헤더 3", h2: "헤더 2", h1: "헤더 1" } as const;
-                            const [lo, hi] = DOC_FS_RANGE[k];
-                            return (
-                              <div key={k}>
-                                <div className="flex items-center justify-between mb-0.5">
-                                  <span className="text-3xs text-muted-foreground">{labels[k]}</span>
-                                  <span className="text-3xs tabular-nums text-muted-foreground">{docFs[k]}px</span>
-                                </div>
-                                <input
-                                  type="range"
-                                  min={lo}
-                                  max={hi}
-                                  step={1}
-                                  value={docFs[k]}
-                                  onChange={(e) => setDocFsKey(k, Number(e.target.value))}
-                                  className="w-full accent-primary"
-                                />
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </>
-                  )}
-                </div>
               </div>
               <div className="h-px bg-border/40 mb-4" />
 
@@ -733,8 +701,8 @@ function DocumentEditorView({
                 try {
                   const result = await documentsApi.attachments.upload(workspaceSlug!, spaceId!, doc.id, file);
                   return { url: result.file_url || result.file, filename: result.filename };
-                } catch (e: any) {
-                  const status = e?.response?.status;
+                } catch (e) {
+                  const status = apiErrorStatus(e);
                   if (status === 413) {
                     toast.error(`파일 크기가 ${maxMb}MB를 초과해서 업로드에 실패했습니다.`);
                   } else {

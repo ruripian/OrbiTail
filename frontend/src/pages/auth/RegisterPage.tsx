@@ -3,6 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import axios from "axios";
 import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -80,7 +81,7 @@ export function RegisterPage() {
   const mutation = useMutation({
     mutationFn: authApi.register,
     onMutate: () => setServerError(null),
-    onSuccess: (data: any, variables: any) => {
+    onSuccess: (data, variables) => {
       /* 자동 활성화 — 초대 가입 / 첫 관리자 / SMTP 미설정 셀프 가입.
          셀프 가입은 계정 로그인은 되지만 워크스페이스 입장은 관리자 승인이 필요하므로
          "바로 입장 가능"으로 오인되지 않도록 메시지를 구분한다. */
@@ -110,9 +111,11 @@ export function RegisterPage() {
       }
       navigate(inviteToken ? `/auth/login?redirect=/invite/${inviteToken}` : "/auth/login");
     },
-    onError: (err: any) => {
+    onError: (e) => {
       // DRF 필드 에러 응답: { email: ["..."], password: ["..."], ... }
-      const data = err?.response?.data;
+      const data = axios.isAxiosError(e)
+        ? (e.response?.data as Record<string, unknown> | undefined)
+        : undefined;
       if (data && typeof data === "object" && !Array.isArray(data)) {
         const emailErrs = Array.isArray(data.email) ? data.email : [];
         if (emailErrs.some((m: string) => /exist/i.test(m))) {
@@ -288,7 +291,7 @@ export function RegisterPage() {
                 <SelectValue placeholder={t("auth.register.workspacePlaceholder", "워크스페이스 선택 (선택 사항)")} />
               </SelectTrigger>
               <SelectContent>
-                {publicWorkspaces.map((ws: any) => (
+                {publicWorkspaces.map((ws) => (
                   <SelectItem key={ws.id} value={ws.slug}>
                     {ws.name}
                   </SelectItem>

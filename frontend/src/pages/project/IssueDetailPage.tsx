@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { RichTextEditor } from "@/components/editor/RichTextEditor";
 import { useParentChain } from "@/hooks/useParentChain";
-import { useIssueRefresh } from "@/hooks/useIssueMutations";
+import { useIssueRefresh, capturePrevious } from "@/hooks/useIssueMutations";
 import { ParentChainBreadcrumb } from "@/components/issues/parent-chain-breadcrumb";
 import { IssueMetaSidebar } from "@/components/issues/IssueMetaSidebar";
 import { QUERY_TIERS } from "@/lib/query-defaults";
@@ -157,10 +157,7 @@ export function IssueDetailPage({ issueIdOverride, workspaceSlugOverride, projec
     onMutate: (data) => {
       if (!issue) return;
       // 변경 전 값 캡처 (undo용)
-      const prev: Partial<Issue> = {};
-      for (const key of Object.keys(data) as (keyof Issue)[]) {
-        (prev as any)[key] = (issue as any)[key];
-      }
+      const prev = capturePrevious(issue, data);
       return { prev };
     },
     onSuccess: (_result, data, context) => {
@@ -227,6 +224,9 @@ export function IssueDetailPage({ issueIdOverride, workspaceSlugOverride, projec
 
   useEffect(() => {
     if (issue) setTitleValue(issue.title);
+    /* deps 가 issue.title 인 건 의도적 — issue 객체 전체를 넣으면 refetch 로 참조만 바뀌어도
+       effect 가 돌아 편집 중이던 입력이 서버 값으로 되돌아간다. */
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [issue?.title]);
 
   const saveTitle = () => {
@@ -240,6 +240,8 @@ export function IssueDetailPage({ issueIdOverride, workspaceSlugOverride, projec
 
   useEffect(() => {
     if (issue) setDescValue(issue.description_html || "");
+    /* 위 제목과 같은 이유 — 본문 필드만 보고 동기화한다 */
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [issue?.description_html]);
 
   /* blur 시 변경사항이 있으면 자동 저장 */
@@ -397,7 +399,7 @@ export function IssueDetailPage({ issueIdOverride, workspaceSlugOverride, projec
             >
               <button
                 type="button"
-                onClick={() => updateMutation.mutate({ is_field: false } as any)}
+                onClick={() => updateMutation.mutate({ is_field: false })}
                 className={cn("px-2.5 py-1 transition-colors",
                   !issue.is_field ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-muted/40")}
               >
@@ -405,7 +407,7 @@ export function IssueDetailPage({ issueIdOverride, workspaceSlugOverride, projec
               </button>
               <button
                 type="button"
-                onClick={() => updateMutation.mutate({ is_field: true } as any)}
+                onClick={() => updateMutation.mutate({ is_field: true })}
                 className={cn("px-2.5 py-1 border-l border-border transition-colors",
                   issue.is_field ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-muted/40")}
               >

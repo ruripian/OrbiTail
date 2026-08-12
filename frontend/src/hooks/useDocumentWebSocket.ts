@@ -45,7 +45,9 @@ export function useDocumentWebSocket(docId: string | undefined): DocCollab {
   const [synced, setSynced] = useState(false);
   const [peers, setPeers] = useState<PresencePeer[]>([]);
 
-  /* docId가 바뀌면 Y.Doc 자체를 새로 만든다 — 이전 문서 상태 누수 방지 */
+  /* docId가 바뀌면 Y.Doc 자체를 새로 만든다 — 이전 문서 상태 누수 방지.
+     new Y.Doc() 이 docId 를 읽지는 않지만, 여기서 docId 는 "다시 만들라"는 신호로 쓰는 의도적 deps. */
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const ydoc = useMemo(() => new Y.Doc(), [docId]);
 
   /* user 객체 레퍼런스 변동에 민감하지 않게 — id/name/avatar만 deps로 */

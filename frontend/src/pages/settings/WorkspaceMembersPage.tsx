@@ -3,6 +3,7 @@ import { Navigate, useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { apiErrorMessage } from "@/lib/api-error";
 import { Crown, Trash2, Mail, X as XIcon, Send } from "lucide-react";
 
 import { workspacesApi } from "@/api/workspaces";
@@ -82,9 +83,7 @@ export function WorkspaceMembersPage() {
       setInviteRole(15);
       toast.success(t("settings.workspaceMembers.inviteSuccess"));
     },
-    onError: (err: any) => {
-      toast.error(err.response?.data?.detail || t("settings.workspaceMembers.inviteFailed"));
-    },
+    onError: (e) => toast.error(apiErrorMessage(e, t("settings.workspaceMembers.inviteFailed"))),
   });
 
   const revokeMutation = useMutation({
@@ -93,9 +92,7 @@ export function WorkspaceMembersPage() {
       invalidateInvitations();
       toast.success(t("settings.workspaceMembers.revokeSuccess"));
     },
-    onError: (err: any) => {
-      toast.error(err.response?.data?.detail || t("settings.workspaceMembers.revokeFailed"));
-    },
+    onError: (e) => toast.error(apiErrorMessage(e, t("settings.workspaceMembers.revokeFailed"))),
   });
 
   const roleMutation = useMutation({
@@ -105,9 +102,7 @@ export function WorkspaceMembersPage() {
       invalidate();
       toast.success(t("settings.workspaceMembers.roleUpdated"));
     },
-    onError: (err: any) => {
-      toast.error(err.response?.data?.detail || t("settings.workspaceMembers.roleUpdateFailed"));
-    },
+    onError: (e) => toast.error(apiErrorMessage(e, t("settings.workspaceMembers.roleUpdateFailed"))),
   });
 
   const removeMutation = useMutation({
@@ -116,9 +111,7 @@ export function WorkspaceMembersPage() {
       invalidate();
       toast.success(t("settings.workspaceMembers.removed"));
     },
-    onError: (err: any) => {
-      toast.error(err.response?.data?.detail || t("settings.workspaceMembers.removeFailed"));
-    },
+    onError: (e) => toast.error(apiErrorMessage(e, t("settings.workspaceMembers.removeFailed"))),
   });
 
   const handleRemove = (wm: WorkspaceMember) => {

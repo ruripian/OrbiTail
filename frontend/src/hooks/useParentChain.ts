@@ -15,19 +15,22 @@ import type { Issue } from "@/types";
  * 사용:
  *   const chain = useParentChain(workspaceSlug, projectId, issue.parent);
  */
+/** 부모가 없을 때 돌려줄 고정 참조 — 매번 새 [] 를 만들면 소비하는 쪽 deps 가 흔들린다. */
+const EMPTY_CHAIN: Issue[] = [];
+
 export function useParentChain(
   workspaceSlug: string | undefined,
   projectId: string | undefined,
   startParentId: string | null | undefined,
 ): Issue[] {
   const qc = useQueryClient();
-  const [chain, setChain] = useState<Issue[]>([]);
+  const [chain, setChain] = useState<Issue[]>(EMPTY_CHAIN);
+  const enabled = !!workspaceSlug && !!projectId && !!startParentId;
 
   useEffect(() => {
-    if (!workspaceSlug || !projectId || !startParentId) {
-      setChain([]);
-      return;
-    }
+    /* 조회할 게 없으면 아무것도 하지 않는다 — 빈 상태는 아래 반환에서 처리해
+       effect 가 "fetch 결과를 담는다" 한 가지 일만 하게 한다. */
+    if (!enabled) return;
 
     let cancelled = false;
     const visited = new Set<string>(); // 순환 참조 방어
@@ -53,7 +56,7 @@ export function useParentChain(
     })();
 
     return () => { cancelled = true; };
-  }, [workspaceSlug, projectId, startParentId, qc]);
+  }, [enabled, workspaceSlug, projectId, startParentId, qc]);
 
-  return chain;
+  return enabled ? chain : EMPTY_CHAIN;
 }

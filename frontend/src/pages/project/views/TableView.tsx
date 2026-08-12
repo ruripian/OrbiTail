@@ -844,8 +844,9 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
     activeCols.forEach((col) => {
       s[`--col-w-${col.id}`] = `${col.width}px`;
     });
+    /* activeCols 가 이미 width 를 담고 있어 prefs.widths 는 중복 deps */
     return s as React.CSSProperties;
-  }, [activeCols, prefs.widths]);
+  }, [activeCols]);
 
   const dragCtx: RowDragCtx = {
     dragId, nestTargetId, dropTarget, dropZone,
@@ -1626,15 +1627,11 @@ function IssueCard({
   /* ── 이슈 삭제 (소프트 삭제 + 되돌리기 토스트) ── */
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
-    console.log("[DELETE] triggered for:", issue.id, issue.title);
 
     issuesApi.delete(workspaceSlug, projectId, issue.id)
-      .then(() => {
-        console.log("[DELETE] success, invalidating...");
-        refresh(issue.parent);
-      })
-      .then(() => console.log("[DELETE] invalidation done"))
-      .catch((err) => console.error("[DELETE] error:", err));
+      .then(() => refresh(issue.parent))
+      /* 실패를 삼키면 목록에서 사라지지 않은 채 "삭제됨" 토스트만 떠서 사용자가 오해한다 */
+      .catch(() => toast.error(t("issues.table.deleteFailed")));
 
     // 되돌리기 토스트 (8초 유지)
     toast(t("issues.table.deleted"), {
@@ -1989,7 +1986,7 @@ function IssueCard({
             onClick={(e) => {
               e.stopPropagation();
               if (updateMutation.isPending) return;
-              updateMutation.mutate({ is_field: !issue.is_field } as any);
+              updateMutation.mutate({ is_field: !issue.is_field });
             }}
             className="shrink-0 ml-auto opacity-0 group-hover:opacity-100 h-6 w-6 rounded-md flex items-center justify-center hover:bg-muted/60 transition-all disabled:opacity-40 disabled:cursor-wait"
           >

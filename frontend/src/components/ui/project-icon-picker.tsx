@@ -391,7 +391,8 @@ export function ProjectIconPicker({ value, onChange, size = "lg" }: ProjectIconP
                         }`}
                         style={{
                           backgroundColor: c,
-                          ...(selected ? { ["--tw-ring-color" as any]: c } : {}),
+                          /* CSS 커스텀 속성은 CSSProperties 에 없어 키를 string 으로 넓힌다 */
+                          ...(selected ? { ["--tw-ring-color" as string]: c } : {}),
                         }}
                         aria-label={`${c}`}
                       >

@@ -103,6 +103,9 @@ export function GeneralPage() {
       updateMutation.mutate(next);
     }, 700);
     return () => clearTimeout(h);
+    /* updateMutation 은 매 렌더 새 객체 — deps 에 넣으면 자동저장 타이머가 매번 리셋돼
+       700ms 를 채우지 못하고 영영 저장되지 않는다. */
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [watched.name, watched.description, watched.network, project]);
 
   /* 아이콘은 폼 바깥에서 별도 PATCH — 즉시 저장 */
@@ -136,7 +139,7 @@ export function GeneralPage() {
   /* 요청 승인 정책 — "all" 멤버 누구나, "admin" 관리자만 */
   const reviewPolicyMutation = useMutation({
     mutationFn: (next: "all" | "admin") =>
-      projectsApi.update(workspaceSlug!, projectId!, { request_review_policy: next } as any),
+      projectsApi.update(workspaceSlug!, projectId!, { request_review_policy: next }),
     onSuccess: () => invalidateProject(),
     onError: () => toast.error(t("project.settings.general.saveFailed")),
   });
@@ -383,7 +386,7 @@ function IdentifierField({ workspaceSlug, projectId, currentValue }: {
 
   /* 입력 변경 시 500ms 디바운스로 중복 체크 */
   const handleChange = (raw: string) => {
-    const sanitized = raw.toUpperCase().replace(/[^A-Z0-9_\-]/g, "").slice(0, 12);
+    const sanitized = raw.toUpperCase().replace(/[^A-Z0-9_-]/g, "").slice(0, 12);
     setValue(sanitized);
     setAvailable(null);
 
@@ -424,6 +427,8 @@ function IdentifierField({ workspaceSlug, projectId, currentValue }: {
       saveMutation.mutate(value);
     }, 1000);
     return () => { if (autoSaveRef.current) clearTimeout(autoSaveRef.current); };
+    /* 위 자동저장과 같은 이유 — mutation 객체를 deps 에 넣으면 타이머가 매 렌더 리셋된다. */
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canSave, value]);
 
   return (

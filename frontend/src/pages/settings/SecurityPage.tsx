@@ -5,6 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { apiErrorMessage } from "@/lib/api-error";
 import { settingsApi } from "@/api/settings";
 import { useAuthStore } from "@/stores/authStore";
 import { Button } from "@/components/ui/button";
@@ -25,9 +26,7 @@ export function SecurityPage() {
       clearAuth();
       navigate("/login");
     },
-    onError: (err: any) => {
-      toast.error(err?.response?.data?.detail ?? t("settings.security.deleteAccountFailed"));
-    },
+    onError: (e) => toast.error(apiErrorMessage(e, t("settings.security.deleteAccountFailed"))),
   });
 
   // Zod 스키마 (t() 사용을 위해 컴포넌트 내부에 정의)
@@ -59,10 +58,7 @@ export function SecurityPage() {
       reset();
       toast.success(t("common.passwordChanged"));
     },
-    onError: (err: any) => {
-      const msg = err?.response?.data?.detail ?? t("common.passwordChangeFailed");
-      toast.error(msg);
-    },
+    onError: (e) => toast.error(apiErrorMessage(e, t("common.passwordChangeFailed"))),
   });
 
   return (

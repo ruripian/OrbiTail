@@ -9,6 +9,10 @@ import { useAuthStore } from "@/stores/authStore";
 import { useTheme } from "@/lib/theme-provider";
 import { useMotion, type MotionMode } from "@/lib/motion-provider";
 import { useDensity, type Density } from "@/lib/density-provider";
+import {
+  useFontSettings, FONT_SANS, FONT_SANS_LABELS, FONT_MONO_LABELS,
+  type FontFamilyKey, type FontMonoKey,
+} from "@/lib/font-settings";
 import { TIMEZONES } from "@/lib/timezones";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
@@ -39,12 +43,14 @@ export function PreferencesPage() {
   const { t } = useTranslation();
   const user = useAuthStore((s) => s.user);
   const updateUser = useAuthStore((s) => s.updateUser);
-  const { setTheme } = useTheme();
+  const { theme, resolvedTheme, setTheme } = useTheme();
   const { mode: motionMode, setMode: setMotionMode } = useMotion();
   const { density, setDensity } = useDensity();
+  const view = useFontSettings();
 
-  const initialTheme: Theme = ((user?.theme === "system" ? "dark" : user?.theme) ?? "dark") as Theme;
-  const [themeValue, setThemeValue] = useState<Theme>(initialTheme);
+  /* 표시값은 provider 를 그대로 따른다 — 로컬 state 로 복제하면 계정에 저장된 테마가
+     늦게 도착했을 때 화면과 설정 UI 가 어긋난다. "system" 은 실제 적용된 쪽으로 표시. */
+  const themeValue: Theme = theme === "system" ? resolvedTheme : theme;
   const [locale, setLocale] = useState<LocaleState>({
     language: (user?.language ?? "ko") as Language,
     timezone: user?.timezone ?? "Asia/Seoul",
@@ -126,7 +132,6 @@ export function PreferencesPage() {
             options={THEME_OPTIONS}
             onChange={(v) => {
               const nv = v as Theme;
-              setThemeValue(nv);
               setTheme(nv);
               mutation.mutate({ theme: nv });
             }}
@@ -157,6 +162,72 @@ export function PreferencesPage() {
             onChange={(v) => setDensity(v as Density)}
           />
         </div>
+
+        {/* 서체 — 내 계정에만 적용. 한글 웹폰트는 선택하는 순간 로드된다. */}
+        <div className="space-y-1.5">
+          <Label>{t("settings.preferences.fontFamily", "서체")}</Label>
+          <Select
+            value={view.fontFamily}
+            onValueChange={(v) => view.setFontFamily(v as FontFamilyKey)}
+          >
+            <SelectTrigger className="w-64">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {FONT_SANS_LABELS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>
+                  <span style={{ fontFamily: FONT_SANS[o.value] }}>{o.label}</span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label>{t("settings.preferences.fontMono", "고정폭 서체")}</Label>
+          <Select
+            value={view.fontMono}
+            onValueChange={(v) => view.setFontMono(v as FontMonoKey)}
+          >
+            <SelectTrigger className="w-64">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {FONT_MONO_LABELS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>
+                  {o.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* 글자 배율 — 밀도 위에 곱해지는 미세 조정 */}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between w-64">
+            <Label>{t("settings.preferences.fontScale", "글자 배율")}</Label>
+            <span className="text-xs tabular-nums text-muted-foreground">
+              {Math.round(view.fontScale * 100)}%
+            </span>
+          </div>
+          <input
+            type="range"
+            min={0.8}
+            max={1.4}
+            step={0.05}
+            value={view.fontScale}
+            onChange={(e) => view.setFontScale(Number(e.target.value))}
+            className="w-64 accent-primary"
+          />
+        </div>
+
+        <button
+          type="button"
+          onClick={view.reset}
+          className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+        >
+          {t("settings.preferences.fontReset", "기본값으로")}
+        </button>
       </section>
 
       {/* ── Locale & Region ── */}

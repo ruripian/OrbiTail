@@ -8,7 +8,7 @@
 """
 from datetime import date, timedelta
 
-from django.db.models import Q, Count
+from django.db.models import Count
 from rest_framework import generics, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -212,7 +212,11 @@ class MePersonalProjectView(APIView):
 
 
 class MeProjectEventsView(generics.ListAPIView):
-    """본인이 참여하는 프로젝트 이벤트 — 모든 워크스페이스. is_global=True 면 멤버 전체 참여로 간주.
+    """본인이 참여자로 지정된 프로젝트 이벤트 — 모든 워크스페이스.
+
+    is_global(프로젝트 전체 일정) 은 여기서 제외한다. 전체 일정은 프로젝트 캘린더와
+    팀 캘린더에서 보는 것이고, 개인 캘린더는 "나에게 직접 걸린 일정"만 담는다.
+    (기본값이 is_global=True 라 전체 일정이 전 멤버 개인 캘린더를 채우던 문제)
 
     쿼리 파라미터:
       ?from=YYYY-MM-DD&to=YYYY-MM-DD  날짜 범위
@@ -228,7 +232,7 @@ class MeProjectEventsView(generics.ListAPIView):
         qs = (
             ProjectEvent.objects
             .filter(project_id__in=member_project_ids)
-            .filter(Q(is_global=True) | Q(participants=user))
+            .filter(participants=user)
             .distinct()
             .select_related("project", "project__workspace", "created_by")
             .prefetch_related("participants")

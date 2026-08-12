@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from apps.accounts.serializers import UserSerializer
+from .constants import DEFAULT_STATES
 from .models import Project, ProjectMember, Category, Sprint, State, ProjectEvent, SavedFilter
 
 
@@ -125,16 +126,16 @@ class ProjectSerializer(serializers.ModelSerializer):
 
         project = Project.objects.create(**validated_data)
 
-        # 기본 5개 상태 자동 생성
-        default_states = [
-            {"name": "Backlog",     "color": "#A3A3A3", "group": State.Group.BACKLOG,    "sequence": 1, "default": True},
-            {"name": "Todo",        "color": "#F0AD4E", "group": State.Group.UNSTARTED,  "sequence": 2},
-            {"name": "In Progress", "color": "#5E6AD2", "group": State.Group.STARTED,    "sequence": 3},
-            {"name": "Done",        "color": "#26B55E", "group": State.Group.COMPLETED,  "sequence": 4},
-            {"name": "Cancelled",   "color": "#D94F4F", "group": State.Group.CANCELLED,  "sequence": 5},
-        ]
-        for state_data in default_states:
-            State.objects.create(project=project, **state_data)
+        # 기본 5개 상태 자동 생성 — 팔레트는 공용 상수, 기본 상태는 Backlog
+        for i, s in enumerate(DEFAULT_STATES, start=1):
+            State.objects.create(
+                project=project,
+                name=s["name"],
+                group=s["group"],
+                color=s["color"],
+                sequence=i,
+                default=(s["group"] == State.Group.BACKLOG),
+            )
 
         # 생성자를 Admin으로 멤버 등록
         ProjectMember.objects.create(

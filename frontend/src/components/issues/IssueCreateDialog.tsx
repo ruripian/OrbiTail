@@ -9,6 +9,7 @@ import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { apiErrorMessage } from "@/lib/api-error";
 import { useIssueRefresh } from "@/hooks/useIssueMutations";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -147,6 +148,9 @@ export function IssueCreateDialog({
         sprint: defaultSprintId ?? "",
       });
     }
+    /* 다이얼로그가 열리는 순간에만 기본값으로 초기화한다 — default* 를 deps 에 넣으면
+       열려 있는 동안 부모가 값을 바꿀 때마다 사용자가 입력하던 폼이 리셋된다. */
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   const mutation = useMutation({
@@ -171,21 +175,8 @@ export function IssueCreateDialog({
       reset();
       onOpenChange(false);
     },
-    onError: (err: any) => {
-      /* 백엔드 DRF 검증 에러는 필드별 메시지 객체 — 첫 필드의 첫 메시지 추출 */
-      const data = err?.response?.data;
-      let detail: string | undefined;
-      if (typeof data === "string") {
-        detail = data;
-      } else if (data?.detail) {
-        detail = String(data.detail);
-      } else if (data && typeof data === "object") {
-        const firstKey = Object.keys(data)[0];
-        const firstVal = data[firstKey];
-        detail = Array.isArray(firstVal) ? `${firstKey}: ${firstVal[0]}` : String(firstVal);
-      }
-      toast.error(detail ?? t("issues.create.error"));
-    },
+    /* DRF 의 detail / 필드별 검증 에러 모두 apiErrorMessage 가 처리한다 */
+    onError: (e) => toast.error(apiErrorMessage(e, t("issues.create.error"))),
   });
 
   return (

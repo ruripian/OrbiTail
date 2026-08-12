@@ -100,7 +100,7 @@ export function TemplatePickerDialog({ open, onOpenChange, workspaceSlug, onPick
               // 빈 문서는 시드에 built_in으로 들어있는데 위에서 별도 처리 — 중복 방지
               .filter((t) => !(t.scope === "built_in" && t.name === "빈 페이지"))
               .map((tpl) => {
-                const icon = (tpl.icon_prop as any)?.emoji ?? "📄";
+                const icon = (tpl.icon_prop as { emoji?: string } | null)?.emoji ?? "📄";
                 return (
                   <div
                     key={tpl.id}

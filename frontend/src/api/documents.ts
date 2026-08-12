@@ -1,5 +1,5 @@
 import { api } from "@/lib/axios";
-import type { DocumentSpace, Document, DocumentIssueLink, DocumentComment, DocumentVersion, CommentThread, DocumentTemplate } from "@/types";
+import type { DocumentSpace, Document, DocumentIssueLink, DocumentComment, DocumentVersion, CommentThread, DocumentTemplate, DocumentAttachment } from "@/types";
 
 export const documentsApi = {
   /* ─── 스페이스 ─── */
@@ -118,12 +118,12 @@ export const documentsApi = {
   /* ─── 첨부파일 ─── */
   attachments: {
     list: (workspaceSlug: string, spaceId: string, docId: string) =>
-      api.get<any[]>(`/workspaces/${workspaceSlug}/documents/spaces/${spaceId}/docs/${docId}/attachments/`).then((r) => r.data),
+      api.get<DocumentAttachment[]>(`/workspaces/${workspaceSlug}/documents/spaces/${spaceId}/docs/${docId}/attachments/`).then((r) => r.data),
 
     upload: (workspaceSlug: string, spaceId: string, docId: string, file: File) => {
       const fd = new FormData();
       fd.append("file", file);
-      return api.post<any>(`/workspaces/${workspaceSlug}/documents/spaces/${spaceId}/docs/${docId}/attachments/`, fd, {
+      return api.post<DocumentAttachment>(`/workspaces/${workspaceSlug}/documents/spaces/${spaceId}/docs/${docId}/attachments/`, fd, {
         headers: { "Content-Type": "multipart/form-data" },
       }).then((r) => r.data);
     },

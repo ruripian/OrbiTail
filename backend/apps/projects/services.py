@@ -11,18 +11,8 @@
   - 기본 State 5개 자동 셋업 — 일반 프로젝트와 동일 UX(상태 변경/Board 뷰는 안 쓰지만 미래 확장 대비).
 """
 from django.db import transaction
+from .constants import DEFAULT_STATES
 from .models import Project, ProjectMember, State
-
-
-# Personal 프로젝트 기본 상태 — 일반 프로젝트와 동일한 5단계 셋.
-# (name, group, color, sequence) — default=True 는 "unstarted" 만.
-_PERSONAL_DEFAULT_STATES = [
-    ("Backlog",      "backlog",   "#94a3b8", 100),
-    ("Todo",         "unstarted", "#5E6AD2", 200),
-    ("In Progress",  "started",   "#F0AD4E", 300),
-    ("Done",         "completed", "#26B55E", 400),
-    ("Cancelled",    "cancelled", "#D94F4F", 500),
-]
 
 
 def get_or_create_personal_project(workspace, user) -> Project:
@@ -66,16 +56,16 @@ def get_or_create_personal_project(workspace, user) -> Project:
                 member=user,
                 role=ProjectMember.Role.ADMIN,
             )
-            # 기본 상태 5개
+            # 기본 상태 5개 — 팔레트는 공용 상수, 기본 상태만 Personal 정책(Todo)
             State.objects.bulk_create([
                 State(
                     project=project,
-                    name=name,
-                    group=group,
-                    color=color,
-                    sequence=seq,
-                    default=(group == "unstarted"),
+                    name=s["name"],
+                    group=s["group"],
+                    color=s["color"],
+                    sequence=i * 100,
+                    default=(s["group"] == "unstarted"),
                 )
-                for (name, group, color, seq) in _PERSONAL_DEFAULT_STATES
+                for i, s in enumerate(DEFAULT_STATES, start=1)
             ])
     return project

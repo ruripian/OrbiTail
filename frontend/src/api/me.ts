@@ -70,7 +70,8 @@ export const meApi = {
       )
       .then((r) => r.data),
 
-  /** 본인이 참여(is_global=true 포함) 하는 프로젝트 이벤트 — 해당 ws 안에서만. */
+  /** 본인이 참여자로 지정된 프로젝트 이벤트 — 해당 ws 안에서만.
+      프로젝트 전체 일정(is_global)은 개인 캘린더를 채우지 않도록 서버가 제외한다. */
   projectEvents: (workspaceSlug: string, opts: DateRange = {}) =>
     api
       .get<ProjectEvent[]>("/me/project-events/", {

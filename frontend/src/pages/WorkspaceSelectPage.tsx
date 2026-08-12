@@ -8,11 +8,15 @@ import { workspacesApi } from "@/api/workspaces";
 import { api } from "@/lib/axios";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
 import { useAuthStore } from "@/stores/authStore";
+import { apiErrorMessage } from "@/lib/api-error";
 import { Button } from "@/components/ui/button";
+import type { Workspace, WorkspaceJoinRequest } from "@/types";
 
 /* useQuery 의 default `= []` 를 매 render 마다 새 array 로 만들지 않기 위한 모듈 단위 안정 ref.
-   이 reference 가 매번 바뀌면 자식 effect deps 가 매 render 변경되어 setState 무한 루프 위험. */
-const EMPTY_LIST: any[] = [];
+   이 reference 가 매번 바뀌면 자식 effect deps 가 매 render 변경되어 setState 무한 루프 위험.
+   쿼리별로 따로 두는 이유: 하나를 any[] 로 공유하면 data 타입이 통째로 any 로 무너진다. */
+const EMPTY_WORKSPACES: Workspace[] = [];
+const EMPTY_REQUESTS: WorkspaceJoinRequest[] = [];
 
 export function WorkspaceSelectPage() {
   const { t } = useTranslation();
@@ -49,7 +53,7 @@ export function WorkspaceSelectPage() {
   const [searchParams] = useSearchParams();
   const explicitSwitch = searchParams.get("switch") === "1";
 
-  const { data: workspaces = EMPTY_LIST, isLoading } = useQuery({
+  const { data: workspaces = EMPTY_WORKSPACES, isLoading } = useQuery({
     queryKey: ["workspaces"],
     queryFn: workspacesApi.list,
   });
@@ -57,13 +61,13 @@ export function WorkspaceSelectPage() {
   /* 가입 후보 + 내 신청 목록 — 멤버십 0개일 때만 조회 */
   const showJoinFlow = !isLoading && !explicitSwitch && workspaces.length === 0 && !user?.is_staff;
 
-  const { data: joinable = EMPTY_LIST, isLoading: joinableLoading } = useQuery({
+  const { data: joinable = EMPTY_WORKSPACES, isLoading: joinableLoading } = useQuery({
     queryKey: ["workspaces", "joinable"],
     queryFn: workspacesApi.joinable,
     enabled: showJoinFlow,
   });
 
-  const { data: myRequests = EMPTY_LIST, isLoading: myRequestsLoading } = useQuery({
+  const { data: myRequests = EMPTY_REQUESTS, isLoading: myRequestsLoading } = useQuery({
     queryKey: ["workspaces", "join-requests", "mine"],
     queryFn: workspacesApi.joinRequests.listMine,
     enabled: showJoinFlow,
@@ -72,7 +76,7 @@ export function WorkspaceSelectPage() {
 
   /* myRequests 변경 시에만 재계산 — 매 render 마다 새 array/Set ref 가 effect deps 를 흔드는 걸 차단 */
   const pendingRequests = useMemo(
-    () => (myRequests as any[]).filter((r) => r.status === "pending"),
+    () => myRequests.filter((r) => r.status === "pending"),
     [myRequests],
   );
   const pendingSlugs = useMemo(
@@ -80,7 +84,7 @@ export function WorkspaceSelectPage() {
     [pendingRequests],
   );
   const approvedRequest = useMemo(
-    () => (myRequests as any[]).find((r) => r.status === "approved"),
+    () => myRequests.find((r) => r.status === "approved"),
     [myRequests],
   );
 
@@ -97,9 +101,9 @@ export function WorkspaceSelectPage() {
       qc.invalidateQueries({ queryKey: ["workspaces", "join-requests", "mine"] });
       toast.success(t("workspaceSelect.requested", "가입 신청을 보냈습니다. 관리자 승인을 기다려 주세요."));
     },
-    onError: (err: any) => {
-      toast.error(err?.response?.data?.detail ?? t("workspaceSelect.requestFailed", "가입 신청에 실패했습니다."));
-    },
+    onError: (e) => toast.error(
+      apiErrorMessage(e, t("workspaceSelect.requestFailed", "가입 신청에 실패했습니다.")),
+    ),
   });
 
   const cancelMutation = useMutation({
@@ -116,9 +120,7 @@ export function WorkspaceSelectPage() {
       qc.invalidateQueries({ queryKey: ["workspaces"] });
       toast.success(t("workspaceSelect.deleteSuccess"));
     },
-    onError: (err: any) => {
-      toast.error(err?.response?.data?.detail ?? t("workspaceSelect.deleteFailed"));
-    },
+    onError: (e) => toast.error(apiErrorMessage(e, t("workspaceSelect.deleteFailed"))),
   });
 
   const handleDelete = (e: React.MouseEvent, slug: string, name: string) => {
@@ -148,7 +150,7 @@ export function WorkspaceSelectPage() {
     // 1.5) 멤버십 2개 이상 + 직전에 사용한 워크스페이스가 여전히 멤버 목록에 있으면 그쪽으로 자동 진입.
     //      멤버십이 풀렸거나 currentWorkspace 자체가 없으면 fallthrough → 선택 화면 노출.
     if (workspaces.length > 1 && currentWorkspaceSlug) {
-      const matched = (workspaces as any[]).find((w) => w.slug === currentWorkspaceSlug);
+      const matched = workspaces.find((w) => w.slug === currentWorkspaceSlug);
       if (matched) {
         /* 이 분기에선 currentWorkspaceSlug === matched.slug 가 항상 참이라 set 은 사실상 no-op,
            가드로 명시해 두면 다른 분기와 패턴 일관 + 향후 변형에서 안전. */
@@ -175,14 +177,16 @@ export function WorkspaceSelectPage() {
       && !requestMutation.isPending
     ) {
       autoRequested.current = true;
-      requestMutation.mutate((joinable[0] as any).slug);
+      requestMutation.mutate(joinable[0].slug);
     }
+    /* setCurrentWorkspace, navigate, qc, requestMutation 는 stable ref (zustand action / router / react-query).
+       requestMutation 만은 매 렌더 새 객체라 deps 에 넣으면 자동 신청 effect 가 반복 실행된다. */
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     workspaces, isLoading, explicitSwitch,
     showJoinFlow, joinable, joinableLoading,
     myRequestsLoading, pendingRequests.length, approvedRequest,
     currentWorkspaceSlug,
-    /* setCurrentWorkspace, navigate, qc, requestMutation 는 stable ref (zustand action / router / react-query) */
   ]);
 
   if (isLoading || (showJoinFlow && (joinableLoading || myRequestsLoading))) {
@@ -190,7 +194,7 @@ export function WorkspaceSelectPage() {
   }
 
   /* 후보에서 PENDING 진행 중인 워크스페이스는 별도 카드로 분리 */
-  const joinableNotPending = (joinable as any[]).filter((ws) => !pendingSlugs.has(ws.slug));
+  const joinableNotPending = joinable.filter((ws) => !pendingSlugs.has(ws.slug));
 
   return (
     <div className="relative flex min-h-screen items-center justify-center">
@@ -207,7 +211,7 @@ export function WorkspaceSelectPage() {
         <h1 className="text-xl font-bold">{t("workspaceSelect.title")}</h1>
 
         {/* 멤버 워크스페이스 */}
-        {(workspaces as any[]).map((ws) => (
+        {workspaces.map((ws) => (
           <div
             key={ws.id}
             onClick={() => {
