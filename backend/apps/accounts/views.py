@@ -60,7 +60,8 @@ def _maybe_auto_request_join(user, requested_slug=None):
     if len(candidates) != 1:
         return None
     return _create_join_request(user, candidates[0])
-from .permissions import IsSuperUser, IsWorkspaceAdminOrSuperUser
+from apps.admin_console.base import AdminResourceListView
+from .permissions import IsSuperUser
 from .serializers import (
     AdminUserSerializer,
     AnnouncementSerializer,
@@ -568,41 +569,39 @@ class PasswordResetConfirmView(APIView):
         return Response({"detail": "비밀번호가 성공적으로 변경되었습니다."})
 
 
-class AdminUserListView(generics.ListAPIView):
-    """관리자 페이지용 전체 사용자 목록 — 워크스페이스 관리자 이상 접근 가능.
+class AdminUserListView(AdminResourceListView):
+    """시스템 전체 사용자 목록 — 슈퍼유저 전용.
 
-    슈퍼유저만 볼 수 있는 플래그(is_superuser 등)는 Serializer 레벨에서 read-only로 노출되며,
-    실제 권한 변경 엔드포인트에서 별도 가드.
+    스코프가 시스템 전역이므로 워크스페이스 단위 권한(ADMIN)으로는 가드할 수 없다.
+    워크스페이스 관리자는 자기 워크스페이스의 멤버/가입신청 API 로만 인원을 다룬다.
+
+    검색/정렬/페이지네이션은 AdminResourceListView 담당. 여기서는 status 프리셋만 다룬다.
     """
-    permission_classes = [IsWorkspaceAdminOrSuperUser]
     serializer_class = AdminUserSerializer
+    search_fields = ["email", "display_name", "first_name", "last_name"]
+    ordering_allow = ["created_at", "email", "display_name", "last_login"]
+
+    # status 는 단일 필드 lookup 이 아니라 여러 플래그 조합이라 filter_spec 으로 표현하지 않는다.
+    STATUS_PRESETS = {
+        "pending":    {"is_email_verified": True, "is_approved": False},
+        "approved":   {"is_approved": True},
+        "suspended":  {"is_suspended": True},
+        "superusers": {"is_superuser": True},
+    }
 
     def get_queryset(self):
-        qs = User.objects.all().order_by("-created_at")
-        status_param = self.request.query_params.get("status")
-        search = self.request.query_params.get("search", "").strip()
-        if status_param == "pending":
-            qs = qs.filter(is_email_verified=True, is_approved=False)
-        elif status_param == "approved":
-            qs = qs.filter(is_approved=True)
-        elif status_param == "suspended":
-            qs = qs.filter(is_suspended=True)
-        elif status_param == "superusers":
-            qs = qs.filter(is_superuser=True)
-        if search:
-            from django.db.models import Q
-            qs = qs.filter(
-                Q(email__icontains=search) |
-                Q(display_name__icontains=search) |
-                Q(first_name__icontains=search) |
-                Q(last_name__icontains=search)
-            )
-        return qs
+        qs = User.objects.all()
+        preset = self.STATUS_PRESETS.get(self.request.query_params.get("status"))
+        return qs.filter(**preset) if preset else qs
 
 
 class AdminUserApproveView(APIView):
-    """사용자 가입 승인 — 워크스페이스 관리자 이상"""
-    permission_classes = [IsWorkspaceAdminOrSuperUser]
+    """시스템 가입 승인 — 슈퍼유저 전용.
+
+    승인은 서비스 전체 로그인 허용을 뜻하므로 워크스페이스 단위 권한과 급이 다르다.
+    워크스페이스 참여 승인은 별도 흐름(가입신청 승인)으로 분리되어 있다.
+    """
+    permission_classes = [IsSuperUser]
 
     def post(self, request, pk):
         from apps.audit.models import log_admin_action

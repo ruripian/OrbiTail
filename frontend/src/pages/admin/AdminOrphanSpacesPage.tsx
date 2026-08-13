@@ -1,12 +1,12 @@
 /**
- * 탈퇴자 개인 스페이스 관리 — 워크스페이스 관리자 전용.
+ * 탈퇴자 개인 스페이스 관리 — 슈퍼유저 전용, 워크스페이스 상세 아래(`/admin/workspaces/:slug/spaces`).
  * 탈퇴/비활성 사용자의 personal 스페이스 목록 표시 + 영구 삭제.
  */
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Trash2, User as UserIcon, Loader2 } from "lucide-react";
+import { ChevronLeft, Trash2, User as UserIcon, Loader2 } from "lucide-react";
 import { api } from "@/lib/axios";
 import { Button } from "@/components/ui/button";
 
@@ -53,8 +53,17 @@ export function AdminOrphanSpacesPage() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-lg font-semibold">탈퇴자 개인 스페이스</h1>
+        {/* 콘솔의 다른 탭은 전역이지만 이 페이지만 워크스페이스 한정이다 — 스코프를 상단에 못박는다. */}
+        <Link
+          to="/admin/workspaces"
+          className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <ChevronLeft className="h-3.5 w-3.5" />
+          워크스페이스 목록
+        </Link>
+        <h1 className="text-lg font-semibold mt-1.5">탈퇴자 개인 스페이스</h1>
         <p className="text-sm text-muted-foreground mt-1">
+          <span className="font-medium text-foreground">{workspaceSlug}</span> 워크스페이스에서
           탈퇴했거나 비활성화된 사용자의 개인 스페이스. 내용은 볼 수 없으며 영구 삭제만 가능합니다.
         </p>
       </div>

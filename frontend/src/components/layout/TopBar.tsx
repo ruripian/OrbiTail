@@ -323,11 +323,11 @@ export function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
                 <Settings className="h-4 w-4" />
                 {t("topbar.preferences")}
               </DropdownMenuItem>
-              {(user.is_superuser || user.is_workspace_admin) && (
+              {user.is_superuser && (
                 <>
                   <DropdownMenuSeparator className="my-1" />
                   <DropdownMenuItem
-                    onClick={() => navigate(`/${workspaceSlug}/admin/users`)}
+                    onClick={() => navigate("/admin")}
                     className="cursor-pointer rounded-lg gap-2.5 px-3 py-2"
                   >
                     <ShieldAlert className="h-4 w-4" />

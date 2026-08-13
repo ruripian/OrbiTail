@@ -667,3 +667,58 @@ export interface AuthTokens {
   refresh: string;
   user: User;
 }
+
+/**
+ * 콘솔 콘텐츠 탐색기의 첨부 한 줄.
+ * 문서 첨부와 이슈 첨부가 서버에서 같은 형태로 정규화되어 내려온다.
+ */
+export interface AdminAttachmentRow {
+  id:                string;
+  kind:              "document" | "issue";
+  filename:          string;
+  size:              number;
+  mime:              string | null;
+  file_url:          string | null;
+  /** 문서 또는 이슈의 id */
+  parent_id:         string;
+  /** 문서 제목, 또는 "PRJ-12 이슈 제목" */
+  parent_title:      string;
+  /** 스페이스 id(문서) 또는 프로젝트 id(이슈) — 원본 열기 링크 조립용 */
+  location_id:       string;
+  /** 스페이스명(문서) 또는 프로젝트명(이슈) */
+  location_name:     string;
+  workspace_slug:    string;
+  workspace_name:    string;
+  uploaded_by_name:  string | null;
+  uploaded_at:       string;
+  /** 문서 첨부만 — project | personal | shared */
+  space_type?:       string;
+  /** 이슈 첨부만 — direct | from_comment */
+  origin?:           string;
+}
+
+/** 관리자 콘솔 개요 지표 — GET /api/admin/overview/ */
+export interface AdminOverview {
+  users: {
+    total:           number;
+    pending:         number;
+    unverified:      number;
+    suspended:       number;
+    superusers:      number;
+    deleted:         number;
+    joined_last_7d:  number;
+    joined_last_30d: number;
+  };
+  workspaces: {
+    total:    number;
+    projects: number;
+  };
+  content: {
+    documents:               number;
+    issues:                  number;
+    attachments:             number;
+    storage_bytes:           number;
+    document_storage_bytes:  number;
+    issue_storage_bytes:     number;
+  };
+}

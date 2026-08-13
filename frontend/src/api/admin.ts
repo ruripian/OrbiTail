@@ -1,5 +1,12 @@
 import { api } from "@/lib/axios";
-import type { AdminUser, AuditLog, PaginatedResponse, Workspace } from "@/types";
+import type {
+  AdminAttachmentRow,
+  AdminOverview,
+  AdminUser,
+  AuditLog,
+  PaginatedResponse,
+  Workspace,
+} from "@/types";
 
 export type UserStatusFilter = "pending" | "approved" | "suspended" | "superusers";
 
@@ -7,6 +14,9 @@ export type UserStatusFilter = "pending" | "approved" | "suspended" | "superuser
  * 관리자 API — 사용자 / 워크스페이스 / 감사 로그.
  */
 export const adminApi = {
+  /* ─── 개요 ─── */
+  overview: () => api.get<AdminOverview>("/admin/overview/").then((r) => r.data),
+
   /* ─── 사용자 ─── */
   listUsers: (params?: { status?: UserStatusFilter; search?: string; page?: number }) =>
     api
@@ -32,7 +42,7 @@ export const adminApi = {
   deleteUser: (userId: string) => api.delete(`/auth/admin/users/${userId}/`),
 
   /* ─── 워크스페이스 ─── */
-  listWorkspaces: (params?: { search?: string; page?: number }) =>
+  listWorkspaces: (params?: Record<string, string | number | undefined>) =>
     api
       .get<PaginatedResponse<Workspace>>("/workspaces/admin/all/", { params })
       .then((r) => r.data),
@@ -47,8 +57,24 @@ export const adminApi = {
       .patch<Workspace>(`/workspaces/admin/${slug}/owner/`, { owner_id })
       .then((r) => r.data),
 
-  /* ─── 감사 로그 ─── */
-  listAudit: (params?: { action?: string; target_type?: string; actor?: string; page?: number }) =>
+  /* ─── 콘텐츠 탐색기 ───
+     문서/이슈 첨부는 모델이 달라 엔드포인트를 나누되 응답 형태는 동일하게 정규화된다. */
+  content: {
+    documentAttachments: (params?: Record<string, string | number | undefined>) =>
+      api
+        .get<PaginatedResponse<AdminAttachmentRow>>("/admin/content/document-attachments/", { params })
+        .then((r) => r.data),
+
+    issueAttachments: (params?: Record<string, string | number | undefined>) =>
+      api
+        .get<PaginatedResponse<AdminAttachmentRow>>("/admin/content/issue-attachments/", { params })
+        .then((r) => r.data),
+  },
+
+  /* ─── 감사 로그 ───
+     파라미터는 AdminResourceListView 규격(search / ordering / page / page_size / filter_spec)을
+     그대로 통과시키므로 개별 나열하지 않는다. */
+  listAudit: (params?: Record<string, string | number | undefined>) =>
     api
       .get<PaginatedResponse<AuditLog>>("/admin/audit/", { params })
       .then((r) => r.data),

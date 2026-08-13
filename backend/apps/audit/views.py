@@ -1,30 +1,28 @@
-from rest_framework import generics
+from apps.admin_console.base import (
+    AdminResourceListView,
+    as_datetime,
+    as_datetime_end,
+)
 
-from apps.accounts.permissions import IsSuperUser
 from .models import AuditLog
 from .serializers import AuditLogSerializer
 
 
-class AuditLogListView(generics.ListAPIView):
+class AuditLogListView(AdminResourceListView):
     """감사 로그 목록 — 슈퍼유저 전용.
 
-    쿼리 파라미터:
-      - action: Action 코드 (예: superuser_grant)
-      - target_type: user | workspace
-      - actor: 사용자 UUID (특정 관리자가 한 행위만)
+    검색은 행위자/대상 라벨을 본다. 대상은 삭제 후에도 라벨 스냅샷이 남으므로
+    "삭제된 그 워크스페이스" 를 이름으로 되찾을 수 있다.
     """
-    permission_classes = [IsSuperUser]
     serializer_class = AuditLogSerializer
+    queryset = AuditLog.objects.select_related("actor").all()
 
-    def get_queryset(self):
-        qs = AuditLog.objects.select_related("actor").all()
-        action = self.request.query_params.get("action")
-        target_type = self.request.query_params.get("target_type")
-        actor = self.request.query_params.get("actor")
-        if action:
-            qs = qs.filter(action=action)
-        if target_type:
-            qs = qs.filter(target_type=target_type)
-        if actor:
-            qs = qs.filter(actor_id=actor)
-        return qs
+    search_fields = ["actor_label", "target_label"]
+    filter_spec = {
+        "action": "action",
+        "target_type": "target_type",
+        "actor": "actor_id",
+        "created_after": ("created_at__gte", as_datetime),
+        "created_before": ("created_at__lte", as_datetime_end),
+    }
+    ordering_allow = ["created_at", "action"]

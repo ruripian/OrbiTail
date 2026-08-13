@@ -1,10 +1,11 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useMutation, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { apiErrorMessage } from "@/lib/api-error";
 import {
-  Crown, Loader2, Plus, Search, Trash2, Users as UsersIcon,
+  Crown, FolderTree, Loader2, Plus, Search, Trash2, Users as UsersIcon,
 } from "lucide-react";
 
 import { adminApi } from "@/api/admin";
@@ -121,6 +122,13 @@ export function AdminWorkspacesPage() {
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0 ml-4">
+                {/* 워크스페이스 한정 도구로 들어가는 입구 — 콘솔 사이드바에는 두지 않는다(전역 스코프 유지). */}
+                <Button size="sm" variant="ghost" asChild>
+                  <Link to={`/admin/workspaces/${ws.slug}/spaces`}>
+                    <FolderTree className="h-3.5 w-3.5 mr-1" />
+                    {t("admin.workspaces.spacesBtn", "스페이스 정리")}
+                  </Link>
+                </Button>
                 <Button
                   size="sm"
                   variant="outline"

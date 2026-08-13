@@ -32,6 +32,7 @@ INSTALLED_APPS = [
     "apps.audit",
     "apps.documents",
     "apps.me",
+    "apps.admin_console",
 ]
 
 MIDDLEWARE = [

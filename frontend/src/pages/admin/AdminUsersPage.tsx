@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useMutation, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -26,7 +27,12 @@ export function AdminUsersPage() {
   const currentUser = useAuthStore((s) => s.user);
   const isSuper = !!currentUser?.is_superuser;
 
-  const [tab, setTab] = useState<Tab>("pending");
+  /* 개요의 "승인 대기 3건" 같은 링크가 실제로 그 필터로 열리도록 ?status= 를 초기값으로 받는다. */
+  const [searchParams] = useSearchParams();
+  const statusParam = searchParams.get("status");
+  const [tab, setTab] = useState<Tab>(
+    TABS.includes(statusParam as Tab) ? (statusParam as Tab) : "pending",
+  );
   const [search, setSearch] = useState("");
 
   const {

@@ -1,17 +1,17 @@
-import { useState } from "react";
-import { useInfiniteQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { Loader2 } from "lucide-react";
+import { ScrollText } from "lucide-react";
 
 import { adminApi } from "@/api/admin";
-import { useAuthStore } from "@/stores/authStore";
+import {
+  AdminResourceTable,
+  type AdminColumn,
+  type AdminFilter,
+} from "@/components/admin/AdminResourceTable";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { formatLongDate, formatTime } from "@/utils/date-format";
-import type { AuditAction } from "@/types";
+import type { AuditAction, AuditLog } from "@/types";
 
-const ACTIONS: (AuditAction | "all")[] = [
-  "all",
+const ACTIONS: AuditAction[] = [
   "superuser_grant", "superuser_revoke",
   "user_approve", "user_suspend", "user_unsuspend", "user_delete",
   "workspace_create", "workspace_delete", "workspace_owner",
@@ -31,123 +31,109 @@ const ACTION_TONE: Record<AuditAction, string> = {
 
 export function AdminAuditLogPage() {
   const { t } = useTranslation();
-  const user = useAuthStore((s) => s.user);
 
-  const isSuper = !!user?.is_superuser;
+  /* target_type 은 향후 attachment/document 등으로 늘어나므로, 라벨이 없는 값은 원문을 그대로 보여준다. */
+  const targetLabel = (type: string) =>
+    ({
+      user: t("admin.audit.targetUser", "사용자"),
+      workspace: t("admin.audit.targetWorkspace", "워크스페이스"),
+    })[type] ?? type;
 
-  const [actionFilter, setActionFilter] = useState<AuditAction | "all">("all");
-
-  const {
-    data,
-    isLoading,
-    hasNextPage,
-    isFetchingNextPage,
-    fetchNextPage,
-  } = useInfiniteQuery({
-    queryKey: ["admin_audit", actionFilter],
-    queryFn: ({ pageParam = 1 }) =>
-      adminApi.listAudit({
-        ...(actionFilter !== "all" ? { action: actionFilter } : {}),
-        page: pageParam,
-      }),
-    getNextPageParam: (lastPage) => {
-      if (!lastPage.next) return undefined;
-      const url = new URL(lastPage.next);
-      return Number(url.searchParams.get("page"));
+  const columns: AdminColumn<AuditLog>[] = [
+    {
+      key: "action",
+      label: t("admin.audit.columnAction", "행위"),
+      sortKey: "action",
+      render: (log) => (
+        <Badge variant="outline" className={`text-[10px] whitespace-nowrap ${ACTION_TONE[log.action] ?? ""}`}>
+          {t(`admin.audit.action.${log.action}`)}
+        </Badge>
+      ),
     },
-    initialPageParam: 1,
-    /* 권한 없으면 요청 자체를 보내지 않는다 — 훅은 항상 같은 순서로 호출되어야 하므로
-       early return 대신 enabled 로 끈다. */
-    enabled: isSuper,
-  });
+    {
+      key: "actor",
+      label: t("admin.audit.columnActor", "행위자"),
+      render: (log) => (
+        <span className="text-xs font-medium">
+          {log.actor_label || t("admin.audit.system")}
+        </span>
+      ),
+    },
+    {
+      key: "target",
+      label: t("admin.audit.columnTarget", "대상"),
+      render: (log) => (
+        <div className="min-w-0">
+          <div className="text-xs truncate max-w-[280px]" title={log.target_label}>
+            {log.target_label}
+          </div>
+          <div className="text-2xs text-muted-foreground">{targetLabel(log.target_type)}</div>
+        </div>
+      ),
+    },
+    {
+      key: "metadata",
+      label: t("admin.audit.columnMetadata", "상세"),
+      render: (log) =>
+        log.metadata && Object.keys(log.metadata).length > 0 ? (
+          <span className="text-2xs text-muted-foreground font-mono">
+            {Object.entries(log.metadata).map(([k, v]) => `${k}: ${String(v)}`).join(" · ")}
+          </span>
+        ) : (
+          <span className="text-2xs text-muted-foreground/50">-</span>
+        ),
+    },
+    {
+      key: "created_at",
+      label: t("admin.audit.columnTime", "시각"),
+      sortKey: "created_at",
+      align: "right",
+      render: (log) => (
+        <div className="text-2xs text-muted-foreground tabular-nums whitespace-nowrap">
+          <div>{formatLongDate(log.created_at)}</div>
+          <div>{formatTime(log.created_at)}</div>
+        </div>
+      ),
+    },
+  ];
 
-  const logs = data?.pages.flatMap((p) => p.results) ?? [];
-
-  if (!isSuper) {
-    return <p className="text-sm text-muted-foreground">{t("admin.common.superOnly")}</p>;
-  }
+  const filters: AdminFilter[] = [
+    { key: "search", label: t("admin.audit.searchPlaceholder", "행위자 · 대상 검색"), type: "text" },
+    {
+      key: "action",
+      label: t("admin.audit.action.all"),
+      type: "select",
+      options: ACTIONS.map((a) => ({ value: a, label: t(`admin.audit.action.${a}`) })),
+    },
+    {
+      key: "target_type",
+      label: t("admin.audit.filterTargetType", "대상 종류"),
+      type: "select",
+      options: [
+        { value: "user", label: t("admin.audit.targetUser", "사용자") },
+        { value: "workspace", label: t("admin.audit.targetWorkspace", "워크스페이스") },
+      ],
+    },
+    { key: "created_after", label: t("admin.audit.filterFrom", "시작일"), type: "date" },
+    { key: "created_before", label: t("admin.audit.filterTo", "종료일"), type: "date" },
+  ];
 
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="space-y-6">
       <div>
         <h1 className="text-lg font-semibold">{t("admin.audit.title")}</h1>
         <p className="text-sm text-muted-foreground mt-1">{t("admin.audit.desc")}</p>
       </div>
 
-      <div className="flex flex-wrap gap-1.5">
-        {ACTIONS.map((a) => (
-          <Button
-            key={a}
-            size="sm"
-            variant={actionFilter === a ? "default" : "outline"}
-            onClick={() => setActionFilter(a)}
-            className="h-7 text-xs"
-          >
-            {t(`admin.audit.action.${a}`)}
-          </Button>
-        ))}
-      </div>
-
-      <div className="space-y-2">
-        {isLoading ? (
-          <div className="py-8 flex justify-center text-muted-foreground">
-            <Loader2 className="h-6 w-6 animate-spin" />
-          </div>
-        ) : logs.length === 0 ? (
-          <div className="py-8 text-center text-sm text-muted-foreground">
-            {t("admin.audit.empty")}
-          </div>
-        ) : (
-          <>
-          {logs.map((log) => (
-            <div
-              key={log.id}
-              className="rounded-lg border bg-card p-3 shadow-sm flex items-start gap-3"
-            >
-              <Badge
-                variant="outline"
-                className={`shrink-0 text-[10px] ${ACTION_TONE[log.action] ?? ""}`}
-              >
-                {t(`admin.audit.action.${log.action}`)}
-              </Badge>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm leading-tight">
-                  <span className="font-medium">{log.actor_label || t("admin.audit.system")}</span>
-                  <span className="text-muted-foreground mx-1.5">→</span>
-                  <span className="truncate">{log.target_label}</span>
-                </p>
-                {log.metadata && Object.keys(log.metadata).length > 0 && (
-                  <p className="text-xs text-muted-foreground mt-1 font-mono truncate">
-                    {Object.entries(log.metadata)
-                      .map(([k, v]) => `${k}: ${String(v)}`)
-                      .join(" · ")}
-                  </p>
-                )}
-              </div>
-              <div className="text-xs text-muted-foreground shrink-0 text-right tabular-nums">
-                <div>{formatLongDate(log.created_at)}</div>
-                <div>{formatTime(log.created_at)}</div>
-              </div>
-            </div>
-          ))}
-          {hasNextPage && (
-            <div className="flex justify-center pt-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => fetchNextPage()}
-                disabled={isFetchingNextPage}
-              >
-                {isFetchingNextPage ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-1" />
-                ) : null}
-                {t("admin.pagination.loadMore")}
-              </Button>
-            </div>
-          )}
-          </>
-        )}
-      </div>
+      <AdminResourceTable<AuditLog>
+        queryKey={["admin_audit"]}
+        fetchPage={adminApi.listAudit}
+        columns={columns}
+        rowKey={(log) => log.id}
+        filters={filters}
+        emptyIcon={<ScrollText className="h-10 w-10" />}
+        emptyTitle={t("admin.audit.empty")}
+      />
     </div>
   );
 }

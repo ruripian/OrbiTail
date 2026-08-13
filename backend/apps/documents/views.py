@@ -7,6 +7,7 @@ from rest_framework.generics import get_object_or_404
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.accounts.permissions import IsSuperUser
 from apps.projects.models import ProjectMember
 from apps.workspaces.models import WorkspaceMember
 
@@ -470,22 +471,15 @@ class SpaceBookmarkToggleView(APIView):
         return Response({"bookmarked": False})
 
 
-def _require_workspace_admin(user, workspace_slug):
-    """워크스페이스 ADMIN 이상만 통과. 슈퍼유저는 무조건 통과."""
-    if user.is_superuser:
-        return True
-    return WorkspaceMember.objects.filter(
-        workspace__slug=workspace_slug, member=user,
-        role__gte=WorkspaceMember.Role.ADMIN,
-    ).exists()
-
-
 class OrphanSpaceListView(APIView):
-    """탈퇴/비활성 사용자의 개인 스페이스 목록 — 워크스페이스 관리자 전용"""
+    """탈퇴/비활성 사용자의 개인 스페이스 목록 — 슈퍼유저 전용.
+
+    개인 스페이스는 소유자만 볼 수 있는 비공개 콘텐츠이고 삭제가 복구 불가이므로,
+    워크스페이스 ADMIN 권한으로는 열지 않는다.
+    """
+    permission_classes = [IsSuperUser]
 
     def get(self, request, workspace_slug):
-        if not _require_workspace_admin(request.user, workspace_slug):
-            return Response({"detail": "권한이 없습니다."}, status=status.HTTP_403_FORBIDDEN)
         # owner가 deleted_at != null 또는 is_active=False
         spaces = DocumentSpace.objects.filter(
             workspace__slug=workspace_slug,
@@ -511,11 +505,10 @@ class OrphanSpaceListView(APIView):
 
 
 class OrphanSpaceDeleteView(APIView):
-    """탈퇴자 개인 스페이스 영구 삭제 (CASCADE로 문서/첨부 모두 삭제)"""
+    """탈퇴자 개인 스페이스 영구 삭제 (CASCADE로 문서/첨부 모두 삭제) — 슈퍼유저 전용"""
+    permission_classes = [IsSuperUser]
 
     def delete(self, request, workspace_slug, pk):
-        if not _require_workspace_admin(request.user, workspace_slug):
-            return Response({"detail": "권한이 없습니다."}, status=status.HTTP_403_FORBIDDEN)
         try:
             space = DocumentSpace.objects.get(
                 pk=pk, workspace__slug=workspace_slug, space_type="personal",
@@ -534,11 +527,13 @@ class OrphanSpaceDeleteView(APIView):
 
 
 class AttachmentSearchView(APIView):
-    """워크스페이스 전체 첨부파일 검색 (관리자 전용)"""
+    """워크스페이스 전체 첨부파일 검색 — 슈퍼유저 전용.
+
+    스페이스 공개 여부를 무시하고 전량 조회하므로 워크스페이스 ADMIN 권한으로는 열지 않는다.
+    """
+    permission_classes = [IsSuperUser]
 
     def get(self, request, workspace_slug):
-        if not _require_workspace_admin(request.user, workspace_slug):
-            return Response({"detail": "권한이 없습니다."}, status=status.HTTP_403_FORBIDDEN)
         q = request.query_params.get("q", "").strip()
         qs = DocumentAttachment.objects.filter(
             document__space__workspace__slug=workspace_slug,

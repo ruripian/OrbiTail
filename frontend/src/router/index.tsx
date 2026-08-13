@@ -1,4 +1,4 @@
-import { createBrowserRouter, Navigate, Outlet, useMatches } from "react-router-dom";
+import { createBrowserRouter, Navigate, Outlet, useMatches, useParams } from "react-router-dom";
 import { useEffect } from "react";
 import { useAuthStore } from "@/stores/authStore";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -23,11 +23,12 @@ import { SecurityPage } from "@/pages/settings/SecurityPage";
 import { WorkspaceMembersPage } from "@/pages/settings/WorkspaceMembersPage";
 import { WorkspaceGeneralPage } from "@/pages/settings/WorkspaceGeneralPage";
 import { WorkspaceJoinRequestsPage } from "@/pages/settings/WorkspaceJoinRequestsPage";
-import { AdminLayout } from "@/pages/admin/AdminLayout";
+import { AdminConsoleLayout } from "@/pages/admin/AdminConsoleLayout";
+import { AdminOverviewPage } from "@/pages/admin/AdminOverviewPage";
 import { AdminUsersPage } from "@/pages/admin/AdminUsersPage";
 import { AdminWorkspacesPage } from "@/pages/admin/AdminWorkspacesPage";
 import { AdminOrphanSpacesPage } from "@/pages/admin/AdminOrphanSpacesPage";
-import { AdminAttachmentsPage } from "@/pages/admin/AdminAttachmentsPage";
+import { AdminContentPage } from "@/pages/admin/AdminContentPage";
 import { AdminSuperusersPage } from "@/pages/admin/AdminSuperusersPage";
 import { AdminAuditLogPage } from "@/pages/admin/AdminAuditLogPage";
 import { ProjectSettingsLayout } from "@/pages/project/settings/ProjectSettingsLayout";
@@ -86,6 +87,28 @@ function ChromeAttributeWrapper() {
     document.body.setAttribute("data-chrome", chrome ?? "branded");
   }, [matches]);
   return <Outlet />;
+}
+
+/**
+ * 옛 관리자 경로(`/:workspaceSlug/admin/*`) → 새 콘솔(`/admin/*`) 이관.
+ *
+ * 콘솔이 워크스페이스 밖으로 나갔으므로 slug 는 버린다. 단 탈퇴자 스페이스 정리는
+ * 워크스페이스가 있어야 성립하는 도구라 워크스페이스 상세 아래로 보낸다.
+ */
+function LegacyAdminRedirect() {
+  const params = useParams<{ workspaceSlug: string; "*": string }>();
+  const section = (params["*"] ?? "").split("/")[0];
+
+  const destinations: Record<string, string> = {
+    users:           "/admin/users",
+    workspaces:      "/admin/workspaces",
+    audit:           "/admin/audit",
+    superusers:      "/admin/superusers",
+    attachments:     "/admin/content",
+    "orphan-spaces": `/admin/workspaces/${params.workspaceSlug}/spaces`,
+  };
+
+  return <Navigate to={destinations[section] ?? "/admin/overview"} replace />;
 }
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -156,6 +179,28 @@ export const router = createBrowserRouter([
     ),
     handle: { chrome: "branded" } satisfies RouteHandle,
   },
+  /* 시스템 관리 콘솔 — 워크스페이스 밖의 최상위 영역. 슈퍼유저 전용.
+     `/:workspaceSlug` 보다 앞에 두어 정적 세그먼트가 먼저 매칭되게 한다. */
+  {
+    path: "/admin",
+    element: (
+      <RequireAuth>
+        <AdminConsoleLayout />
+      </RequireAuth>
+    ),
+    handle: { chrome: "minimal" } satisfies RouteHandle,
+    children: [
+      { index: true, element: <Navigate to="overview" replace /> },
+      { path: "overview",   element: <AdminOverviewPage /> },
+      { path: "users",      element: <AdminUsersPage /> },
+      { path: "superusers", element: <AdminSuperusersPage /> },
+      { path: "workspaces", element: <AdminWorkspacesPage /> },
+      /* 워크스페이스 상세 — 특정 워크스페이스만 다루는 도구는 이 아래에만 둔다. */
+      { path: "workspaces/:workspaceSlug/spaces", element: <AdminOrphanSpacesPage /> },
+      { path: "content",    element: <AdminContentPage /> },
+      { path: "audit",      element: <AdminAuditLogPage /> },
+    ],
+  },
   {
     path: "/:workspaceSlug",
     element: (
@@ -220,20 +265,9 @@ export const router = createBrowserRouter([
       /* 보관함 옛 경로 — 사이드바에서 빠진 후 ws 설정 아래로 이전. 북마크/외부링크 보존. */
       { path: "projects/archived", element: <Navigate to="../../workspace-settings/archived" replace /> },
 
-      // 관리자 페이지 — 워크스페이스 관리자 이상 접근, 일부 탭은 슈퍼유저 전용
-      {
-        path: "admin",
-        element: <AdminLayout />,
-        children: [
-          { index: true, element: <Navigate to="users" replace /> },
-          { path: "users",          element: <AdminUsersPage /> },
-          { path: "orphan-spaces",  element: <AdminOrphanSpacesPage /> },
-          { path: "attachments",    element: <AdminAttachmentsPage /> },
-          { path: "workspaces",     element: <AdminWorkspacesPage /> },
-          { path: "superusers",     element: <AdminSuperusersPage /> },
-          { path: "audit",          element: <AdminAuditLogPage /> },
-        ],
-      },
+      /* 관리자 콘솔 옛 경로 — 콘솔이 워크스페이스 밖(/admin)으로 이전했다.
+         북마크/외부링크 보존용으로 하위 경로까지 함께 옮겨준다. */
+      { path: "admin/*", element: <LegacyAdminRedirect /> },
 
       // 프로젝트 설정 — PASS4-3: 7→4 탭 + legacy redirects
       {
