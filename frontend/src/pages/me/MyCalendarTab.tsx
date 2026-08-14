@@ -15,30 +15,25 @@ import { useTranslation } from "react-i18next";
 import { useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ChevronLeft, ChevronRight, Plus, Settings2, FolderOpen, Check } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Settings2 } from "lucide-react";
 import { meApi } from "@/api/me";
 import { issuesApi } from "@/api/issues";
 import { projectsApi } from "@/api/projects";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { useIssueDialogStore } from "@/stores/issueDialogStore";
 import { EventDialog } from "@/components/events/EventDialog";
 import { PersonalIssueQuickDialog } from "@/components/issues/PersonalIssueQuickDialog";
 import { CalendarMonth } from "@/pages/project/views/CalendarMonth";
 import { CalendarSettingsPanel } from "@/pages/project/views/CalendarView";
-import { ProjectIcon } from "@/components/ui/project-icon-picker";
+import { ProjectFilterDropdown } from "@/components/issues/ProjectFilterDropdown";
 import { cn } from "@/lib/utils";
 import type { CalendarSettings } from "@/hooks/useViewSettings";
 import type { Issue, ProjectEvent, PersonalEvent } from "@/types";
 
-const PROJECT_FILTER_KEY = "orbitail_me_cal_projects";
+/* 프로젝트 필터는 워크스페이스마다 따로 기억한다 — 전역 키면 다른 워크스페이스에 없는 project id 가
+   남아 아무 항목도 안 보인다. */
+const projectFilterKey = (workspaceSlug: string) => `orbitail_me_cal_projects:${workspaceSlug}`;
 const SETTINGS_KEY = "orbitail_me_cal_settings";
 
 const MONTH_KEYS = ["calendar.jan","calendar.feb","calendar.mar","calendar.apr","calendar.may","calendar.jun","calendar.jul","calendar.aug","calendar.sep","calendar.oct","calendar.nov","calendar.dec"] as const;
@@ -111,7 +106,7 @@ export function MyCalendarTab() {
   /* 프로젝트 필터 — null=전체, Set=명시적 선택. localStorage 영속 */
   const [selectedProjects, setSelectedProjects] = useState<Set<string> | null>(() => {
     try {
-      const raw = localStorage.getItem(PROJECT_FILTER_KEY);
+      const raw = localStorage.getItem(projectFilterKey(workspaceSlug));
       if (raw) {
         const arr = JSON.parse(raw);
         if (Array.isArray(arr)) return new Set(arr);
@@ -121,10 +116,10 @@ export function MyCalendarTab() {
   });
   useEffect(() => {
     try {
-      if (selectedProjects === null) localStorage.removeItem(PROJECT_FILTER_KEY);
-      else localStorage.setItem(PROJECT_FILTER_KEY, JSON.stringify(Array.from(selectedProjects)));
+      if (selectedProjects === null) localStorage.removeItem(projectFilterKey(workspaceSlug));
+      else localStorage.setItem(projectFilterKey(workspaceSlug), JSON.stringify(Array.from(selectedProjects)));
     } catch {}
-  }, [selectedProjects]);
+  }, [workspaceSlug, selectedProjects]);
 
   /* settings 패널 */
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -349,20 +344,6 @@ export function MyCalendarTab() {
   const isProjectVisible = useCallback((projectId: string): boolean => {
     return selectedProjects === null || selectedProjects.has(projectId);
   }, [selectedProjects]);
-  const toggleProject = (id: string) => {
-    setSelectedProjects((cur) => {
-      /* null(전체)에서 첫 토글 시 — 그 항목만 빼고 나머지 다 선택된 Set 으로 시작 */
-      const base = cur ?? new Set(uniqueProjects.map((p) => p.id));
-      const next = new Set(base);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      /* 모두 선택되면 null(전체) 로 정규화 — localStorage 가벼워짐 */
-      if (next.size === uniqueProjects.length) return null;
-      return next;
-    });
-  };
-  const selectAllProjects = () => setSelectedProjects(null);
-  const clearAllProjects = () => setSelectedProjects(new Set());
 
   /* ── 필터링 — settings + 프로젝트 필터 적용 (드래그 미리보기는 CalendarMonth 내부) ── */
   const filteredIssues = useMemo(() => {
@@ -441,52 +422,14 @@ export function MyCalendarTab() {
         </Button>
 
         <div className="ml-auto flex items-center gap-1">
-          {/* 프로젝트 필터 — 본인 항목이 등장한 프로젝트만 노출. 외곽선 색 + 체크박스 */}
-          {uniqueProjects.length > 1 && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  className={cn(
-                    "h-8 px-2.5 rounded-md text-xs font-medium border flex items-center gap-1.5 transition-colors",
-                    selectedProjects === null
-                      ? "border-border text-muted-foreground hover:text-foreground hover:bg-muted/40"
-                      : "bg-primary/10 border-primary/40 text-primary"
-                  )}
-                  title={t("me.calendar.projectFilter", "프로젝트 필터")}
-                >
-                  <FolderOpen className="h-3.5 w-3.5" />
-                  {selectedProjects === null
-                    ? t("me.calendar.projects", "프로젝트")
-                    : `${t("me.calendar.projects", "프로젝트")} ${selectedProjects.size}/${uniqueProjects.length}`}
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="max-h-72 overflow-y-auto w-56">
-                <DropdownMenuItem onSelect={(e) => { e.preventDefault(); selectAllProjects(); }} className="text-xs">
-                  {t("me.calendar.selectAll", "전체 선택")}
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={(e) => { e.preventDefault(); clearAllProjects(); }} className="text-xs">
-                  {t("me.calendar.clearAll", "전체 해제")}
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                {uniqueProjects.map((p) => {
-                  const checked = isProjectVisible(p.id);
-                  return (
-                    <DropdownMenuItem
-                      key={p.id}
-                      onSelect={(e) => { e.preventDefault(); toggleProject(p.id); }}
-                      className="text-xs gap-2 cursor-pointer"
-                    >
-                      <span className="shrink-0">
-                        <ProjectIcon value={p.icon_prop} size={10} className="!rounded" />
-                      </span>
-                      <span className="truncate flex-1">{p.name || p.id.slice(0, 6)}</span>
-                      {checked && <Check className="h-3 w-3 shrink-0 text-primary" />}
-                    </DropdownMenuItem>
-                  );
-                })}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
+          {/* 프로젝트 필터 — 본인 항목이 등장한 프로젝트만 노출 */}
+          <ProjectFilterDropdown
+            projects={uniqueProjects}
+            selected={selectedProjects}
+            onChange={setSelectedProjects}
+            align="end"
+            className="h-8"
+          />
           <Button size="sm" variant="outline" onClick={() => handleIssueCreate(todayKey)}>
             <Plus className="h-3.5 w-3.5 mr-1" />
             {t("me.calendar.newIssue", "새 이슈")}

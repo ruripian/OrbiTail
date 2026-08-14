@@ -7,16 +7,8 @@ import { Plus, Pencil, Trash2, Check, X } from "lucide-react";
 import { projectsApi } from "@/api/projects";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { STATE_GROUP_LABEL } from "@/constants/state-icons";
 import type { State } from "@/types";
-
-// 상태 그룹 표시 이름
-const GROUP_LABEL: Record<State["group"], string> = {
-  backlog:   "Backlog",
-  unstarted: "Unstarted",
-  started:   "Started",
-  completed: "Completed",
-  cancelled: "Cancelled",
-};
 
 // 인라인 편집 행
 function StateRow({
@@ -80,7 +72,7 @@ function StateRow({
       ) : (
         <>
           <span className="flex-1 text-sm">{state.name}</span>
-          <span className="text-xs text-muted-foreground">{GROUP_LABEL[state.group]}</span>
+          <span className="text-xs text-muted-foreground">{STATE_GROUP_LABEL[state.group]}</span>
           <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
             <button
               onClick={() => setEditing(true)}

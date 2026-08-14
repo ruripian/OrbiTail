@@ -747,7 +747,6 @@
     "myIssuesDesc": "모든 프로젝트에서 나에게 배정된 이슈",
     "filterAll": "전체",
     "filterByPriority": "우선순위",
-    "filterByProject": "프로젝트",
     "groupByState": "상태별 그룹",
     "groupByProject": "프로젝트별 그룹",
     "noMatchingIssues": "현재 필터에 맞는 이슈가 없습니다",
@@ -1357,6 +1356,12 @@
     "previewVersion": "미리보기",
     "versionPreview": "버전 미리보기",
     "closePreview": "닫기"
+  },
+  "projectFilter": {
+    "label": "프로젝트",
+    "title": "프로젝트 필터",
+    "selectAll": "전체 선택",
+    "clearAll": "전체 해제"
   },
   "graphView": {
     "layoutForce": "포스",

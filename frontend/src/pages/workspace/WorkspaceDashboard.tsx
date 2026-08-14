@@ -11,7 +11,7 @@ import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { issuesApi } from "@/api/issues";
 import { useAuthStore } from "@/stores/authStore";
-import { Circle, ArrowRight, Calendar, SlidersHorizontal, X } from "lucide-react";
+import { ArrowRight, Calendar, SlidersHorizontal, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -23,35 +23,31 @@ import { PageTransition } from "@/components/motion";
 import { Skeleton } from "@/components/ui/skeleton";
 import { OrbiTailOrbit } from "@/components/auth/OrbiTailOrbit";
 import { PriorityGlyph } from "@/components/ui/priority-glyph";
+import { ProjectFilterDropdown, type ProjectFilterItem } from "@/components/issues/ProjectFilterDropdown";
 import { useRecentChangesStore } from "@/stores/recentChangesStore";
 import { useOpenIssue } from "@/hooks/useOpenIssue";
 import { PRIORITY_LIST, PRIORITY_LABEL_KEY } from "@/constants/priority";
+import { getStateIcon, STATE_GROUP_COLOR, STATE_GROUP_LABEL } from "@/constants/state-icons";
 import type { Issue, State } from "@/types";
 
 /* ──────────────── 대시보드 필터 영속화 ──────────────── */
+/* 완료/취소는 백엔드(WorkspaceMyIssuesView)가 이미 제외하므로 필터 후보도 3종뿐 */
 type StateGroup = "backlog" | "unstarted" | "started";
 const STATE_GROUPS: StateGroup[] = ["backlog", "unstarted", "started"];
-const STATE_GROUP_LABEL: Record<StateGroup, string> = {
-  backlog: "Backlog",
-  unstarted: "To do",
-  started: "In progress",
-};
-const STATE_GROUP_COLOR: Record<StateGroup, string> = {
-  backlog: "#94a3b8",
-  unstarted: "#64748b",
-  started: "#3b82f6",
-};
 
-const LS_KEY = "orbitail_dashboard_filters";
+/* 필터는 워크스페이스마다 따로 기억한다 — 전역 키로 저장하면 다른 워크스페이스로 옮겼을 때
+   그 곳에 없는 project id 가 남아 "결과 0건" 으로 보인다. */
+const lsKey = (workspaceSlug: string) => `orbitail_dashboard_filters:${workspaceSlug}`;
 interface PersistedFilters {
   priority: string[];
-  project: string[];
+  /** null = 전체(필터 없음) — ProjectFilterDropdown 과 같은 시맨틱 */
+  project: string[] | null;
   stateGroup: StateGroup[];
 }
 /* PASS3-5: groupBy 필드 제거. 옛 사용자 데이터에 groupBy 가 들어 있어도 한 번에 정리. */
-function loadFilters(): Partial<PersistedFilters> {
+function loadFilters(workspaceSlug: string): Partial<PersistedFilters> {
   try {
-    const raw = localStorage.getItem(LS_KEY);
+    const raw = localStorage.getItem(lsKey(workspaceSlug));
     if (!raw) return {};
     const parsed = JSON.parse(raw);
     delete parsed.groupBy;
@@ -60,9 +56,9 @@ function loadFilters(): Partial<PersistedFilters> {
     return {};
   }
 }
-function saveFilters(v: PersistedFilters) {
+function saveFilters(workspaceSlug: string, v: PersistedFilters) {
   try {
-    localStorage.setItem(LS_KEY, JSON.stringify(v));
+    localStorage.setItem(lsKey(workspaceSlug), JSON.stringify(v));
   } catch {
     /* 저장 실패 무시 */
   }
@@ -91,6 +87,8 @@ interface IssueGroup {
   key: string;
   label: string;
   color: string;
+  /** 헤더 아이콘 결정용 — state_detail.group (없으면 undefined → Circle 폴백) */
+  group: string | undefined;
   issues: Issue[];
 }
 
@@ -113,6 +111,8 @@ export function IssueRow({ issue, workspaceSlug }: { issue: Issue; workspaceSlug
   // Phase 3.4 — 5초 동안 strip 표시. selector로 구독해서 만료 시 자동 리렌더.
   const isRecent = useRecentChangesStore((s) => !!s.recent[issue.id]);
   const recentColor = useRecentChangesStore((s) => s.recent[issue.id]?.color);
+  /* 상태 그룹 아이콘 — 이 행은 상태별 그룹이 없는 곳(최근 이슈 위젯 / recent 페이지)에서도 쓰인다 */
+  const StateIcon = getStateIcon(issue.state_detail?.group);
 
   return (
     <Link
@@ -127,6 +127,9 @@ export function IssueRow({ issue, workspaceSlug }: { issue: Issue; workspaceSlug
       </span>
       <span className="text-xs text-muted-foreground/60 shrink-0 font-mono">
         {issue.project_identifier ? `${issue.project_identifier}-${issue.sequence_id}` : `#${issue.sequence_id}`}
+      </span>
+      <span title={issue.state_detail?.name ?? ""} className="inline-flex shrink-0">
+        <StateIcon className="h-3.5 w-3.5" style={{ color: issue.state_detail?.color ?? "#9ca3af" }} />
       </span>
       <span title={t(PRIORITY_LABEL_KEY[issue.priority])} className="inline-flex shrink-0">
         <PriorityGlyph priority={issue.priority} size={10} />
@@ -147,11 +150,12 @@ export function IssueRow({ issue, workspaceSlug }: { issue: Issue; workspaceSlug
 /* ──────────────── 그룹 섹션 ──────────────── */
 
 function GroupSection({ g, workspaceSlug }: { g: IssueGroup; workspaceSlug: string }) {
+  const StateIcon = getStateIcon(g.group);
   return (
     // 반투명(30% 투과) — 뒤의 궤도 dot 이 비쳐 보이되 blur 없음(blur 걸면 dot 이 흐려져 "뒤로 밀린 느낌" 을 줌)
     <div className="rounded-2xl border border-border bg-card/70 overflow-hidden shadow-sm">
       <div className="flex items-center gap-3 px-5 py-4 border-b border-border">
-        <Circle className="h-4 w-4 shrink-0" style={{ color: g.color, fill: g.color }} />
+        <StateIcon className="h-4 w-4 shrink-0" style={{ color: g.color }} />
         <h2 className="text-base font-semibold flex-1">{g.label}</h2>
         <span className="text-sm font-mono text-muted-foreground bg-muted px-2.5 py-0.5 rounded-full">
           {g.issues.length}
@@ -194,28 +198,28 @@ export function WorkspaceDashboard() {
   const { workspaceSlug } = useParams<{ workspaceSlug: string }>();
   const user = useAuthStore((s) => s.user);
 
-  // 세션 간 영속되는 필터 — localStorage
-  const [projectFilter, setProjectFilter] = useState<Set<string>>(() => {
-    const f = loadFilters();
-    return new Set(Array.isArray(f.project) ? f.project : []);
+  // 세션 간 영속되는 필터 — localStorage (워크스페이스별로 분리)
+  const [projectFilter, setProjectFilter] = useState<Set<string> | null>(() => {
+    const f = loadFilters(workspaceSlug!);
+    return Array.isArray(f.project) ? new Set(f.project) : null;
   });
   const [priorityFilter, setPriorityFilter] = useState<Set<string>>(() => {
-    const f = loadFilters();
+    const f = loadFilters(workspaceSlug!);
     return new Set(Array.isArray(f.priority) ? f.priority : []);
   });
   const [stateGroupFilter, setStateGroupFilter] = useState<Set<StateGroup>>(() => {
-    const f = loadFilters();
+    const f = loadFilters(workspaceSlug!);
     return new Set(Array.isArray(f.stateGroup) ? f.stateGroup : []);
   });
 
   // PASS3-5: groupBy 토글 제거 — 상태별 그룹으로 고정.
   useEffect(() => {
-    saveFilters({
+    saveFilters(workspaceSlug!, {
       priority: Array.from(priorityFilter),
-      project: Array.from(projectFilter),
+      project: projectFilter === null ? null : Array.from(projectFilter),
       stateGroup: Array.from(stateGroupFilter),
     });
-  }, [priorityFilter, projectFilter, stateGroupFilter]);
+  }, [workspaceSlug, priorityFilter, projectFilter, stateGroupFilter]);
 
   /* 내 할 일 (완료/취소 제외, 상태 순서대로) */
   const { data: myIssues = [], isLoading } = useQuery({
@@ -231,21 +235,25 @@ export function WorkspaceDashboard() {
     enabled: !!workspaceSlug,
   });
 
-  // 사용 가능한 프로젝트 목록
+  // 사용 가능한 프로젝트 목록 — ProjectFilterDropdown 이 아이콘까지 렌더하도록 icon_prop 포함
   const availableProjects = useMemo(() => {
-    const m = new Map<string, string>();
+    const m = new Map<string, ProjectFilterItem>();
     for (const issue of myIssues) {
       if (issue.project && !m.has(issue.project))
-        m.set(issue.project, issue.project_name ?? issue.project_identifier ?? issue.project);
+        m.set(issue.project, {
+          id: issue.project,
+          name: issue.project_name ?? issue.project_identifier ?? issue.project,
+          icon_prop: issue.project_icon_prop ?? null,
+        });
     }
-    return Array.from(m.entries()).map(([id, name]) => ({ id, name }));
+    return Array.from(m.values());
   }, [myIssues]);
 
   // 필터 적용 — 필드(Field) 이슈는 "내 할 일" 성격이 아니므로 대시보드에서 제외.
   const filtered = useMemo(() => {
     return myIssues.filter((issue) => {
       if (issue.is_field) return false;
-      if (projectFilter.size > 0 && !projectFilter.has(issue.project)) return false;
+      if (projectFilter !== null && !projectFilter.has(issue.project)) return false;
       if (priorityFilter.size > 0 && !priorityFilter.has(issue.priority)) return false;
       if (stateGroupFilter.size > 0) {
         const g = issue.state_detail?.group as StateGroup | undefined;
@@ -263,7 +271,7 @@ export function WorkspaceDashboard() {
       const key = sd?.id ?? "__none__";
       const label = sd?.name ?? "Unassigned";
       const color = sd?.color ?? "#9ca3af";
-      if (!map.has(key)) map.set(key, { key, label, color, issues: [] });
+      if (!map.has(key)) map.set(key, { key, label, color, group: sd?.group, issues: [] });
       map.get(key)!.issues.push(issue);
     }
     return Array.from(map.values());
@@ -271,7 +279,7 @@ export function WorkspaceDashboard() {
 
   // Field 이슈는 "내 할 일" 성격이 아니라 본문에서 제외 — 헤더 카운트도 동일 기준
   const totalCount = useMemo(() => myIssues.filter((i) => !i.is_field).length, [myIssues]);
-  const hasFilters = projectFilter.size > 0 || priorityFilter.size > 0 || stateGroupFilter.size > 0;
+  const hasFilters = projectFilter !== null || priorityFilter.size > 0 || stateGroupFilter.size > 0;
 
   const toggleSet = (set: Set<string>, value: string): Set<string> => {
     const next = new Set(set);
@@ -320,24 +328,27 @@ export function WorkspaceDashboard() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-48">
-              {STATE_GROUPS.map((g) => (
-                <DropdownMenuCheckboxItem
-                  key={g}
-                  checked={stateGroupFilter.has(g)}
-                  // 선택 시 드롭다운 유지 — 여러 개 빠르게 토글할 수 있도록
-                  onSelect={(e) => e.preventDefault()}
-                  onCheckedChange={() => setStateGroupFilter((prev) => {
-                    const next = new Set(prev);
-                    if (next.has(g)) next.delete(g); else next.add(g);
-                    return next;
-                  })}
-                >
-                  <span className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: STATE_GROUP_COLOR[g] }} />
-                    {STATE_GROUP_LABEL[g]}
-                  </span>
-                </DropdownMenuCheckboxItem>
-              ))}
+              {STATE_GROUPS.map((g) => {
+                const GroupIcon = getStateIcon(g);
+                return (
+                  <DropdownMenuCheckboxItem
+                    key={g}
+                    checked={stateGroupFilter.has(g)}
+                    // 선택 시 드롭다운 유지 — 여러 개 빠르게 토글할 수 있도록
+                    onSelect={(e) => e.preventDefault()}
+                    onCheckedChange={() => setStateGroupFilter((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(g)) next.delete(g); else next.add(g);
+                      return next;
+                    })}
+                  >
+                    <span className="flex items-center gap-2">
+                      <GroupIcon className="h-3.5 w-3.5 shrink-0" style={{ color: STATE_GROUP_COLOR[g] }} />
+                      {STATE_GROUP_LABEL[g]}
+                    </span>
+                  </DropdownMenuCheckboxItem>
+                );
+              })}
               {/* 선택 해제 — 드롭다운 맨 아래에 배치해 아이템 위치가 바뀌지 않도록 */}
               {stateGroupFilter.size > 0 && (
                 <>
@@ -398,50 +409,16 @@ export function WorkspaceDashboard() {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          {/* 프로젝트 필터 */}
-          {availableProjects.length > 1 && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant={projectFilter.size > 0 ? "default" : "outline"} size="sm" className="h-7 text-xs">
-                  {t("dashboard.filterByProject")}
-                  {projectFilter.size > 0 && (
-                    <span className="ml-0.5 bg-primary-foreground/20 text-primary-foreground px-1.5 py-0.5 rounded-full text-[10px]">
-                      {projectFilter.size}
-                    </span>
-                  )}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-48">
-                {availableProjects.map((p) => (
-                  <DropdownMenuCheckboxItem
-                    key={p.id}
-                    checked={projectFilter.has(p.id)}
-                    onSelect={(e) => e.preventDefault()}
-                    onCheckedChange={() => setProjectFilter(toggleSet(projectFilter, p.id))}
-                  >
-                    {p.name}
-                  </DropdownMenuCheckboxItem>
-                ))}
-                {projectFilter.size > 0 && (
-                  <>
-                    <div className="h-px bg-border/50 my-1" />
-                    <button
-                      type="button"
-                      onClick={(e) => { e.preventDefault(); setProjectFilter(new Set()); }}
-                      className="w-full flex items-center gap-1.5 px-2 py-1 text-2xs text-muted-foreground hover:text-destructive hover:bg-destructive/5 rounded-md transition-colors"
-                    >
-                      <X className="h-3 w-3" />
-                      <span>선택 해제 ({projectFilter.size})</span>
-                    </button>
-                  </>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
+          {/* 프로젝트 필터 — 마이 캘린더/그래프와 같은 공용 컴포넌트 */}
+          <ProjectFilterDropdown
+            projects={availableProjects}
+            selected={projectFilter}
+            onChange={setProjectFilter}
+          />
 
           {/* 필터 초기화 */}
           {hasFilters && (
-            <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={() => { setProjectFilter(new Set()); setPriorityFilter(new Set()); setStateGroupFilter(new Set()); }}>
+            <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={() => { setProjectFilter(null); setPriorityFilter(new Set()); setStateGroupFilter(new Set()); }}>
               {t("dashboard.filterAll")}
             </Button>
           )}

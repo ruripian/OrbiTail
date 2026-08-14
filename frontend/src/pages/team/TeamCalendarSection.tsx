@@ -15,7 +15,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ChevronLeft, ChevronRight, Settings2, FolderOpen, Check } from "lucide-react";
+import { ChevronLeft, ChevronRight, Settings2 } from "lucide-react";
 import { teamsApi } from "@/api/teams";
 import { meApi } from "@/api/me";
 import { issuesApi } from "@/api/issues";
@@ -23,16 +23,12 @@ import { projectsApi } from "@/api/projects";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AvatarInitials } from "@/components/ui/avatar-initials";
-import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
-  DropdownMenuSeparator, DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { useAuthStore } from "@/stores/authStore";
 import { useIssueDialogStore } from "@/stores/issueDialogStore";
 import { EventDialog } from "@/components/events/EventDialog";
 import { CalendarMonth } from "@/pages/project/views/CalendarMonth";
 import { CalendarSettingsPanel } from "@/pages/project/views/CalendarView";
-import { ProjectIcon } from "@/components/ui/project-icon-picker";
+import { ProjectFilterDropdown } from "@/components/issues/ProjectFilterDropdown";
 import { cn } from "@/lib/utils";
 import type { CalendarSettings } from "@/hooks/useViewSettings";
 import type { Issue, ProjectEvent, PersonalEvent, TeamMember } from "@/types";
@@ -318,15 +314,6 @@ export function TeamCalendarSection({
   const isMemberVisible = useCallback((userId: string) =>
     selectedMembers === null || selectedMembers.has(userId), [selectedMembers]);
 
-  const toggleProject = (id: string) => {
-    setSelectedProjects((cur) => {
-      const base = cur ?? new Set(uniqueProjects.map((p) => p.id));
-      const next = new Set(base);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      if (next.size === uniqueProjects.length) return null;
-      return next;
-    });
-  };
   const toggleMember = (id: string) => {
     setSelectedMembers((cur) => {
       const base = cur ?? new Set(teamMembers.map((m) => m.member.id));
@@ -448,50 +435,13 @@ export function TeamCalendarSection({
         </Button>
 
         <div className="ml-auto flex items-center gap-1">
-          {uniqueProjects.length > 1 && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  className={cn(
-                    "h-8 px-2.5 rounded-md text-xs font-medium border flex items-center gap-1.5 transition-colors",
-                    selectedProjects === null
-                      ? "border-border text-muted-foreground hover:text-foreground hover:bg-muted/40"
-                      : "bg-primary/10 border-primary/40 text-primary",
-                  )}
-                >
-                  <FolderOpen className="h-3.5 w-3.5" />
-                  {selectedProjects === null
-                    ? t("me.calendar.projects", "프로젝트")
-                    : `${t("me.calendar.projects", "프로젝트")} ${selectedProjects.size}/${uniqueProjects.length}`}
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="max-h-72 overflow-y-auto w-56">
-                <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setSelectedProjects(null); }} className="text-xs">
-                  {t("me.calendar.selectAll", "전체 선택")}
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setSelectedProjects(new Set()); }} className="text-xs">
-                  {t("me.calendar.clearAll", "전체 해제")}
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                {uniqueProjects.map((p) => {
-                  const checked = isProjectVisible(p.id);
-                  return (
-                    <DropdownMenuItem
-                      key={p.id}
-                      onSelect={(e) => { e.preventDefault(); toggleProject(p.id); }}
-                      className="text-xs gap-2 cursor-pointer"
-                    >
-                      <span className="shrink-0">
-                        <ProjectIcon value={p.icon_prop} size={10} className="!rounded" />
-                      </span>
-                      <span className="truncate flex-1">{p.name || p.id.slice(0, 6)}</span>
-                      {checked && <Check className="h-3 w-3 shrink-0 text-primary" />}
-                    </DropdownMenuItem>
-                  );
-                })}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
+          <ProjectFilterDropdown
+            projects={uniqueProjects}
+            selected={selectedProjects}
+            onChange={setSelectedProjects}
+            align="end"
+            className="h-8"
+          />
           <div className="relative">
             <button
               ref={settingsBtnRef}

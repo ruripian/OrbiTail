@@ -749,7 +749,6 @@
     "myIssuesDesc": "Issues assigned to you across all projects",
     "filterAll": "All",
     "filterByPriority": "Priority",
-    "filterByProject": "Project",
     "groupByState": "Group by State",
     "groupByProject": "Group by Project",
     "noMatchingIssues": "No issues match the current filters",
@@ -1357,6 +1356,12 @@
     "previewVersion": "Preview",
     "versionPreview": "Version preview",
     "closePreview": "Close"
+  },
+  "projectFilter": {
+    "label": "Projects",
+    "title": "Filter by project",
+    "selectAll": "Select all",
+    "clearAll": "Clear all"
   },
   "graphView": {
     "layoutForce": "Force",

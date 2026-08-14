@@ -17,18 +17,14 @@ import { useIssueDialogStore } from "@/stores/issueDialogStore";
 import { useLocalState } from "@/hooks/useLocalState";
 import { ProjectIcon } from "@/components/ui/project-icon-picker";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Loader2, Sliders, Link2, X, Unlink2, ArrowRight, Layers, FolderOpen, Check } from "lucide-react";
+import { Loader2, Sliders, Link2, X, Unlink2, ArrowRight, Layers } from "lucide-react";
 import { buildProjectColorMap } from "@/lib/projectColors";
-import { cn } from "@/lib/utils";
+import { getStateGroupColor } from "@/constants/state-icons";
+import { ProjectFilterDropdown } from "@/components/issues/ProjectFilterDropdown";
 
-const ME_GRAPH_PROJECT_FILTER_KEY = "orbitail_me_graph_projects";
+/* 프로젝트 필터는 워크스페이스마다 따로 기억한다 — 전역 키면 다른 워크스페이스에 없는 project id 가
+   남아 그래프가 비어 보인다. */
+const meGraphProjectFilterKey = (workspaceSlug: string) => `orbitail_me_graph_projects:${workspaceSlug}`;
 
 /** 시뮬레이션 노드 = 그래프 노드 + 물리 좌표. 필드를 따로 복제하지 않아 API 변경에 자동으로 따라간다. */
 type Node = GraphNode & {
@@ -56,14 +52,6 @@ const LINK_TYPES: { value: LinkTypeValue; label: string; short: string; desc: st
     desc: "A가 끝나야 B 진행 가능. 첫 번째로 클릭한 노드가 '선행(막는 쪽)', 두 번째가 '후행(막히는 쪽)'. — 그래프에서 주황 화살표로 표시.",
     icon: ArrowRight },
 ];
-
-const STATE_COLOR: Record<string, string> = {
-  backlog: "#94a3b8",
-  unstarted: "#64748b",
-  started: "#3b82f6",
-  completed: "#22c55e",
-  cancelled: "#ef4444",
-};
 
 interface Props {
   workspaceSlug: string;
@@ -164,7 +152,7 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick, 
   const [selectedProjects, setSelectedProjects] = useState<Set<string> | null>(() => {
     if (!isMe) return null;
     try {
-      const raw = localStorage.getItem(ME_GRAPH_PROJECT_FILTER_KEY);
+      const raw = localStorage.getItem(meGraphProjectFilterKey(workspaceSlug));
       if (raw) {
         const arr = JSON.parse(raw);
         if (Array.isArray(arr)) return new Set(arr);
@@ -195,30 +183,13 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick, 
     return Array.from(m.values()).sort((a, b) => (a.identifier ?? "").localeCompare(b.identifier ?? ""));
   }, [isMe, rawData]);
 
-  const isProjectVisible = (projectId: string): boolean => {
-    return selectedProjects === null || selectedProjects.has(projectId);
-  };
-  const toggleProject = (id: string) => {
-    setSelectedProjects((cur) => {
-      const base = cur ?? new Set(uniqueProjects.map((p) => p.id));
-      const next = new Set(base);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      const normalized = next.size === uniqueProjects.length ? null : next;
-      try {
-        if (normalized === null) localStorage.removeItem(ME_GRAPH_PROJECT_FILTER_KEY);
-        else localStorage.setItem(ME_GRAPH_PROJECT_FILTER_KEY, JSON.stringify(Array.from(normalized)));
-      } catch {}
-      return normalized;
-    });
-  };
-  const selectAllProjects = () => {
-    setSelectedProjects(null);
-    try { localStorage.removeItem(ME_GRAPH_PROJECT_FILTER_KEY); } catch {}
-  };
-  const clearAllProjects = () => {
-    setSelectedProjects(new Set());
-    try { localStorage.setItem(ME_GRAPH_PROJECT_FILTER_KEY, JSON.stringify([])); } catch {}
+  /* 필터 변경 = 곧바로 localStorage 반영 — 그래프는 언마운트가 잦아 effect 저장이 늦을 수 있다 */
+  const changeSelectedProjects = (next: Set<string> | null) => {
+    setSelectedProjects(next);
+    try {
+      if (next === null) localStorage.removeItem(meGraphProjectFilterKey(workspaceSlug));
+      else localStorage.setItem(meGraphProjectFilterKey(workspaceSlug), JSON.stringify(Array.from(next)));
+    } catch {}
   };
 
   /* 마이 모드: 가짜 project super-node + 가짜 parent edge 추가.
@@ -989,51 +960,13 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick, 
         <div className="flex-1" />
 
         {/* 마이 모드 — 프로젝트 필터 (다중 체크박스, 본인 담당 이슈가 있는 프로젝트만 노출) */}
-        {isMe && uniqueProjects.length > 1 && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                className={cn(
-                  "h-7 px-2.5 rounded-md border text-xs font-medium flex items-center gap-1.5 transition-colors",
-                  selectedProjects === null
-                    ? "border-border text-muted-foreground hover:text-foreground hover:bg-muted/40"
-                    : "bg-primary/10 border-primary/40 text-primary"
-                )}
-                title={t("graphView.projectFilter", "프로젝트 필터")}
-              >
-                <FolderOpen className="h-3.5 w-3.5" />
-                {selectedProjects === null
-                  ? t("me.calendar.projects", "프로젝트")
-                  : `${t("me.calendar.projects", "프로젝트")} ${selectedProjects.size}/${uniqueProjects.length}`}
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="max-h-72 overflow-y-auto w-56">
-              <DropdownMenuItem onSelect={(e) => { e.preventDefault(); selectAllProjects(); }} className="text-xs">
-                {t("me.calendar.selectAll", "전체 선택")}
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={(e) => { e.preventDefault(); clearAllProjects(); }} className="text-xs">
-                {t("me.calendar.clearAll", "전체 해제")}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              {uniqueProjects.map((p) => {
-                const checked = isProjectVisible(p.id);
-                return (
-                  <DropdownMenuItem
-                    key={p.id}
-                    onSelect={(e) => { e.preventDefault(); toggleProject(p.id); }}
-                    className="text-xs gap-2 cursor-pointer"
-                  >
-                    <span
-                      className="h-3 w-3 rounded-sm shrink-0 border"
-                      style={{ backgroundColor: projectColorMap?.[p.id] ?? "#888", borderColor: projectColorMap?.[p.id] ?? "#888" }}
-                    />
-                    <span className="truncate flex-1">{p.identifier || p.name || p.id.slice(0, 6)}</span>
-                    {checked && <Check className="h-3 w-3 shrink-0 text-primary" />}
-                  </DropdownMenuItem>
-                );
-              })}
-            </DropdownMenuContent>
-          </DropdownMenu>
+        {isMe && (
+          <ProjectFilterDropdown
+            projects={uniqueProjects}
+            selected={selectedProjects}
+            onChange={changeSelectedProjects}
+            align="end"
+          />
         )}
 
         {/* 레이아웃 모드 */}
@@ -1421,8 +1354,8 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick, 
                   {isRelates ? (
                     (() => {
                       // 양 끝 노드의 상태 색을 끌어다 씀 — 사용자 지정 state.color 우선, 없으면 group 기본값.
-                      const sColor = s.state_color ?? (s.state_group ? (STATE_COLOR[s.state_group] ?? "#6b7280") : "#6b7280");
-                      const tColor = tgt.state_color ?? (tgt.state_group ? (STATE_COLOR[tgt.state_group] ?? "#6b7280") : "#6b7280");
+                      const sColor = s.state_color ?? getStateGroupColor(s.state_group);
+                      const tColor = tgt.state_color ?? getStateGroupColor(tgt.state_group);
                       const gradId = `rel-${e.id.replace(/[^a-zA-Z0-9]/g, "_")}`;
                       const gradRev = `${gradId}r`;
                       return (
@@ -1535,7 +1468,7 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick, 
                  state_color 가 없으면 group 기본값으로 폴백. */
               const fill = n.is_field
                 ? "#a78bfa"
-                : (n.state_color ?? (n.state_group ? STATE_COLOR[n.state_group] ?? "#6b7280" : "#6b7280"));
+                : (n.state_color ?? getStateGroupColor(n.state_group));
               const isHover = hoverId === n.id;
               const nDepth = depthMap.get(n.id) ?? 0;
               // 깊이별 크기 — 로그 감소로 10계층 넘어도 일정 하한 유지. 상한 20px, 하한 7px.
