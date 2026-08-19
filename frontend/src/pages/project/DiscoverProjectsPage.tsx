@@ -42,7 +42,7 @@ export function DiscoverProjectsPage() {
   );
 
   return (
-    <div className="p-6 space-y-6 max-w-6xl mx-auto">
+    <div className="p-6 space-y-6 max-w-wide mx-auto">
       <div>
         <h1 className="text-lg font-semibold">{t("discover.title")}</h1>
         <p className="text-sm text-muted-foreground">{t("discover.subtitle")}</p>

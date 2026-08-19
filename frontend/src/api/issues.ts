@@ -272,10 +272,11 @@ export const issuesApi = {
       .get<PaginatedResponse<IssueActivity>>(`/workspaces/${workspaceSlug}/projects/${projectId}/issues/${issueId}/activities/`)
       .then((r) => r.data.results),
 
-  recentByWorkspace: (workspaceSlug: string, params?: { limit?: number }) =>
+  /** 최근 수정 이슈 — 응답 전체(count/next)를 넘긴다. 모두보기 페이지가 무한 스크롤에 쓴다. */
+  recentByWorkspace: (workspaceSlug: string, params?: { page?: number; page_size?: number }) =>
     api
       .get<PaginatedResponse<Issue>>(`/workspaces/${workspaceSlug}/issues/recent/`, { params })
-      .then((r) => r.data.results),
+      .then((r) => r.data),
 
   /** 이슈 일괄 업데이트 */
   bulkUpdate: (workspaceSlug: string, projectId: string, issueIds: string[], updates: Record<string, unknown>) =>

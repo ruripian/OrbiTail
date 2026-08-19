@@ -10,6 +10,7 @@ from rest_framework.views import APIView
 from django_filters.rest_framework import DjangoFilterBackend
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
+from config.pagination import StandardPagination
 from .models import Issue, IssueComment, IssueActivity, IssueAttachment, IssueLink, IssueNodeLink, IssueRequest, IssueTemplate, Label
 from .serializers import (
     IssueSerializer,
@@ -83,6 +84,57 @@ def _check_perm(user, project_id, perm_key):
     return True, None
 
 
+# ── 활동 로그 ──
+
+#: 활동 로그로 추적하는 필드와 사람이 읽는 이름.
+#: 단건 수정과 일괄 수정이 같은 정의를 봐야 "어디서 바꿨느냐"에 따라 로그가 달라지지 않는다.
+TRACKED_FIELDS = {
+    "title": "제목",
+    "priority": "우선순위",
+    "state": "상태",
+    "assignees": "담당자",
+    "label": "라벨",
+    "sprint": "스프린트",
+    "parent": "상위 이슈",
+    "start_date": "시작일",
+    "due_date": "마감일",
+}
+
+
+def _issue_field_snapshot(issue):
+    """활동 로그 비교용 스냅샷 — 값은 전부 "사람이 읽는 문자열"로 만든다.
+
+    UUID 를 그대로 남기면 나중에 로그만 보고는 무슨 일이 있었는지 알 수 없다.
+    M2M(담당자·라벨)은 순서가 흔들리지 않도록 정렬해 비교한다.
+    """
+    return {
+        "title": issue.title or "",
+        "priority": issue.priority or "",
+        "state": issue.state.name if issue.state_id else "",
+        "assignees": ", ".join(sorted(u.display_name or u.email for u in issue.assignees.all())),
+        "label": ", ".join(sorted(lb.name for lb in issue.label.all())),
+        "sprint": issue.sprint.name if issue.sprint_id else "",
+        "parent": issue.parent.title if issue.parent_id else "",
+        "start_date": str(issue.start_date or ""),
+        "due_date": str(issue.due_date or ""),
+    }
+
+
+def _log_activities(issue, actor, before, after):
+    """스냅샷 두 개를 비교해 달라진 필드만 기록한다."""
+    entries = [
+        IssueActivity(
+            issue=issue, actor=actor, verb="updated", field=field,
+            old_value=before[field] or None, new_value=after[field] or None,
+        )
+        for field in TRACKED_FIELDS
+        if before.get(field) != after.get(field)
+    ]
+    if entries:
+        IssueActivity.objects.bulk_create(entries)
+    return entries
+
+
 class IssueListCreateView(generics.ListCreateAPIView):
     serializer_class = IssueSerializer
     pagination_class = None  # 캘린더/타임라인 등 전체 이슈 필요 — 페이지네이션 해제
@@ -128,6 +180,11 @@ class IssueListCreateView(generics.ListCreateAPIView):
         if not ok:
             return err
         return super().create(request, *args, **kwargs)
+
+    def perform_create(self, serializer):
+        issue = serializer.save()
+        # 타임라인의 시작점 — 이게 없으면 활동 탭이 "중간부터" 시작한다
+        IssueActivity.objects.create(issue=issue, actor=self.request.user, verb="created")
 
 
 class IssueDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -184,34 +241,10 @@ class IssueDetailView(generics.RetrieveUpdateDestroyAPIView):
     def perform_update(self, serializer):
         old = serializer.instance
         old_sprint_id = old.sprint_id
-        # 저장 전 추적 필드 값 캡처 (스칼라 필드만)
-        old_values = {
-            "title":    old.title,
-            "priority": old.priority,
-            # 활동 로그에는 UUID가 아닌 사람이 읽는 상태 이름을 저장
-            "state":    old.state.name if old.state_id else "",
-        }
+        before = _issue_field_snapshot(old)
         updated = serializer.save()
-        new_values = {
-            "title":    updated.title,
-            "priority": updated.priority,
-            "state":    updated.state.name if updated.state_id else "",
-        }
-        # 변경된 필드에 대한 활동 로그를 일괄 생성
-        activities = [
-            IssueActivity(
-                issue=updated,
-                actor=self.request.user,
-                verb="updated",
-                field=field,
-                old_value=old_val or None,
-                new_value=new_values[field] or None,
-            )
-            for field, old_val in old_values.items()
-            if old_val != new_values[field]
-        ]
-        if activities:
-            IssueActivity.objects.bulk_create(activities)
+        updated.refresh_from_db()
+        _log_activities(updated, self.request.user, before, _issue_field_snapshot(updated))
 
         # 스프린트(sprint) 변경 시 하위 이슈도 동일 스프린트로 자동 배정
         if updated.sprint_id != old_sprint_id:
@@ -248,21 +281,18 @@ class IssueActivityListView(generics.ListAPIView):
 
 
 class WorkspaceRecentIssuesView(generics.ListAPIView):
-    """본인이 담당자인 이슈 중 최근 수정된 것 — 대시보드 위젯(기본 10) + 전용 '모두보기' 페이지 공용.
+    """본인이 담당자인 이슈 중 최근 수정된 것 — 대시보드 위젯(page_size=10) + '모두보기' 무한 스크롤 공용.
 
     좌측 'WorkspaceMyIssuesView' 는 미완료(=할 일) 한정이고, 여기는 완료/취소 포함
     전체에서 최근 수정 순으로 보여 두 위젯이 차별화된다.
 
-    ?limit=N  반환 개수(기본 10, 최대 100). 모두보기 페이지가 더 큰 값을 요청.
+    ?page / ?page_size 로 페이징한다. 개수 제한을 뷰에서 하드컷하지 않으므로
+    모두보기 페이지는 count 만큼 끝까지 스크롤할 수 있다.
     """
     serializer_class = IssueSerializer
+    pagination_class = StandardPagination
 
     def get_queryset(self):
-        try:
-            limit = int(self.request.query_params.get("limit", 10))
-        except (TypeError, ValueError):
-            limit = 10
-        limit = max(1, min(limit, 100))
         return (
             Issue.objects.filter(
                 workspace__slug=self.kwargs["workspace_slug"],
@@ -273,7 +303,7 @@ class WorkspaceRecentIssuesView(generics.ListAPIView):
             .distinct()
             .prefetch_related("assignees", "label")
             .select_related("state", "created_by", "project")
-            .order_by("-updated_at")[:limit]
+            .order_by("-updated_at")
         )
 
 
@@ -1051,6 +1081,11 @@ class IssueBulkUpdateView(APIView):
         assignees = updates.pop("assignees", None)
         labels = updates.pop("label", None)
 
+        # 바꾸기 전 상태를 먼저 찍어 둔다 — 단건 수정과 같은 스냅샷을 쓰므로
+        # "어디서 바꿨느냐"에 따라 로그 모양이 달라지지 않고, old_value 도 함께 남는다.
+        targets = list(issues.select_related("state", "sprint", "parent").prefetch_related("assignees", "label"))
+        before_map = {i.id: _issue_field_snapshot(i) for i in targets}
+
         # 스칼라 필드 일괄 업데이트
         if updates:
             issues.update(**updates)
@@ -1063,22 +1098,14 @@ class IssueBulkUpdateView(APIView):
             for issue in issues:
                 issue.label.set(labels)
 
-        # 활동 로그 일괄 생성
-        # state 필드는 UUID 대신 사람이 읽는 상태 이름으로 기록
-        from apps.projects.models import State
-        state_name = None
-        if updates.get("state"):
-            state_name = State.objects.filter(id=updates["state"]).values_list("name", flat=True).first()
-        activities = []
-        for field, value in {**updates, **({"assignees": assignees} if assignees else {}), **({"label": labels} if labels else {})}.items():
-            display = state_name if (field == "state" and state_name) else str(value)
-            for issue in issues:
-                activities.append(IssueActivity(
-                    issue=issue, actor=request.user, verb="updated",
-                    field=field, new_value=display,
-                ))
-        if activities:
-            IssueActivity.objects.bulk_create(activities)
+        # 활동 로그 — 실제로 달라진 필드만, 변경 전/후 값을 함께 남긴다
+        refreshed = (
+            Issue.objects.filter(id__in=[i.id for i in targets])
+            .select_related("state", "sprint", "parent")
+            .prefetch_related("assignees", "label")
+        )
+        for issue in refreshed:
+            _log_activities(issue, request.user, before_map.get(issue.id, {}), _issue_field_snapshot(issue))
 
         _ws_broadcast(project_pk, {
             "type": "issue.bulk_updated",

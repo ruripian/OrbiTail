@@ -116,7 +116,7 @@ export function InboxPage() {
   const unreadCount = notifications.filter((n) => !n.read).length;
 
   return (
-    <div className="p-5 sm:p-8 max-w-3xl mx-auto">
+    <div className="p-5 sm:p-8 max-w-regular mx-auto">
       <div className="flex items-baseline justify-between mb-6">
         <div>
           <h1 className="font-display text-3xl font-semibold tracking-tight">{t("inbox.title", "인박스")}</h1>

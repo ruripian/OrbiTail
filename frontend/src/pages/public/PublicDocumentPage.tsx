@@ -42,7 +42,7 @@ export default function PublicDocumentPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <div className="max-w-[860px] mx-auto py-8 px-4 sm:px-6">
+      <div className="doc-width mx-auto py-8 px-4 sm:px-6">
         <div className="rounded-2xl border bg-card shadow-sm overflow-hidden">
           {data.cover_image_url && (
             <div

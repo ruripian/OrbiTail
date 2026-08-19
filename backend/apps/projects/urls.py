@@ -14,6 +14,8 @@ from .views import (
     CategoryReorderView,
     SprintListCreateView,
     SprintDetailView,
+    SprintStartView,
+    SprintCompleteView,
     StateListCreateView,
     StateDetailView,
     ProjectEventListCreateView,
@@ -99,6 +101,16 @@ urlpatterns = [
         "workspaces/<slug:workspace_slug>/projects/<uuid:project_pk>/sprints/<uuid:pk>/",
         SprintDetailView.as_view(),
         name="sprint-detail",
+    ),
+    path(
+        "workspaces/<slug:workspace_slug>/projects/<uuid:project_pk>/sprints/<uuid:pk>/start/",
+        SprintStartView.as_view(),
+        name="sprint-start",
+    ),
+    path(
+        "workspaces/<slug:workspace_slug>/projects/<uuid:project_pk>/sprints/<uuid:pk>/complete/",
+        SprintCompleteView.as_view(),
+        name="sprint-complete",
     ),
     # 상태
     path(

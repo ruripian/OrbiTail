@@ -31,7 +31,7 @@ export function TeamListPage() {
 
   return (
     <div className="h-full overflow-y-auto bg-background">
-      <div className="max-w-[920px] mx-auto px-6 py-10">
+      <div className="max-w-regular mx-auto px-6 py-10">
         <header className="flex items-center justify-between mb-6">
           <h1 className="text-3xl font-bold">팀</h1>
           <Button onClick={() => setCreateOpen(true)} className="gap-2 shrink-0">

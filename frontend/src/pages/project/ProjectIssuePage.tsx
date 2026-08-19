@@ -28,7 +28,8 @@ import { IssueDetailPanel } from "./IssueDetailPanel";
 import { TableView }    from "./views/TableView";
 import { BoardView }    from "./views/BoardView";
 import { CalendarView } from "./views/CalendarView";
-import { ReportsView }   from "./views/ReportsView";
+import { AnalyticsView } from "./views/AnalyticsView";
+import { SprintView }    from "./views/SprintView";
 
 /* PASS7-2 — heavy view 는 lazy. 사용자가 해당 뷰를 처음 열 때만 로드. */
 const TimelineView = lazy(() => import("./views/TimelineView").then((m) => ({ default: m.TimelineView })));
@@ -42,7 +43,7 @@ import type { Category, Sprint } from "@/types";
 
 /* PASS4-2/4: sprints+analytics → reports, archive/trash → 사이드바.
    백로그 뷰는 보드 backlog 컬럼 + 테이블 state 필터로 대체되어 제거. */
-type ViewId = "table" | "board" | "calendar" | "timeline" | "graph" | "reports";
+type ViewId = "table" | "board" | "calendar" | "timeline" | "graph" | "sprints" | "reports";
 
 const VIEW_IDS: { id: ViewId; key: string; Icon: React.ElementType }[] = [
   { id: "table",    key: "views.tabs.table",    Icon: List       },
@@ -50,6 +51,7 @@ const VIEW_IDS: { id: ViewId; key: string; Icon: React.ElementType }[] = [
   { id: "calendar", key: "views.tabs.calendar", Icon: Calendar   },
   { id: "timeline", key: "views.tabs.timeline", Icon: GanttChart },
   { id: "graph",    key: "views.tabs.graph",    Icon: Share2     },
+  { id: "sprints",  key: "views.tabs.sprints",  Icon: Zap        },
   { id: "reports",  key: "views.tabs.reports",  Icon: BarChart3  },
 ];
 
@@ -88,7 +90,8 @@ export function ProjectIssuePage() {
      backlog 뷰는 제거되어 board 로 redirect — 보드 backlog 컬럼이 같은 역할. */
   useEffect(() => {
     const v = searchParams.get("view");
-    if (v === "sprints" || v === "analytics") {
+    // sprints 는 다시 실재하는 뷰가 됐다(스프린트 운영 화면) — 더 이상 reports 로 보내지 않는다.
+    if (v === "analytics") {
       const next = new URLSearchParams(searchParams);
       next.set("view", "reports");
       setSearchParams(next, { replace: true });
@@ -389,8 +392,16 @@ export function ProjectIssuePage() {
           />
         )}
 
+        {/* 리포트 = 읽기 전용 통계. 스프린트 운영은 별도 탭으로 분리했다(지라의 Reports/Backlog 분리). */}
         {currentView === "reports" && (
-          <ReportsView
+          <AnalyticsView
+            workspaceSlug={workspaceSlug!}
+            projectId={projectId!}
+          />
+        )}
+
+        {currentView === "sprints" && (
+          <SprintView
             workspaceSlug={workspaceSlug!}
             projectId={projectId!}
             onIssueClick={openIssue}

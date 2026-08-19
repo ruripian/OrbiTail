@@ -37,7 +37,6 @@ import { MembersPage } from "@/pages/project/settings/MembersPage";
 import { WorkflowPage } from "@/pages/project/settings/WorkflowPage";
 import { AutomationPage } from "@/pages/project/settings/AutomationPage";
 import { CategoriesPage } from "@/pages/project/CategoriesPage";
-import { SprintsPage } from "@/pages/project/SprintsPage";
 import { ProjectArchivePage } from "@/pages/project/ProjectArchivePage";
 import { ProjectTrashPage } from "@/pages/project/ProjectTrashPage";
 import { DiscoverProjectsPage } from "@/pages/project/DiscoverProjectsPage";
@@ -53,7 +52,12 @@ import { lazy, Suspense } from "react";
 const DocumentsHomePage = lazy(() => import("@/pages/documents/DocumentsHomePage"));
 const DocumentSpacePage = lazy(() => import("@/pages/documents/DocumentSpacePage"));
 const DocumentExplorerPage = lazy(() => import("@/pages/documents/DocumentExplorerPage"));
-const DocumentSpaceSettingsPage = lazy(() => import("@/pages/documents/DocumentSpaceSettingsPage"));
+const DocumentTrashPage = lazy(() => import("@/pages/documents/DocumentTrashPage"));
+const DocumentSpaceSettingsLayout = lazy(() => import("@/pages/documents/settings/DocumentSpaceSettingsLayout"));
+const SpaceGeneralPage = lazy(() => import("@/pages/documents/settings/SpaceGeneralPage"));
+const SpaceMembersPage = lazy(() => import("@/pages/documents/settings/SpaceMembersPage"));
+const SpaceContentPage = lazy(() => import("@/pages/documents/settings/SpaceContentPage"));
+const SpaceIntegrationPage = lazy(() => import("@/pages/documents/settings/SpaceIntegrationPage"));
 const PublicDocumentPage = lazy(() => import("@/pages/public/PublicDocumentPage"));
 
 /**
@@ -228,7 +232,8 @@ export const router = createBrowserRouter([
       { path: "projects/:projectId/categories/:categoryId/issues", element: <ProjectIssuePage /> },
       /* 프로젝트별 요청(버그/기능) 제출 페이지 */
       { path: "projects/:projectId/request", element: <RequestSubmitPage /> },
-      { path: "projects/:projectId/sprints", element: <SprintsPage /> },
+      /* 스프린트는 프로젝트 뷰 탭으로 통합됨 — 옛 경로는 그 탭으로 보낸다(북마크 보존) */
+      { path: "projects/:projectId/sprints", element: <Navigate to="../issues?view=sprints" replace /> },
       /* 스프린트별 이슈 뷰 — ProjectIssuePage가 sprintId URL 파라미터로 필터 */
       { path: "projects/:projectId/sprints/:sprintId/issues", element: <ProjectIssuePage /> },
       /* PASS4-4 — Archive/Trash 사이드바 진입점 (standalone 페이지) */
@@ -301,7 +306,18 @@ export const router = createBrowserRouter([
       { index: true, element: <LazyPage Component={DocumentsHomePage} /> },
       { path: "space/:spaceId", element: <LazyPage Component={DocumentSpacePage} /> },
       { path: "space/:spaceId/explorer", element: <LazyPage Component={DocumentExplorerPage} /> },
-      { path: "space/:spaceId/settings", element: <LazyPage Component={DocumentSpaceSettingsPage} /> },
+      { path: "space/:spaceId/trash", element: <LazyPage Component={DocumentTrashPage} /> },
+      {
+        path: "space/:spaceId/settings",
+        element: <LazyPage Component={DocumentSpaceSettingsLayout} />,
+        children: [
+          { index: true, element: <Navigate to="general" replace /> },
+          { path: "general",     element: <LazyPage Component={SpaceGeneralPage} /> },
+          { path: "members",     element: <LazyPage Component={SpaceMembersPage} /> },
+          { path: "content",     element: <LazyPage Component={SpaceContentPage} /> },
+          { path: "integration", element: <LazyPage Component={SpaceIntegrationPage} /> },
+        ],
+      },
       { path: "space/:spaceId/:docId", element: <LazyPage Component={DocumentSpacePage} /> },
     ],
   },

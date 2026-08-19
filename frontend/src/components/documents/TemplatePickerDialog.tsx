@@ -5,7 +5,7 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { FileText, Sparkles, Users, User as UserIcon, Trash2 } from "lucide-react";
+import { FileText, FolderOpen, Sparkles, Users, User as UserIcon, Trash2 } from "lucide-react";
 import { documentsApi } from "@/api/documents";
 import { Button } from "@/components/ui/button";
 import {
@@ -164,6 +164,7 @@ function ScopeBadge({ scope }: { scope: DocumentTemplate["scope"] }) {
   const cfg = {
     built_in: { label: "기본", cls: "bg-primary/10 text-primary", Icon: Sparkles },
     workspace: { label: "공유", cls: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400", Icon: Users },
+    space: { label: "스페이스", cls: "bg-amber-500/10 text-amber-600 dark:text-amber-400", Icon: FolderOpen },
     user: { label: "내 것", cls: "bg-muted text-muted-foreground", Icon: UserIcon },
   }[scope];
   const Icon = cfg.Icon;
@@ -177,23 +178,26 @@ function ScopeBadge({ scope }: { scope: DocumentTemplate["scope"] }) {
 
 /* "템플릿으로 저장" 다이얼로그 */
 export function SaveAsTemplateDialog({
-  open, onOpenChange, workspaceSlug, contentHtml, defaultName = "", isWorkspaceAdmin = false,
+  open, onOpenChange, workspaceSlug, spaceId, contentHtml, defaultName = "", isWorkspaceAdmin = false,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   workspaceSlug: string;
+  /** 주면 "이 스페이스 전용" 범위를 고를 수 있다 */
+  spaceId?: string;
   contentHtml: string;
   defaultName?: string;
   isWorkspaceAdmin?: boolean;
 }) {
   const [name, setName] = useState(defaultName);
   const [description, setDescription] = useState("");
-  const [scope, setScope] = useState<"user" | "workspace">("user");
+  const [scope, setScope] = useState<"user" | "workspace" | "space">("user");
   const qc = useQueryClient();
 
   const saveMutation = useMutation({
     mutationFn: () => documentsApi.templates.create(workspaceSlug, {
       name: name.trim(), description: description.trim(), content_html: contentHtml, scope,
+      ...(scope === "space" && spaceId ? { space: spaceId } : {}),
     }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["doc-templates", workspaceSlug] });
@@ -232,6 +236,15 @@ export function SaveAsTemplateDialog({
             <label className="block text-xs font-medium mb-1 text-muted-foreground">범위</label>
             <div className="flex gap-2">
               <ScopeOption active={scope === "user"} onClick={() => setScope("user")} Icon={UserIcon} label="내 템플릿" hint="나만 사용" />
+              {spaceId && (
+                <ScopeOption
+                  active={scope === "space"}
+                  onClick={() => setScope("space")}
+                  Icon={FolderOpen}
+                  label="이 스페이스"
+                  hint="이 스페이스에서만"
+                />
+              )}
               <ScopeOption
                 active={scope === "workspace"}
                 onClick={() => isWorkspaceAdmin && setScope("workspace")}

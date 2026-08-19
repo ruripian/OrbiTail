@@ -92,6 +92,12 @@ const config: Config = {
           },
         },
       },
+      /* 콘텐츠 폭 토큰 — 값과 근거는 index.css :root 참조.
+         문서 본문은 글자 크기 연동이 필요해 유틸이 아닌 .doc-width 클래스로 둔다. */
+      maxWidth: {
+        regular: "var(--w-regular)",
+        wide:    "var(--w-wide)",
+      },
       borderRadius: {
         "2xl": "calc(var(--radius) + 6px)",
         xl:    "calc(var(--radius) + 2px)",

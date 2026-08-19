@@ -754,6 +754,7 @@
     "allClearHint": "배정된 미완료 이슈가 없습니다",
     "recentIssues": "최근 업데이트",
     "viewAll": "모두 보기",
+    "showingCount": "{{total}}개 중 {{shown}}개",
     "noIssues": "아직 이슈가 없습니다",
     "charts": {
       "byState": "상태별 이슈",
@@ -934,6 +935,7 @@
       "calendar": "캘린더",
       "timeline": "타임라인",
       "graph": "그래프",
+      "sprints": "스프린트",
       "reports": "리포트"
     },
     "reports": {

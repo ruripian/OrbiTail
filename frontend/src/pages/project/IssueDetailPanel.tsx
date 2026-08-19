@@ -64,7 +64,7 @@ export function IssueDetailPanel({ issueId, onClose, workspaceSlug, projectId }:
       {/* 중앙 모달 컨테이너 — 데스크톱 해상도별 높이 유동화 */}
       <div className="fixed inset-0 flex items-center justify-center p-4 lg:p-6 pointer-events-none" style={{ zIndex: Z_MODAL }}>
         <Modal
-          className="relative w-full max-w-[1760px] h-[calc(100vh-2rem)] lg:h-[calc(100vh-3rem)] max-h-[1200px] flex flex-col glass rounded-2xl border border-border shadow-2xl pointer-events-auto"
+          className="relative w-full max-w-wide h-[calc(100vh-2rem)] lg:h-[calc(100vh-3rem)] max-h-[1200px] flex flex-col glass rounded-2xl border border-border shadow-2xl pointer-events-auto"
           {...modalProps}
         >
           {/* 닫기 버튼 — 콘텐츠와 겹치지 않도록 z-20 + 크기 확대 */}

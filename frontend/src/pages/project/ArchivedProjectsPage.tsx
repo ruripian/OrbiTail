@@ -36,7 +36,7 @@ export function ArchivedProjectsPage() {
   }
 
   return (
-    <div className="p-8 max-w-3xl">
+    <div className="p-8 max-w-regular">
       <div className="mb-6">
         <h1 className="text-lg font-semibold">{t("sidebar.archived")}</h1>
         <p className="text-sm text-muted-foreground mt-1">{t("archivedProjects.subtitle")}</p>

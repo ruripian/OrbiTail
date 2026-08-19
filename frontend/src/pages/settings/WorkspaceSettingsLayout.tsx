@@ -131,7 +131,7 @@ export function WorkspaceSettingsLayout() {
 
       </aside>
 
-      <main className="flex-1 p-8 max-w-2xl min-w-0">
+      <main className="flex-1 p-8 max-w-regular min-w-0">
         <Outlet />
       </main>
     </div>

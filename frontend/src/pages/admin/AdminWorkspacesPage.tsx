@@ -67,7 +67,7 @@ export function AdminWorkspacesPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="space-y-6 max-w-regular">
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-lg font-semibold">{t("admin.workspaces.title")}</h1>

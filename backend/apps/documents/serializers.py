@@ -1,6 +1,15 @@
 from rest_framework import serializers
 from apps.accounts.serializers import UserSerializer
-from .models import DocumentSpace, Document, DocumentIssueLink, DocumentAttachment, DocumentComment, DocumentVersion, CommentThread, DocumentTemplate
+from .models import DocumentSpace, DocumentSpaceMember, DocumentLabel, Document, DocumentIssueLink, DocumentAttachment, DocumentComment, DocumentVersion, CommentThread, DocumentTemplate
+
+
+class DocumentSpaceMemberSerializer(serializers.ModelSerializer):
+    member_detail = UserSerializer(source="member", read_only=True)
+
+    class Meta:
+        model = DocumentSpaceMember
+        fields = ["id", "space", "member", "member_detail", "role", "created_at"]
+        read_only_fields = ["id", "space", "member_detail", "created_at"]
 
 
 class DocumentSpaceSerializer(serializers.ModelSerializer):
@@ -10,6 +19,8 @@ class DocumentSpaceSerializer(serializers.ModelSerializer):
     project_network = serializers.IntegerField(source="project.network", read_only=True, default=None)
     owner_detail = UserSerializer(source="owner", read_only=True)
     members_detail = UserSerializer(source="members", many=True, read_only=True)
+    # 역할까지 필요한 화면(설정)은 이쪽을 본다 — members_detail 은 역할 없는 명단이라 그대로 둔다
+    space_members = DocumentSpaceMemberSerializer(many=True, read_only=True)
 
     class Meta:
         model = DocumentSpace
@@ -17,18 +28,32 @@ class DocumentSpaceSerializer(serializers.ModelSerializer):
             "id", "name", "icon", "icon_prop", "identifier", "description", "space_type",
             "project", "project_name", "project_identifier", "project_network",
             "owner", "owner_detail",
-            "members", "members_detail",
+            "members", "members_detail", "space_members",
             "is_private",
-            "archived_at",
+            "archived_at", "home_document",
             "document_count", "created_at",
         ]
+        # archived_at 은 쓰기 허용 — 스페이스 보관/해제를 설정 화면에서 한다.
+        # 단 프로젝트 스페이스는 프로젝트 보관과 동기화되므로 뷰에서 따로 막는다.
         read_only_fields = [
-            "id", "project", "owner", "space_type", "archived_at", "created_at",
-            "members_detail",
+            "id", "project", "owner", "space_type", "created_at",
+            "members_detail", "space_members",
         ]
 
     def get_document_count(self, obj):
         return obj.documents.filter(deleted_at__isnull=True, is_folder=False).count()
+
+
+class DocumentLabelSerializer(serializers.ModelSerializer):
+    document_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = DocumentLabel
+        fields = ["id", "name", "color", "created_by", "created_at", "document_count"]
+        read_only_fields = ["id", "created_by", "created_at", "document_count"]
+
+    def get_document_count(self, obj):
+        return obj.documents.filter(deleted_at__isnull=True).count()
 
 
 class DocumentSerializer(serializers.ModelSerializer):
@@ -36,11 +61,13 @@ class DocumentSerializer(serializers.ModelSerializer):
     children_count = serializers.SerializerMethodField()
     has_yjs_state = serializers.SerializerMethodField()
     cover_image_url = serializers.SerializerMethodField()
+    labels_detail = DocumentLabelSerializer(source="labels", many=True, read_only=True)
 
     class Meta:
         model = Document
         fields = [
             "id", "space", "parent", "title", "icon_prop",
+            "labels", "labels_detail",
             "cover_image", "cover_image_url",
             "cover_offset_x", "cover_offset_y", "cover_zoom", "cover_height",
             "preferred_width",
@@ -53,7 +80,7 @@ class DocumentSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             "id", "space", "created_by", "deleted_at", "created_at", "updated_at",
-            "has_yjs_state", "cover_image_url",
+            "has_yjs_state", "cover_image_url", "labels_detail",
         ]
         # cover_image 자체는 write-only로 허용 (multipart PATCH 가능), 읽기는 cover_image_url
         extra_kwargs = {
@@ -77,6 +104,7 @@ class DocumentSerializer(serializers.ModelSerializer):
 class DocumentTreeSerializer(serializers.ModelSerializer):
     """트리 목록용 경량 시리얼라이저 — content 제외"""
     children_count = serializers.SerializerMethodField()
+    labels_detail = DocumentLabelSerializer(source="labels", many=True, read_only=True)
 
     class Meta:
         model = Document
@@ -84,12 +112,44 @@ class DocumentTreeSerializer(serializers.ModelSerializer):
         # 필요. 트리/리스트 응답에 포함시켜도 비용 없음.
         fields = [
             "id", "space", "parent", "title", "icon_prop", "is_folder",
+            "labels", "labels_detail",
             "sort_order", "children_count",
             "created_at", "updated_at",
         ]
 
     def get_children_count(self, obj):
         return obj.children.filter(deleted_at__isnull=True).count()
+
+
+class TrashedDocumentSerializer(serializers.ModelSerializer):
+    """휴지통 목록 — 누가 언제 지웠는지가 핵심이라 그 두 필드를 함께 실어 보낸다.
+
+    본문(content_html)은 목록에 넣지 않는다. 문서가 많으면 응답이 급격히 커진다 —
+    미리보기는 필요할 때 단건으로 따로 받는다.
+    """
+    deleted_by_detail = UserSerializer(source="deleted_by", read_only=True)
+
+    class Meta:
+        model = Document
+        fields = [
+            "id", "space", "parent", "title", "icon_prop", "is_folder",
+            "deleted_at", "deleted_by", "deleted_by_detail",
+            "created_at", "updated_at",
+        ]
+
+
+class TrashedDocumentDetailSerializer(serializers.ModelSerializer):
+    """휴지통 미리보기 — 본문까지 포함한 단건 조회용(읽기 전용)."""
+    deleted_by_detail = UserSerializer(source="deleted_by", read_only=True)
+    created_by_detail = UserSerializer(source="created_by", read_only=True)
+
+    class Meta:
+        model = Document
+        fields = [
+            "id", "space", "parent", "title", "icon_prop", "is_folder", "content_html",
+            "deleted_at", "deleted_by", "deleted_by_detail",
+            "created_by", "created_by_detail", "created_at", "updated_at",
+        ]
 
 
 class DocumentIssueLinkSerializer(serializers.ModelSerializer):
@@ -147,13 +207,13 @@ class DocumentTemplateSerializer(serializers.ModelSerializer):
         model = DocumentTemplate
         fields = [
             "id", "name", "description", "icon_prop",
-            "scope", "workspace", "owner",
+            "scope", "workspace", "owner", "space",
             "content_html", "sort_order",
             "created_by", "created_by_detail",
             "created_at", "updated_at",
         ]
         read_only_fields = [
-            "id", "scope", "workspace", "owner",
+            "id", "scope", "workspace", "owner", "space",
             "created_by", "created_at", "updated_at",
         ]
 

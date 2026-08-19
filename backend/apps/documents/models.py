@@ -53,6 +53,7 @@ class DocumentSpace(models.Model):
     members = models.ManyToManyField(
         settings.AUTH_USER_MODEL,
         blank=True,
+        through="DocumentSpaceMember",
         related_name="document_space_memberships",
     )
     # shared 스페이스의 공개 범위.
@@ -64,6 +65,16 @@ class DocumentSpace(models.Model):
 
     # 프로젝트 보관과 연동되는 스페이스 보관 — project-linked 스페이스의 경우 자동 동기화
     archived_at = models.DateTimeField(null=True, blank=True)
+
+    # 스페이스에 들어왔을 때 먼저 열 문서(개요 페이지). 그 문서가 지워지면 자동으로 해제된다.
+    # related_name="+" — Document 쪽에 역참조를 만들지 않는다(홈으로 지정됐다는 사실은 스페이스의 속성).
+    home_document = models.ForeignKey(
+        "Document",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="+",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -72,6 +83,78 @@ class DocumentSpace(models.Model):
 
     def __str__(self):
         return f"[{self.space_type}] {self.name}"
+
+
+class DocumentSpaceMember(models.Model):
+    """스페이스 멤버십 + 역할.
+
+    역할은 워크스페이스/프로젝트와 같은 정수 등급 — 값이 크면 권한이 넓다.
+    등급을 정수로 두면 "EDITOR 이상" 같은 비교 한 줄로 권한을 판정할 수 있다.
+
+    project 스페이스에서 프로젝트 멤버는 ProjectMember.effective_perms 를 그대로 따르고,
+    여기 등록되는 건 "이 스페이스에만 추가된 인원" 이다. 두 출처가 겹치면 넓은 쪽이 이긴다.
+    """
+
+    class Role(models.IntegerChoices):
+        VIEWER = 5, "Viewer"    # 읽기만
+        EDITOR = 15, "Editor"   # 문서 편집
+        ADMIN = 20, "Admin"     # + 스페이스 설정·멤버 관리·삭제
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    space = models.ForeignKey(
+        DocumentSpace,
+        on_delete=models.CASCADE,
+        related_name="space_members",
+    )
+    member = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="document_space_roles",
+    )
+    role = models.IntegerField(choices=Role.choices, default=Role.EDITOR)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "document_space_members"
+        unique_together = [("space", "member")]
+        indexes = [models.Index(fields=["space", "role"])]
+
+    def __str__(self):
+        return f"{self.space_id} / {self.member_id} ({self.get_role_display()})"
+
+
+class DocumentLabel(models.Model):
+    """문서 라벨 — 워크스페이스 단위 분류.
+
+    이슈 Label 이 project FK 인 것과 달리 workspace 단위로 둔다. 문서는 스페이스를 가로질러
+    묶이는 게 정상이고(회의록·정책·회고), 스페이스마다 같은 라벨을 다시 만들게 하면 분류 의미가 없다.
+    이슈 Label 을 그대로 쓰지 않는 이유도 같다 — 그쪽은 project 가 필수라 독립 스페이스 문서에 못 붙는다.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    workspace = models.ForeignKey(
+        "workspaces.Workspace",
+        on_delete=models.CASCADE,
+        related_name="document_labels",
+    )
+    name = models.CharField(max_length=100)
+    color = models.CharField(max_length=7, default="#6b7280")
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        on_delete=models.SET_NULL,
+        related_name="created_document_labels",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "document_labels"
+        # 같은 워크스페이스에 같은 이름 라벨이 둘 생기면 분류가 갈라진다
+        unique_together = [("workspace", "name")]
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
 
 
 class Document(models.Model):
@@ -93,6 +176,7 @@ class Document(models.Model):
 
     title = models.CharField(max_length=500, default="제목 없음")
     icon_prop = models.JSONField(null=True, blank=True, default=None)  # { type: "lucide", name: "Box", color: "#hex" }
+    labels = models.ManyToManyField(DocumentLabel, blank=True, related_name="documents")
 
     # 커버 이미지 — Notion 스타일 상단 배너.
     # offset_x/offset_y: 0~100 % (이미지의 어느 지점이 컨테이너 중앙에 오도록 할지)
@@ -132,6 +216,14 @@ class Document(models.Model):
     sort_order = models.FloatField(default=65535)
 
     deleted_at = models.DateTimeField(null=True, blank=True)
+    # 휴지통에서 "누가 지웠는지"를 보여주기 위한 것. 하위 문서까지 함께 지워질 때도
+    # 실제로 버튼을 누른 사람을 그대로 기록한다(연쇄 삭제의 책임도 그 사람에게 있다).
+    deleted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name="deleted_documents",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -302,12 +394,14 @@ class DocumentTemplate(models.Model):
       built_in  — 시스템 내장 (관리자만 수정, 모든 사용자에게 노출)
       user      — 본인 전용 (owner만 조회/사용/삭제)
       workspace — 워크스페이스 공유 (멤버 전체 조회/사용, 관리자 삭제)
+      space     — 특정 스페이스 전용 (그 스페이스에서 새 문서를 만들 때만 노출)
     """
 
     class Scope(models.TextChoices):
         BUILT_IN = "built_in", "Built-in"
         USER = "user", "User"
         WORKSPACE = "workspace", "Workspace"
+        SPACE = "space", "Space"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=200)
@@ -327,6 +421,13 @@ class DocumentTemplate(models.Model):
         on_delete=models.CASCADE,
         related_name="document_templates",
     )
+    # scope=space 전용 — 스페이스가 지워지면 그 안에서만 쓰던 템플릿도 함께 사라진다
+    space = models.ForeignKey(
+        DocumentSpace,
+        null=True, blank=True,
+        on_delete=models.CASCADE,
+        related_name="templates",
+    )
 
     content_html = models.TextField(blank=True, default="")
     sort_order = models.IntegerField(default=0)
@@ -345,6 +446,7 @@ class DocumentTemplate(models.Model):
         indexes = [
             models.Index(fields=["scope", "workspace"]),
             models.Index(fields=["scope", "owner"]),
+            models.Index(fields=["scope", "space"]),
         ]
 
 
@@ -372,3 +474,27 @@ class DocumentVersion(models.Model):
         db_table = "document_versions"
         ordering = ["-version_number"]
         unique_together = [["document", "version_number"]]
+
+
+class DocumentView(models.Model):
+    """문서 조회 기록 — (문서, 사용자, 날짜) 당 1행.
+
+    타임스탬프를 매번 쌓으면 행이 금방 수천만 개가 된다. 같은 날 여러 번 열면 count 만 올려
+    행 증가를 문서·사용자·일자 조합으로 묶는다. 집계(인기 문서/조회수)에는 이 해상도면 충분하다.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    document = models.ForeignKey(Document, on_delete=models.CASCADE, related_name="views")
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        on_delete=models.SET_NULL,
+        related_name="document_views",
+    )
+    viewed_on = models.DateField()
+    count = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        db_table = "document_views"
+        unique_together = [("document", "user", "viewed_on")]
+        indexes = [models.Index(fields=["document", "-viewed_on"])]

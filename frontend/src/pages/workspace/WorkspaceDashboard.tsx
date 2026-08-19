@@ -35,6 +35,9 @@ import type { Issue, State } from "@/types";
 type StateGroup = "backlog" | "unstarted" | "started";
 const STATE_GROUPS: StateGroup[] = ["backlog", "unstarted", "started"];
 
+/** 홈 "최근 업데이트" 위젯 노출 건수 */
+const RECENT_WIDGET_SIZE = 10;
+
 /* 필터는 워크스페이스마다 따로 기억한다 — 전역 키로 저장하면 다른 워크스페이스로 옮겼을 때
    그 곳에 없는 project id 가 남아 "결과 0건" 으로 보인다. */
 const lsKey = (workspaceSlug: string) => `orbitail_dashboard_filters:${workspaceSlug}`;
@@ -228,10 +231,11 @@ export function WorkspaceDashboard() {
     enabled: !!workspaceSlug,
   });
 
-  /* 최근 이슈 */
+  /* 최근 이슈 — 위젯은 10건만. 나머지는 모두보기(무한 스크롤) 페이지에서 본다. */
   const { data: recentIssues = [] } = useQuery({
-    queryKey: ["recent-issues", workspaceSlug],
-    queryFn: () => issuesApi.recentByWorkspace(workspaceSlug!),
+    queryKey: ["recent-issues", workspaceSlug, RECENT_WIDGET_SIZE],
+    queryFn: () => issuesApi.recentByWorkspace(workspaceSlug!, { page_size: RECENT_WIDGET_SIZE }),
+    select: (page) => page.results,
     enabled: !!workspaceSlug,
   });
 
@@ -431,28 +435,26 @@ export function WorkspaceDashboard() {
       {isLoading ? (
         <HomeSkeleton />
       ) : (
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px] xl:gap-6 xl:items-start relative z-10">
-          {/* 좌측: 내 할 일 */}
-          <div className="space-y-5 min-w-0">
-            {groups.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-border bg-card/70 p-12 text-center">
-                <p className="text-lg text-muted-foreground">
-                  {hasFilters ? t("dashboard.noMatchingIssues") : t("dashboard.allClear")}
-                </p>
-                {!hasFilters && (
-                  <p className="text-sm text-muted-foreground mt-2">{t("dashboard.allClearHint")}</p>
-                )}
-              </div>
-            ) : (
-              groups.map((g) => (
-                <GroupSection key={g.key} g={g} workspaceSlug={workspaceSlug!} />
-              ))
-            )}
-          </div>
+        <div className="space-y-5 min-w-0 relative z-10">
+          {/* 내 할 일 */}
+          {groups.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-border bg-card/70 p-12 text-center">
+              <p className="text-lg text-muted-foreground">
+                {hasFilters ? t("dashboard.noMatchingIssues") : t("dashboard.allClear")}
+              </p>
+              {!hasFilters && (
+                <p className="text-sm text-muted-foreground mt-2">{t("dashboard.allClearHint")}</p>
+              )}
+            </div>
+          ) : (
+            groups.map((g) => (
+              <GroupSection key={g.key} g={g} workspaceSlug={workspaceSlug!} />
+            ))
+          )}
 
-          {/* 우측: 최근 이슈 */}
+          {/* 최근 이슈 — 내 할 일 아래 전체 폭 */}
           {recentIssues.length > 0 && (
-            <aside className="rounded-2xl border border-border bg-card/70 shadow-sm overflow-hidden xl:sticky xl:top-4">
+            <section className="rounded-2xl border border-border bg-card/70 shadow-sm overflow-hidden">
               <div className="flex items-center justify-between px-5 py-4 border-b border-border">
                 <h2 className="text-base font-semibold">{t("dashboard.recentIssues")}</h2>
               </div>
@@ -470,7 +472,7 @@ export function WorkspaceDashboard() {
                   <ArrowRight className="h-3.5 w-3.5" />
                 </Link>
               </div>
-            </aside>
+            </section>
           )}
         </div>
       )}

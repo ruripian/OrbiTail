@@ -4,7 +4,7 @@
  */
 
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
-import { useParams, useOutletContext, useNavigate } from "react-router-dom";
+import { useParams, useOutletContext, useNavigate, Navigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -25,6 +25,7 @@ import { ShareDialog } from "@/components/documents/ShareDialog";
 import { CoverEditDialog } from "@/components/documents/CoverEditDialog";
 import { CoverView } from "@/components/documents/CoverView";
 import { IssuePickerDialog } from "@/components/documents/IssuePickerDialog";
+import { DocumentLabelPicker, LabelChip } from "@/components/documents/DocumentLabelPicker";
 import { useDocumentWebSocket } from "@/hooks/useDocumentWebSocket";
 import {
   useDocReadingPrefs, adjustFontSizes, docFontCss,
@@ -46,7 +47,8 @@ import { formatRelativeTime } from "@/lib/relative-time";
 import type { Document as DocType } from "@/types";
 
 interface LayoutContext {
-  activeSpaceId: string;
+  /** 스페이스를 고르기 전에는 비어 있다 */
+  activeSpaceId?: string;
   invalidate: () => void;
 }
 
@@ -83,6 +85,17 @@ export default function DocumentSpacePage() {
       ctx?.invalidate();
     },
   });
+
+  /* 홈 문서가 지정돼 있으면 스페이스 진입 시 그 문서를 연다.
+     replace 로 이동해 뒤로가기가 스페이스 루트 ↔ 홈 문서 사이를 오가지 않게 한다. */
+  if (!docId && currentSpace?.home_document) {
+    return (
+      <Navigate
+        to={`/${workspaceSlug}/documents/space/${spaceId}/${currentSpace.home_document}`}
+        replace
+      />
+    );
+  }
 
   if (!docId) {
     return (
@@ -396,11 +409,13 @@ function DocumentEditorView({
 
         <div className="flex-1" />
 
-        {/* 접속자 아바타 — 아바타 외곽에 직접 2px 컬러 테두리만. */}
+        {/* 접속자 아바타 — 아바타 외곽에 직접 2px 컬러 테두리만.
+            래퍼는 flex 여야 한다. 블록으로 두면 inline-flex 인 아바타 아래에 baseline 여백이 붙어
+            래퍼만 세로로 길어지고, rounded-full 이 타원으로 그려진다. */}
         {editMode && (
           <div className="flex items-center gap-1 mr-2">
             <div
-              className="relative rounded-full overflow-hidden"
+              className="relative flex shrink-0 rounded-full overflow-hidden"
               title={`${collab.me.name} (나)`}
               style={{ boxShadow: `inset 0 0 0 2px ${collab.me.color}` }}
             >
@@ -409,7 +424,7 @@ function DocumentEditorView({
             {collab.peers.slice(0, 4).map((p) => (
               <div
                 key={p.userId || p.clientID}
-                className="relative rounded-full overflow-hidden"
+                className="relative flex shrink-0 rounded-full overflow-hidden"
                 title={p.name}
                 style={{ boxShadow: `inset 0 0 0 2px ${p.color}` }}
               >
@@ -417,7 +432,7 @@ function DocumentEditorView({
               </div>
             ))}
             {collab.peers.length > 4 && (
-              <div className="w-6 h-6 rounded-full bg-muted text-muted-foreground text-2xs flex items-center justify-center font-medium">
+              <div className="w-6 h-6 shrink-0 rounded-full bg-muted text-muted-foreground text-2xs flex items-center justify-center font-medium">
                 +{collab.peers.length - 4}
               </div>
             )}
@@ -593,17 +608,21 @@ function DocumentEditorView({
       <div className="flex flex-1 overflow-hidden">
         {/* 에디터 영역 */}
         <div className="flex-1 overflow-y-auto" ref={editorWrapperRef}>
-          <div className={cn("mx-auto w-full py-6 px-4 sm:px-6", fullWidth ? "max-w-none" : "max-w-[860px]")}>
+          {/* --doc-fs-* 를 컨테이너에 선언한다 — 자식 doc-frame 이 상속받고,
+              폭 토큰(--w-doc)도 본문 글자 크기를 참조해 같이 넓어진다 */}
+          <div
+            className={cn("mx-auto w-full py-6 px-4 sm:px-6", fullWidth ? "max-w-none" : "doc-width")}
+            style={{
+              ["--doc-fs-body" as string]: `${docFs.body}px`,
+              ["--doc-fs-h3" as string]:   `${docFs.h3}px`,
+              ["--doc-fs-h2" as string]:   `${docFs.h2}px`,
+              ["--doc-fs-h1" as string]:   `${docFs.h1}px`,
+              ["--doc-font" as string]:    docFontCss(docPrefs.font),
+            }}
+          >
             <div
               className="doc-frame rounded-2xl border bg-card shadow-sm overflow-hidden"
               data-print-width={fullWidth ? "wide" : "narrow"}
-              style={{
-                ["--doc-fs-body" as string]: `${docFs.body}px`,
-                ["--doc-fs-h3" as string]:   `${docFs.h3}px`,
-                ["--doc-fs-h2" as string]:   `${docFs.h2}px`,
-                ["--doc-fs-h1" as string]:   `${docFs.h1}px`,
-                ["--doc-font" as string]:    docFontCss(docPrefs.font),
-              }}
             >
               {/* 커버 이미지 배너 — CoverView 공용 렌더러 (다이얼로그 미리보기와 동일 공식) */}
               {doc.cover_image_url && (
@@ -667,6 +686,30 @@ function DocumentEditorView({
                   </>
                 )}
               </div>
+
+              {/* 라벨 — 편집 권한자만 붙이고 뗄 수 있다. 읽기 모드에서는 칩만 보인다. */}
+              {(editMode || (doc.labels_detail?.length ?? 0) > 0) && (
+                <div className="flex flex-wrap items-center gap-1.5 mb-3" data-print-hide>
+                  {doc.labels_detail?.map((label) => (
+                    <LabelChip
+                      key={label.id}
+                      label={label}
+                      onRemove={
+                        editMode
+                          ? () => onUpdate({ labels: (doc.labels ?? []).filter((id) => id !== label.id) })
+                          : undefined
+                      }
+                    />
+                  ))}
+                  {editMode && (
+                    <DocumentLabelPicker
+                      workspaceSlug={workspaceSlug!}
+                      value={doc.labels ?? []}
+                      onChange={(ids) => onUpdate({ labels: ids })}
+                    />
+                  )}
+                </div>
+              )}
               <div className="h-px bg-border/40 mb-4" />
 
               {editMode && !collab.provider ? (
@@ -810,6 +853,7 @@ function DocumentEditorView({
         open={saveTemplateOpen}
         onOpenChange={setSaveTemplateOpen}
         workspaceSlug={workspaceSlug!}
+        spaceId={spaceId}
         contentHtml={contentRef.current}
         defaultName={doc.title}
       />
@@ -915,7 +959,7 @@ function SpaceHome({
 
   return (
     <div className="flex-1 overflow-y-auto">
-      <div className="max-w-[960px] mx-auto px-8 py-10">
+      <div className="max-w-regular mx-auto px-8 py-10">
         <div className="flex items-end justify-between mb-8">
           <div>
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-1">
@@ -931,10 +975,21 @@ function SpaceHome({
               {t("documents.docCountTotal", "문서")} · {docs.filter((d) => !d.is_folder).length}
             </p>
           </div>
-          <Button onClick={createDoc} className="gap-1.5">
-            <FilePlus className="h-4 w-4" />
-            {t("documents.newDocument")}
-          </Button>
+          <div className="flex items-center gap-2">
+            {/* 탐색기 — 폴더·문서를 끌어서 정리하는 화면. 스페이스 홈에서 바로 갈 수 있어야 한다. */}
+            <Button
+              variant="outline"
+              className="gap-1.5"
+              onClick={() => navigate(`/${workspaceSlug}/documents/space/${spaceId}/explorer`)}
+            >
+              <LayoutGrid className="h-4 w-4" />
+              {t("documents.explorer")}
+            </Button>
+            <Button onClick={createDoc} className="gap-1.5">
+              <FilePlus className="h-4 w-4" />
+              {t("documents.newDocument")}
+            </Button>
+          </div>
         </div>
 
         {/* 최근 업데이트 */}

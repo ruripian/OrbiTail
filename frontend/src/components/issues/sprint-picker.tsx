@@ -27,21 +27,25 @@ interface Props {
   currentId: string | null | undefined;
   onChange:  (sprintId: string | null) => void;
   className?: string;
+  /** 보관됨/권한 없음 — 다른 picker(state/priority)와 같은 규약 */
+  disabled?: boolean;
 }
 
-export function SprintPicker({ sprints, currentId, onChange, className }: Props) {
+export function SprintPicker({ sprints, currentId, onChange, className, disabled }: Props) {
   const { t } = useTranslation();
   const cur = currentId ? sprints.find((c) => c.id === currentId) : null;
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
+      <DropdownMenuTrigger asChild disabled={disabled}>
         <button
           onClick={(e) => e.stopPropagation()}
+          disabled={disabled}
           aria-label={`${t("issues.create.cycle", "스프린트")}: ${cur?.name ?? "—"}`}
           aria-haspopup="menu"
           className={cn(
             "flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs hover:bg-muted/60 transition-colors w-full min-h-[28px]",
+            disabled && "opacity-60 cursor-not-allowed hover:bg-transparent",
             className,
           )}
         >

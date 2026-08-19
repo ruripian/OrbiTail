@@ -422,6 +422,83 @@ class SprintDetailView(generics.RetrieveUpdateDestroyAPIView):
         ).distinct()
 
 
+class SprintStartView(APIView):
+    """스프린트 시작 — draft → active.
+
+    지라와 같은 규칙으로 **활성 스프린트는 한 번에 하나**만 둔다. 두 개가 동시에 활성이면
+    "지금 하는 일"이 무엇인지가 흐려지고 번다운도 의미를 잃는다.
+    """
+
+    def post(self, request, workspace_slug, project_pk, pk):
+        sprint = get_object_or_404(Sprint, pk=pk, project_id=project_pk)
+        if sprint.status != Sprint.Status.DRAFT:
+            return Response(
+                {"detail": "예정 상태의 스프린트만 시작할 수 있습니다."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        active = Sprint.objects.filter(
+            project_id=project_pk, status=Sprint.Status.ACTIVE,
+        ).exclude(pk=pk).first()
+        if active:
+            return Response(
+                {"detail": f'이미 진행 중인 스프린트가 있습니다: "{active.name}". 먼저 완료해 주세요.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        sprint.status = Sprint.Status.ACTIVE
+        sprint.save(update_fields=["status"])
+        return Response(SprintSerializer(sprint).data)
+
+
+class SprintCompleteView(APIView):
+    """스프린트 완료 — active → completed. 남은 미완료 이슈를 어디로 보낼지 함께 정한다.
+
+    body: { "move_to": "<sprint_id>" | "backlog" }
+      - sprint_id : 그 스프린트로 이관(보통 다음 예정 스프린트)
+      - backlog   : 스프린트에서 떼어냄(sprint=null)
+
+    미완료 이슈를 그대로 두면 끝난 스프린트에 매달린 채 목록에서 사라진다
+    (완료된 스프린트의 이슈는 기본 목록에서 제외되므로). 그래서 완료 시 반드시 처리한다.
+    """
+
+    def post(self, request, workspace_slug, project_pk, pk):
+        sprint = get_object_or_404(Sprint, pk=pk, project_id=project_pk)
+        if sprint.status != Sprint.Status.ACTIVE:
+            return Response(
+                {"detail": "진행 중인 스프린트만 완료할 수 있습니다."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        from apps.issues.models import Issue
+
+        # 미완료 = 상태 그룹이 completed/cancelled 가 아닌 것
+        unfinished = Issue.objects.filter(
+            sprint=sprint, deleted_at__isnull=True, archived_at__isnull=True,
+        ).exclude(state__group__in=["completed", "cancelled"])
+
+        move_to = request.data.get("move_to") or "backlog"
+        target_sprint = None
+        if move_to != "backlog":
+            target_sprint = Sprint.objects.filter(
+                pk=move_to, project_id=project_pk,
+            ).exclude(pk=pk).first()
+            if not target_sprint:
+                return Response(
+                    {"detail": "옮길 스프린트를 찾을 수 없습니다."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        moved = unfinished.count()
+        unfinished.update(sprint=target_sprint)
+
+        sprint.status = Sprint.Status.COMPLETED
+        sprint.save(update_fields=["status"])
+        return Response({
+            **SprintSerializer(sprint).data,
+            "moved_issues": moved,
+            "moved_to": str(target_sprint.id) if target_sprint else "backlog",
+        })
+
+
 # ── 상태 관리 ──
 
 class StateListCreateView(generics.ListCreateAPIView):

@@ -196,7 +196,7 @@ export function RequestSubmitPage() {
 
   return (
     <div className="h-full overflow-y-auto bg-background">
-      <div className="max-w-[880px] mx-auto px-6 py-10 space-y-6">
+      <div className="max-w-regular mx-auto px-6 py-10 space-y-6">
         {/* 헤더 */}
         <header className="flex items-start justify-between gap-4">
           <div>

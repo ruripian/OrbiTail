@@ -4,9 +4,18 @@ from .views import (
     SpaceDetailView,
     DiscoverableSpacesView,
     SpaceJoinView,
+    SpaceMemberListCreateView,
+    SpaceMemberDetailView,
+    SpaceExportView,
+    SpaceAnalyticsView,
+    TrashedDocumentDetailView,
+    DocumentLabelListCreateView,
+    DocumentLabelDetailView,
     DocumentListCreateView,
     DocumentDetailView,
     DocumentMoveView,
+    DocumentBulkMoveView,
+    DocumentTrashView,
     DocumentIssueLinkListCreateView,
     DocumentIssueLinkDeleteView,
     DocumentSearchView,
@@ -57,6 +66,48 @@ urlpatterns = [
         SpaceJoinView.as_view(),
         name="document-space-join",
     ),
+    path(
+        "workspaces/<slug:workspace_slug>/documents/spaces/<uuid:space_pk>/members/",
+        SpaceMemberListCreateView.as_view(),
+        name="document-space-member-list",
+    ),
+    path(
+        "workspaces/<slug:workspace_slug>/documents/spaces/<uuid:space_pk>/members/<uuid:member_pk>/",
+        SpaceMemberDetailView.as_view(),
+        name="document-space-member-detail",
+    ),
+    path(
+        "workspaces/<slug:workspace_slug>/documents/spaces/<uuid:space_pk>/trash/",
+        DocumentTrashView.as_view(),
+        name="document-trash",
+    ),
+    path(
+        "workspaces/<slug:workspace_slug>/documents/spaces/<uuid:space_pk>/trash/<uuid:pk>/",
+        TrashedDocumentDetailView.as_view(),
+        name="document-trash-detail",
+    ),
+    path(
+        "workspaces/<slug:workspace_slug>/documents/spaces/<uuid:space_pk>/export/",
+        SpaceExportView.as_view(),
+        name="document-space-export",
+    ),
+    path(
+        "workspaces/<slug:workspace_slug>/documents/spaces/<uuid:space_pk>/analytics/",
+        SpaceAnalyticsView.as_view(),
+        name="document-space-analytics",
+    ),
+
+    # 라벨 — 워크스페이스 단위
+    path(
+        "workspaces/<slug:workspace_slug>/documents/labels/",
+        DocumentLabelListCreateView.as_view(),
+        name="document-label-list",
+    ),
+    path(
+        "workspaces/<slug:workspace_slug>/documents/labels/<uuid:pk>/",
+        DocumentLabelDetailView.as_view(),
+        name="document-label-detail",
+    ),
 
     # 문서 CRUD
     path(
@@ -71,6 +122,11 @@ urlpatterns = [
     ),
 
     # 트리 이동
+    path(
+        "workspaces/<slug:workspace_slug>/documents/spaces/<uuid:space_pk>/docs/bulk-move/",
+        DocumentBulkMoveView.as_view(),
+        name="document-bulk-move",
+    ),
     path(
         "workspaces/<slug:workspace_slug>/documents/spaces/<uuid:space_pk>/docs/<uuid:pk>/move/",
         DocumentMoveView.as_view(),

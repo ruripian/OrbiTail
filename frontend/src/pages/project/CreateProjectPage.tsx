@@ -127,7 +127,7 @@ export function CreateProjectPage() {
 
   return (
     <div className="min-h-full bg-background">
-      <div className="mx-auto max-w-3xl px-6 py-6">
+      <div className="mx-auto max-w-regular px-6 py-6">
         {/* 상단 컨텍스트 바 */}
         <button
           type="button"

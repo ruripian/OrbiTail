@@ -56,6 +56,15 @@
   --ease-snap:    cubic-bezier(0.2, 0, 0, 1);
   --ease-smooth:  cubic-bezier(0.4, 0, 0.2, 1);
   --ease-orbit:   cubic-bezier(0.4, 0.8, 0.2, 1);
+
+  /* ── 콘텐츠 폭 토큰 ──
+     px 고정 폭은 고해상도에서 좌우가 텅 비고, rem 기반은 html font-size clamp 상한(19px,
+     뷰포트 약 2171px)에서 멈춘다. 그래서 폭은 vw 로 잡고 양끝만 고정한다.
+     새 화면은 아래 셋 중 하나를 쓴다 — max-w-doc / max-w-regular / max-w-wide.
+
+     문서 본문 폭은 글자 크기에 연동돼야 해서 여기 두지 않는다 — .doc-width 참조. */
+  --w-regular: clamp(600px, 56vw, 1240px);
+  --w-wide:    clamp(960px, 92vw, 2000px);
 }
 
 @layer base {
@@ -376,6 +385,19 @@
   color: hsl(var(--primary));
   text-decoration: underline;
 }
+/* 문서 본문 폭 — 이 클래스를 붙인 요소가 --doc-fs-body 도 함께 선언해야 한다.
+   custom property 의 var() 는 "선언된 요소"에서 치환되므로, :root 에 두면
+   --doc-fs-body 를 못 찾아 18px 폴백으로 굳어 글자 크기 변경에 반응하지 못한다.
+   한글은 1자 ≈ 1em 이라 42/97 은 곧 "한 줄 최소 42자, 최대 97자"를 뜻한다.
+   73vw 가 해상도를, em 배수가 글자 크기를 담당한다. */
+.doc-width {
+  max-width: clamp(
+    calc(var(--doc-fs-body, 18px) * 42),
+    73vw,
+    calc(var(--doc-fs-body, 18px) * 97)
+  );
+}
+
 /* ── 문서 에디터 타이포그래피 ── */
 /* doc-frame이 --doc-fs-* 변수를 정의하면 본문/제목/헤더가 사용자 설정대로 표시 (이 문서 한정).
    기본값은 폴백 — 사용자가 한 번도 안 바꿨거나 변수가 누락된 경우. */
@@ -387,6 +409,11 @@
   font-size: var(--doc-fs-body, 18px);
   line-height: 1.7;
   color: hsl(var(--foreground));
+  /* 한글은 기본값이 음절 단위 줄바꿈이라 어절 중간("안녕하/세요")이 잘린다.
+     keep-all 로 어절을 지키되, 한 줄보다 긴 URL·영문 토큰은 anywhere 로 강제 분리해
+     본문 밖으로 삐져나가지 않게 한다. */
+  word-break: keep-all;
+  overflow-wrap: anywhere;
 }
 .doc-editor h1 {
   font-size: var(--doc-fs-h1, 36px);
@@ -1669,7 +1696,7 @@ body.hide-dots::before { display: none; }
     max-width: none !important;
     width: 100% !important;
   }
-  [class*="max-w-"] { max-width: none !important; }
+  [class*="max-w-"], .doc-width { max-width: none !important; }
 
   /* 화면 컬러 그대로 인쇄 — 사용자가 텍스트 색/배경 강조한 것 다 보이도록.
      UI 요소(스크롤바/그림자)만 정리. */

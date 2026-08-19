@@ -87,7 +87,7 @@ export function TeamDetailPage() {
     <div className="h-full overflow-y-auto bg-background">
       <div className="px-6 py-6">
         {/* 헤더 — 가독성 위해 1600px 중앙 유지 */}
-        <div className="max-w-[1600px] mx-auto">
+        <div className="max-w-wide mx-auto">
         <button
           onClick={() => navigate(`/${workspaceSlug}/teams`)}
           className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground mb-4 transition-colors"
@@ -139,7 +139,7 @@ export function TeamDetailPage() {
         </section>
 
         {/* 멤버 목록 — 1600px 중앙 유지 */}
-        <div className="max-w-[1600px] mx-auto">
+        <div className="max-w-wide mx-auto">
         <section className="rounded-xl border bg-card overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b">
             <h2 className="text-sm font-semibold">멤버 ({members.length})</h2>

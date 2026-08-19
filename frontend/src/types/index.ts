@@ -268,6 +268,19 @@ export interface MeSummary {
   }>;
 }
 
+/** 문서 스페이스 등급 — 값이 크면 권한이 넓다(백엔드 DocumentSpaceMember.Role 과 동일) */
+export const DOC_SPACE_ROLE = { VIEWER: 5, EDITOR: 15, ADMIN: 20 } as const;
+export type DocumentSpaceRole = (typeof DOC_SPACE_ROLE)[keyof typeof DOC_SPACE_ROLE];
+
+export interface DocumentSpaceMember {
+  id: string;
+  space: string;
+  member: string;
+  member_detail: User;
+  role: DocumentSpaceRole;
+  created_at: string;
+}
+
 export interface DocumentSpace {
   id: string;
   name: string;
@@ -285,11 +298,42 @@ export interface DocumentSpace {
   owner_detail: User | null;
   members?: string[];
   members_detail?: User[];
+  /** 역할을 포함한 멤버십 — 설정 화면은 이쪽을 쓴다 */
+  space_members?: DocumentSpaceMember[];
   /** 공용(shared) 스페이스 한정 — true 면 멤버만 접근. project/personal 에는 의미 없음. */
   is_private?: boolean;
   archived_at?: string | null;
+  /** 스페이스 진입 시 먼저 열 문서. 그 문서가 삭제되면 자동 해제된다. */
+  home_document?: string | null;
   document_count: number;
   created_at: string;
+}
+
+/** 휴지통 항목 — 목록에는 본문이 없고, 미리보기(단건 조회) 때만 content_html 이 온다 */
+export interface TrashedDocument {
+  id: string;
+  space: string;
+  parent: string | null;
+  title: string;
+  icon_prop: Record<string, unknown> | null;
+  is_folder: boolean;
+  deleted_at: string;
+  deleted_by: string | null;
+  deleted_by_detail: User | null;
+  content_html?: string;
+  created_by_detail?: User | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** 문서 라벨 — 워크스페이스 단위(이슈 Label 은 프로젝트 단위라 별개) */
+export interface DocumentLabel {
+  id: string;
+  name: string;
+  color: string;
+  created_by: string | null;
+  created_at: string;
+  document_count: number;
 }
 
 export interface Document {
@@ -298,6 +342,8 @@ export interface Document {
   parent: string | null;
   title: string;
   icon_prop: Record<string, unknown> | null;
+  labels?: string[];
+  labels_detail?: DocumentLabel[];
   cover_image_url?: string | null;
   cover_offset_x?: number;
   cover_offset_y?: number;
@@ -325,9 +371,11 @@ export interface DocumentTemplate {
   name: string;
   description: string;
   icon_prop: Record<string, unknown> | null;
-  scope: "built_in" | "user" | "workspace";
+  scope: "built_in" | "user" | "workspace" | "space";
   workspace: string | null;
   owner: string | null;
+  /** scope="space" 일 때만 채워진다 */
+  space?: string | null;
   content_html: string;
   sort_order: number;
   created_by: string | null;

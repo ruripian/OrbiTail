@@ -109,6 +109,17 @@ export const projectsApi = {
 
     delete: (workspaceSlug: string, projectId: string, sprintId: string) =>
       api.delete(`/workspaces/${workspaceSlug}/projects/${projectId}/sprints/${sprintId}/`),
+
+    /** draft → active. 활성 스프린트는 한 번에 하나만 허용된다(서버가 검사). */
+    start: (workspaceSlug: string, projectId: string, sprintId: string) =>
+      api.post<Sprint>(`/workspaces/${workspaceSlug}/projects/${projectId}/sprints/${sprintId}/start/`).then((r) => r.data),
+
+    /** active → completed. 남은 미완료 이슈를 다음 스프린트나 백로그로 함께 보낸다. */
+    complete: (workspaceSlug: string, projectId: string, sprintId: string, moveTo: string | "backlog") =>
+      api.post<Sprint & { moved_issues: number; moved_to: string }>(
+        `/workspaces/${workspaceSlug}/projects/${projectId}/sprints/${sprintId}/complete/`,
+        { move_to: moveTo },
+      ).then((r) => r.data),
   },
 
   // 캘린더 이벤트 (프로젝트 멤버 공유)

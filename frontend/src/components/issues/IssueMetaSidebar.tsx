@@ -5,11 +5,13 @@ import { useNavigate } from "react-router-dom";
 import { FileText, Users, UserX } from "lucide-react";
 import { issuesApi } from "@/api/issues";
 import { documentsApi } from "@/api/documents";
+import { projectsApi } from "@/api/projects";
 import { StatePicker } from "@/components/issues/state-picker";
 import { PriorityPicker } from "@/components/issues/priority-picker";
 import { UserPicker, membersToUsers, mergeUsers } from "@/components/ui/user-picker";
 import { LabelPicker } from "@/components/issues/label-picker";
 import { CategoryPicker } from "@/components/issues/category-picker";
+import { SprintPicker } from "@/components/issues/sprint-picker";
 import { ParentPicker } from "@/components/issues/parent-picker";
 import { DatePicker } from "@/components/ui/date-picker";
 import { DocumentPickerDialog } from "@/components/documents/DocumentPickerDialog";
@@ -68,6 +70,13 @@ export function IssueMetaSidebar({
   readOnly = false,
   children,
 }: IssueMetaSidebarProps) {
+  /* 스프린트 목록은 여기서 직접 조회한다 — 호출부(상세/패널/다이얼로그)마다 prop 을 늘리지 않기 위함.
+     같은 queryKey 라 다른 화면과 캐시를 공유하므로 추가 요청이 생기지 않는다. */
+  const { data: sprints = [] } = useQuery({
+    queryKey: ["sprints", workspaceSlug, projectId],
+    queryFn: () => projectsApi.sprints.list(workspaceSlug, projectId),
+    enabled: !!workspaceSlug && !!projectId,
+  });
   const { t } = useTranslation();
 
   return (
@@ -138,7 +147,9 @@ export function IssueMetaSidebar({
           </div>
         </div>
 
-        {/* Row 3 — Category(Modules). 스프린트 picker 제거. */}
+        {/* Row 3 — Category(Modules) + 스프린트.
+            스프린트는 한때 여기서 뺐지만, 그러면 이슈를 열어서 스프린트를 바꿀 길이 사라진다
+            (테이블의 스프린트 컬럼은 기본 숨김이라 사실상 생성 시에만 지정 가능했다). */}
         <div className="px-4 py-3">
           <p className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground/70 mb-1.5">
             {t("sidebar.modules")}
@@ -150,6 +161,19 @@ export function IssueMetaSidebar({
             className="border border-border rounded-md bg-input/60 hover:bg-primary/10"
             disabled={!!issue.parent}
             disabledReason={issue.parent ? t("issues.categoryInheritsFromParent", "하위 이슈는 상위 이슈의 모듈을 따라갑니다") : undefined}
+          />
+        </div>
+
+        <div className="px-4 py-3">
+          <p className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground/70 mb-1.5">
+            {t("issues.table.cols.cycle", "스프린트")}
+          </p>
+          <SprintPicker
+            sprints={sprints}
+            currentId={issue.sprint}
+            onChange={(id) => onUpdate({ sprint: id })}
+            className="border border-border rounded-md bg-input/60 hover:bg-primary/10"
+            disabled={readOnly}
           />
         </div>
 

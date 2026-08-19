@@ -21,7 +21,7 @@ export function AutomationPage() {
   }, []);
 
   return (
-    <div className="max-w-4xl space-y-12">
+    <div className="max-w-regular space-y-12">
       <header>
         <h1 className="text-xl font-semibold">{t("project.settings.tabs.automation")}</h1>
         <p className="text-sm text-muted-foreground mt-1">

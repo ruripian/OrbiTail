@@ -754,6 +754,7 @@
     "noMatchingIssues": "No issues match the current filters",
     "recentIssues": "Recent Updates",
     "viewAll": "View All",
+    "showingCount": "{{shown}} of {{total}}",
     "noIssues": "No issues yet",
     "charts": {
       "byState": "Issues by State",
@@ -934,6 +935,7 @@
       "calendar": "Calendar",
       "timeline": "Timeline",
       "graph": "Graph",
+      "sprints": "Sprints",
       "reports": "Reports"
     },
     "reports": {

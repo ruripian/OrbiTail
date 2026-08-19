@@ -13,14 +13,13 @@
  */
 
 import { useState, useMemo, useRef, Fragment, useEffect, createContext, useContext } from "react";
-import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRecentChangesStore } from "@/stores/recentChangesStore";
 import {
   Plus, SlidersHorizontal, Check, X, Inbox, Search,
   GitBranch, Link2, LayoutGrid, ChevronDown, ChevronRight,
-  GripVertical, MoreHorizontal, Trash2, CheckCircle2, Copy, Archive, Share2, Layers, Circle,
+  GripVertical, MoreHorizontal, Trash2, CheckCircle2, Copy, Archive, Layers, Circle,
   ArrowUp, ArrowDown, ArrowUpDown, RotateCcw,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -213,15 +212,6 @@ const RowDragContext = createContext<RowDragCtx>({
   onDragStart: () => {}, onDragOver: () => {}, onDragEnd: () => {}, onDrop: () => {},
 });
 
-/* 관계 강조 컨텍스트 — connectedSet 이 있으면 이 set 에 없는 이슈는 dim 처리.
-   depthMap 으로 직접(1) / 간접(2) 구분, focusIssueId 는 현재 포커스 이슈. */
-interface RelCtx {
-  connectedSet: Set<string> | null;
-  depthMap: Map<string, number> | null;
-  focusIssueId: string | null;
-}
-const RelHighlightContext = createContext<RelCtx>({ connectedSet: null, depthMap: null, focusIssueId: null });
-
 /** 순환 참조 검증 — dragId를 targetId의 하위로 넣으면 순환이 생기는지 확인.
  *  - dragId === targetId: 자기 자신을 자기 자신에 넣는 경우 → 즉시 차단
  *  - 그 외: targetId가 dragId의 자손이면 순환 */
@@ -258,60 +248,10 @@ interface Props {
   readOnly?:    boolean;
 }
 
-/* 관계 강조 모드 — localStorage 영속 */
-const REL_MODE_KEY = "orbitail_table_rel_highlight";
-
 export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter, readOnly }: Props) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const { refresh } = useIssueRefresh(workspaceSlug, projectId);
-  const [searchParams] = useSearchParams();
-  const focusIssueId = searchParams.get("issue");
-
-  /* ── 관계 강조 모드 ── */
-  const [relHighlight, setRelHighlight] = useState<boolean>(() => {
-    try { return localStorage.getItem(REL_MODE_KEY) === "1"; } catch { return false; }
-  });
-  useEffect(() => {
-    try { localStorage.setItem(REL_MODE_KEY, relHighlight ? "1" : "0"); } catch { /* ignore */ }
-  }, [relHighlight]);
-
-  /* 프로젝트 범위의 수동 node link 만 가져와 adjacency 구성.
-     관계 강조 모드가 ON 이고 focus 가 있을 때만 실제로 활용 — 다른 시점엔 조용히 캐시 */
-  const { data: nodeGraphData } = useQuery({
-    queryKey: ["node-graph", workspaceSlug, projectId, "manual"],
-    queryFn: () => issuesApi.nodeGraph(workspaceSlug, projectId, { manualOnly: true, includeLabelEdges: false }),
-    enabled: !!workspaceSlug && !!projectId && relHighlight,
-    staleTime: 30_000,
-  });
-
-  /* adjacency: issue_id -> 연결된 issue_id Set. 수동 node-link + 부모-자식 양쪽 모두 포함.
-     2-hop 까지 BFS, depthMap 으로 직접/간접 구분 */
-  const { connectedSet, connectedDepthMap } = useMemo<{ connectedSet: Set<string> | null; connectedDepthMap: Map<string, number> | null }>(() => {
-    if (!relHighlight || !focusIssueId || !nodeGraphData) return { connectedSet: null, connectedDepthMap: null };
-    const adj = new Map<string, Set<string>>();
-    for (const e of nodeGraphData.edges) {
-      if (!adj.has(e.source)) adj.set(e.source, new Set());
-      if (!adj.has(e.target)) adj.set(e.target, new Set());
-      adj.get(e.source)!.add(e.target);
-      adj.get(e.target)!.add(e.source);
-    }
-    const dmap = new Map<string, number>([[focusIssueId, 0]]);
-    const queue: Array<[string, number]> = [[focusIssueId, 0]];
-    while (queue.length > 0) {
-      const [id, depth] = queue.shift()!;
-      if (depth >= 2) continue;
-      const neighbors = adj.get(id);
-      if (!neighbors) continue;
-      for (const n of neighbors) {
-        if (!dmap.has(n)) {
-          dmap.set(n, depth + 1);
-          queue.push([n, depth + 1]);
-        }
-      }
-    }
-    return { connectedSet: new Set(dmap.keys()), connectedDepthMap: dmap };
-  }, [relHighlight, focusIssueId, nodeGraphData]);
 
   const { data: project } = useQuery({
     queryKey: ["project", workspaceSlug, projectId],
@@ -858,7 +798,6 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
 
   return (
     <RowDragContext.Provider value={dragCtx}>
-    <RelHighlightContext.Provider value={{ connectedSet, depthMap: connectedDepthMap, focusIssueId }}>
     <div ref={containerRef} className="flex flex-col h-full overflow-hidden" style={colStyles}>
 
       <div className="flex items-center gap-2 px-3 sm:px-5 py-2 sm:py-3 border-b border-border shrink-0 flex-wrap">
@@ -916,29 +855,6 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
         >
           <CheckCircle2 className="h-3.5 w-3.5" />
           {hideCompleted ? t("issues.filter.hideCompleted") : t("issues.filter.showCompleted")}
-        </button>
-
-        {/* 관계 강조 토글 — 선택된 이슈의 노드 링크만 하이라이트, 나머지 dim */}
-        <button
-          type="button"
-          onClick={() => setRelHighlight((v) => !v)}
-          className={cn(
-            "inline-flex items-center gap-1.5 text-xs rounded-lg px-2.5 py-1.5 border transition-all duration-fast",
-            relHighlight
-              ? "bg-amber-400/15 border-amber-400/40 text-amber-600 dark:text-amber-400"
-              : "border-border text-muted-foreground hover:text-foreground hover:bg-muted/40"
-          )}
-          title={relHighlight
-            ? "관계 강조 끄기"
-            : "관계 강조 — 이슈 선택 시 연결된 이슈만 하이라이트, 나머지는 반투명 처리"
-          }
-        >
-          <Share2 className="h-3.5 w-3.5" />
-          {relHighlight
-            ? (connectedDepthMap && focusIssueId
-                ? `관계 강조 · 직접 ${Array.from(connectedDepthMap.values()).filter((d) => d === 1).length} · 간접 ${Array.from(connectedDepthMap.values()).filter((d) => d === 2).length}`
-                : "관계 강조 켜짐 (이슈 선택 필요)")
-            : "관계 강조"}
         </button>
 
         {hasFilter && (
@@ -1277,7 +1193,6 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
         readOnly={readOnly}
       />
     )}
-    </RelHighlightContext.Provider>
     </RowDragContext.Provider>
   );
 }
@@ -1500,15 +1415,6 @@ function IssueCard({
     useContext(RowDragContext);
   const isDragging   = dragId      === issue.id;
   const isNestTarget = nestTargetId === issue.id;
-
-  /* ── 관계 강조 모드: 포커스 이슈와 연결되지 않은 이슈는 dim, 연결된 이슈는 ring ── */
-  const { connectedSet, depthMap, focusIssueId } = useContext(RelHighlightContext);
-  const isRelHighlightActive = connectedSet != null;
-  const isDimmed = isRelHighlightActive && !connectedSet!.has(issue.id);
-  const isFocused = isRelHighlightActive && focusIssueId === issue.id;
-  const connectedDepth = depthMap?.get(issue.id);
-  const isDirectConnected = isRelHighlightActive && !isFocused && connectedDepth === 1;
-  const isIndirectConnected = isRelHighlightActive && !isFocused && connectedDepth === 2;
 
   /* ── 확장/접기 ── */
   const [expanded,      setExpanded]      = useState(false);
@@ -1896,11 +1802,6 @@ function IssueCard({
               ? "ring-2 ring-primary border-primary/50 bg-primary/[0.03] shadow-[0_0_0_4px_hsl(var(--primary)/0.08)]"
               : "hover:ring-1 hover:ring-border/40 hover:shadow-md hover:border-border",
           !isDragging && "cursor-grab active:cursor-grabbing",
-          // 관계 강조 모드 — 비연결 이슈 dim, 포커스 이슈 primary ring, 연결 이슈 amber ring
-          isDimmed && "opacity-30 saturate-50",
-          isFocused && "ring-2 ring-primary shadow-[0_0_0_4px_hsl(var(--primary)/0.12)]",
-          isDirectConnected && "ring-1 ring-amber-400/80 shadow-[0_0_0_3px_rgba(251,191,36,0.15)]",
-          isIndirectConnected && "ring-1 ring-amber-400/40 shadow-[0_0_0_2px_rgba(251,191,36,0.06)]",
         )}
       >
         {/* 드롭 인디케이터 — 트리 깊이 시각화. 좌측 offset 이 depth 를 반영해 어느 계층에 편입되는지 한눈에.

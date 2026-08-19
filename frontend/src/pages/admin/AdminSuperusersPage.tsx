@@ -56,7 +56,7 @@ export function AdminSuperusersPage() {
   }
 
   return (
-    <div className="space-y-8 max-w-3xl">
+    <div className="space-y-8 max-w-regular">
       <div>
         <h1 className="text-lg font-semibold">{t("admin.superusers.title")}</h1>
         <p className="text-sm text-muted-foreground mt-1">{t("admin.superusers.desc")}</p>

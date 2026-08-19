@@ -151,7 +151,8 @@ export default function DocumentsHomePage() {
             )}
           </p>
         </div>
-        {/* 스페이스 즐겨찾기 별 — 즐찾이면 항상 amber, 아니면 hover 시 노출 */}
+        {/* 스페이스 즐겨찾기 별 — 즐찾이면 amber, 아니면 옅게 상시 노출.
+            hover 에서만 나타나게 뒀더니 기능이 있는 줄 모른다는 피드백이 있었다. */}
         <button
           type="button"
           onClick={(e) => {
@@ -163,7 +164,7 @@ export default function DocumentsHomePage() {
             "shrink-0 h-7 w-7 rounded-md flex items-center justify-center transition-all",
             isBookmarked
               ? "text-amber-500 hover:bg-amber-500/10"
-              : "text-muted-foreground/60 opacity-0 group-hover:opacity-100 hover:bg-accent hover:text-foreground",
+              : "text-muted-foreground/40 opacity-60 group-hover:opacity-100 hover:bg-accent hover:text-foreground",
           )}
         >
           <Star className={cn("h-4 w-4", isBookmarked && "fill-current")} />
@@ -190,7 +191,7 @@ export default function DocumentsHomePage() {
 
   return (
     <PageTransition className="p-5 sm:p-8 overflow-y-auto h-full">
-      <div className="max-w-5xl mx-auto">
+      <div className="max-w-wide mx-auto">
         {/* 헤더 */}
         <div className="flex items-center justify-between mb-8">
           <div>

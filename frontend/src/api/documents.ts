@@ -1,5 +1,13 @@
 import { api } from "@/lib/axios";
-import type { DocumentSpace, Document, DocumentIssueLink, DocumentComment, DocumentVersion, CommentThread, DocumentTemplate, DocumentAttachment } from "@/types";
+import type { DocumentSpace, DocumentSpaceMember, DocumentSpaceRole, DocumentLabel, TrashedDocument, Document, DocumentIssueLink, DocumentComment, DocumentVersion, CommentThread, DocumentTemplate, DocumentAttachment } from "@/types";
+
+/** 스페이스 조회 통계 — 개인 이력은 내보내지 않고 집계만 */
+export interface SpaceAnalytics {
+  days: number;
+  total_views: number;
+  unique_viewers: number;
+  top_documents: { id: string; title: string; views: number; viewers: number }[];
+}
 
 export const documentsApi = {
   /* ─── 스페이스 ─── */
@@ -33,6 +41,61 @@ export const documentsApi = {
 
     delete: (workspaceSlug: string, spaceId: string) =>
       api.delete(`/workspaces/${workspaceSlug}/documents/spaces/${spaceId}/`),
+
+    /* 멤버 — 역할(뷰어/편집자/관리자)까지 다루는 전용 엔드포인트 */
+    members: {
+      list: (workspaceSlug: string, spaceId: string) =>
+        api.get<DocumentSpaceMember[]>(`/workspaces/${workspaceSlug}/documents/spaces/${spaceId}/members/`).then((r) => r.data),
+
+      add: (workspaceSlug: string, spaceId: string, memberId: string, role: DocumentSpaceRole) =>
+        api.post<DocumentSpaceMember>(`/workspaces/${workspaceSlug}/documents/spaces/${spaceId}/members/`, { member: memberId, role }).then((r) => r.data),
+
+      setRole: (workspaceSlug: string, spaceId: string, memberId: string, role: DocumentSpaceRole) =>
+        api.patch<DocumentSpaceMember>(`/workspaces/${workspaceSlug}/documents/spaces/${spaceId}/members/${memberId}/`, { role }).then((r) => r.data),
+
+      remove: (workspaceSlug: string, spaceId: string, memberId: string) =>
+        api.delete(`/workspaces/${workspaceSlug}/documents/spaces/${spaceId}/members/${memberId}/`),
+    },
+
+    /* 휴지통 — 소프트 삭제된 문서 */
+    trash: {
+      list: (workspaceSlug: string, spaceId: string) =>
+        api.get<TrashedDocument[]>(`/workspaces/${workspaceSlug}/documents/spaces/${spaceId}/trash/`).then((r) => r.data),
+
+      /** 미리보기 — 본문 포함 단건. 삭제된 문서는 일반 상세 API 로 열 수 없다. */
+      get: (workspaceSlug: string, spaceId: string, docId: string) =>
+        api.get<TrashedDocument>(`/workspaces/${workspaceSlug}/documents/spaces/${spaceId}/trash/${docId}/`).then((r) => r.data),
+
+      restore: (workspaceSlug: string, spaceId: string, ids: string[]) =>
+        api.post<{ restored: number }>(`/workspaces/${workspaceSlug}/documents/spaces/${spaceId}/trash/`, { ids }).then((r) => r.data),
+
+      /** ids 를 비우면 휴지통 전체 비우기 */
+      purge: (workspaceSlug: string, spaceId: string, ids?: string[]) =>
+        api.delete<{ deleted: number }>(`/workspaces/${workspaceSlug}/documents/spaces/${spaceId}/trash/`, { data: { ids } }).then((r) => r.data),
+    },
+
+    /** 스페이스 전체를 zip 으로 — 응답이 바이너리라 blob 으로 받는다 */
+    exportZip: (workspaceSlug: string, spaceId: string) =>
+      api.get<Blob>(`/workspaces/${workspaceSlug}/documents/spaces/${spaceId}/export/`, { responseType: "blob" }).then((r) => r.data),
+
+    analytics: (workspaceSlug: string, spaceId: string, days = 30) =>
+      api.get<SpaceAnalytics>(`/workspaces/${workspaceSlug}/documents/spaces/${spaceId}/analytics/`, { params: { days } }).then((r) => r.data),
+  },
+
+  /* ─── 라벨 (워크스페이스 단위) ─── */
+  labels: {
+    list: (workspaceSlug: string) =>
+      api.get<DocumentLabel[]>(`/workspaces/${workspaceSlug}/documents/labels/`).then((r) => r.data),
+
+    /** 같은 이름이 이미 있으면 서버가 기존 라벨을 그대로 돌려준다 */
+    create: (workspaceSlug: string, data: { name: string; color?: string }) =>
+      api.post<DocumentLabel>(`/workspaces/${workspaceSlug}/documents/labels/`, data).then((r) => r.data),
+
+    update: (workspaceSlug: string, id: string, data: { name?: string; color?: string }) =>
+      api.patch<DocumentLabel>(`/workspaces/${workspaceSlug}/documents/labels/${id}/`, data).then((r) => r.data),
+
+    delete: (workspaceSlug: string, id: string) =>
+      api.delete(`/workspaces/${workspaceSlug}/documents/labels/${id}/`),
   },
 
   /* ─── 문서 ─── */
@@ -74,6 +137,10 @@ export const documentsApi = {
 
   move: (workspaceSlug: string, spaceId: string, docId: string, data: { parent?: string | null; sort_order?: number }) =>
     api.post<Document>(`/workspaces/${workspaceSlug}/documents/spaces/${spaceId}/docs/${docId}/move/`, data).then((r) => r.data),
+
+  /** 여러 문서를 한 폴더로 — 순환 검사를 모두 통과해야 저장된다(부분 적용 없음) */
+  bulkMove: (workspaceSlug: string, spaceId: string, ids: string[], parent: string | null) =>
+    api.post<{ moved: number }>(`/workspaces/${workspaceSlug}/documents/spaces/${spaceId}/docs/bulk-move/`, { ids, parent }).then((r) => r.data),
 
   /* ─── 이슈 연결 ─── */
   issues: {
@@ -201,15 +268,17 @@ export const documentsApi = {
 
   /* ─── 템플릿 ─── */
   templates: {
-    list: (workspaceSlug: string, scope?: "built_in" | "user" | "workspace") =>
+    /** spaceId 를 주면 그 스페이스 전용 템플릿까지 함께 받는다 */
+    list: (workspaceSlug: string, scope?: "built_in" | "user" | "workspace" | "space", spaceId?: string) =>
       api.get<DocumentTemplate[]>(
         `/workspaces/${workspaceSlug}/documents/templates/`,
-        { params: scope ? { scope } : {} },
+        { params: { ...(scope ? { scope } : {}), ...(spaceId ? { space: spaceId } : {}) } },
       ).then((r) => r.data),
 
     create: (workspaceSlug: string, data: {
       name: string; description?: string; icon_prop?: Record<string, unknown> | null;
-      content_html: string; scope?: "user" | "workspace" | "built_in"; sort_order?: number;
+      content_html: string; scope?: "user" | "workspace" | "built_in" | "space";
+      space?: string; sort_order?: number;
     }) =>
       api.post<DocumentTemplate>(`/workspaces/${workspaceSlug}/documents/templates/`, data).then((r) => r.data),
 
