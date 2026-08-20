@@ -4,6 +4,8 @@
 
 OrbiTail is a self-hosted project management tool that combines a Linear-style issue tracker with a shared team calendar and a Gantt-style timeline. It runs on your own infrastructure via Docker Compose.
 
+> **Want to look around first?** The [live demo](https://orbitail.ruripian.duckdns.org) hands you a private workspace with no sign-up and no login — the same Nimbus Studio data you see in these screenshots. Anything you change is yours alone and disappears after a day.
+
 ![Dashboard overview](https://raw.githubusercontent.com/ruripian/OrbiTail/main/docs/wiki-screenshots/01-dashboard-overview.png?v=2)
 
 ## User Guide

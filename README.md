@@ -16,6 +16,10 @@
   📖 <a href="https://github.com/ruripian/OrbiTail/wiki/한국어">사용자 위키 (한국어)</a> · <a href="https://github.com/ruripian/OrbiTail/wiki">User Wiki (English)</a>
 </p>
 
+<p align="center">
+  🚀 <a href="https://orbitail.ruripian.duckdns.org">라이브 데모</a> — 가입도 로그인도 없이 바로 둘러보기
+</p>
+
 ---
 
 ## 기술 스택
@@ -83,6 +87,10 @@ vi .env
 docker compose -f docker-compose.prod.yml up -d --build
 ```
 
+이미지에는 `TAG` 값이 태그로 붙습니다. 지정하지 않으면 `local` 이라 위 명령이
+그 자리에서 빌드해 그대로 씁니다. 운영에서 **재빌드 없이 되돌릴 수 있게** 하려면
+배포한 커밋 SHA 로 고정하세요 — 자세한 절차는 [배포 가이드](docs/DEPLOY.md#7-이미지-태그로-배포-고정하기).
+
 ### HTTPS 설정 (선택)
 
 ```bash
@@ -113,6 +121,12 @@ docker compose -f docker-compose.prod.yml exec backend \
   python manage.py createsuperuser
 ```
 
+### 공개 데모로 띄우기
+
+아무나 들어와 둘러보게 하려면 `.env` 에 `DEMO_MODE=True` 를 넣습니다. 방문자마다
+격리된 워크스페이스가 발급되고(서로 보이지 않습니다) 하루 뒤 자동으로 삭제됩니다.
+관리자 콘솔·파일 업로드·메일 발송은 차단됩니다. [배포 가이드](docs/DEPLOY.md#8-공개-데모-모드) 참조.
+
 ---
 
 ## 프로젝트 구조
@@ -121,11 +135,16 @@ docker compose -f docker-compose.prod.yml exec backend \
 orbitail/
 ├── backend/            # Django + DRF
 │   └── apps/
-│       ├── accounts/     # JWT 인증
-│       ├── workspaces/   # 워크스페이스 + 멤버 + 초대
+│       ├── accounts/     # JWT 인증 + 공지사항
+│       ├── workspaces/   # 워크스페이스 + 멤버 + 팀 + 초대
 │       ├── projects/     # 프로젝트 + 카테고리 + 스프린트 + 이벤트
 │       ├── issues/       # 이슈 + 댓글 + 활동 + 첨부
-│       └── notifications/# 실시간 알림
+│       ├── documents/    # 문서 스페이스 + 문서 + 협업 편집
+│       ├── notifications/# 실시간 알림
+│       ├── me/           # 개인 일정
+│       ├── audit/        # 감사 로그
+│       ├── admin_console/# 전역 관리자 콘솔
+│       └── demo/         # 공개 데모 모드 (DEMO_MODE)
 ├── frontend/           # React + TypeScript
 │   └── src/
 │       ├── pages/        # 라우트 페이지

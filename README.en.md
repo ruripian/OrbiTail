@@ -16,6 +16,10 @@
   📖 <a href="https://github.com/ruripian/OrbiTail/wiki">User Wiki (English)</a> · <a href="https://github.com/ruripian/OrbiTail/wiki/한국어">사용자 위키 (한국어)</a>
 </p>
 
+<p align="center">
+  🚀 <a href="https://orbitail.ruripian.duckdns.org">Live demo</a> — no sign-up, no login, just look around
+</p>
+
 ---
 
 ## Tech Stack
@@ -83,6 +87,11 @@ vi .env
 docker compose -f docker-compose.prod.yml up -d --build
 ```
 
+Images are tagged with the value of `TAG`. Left unset it is `local`, so the command
+above builds in place and uses the result. To make production **rollback-able without
+a rebuild**, pin it to the deployed commit SHA — see the
+[deployment guide](docs/DEPLOY.md#7-이미지-태그로-배포-고정하기).
+
 ### HTTPS (optional)
 
 ```bash
@@ -112,6 +121,13 @@ docker compose -f docker-compose.prod.yml exec db \
 docker compose -f docker-compose.prod.yml exec backend \
   python manage.py createsuperuser
 ```
+
+### Running it as a public demo
+
+Set `DEMO_MODE=True` in `.env` to let anyone walk in and look around. Each visitor gets
+their own isolated workspace (invisible to everyone else) that is deleted after a day.
+Admin console, file uploads and outgoing email are blocked. See the
+[deployment guide](docs/DEPLOY.md#8-공개-데모-모드).
 
 ---
 

@@ -2,7 +2,7 @@
 
 **English** · [한국어](시작하기)
 
-When you sign in, OrbiTail drops you into your **workspace home**. This page greets you by name, shows how many issues are assigned to you, and surfaces the most recent updates across the workspace.
+When you sign in, OrbiTail drops you into your **workspace home**. (On the [live demo](https://orbitail.ruripian.duckdns.org), "Start the demo" takes you to the same place.) This page greets you by name, shows how many issues are assigned to you, and surfaces the most recent updates across the workspace.
 
 ![Workspace home](https://raw.githubusercontent.com/ruripian/OrbiTail/main/docs/wiki-screenshots/01-dashboard-overview.png?v=2)
 

@@ -19,7 +19,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    image: "orbitail-backend:${TAG:?TAG 미지정 — 배포할 커밋 SHA 를 TAG 로 넘겨야 한다}"
+    image: "orbitail-backend:${TAG:-local}"
     pull_policy: never
     command: daphne -b 0.0.0.0 -p 8000 config.asgi:application
     volumes:
@@ -43,7 +43,7 @@ services:
       start_period: 10s
 
   celery:
-    image: "orbitail-backend:${TAG:?TAG 미지정 — 배포할 커밋 SHA 를 TAG 로 넘겨야 한다}"
+    image: "orbitail-backend:${TAG:-local}"
     pull_policy: never
     command: celery -A config.celery worker -l info --concurrency 4
     env_file:
@@ -56,7 +56,7 @@ services:
     restart: always
 
   celery-beat:
-    image: "orbitail-backend:${TAG:?TAG 미지정 — 배포할 커밋 SHA 를 TAG 로 넘겨야 한다}"
+    image: "orbitail-backend:${TAG:-local}"
     pull_policy: never
     command: celery -A config.celery beat -l info
     env_file:
@@ -75,7 +75,7 @@ services:
       args:
         VITE_SHOW_SPONSOR: ${VITE_SHOW_SPONSOR:-true}
         VITE_MAX_UPLOAD_SIZE_MB: ${VITE_MAX_UPLOAD_SIZE_MB:-10}
-    image: "orbitail-frontend:${TAG:?TAG 미지정 — 배포할 커밋 SHA 를 TAG 로 넘겨야 한다}"
+    image: "orbitail-frontend:${TAG:-local}"
     pull_policy: never
     restart: always
     healthcheck:
@@ -88,7 +88,7 @@ services:
   nginx:
     build:
       context: ./nginx
-    image: "orbitail-nginx:${TAG:?TAG 미지정 — 배포할 커밋 SHA 를 TAG 로 넘겨야 한다}"
+    image: "orbitail-nginx:${TAG:-local}"
     pull_policy: never
     # 포트 바인딩 — .env로 환경별 커스터마이징
     #  단독 서버(직접 노출): HOST_BIND_ADDR=0.0.0.0, HOST_HTTP_PORT=80, HOST_HTTPS_PORT=443
