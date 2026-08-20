@@ -68,21 +68,26 @@ export function AttachmentsTab({ workspaceSlug, projectId, projectIdentifier, is
     enabled: includeSubs,
   });
 
+  /* 업로드·삭제 후 무효화할 키 묶음.
+     트리 쿼리를 빠뜨리면 "하위 이슈 포함" 을 켠 상태에서 지운 파일이 화면에 그대로 남는다. */
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["attachments", issueId] });
+    qc.invalidateQueries({ queryKey: ["issue", issueId] });
+    qc.invalidateQueries({ queryKey: ["attachments-tree", workspaceSlug, projectId, issueId] });
+  };
+
   const uploadMutation = useMutation({
     mutationFn: (file: File) => issuesApi.attachments.upload(workspaceSlug, projectId, issueId, file),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["attachments", issueId] });
-      qc.invalidateQueries({ queryKey: ["issue", issueId] });
-    },
+    onSuccess: invalidate,
     onError: () => toast.error(t("issues.detail.toast.attachmentUploadFailed")),
   });
 
+  /* 삭제는 첨부가 실제로 달린 이슈 id 로 보내야 한다. 백엔드가 issue_pk 로 스코프하므로
+     트리에서 하위 이슈의 첨부를 루트 id 로 지우려 하면 404 가 난다. */
   const deleteMutation = useMutation({
-    mutationFn: (attachmentId: string) => issuesApi.attachments.delete(workspaceSlug, projectId, issueId, attachmentId),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["attachments", issueId] });
-      qc.invalidateQueries({ queryKey: ["issue", issueId] });
-    },
+    mutationFn: ({ ownerIssueId, attachmentId }: { ownerIssueId: string; attachmentId: string }) =>
+      issuesApi.attachments.delete(workspaceSlug, projectId, ownerIssueId, attachmentId),
+    onSuccess: invalidate,
     onError: () => toast.error(t("issues.detail.toast.attachmentDeleteFailed")),
   });
 
@@ -93,8 +98,43 @@ export function AttachmentsTab({ workspaceSlug, projectId, projectIdentifier, is
     e.target.value = ""; // 같은 파일 재업로드 허용
   };
 
+  /* 드래그앤드롭 업로드.
+     dragenter/dragleave 는 자식 요소를 넘나들 때마다 발생하므로, 깊이를 세서
+     상쇄하지 않으면 하이라이트가 깜빡인다. */
+  const [dragDepth, setDragDepth] = useState(0);
+  const isDragOver = dragDepth > 0;
+
+  /* 파일이 아닌 드래그(텍스트·이슈 카드 등)에는 반응하지 않는다 */
+  const hasFiles = (e: React.DragEvent) => Array.from(e.dataTransfer.types).includes("Files");
+
+  const dropZone = readOnly ? {} : {
+    onDragEnter: (e: React.DragEvent) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      setDragDepth((d) => d + 1);
+    },
+    onDragOver: (e: React.DragEvent) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();                 // 이게 있어야 drop 이 발생한다 (HTML5 DnD 규약)
+      e.dataTransfer.dropEffect = "copy";
+    },
+    onDragLeave: () => setDragDepth((d) => Math.max(0, d - 1)),
+    onDrop: (e: React.DragEvent) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      setDragDepth(0);
+      Array.from(e.dataTransfer.files).forEach((file) => uploadMutation.mutate(file));
+    },
+  };
+
   return (
-    <div className="space-y-3">
+    <div
+      {...dropZone}
+      className={cn(
+        "space-y-3 rounded-lg transition-colors",
+        isDragOver && "ring-2 ring-primary/50 bg-primary/[0.04]",
+      )}
+    >
       <div className="flex items-center justify-end">
         <button
           type="button"
@@ -120,7 +160,7 @@ export function AttachmentsTab({ workspaceSlug, projectId, projectIdentifier, is
             depth={0}
             isRoot
             projectIdentifier={projectIdentifier}
-            onDelete={(id) => deleteMutation.mutate(id)}
+            onDelete={(ownerIssueId, attachmentId) => deleteMutation.mutate({ ownerIssueId, attachmentId })}
             readOnly={readOnly}
           />
         ) : null
@@ -174,7 +214,7 @@ export function AttachmentsTab({ workspaceSlug, projectId, projectIdentifier, is
             {!readOnly && (
               <button
                 className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive shrink-0"
-                onClick={() => deleteMutation.mutate(att.id)}
+                onClick={() => deleteMutation.mutate({ ownerIssueId: issueId, attachmentId: att.id })}
               >
                 <X className="h-3.5 w-3.5" />
               </button>
@@ -183,10 +223,19 @@ export function AttachmentsTab({ workspaceSlug, projectId, projectIdentifier, is
         );
       })}
 
+        </>
+      )}
+
+      {/* 업로드는 "하위 이슈 포함" 토글과 무관하게 항상 보여야 한다.
+          분기 안에 있던 탓에 토글을 켜면 첨부할 방법이 사라졌었다. */}
       {!readOnly && (
         <label className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors py-1.5 cursor-pointer">
           <Upload className="h-3.5 w-3.5" />
-          {uploadMutation.isPending ? t("issues.detail.attachments.uploading") : t("issues.detail.attachments.upload")}
+          {uploadMutation.isPending
+            ? t("issues.detail.attachments.uploading")
+            : isDragOver
+              ? t("issues.detail.attachments.dropHere")
+              : t("issues.detail.attachments.upload")}
           <input
             type="file"
             multiple
@@ -195,8 +244,6 @@ export function AttachmentsTab({ workspaceSlug, projectId, projectIdentifier, is
             disabled={uploadMutation.isPending}
           />
         </label>
-      )}
-        </>
       )}
     </div>
   );
@@ -208,7 +255,8 @@ interface TreeProps {
   depth: number;
   isRoot?: boolean;
   projectIdentifier?: string;
-  onDelete: (attachmentId: string) => void;
+  /** 첨부가 달린 이슈 id 를 함께 넘긴다 — 하위 이슈 첨부를 루트 id 로 지우면 404 */
+  onDelete: (ownerIssueId: string, attachmentId: string) => void;
   readOnly: boolean;
 }
 
@@ -284,7 +332,7 @@ function AttachmentTreeView({ node, depth, isRoot, projectIdentifier, onDelete, 
                 {!readOnly && (
                   <button
                     className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive shrink-0"
-                    onClick={() => onDelete(att.id)}
+                    onClick={() => onDelete(node.id, att.id)}
                   >
                     <X className="h-3.5 w-3.5" />
                   </button>

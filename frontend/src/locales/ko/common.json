@@ -153,12 +153,6 @@
       "deletedWithChildren": "하위 이슈 {{count}}개도 함께 삭제됩니다",
       "undo": "되돌리기",
       "nestHere": "하위로 편입",
-      "toField": {
-        "toField": "필드로 전환",
-        "toFieldDesc": "상태가 없는 그룹 컨테이너로 변경. 보드/캘린더/타임라인에서 제외됩니다.",
-        "toIssue": "작업 이슈로 전환",
-        "toIssueDesc": "상태(진행중/완료 등)를 가지는 일반 이슈로 복귀. 모든 뷰에 표시됩니다."
-      },
       "nestHint": "2초 유지 → 하위 이슈로 편입",
       "cyclicNestError": "순환 참조가 발생합니다. 자신의 하위 이슈 안에 넣을 수 없습니다.",
       "dropToRoot": "여기에 놓으면 최상위 이슈로 이동",
@@ -299,8 +293,13 @@
         "upload": "파일 첨부",
         "uploading": "업로드 중...",
         "includeSubs": "하위 이슈 포함",
-        "download": "다운로드"
+        "download": "다운로드",
+        "dropHere": "파일을 여기에 놓으세요"
       }
+    },
+    "field": {
+      "label": "필드",
+      "hint": "상태 없음"
     }
   },
   "setup": {

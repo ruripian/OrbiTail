@@ -153,12 +153,6 @@
       "deletedWithChildren": "{{count}} sub-issue(s) also deleted",
       "undo": "Undo",
       "nestHere": "Make child",
-      "toField": {
-        "toField": "Convert to field",
-        "toFieldDesc": "Becomes a stateless group container. Hidden from board / calendar / timeline.",
-        "toIssue": "Convert to task issue",
-        "toIssueDesc": "Restores to a normal issue with state (in-progress / done etc.). Shown in all views."
-      },
       "nestHint": "Hold 2s → nest as child",
       "cyclicNestError": "Circular reference detected. Cannot nest an issue inside its own subtree.",
       "dropToRoot": "Drop here to make top-level issue",
@@ -299,8 +293,13 @@
         "upload": "Attach file",
         "uploading": "Uploading...",
         "includeSubs": "Include sub-issues",
-        "download": "Download"
+        "download": "Download",
+        "dropHere": "Drop files here"
       }
+    },
+    "field": {
+      "label": "Field",
+      "hint": "no state"
     }
   },
   "setup": {
