@@ -74,7 +74,7 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_SHOW_SPONSOR: ${VITE_SHOW_SPONSOR:-true}
-        VITE_MAX_UPLOAD_SIZE_MB: ${VITE_MAX_UPLOAD_SIZE_MB:-100}
+        VITE_MAX_UPLOAD_SIZE_MB: ${VITE_MAX_UPLOAD_SIZE_MB:-10}
     restart: always
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/ || exit 1"]
