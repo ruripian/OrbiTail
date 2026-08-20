@@ -1634,7 +1634,10 @@ body.hide-dots::before { display: none; }
 [data-recently-changed] {
   --recent-soft: color-mix(in srgb, var(--recent-color, hsl(var(--primary))) 45%, transparent);
   animation: recent-fade 2s ease-out forwards;
-  border-radius: 6px;
+  /* 여기서 border-radius 를 지정하면 안 된다. 이 속성은 하이라이트 동안만 붙었다가
+     2초 뒤 떨어지므로, 값을 주면 그 시간 동안 요소의 모서리가 바뀌었다가 되돌아온다.
+     실제로 테이블 행과 보드 카드(rounded-xl = 12px)가 6px 로 눌렸다가 복귀했다.
+     inset box-shadow 는 요소 자신의 반경을 따라가므로 지정할 이유도 없다. */
 }
 @keyframes recent-fade {
   from { box-shadow: inset 0 0 0 1px var(--recent-soft); }
