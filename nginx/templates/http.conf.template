@@ -10,6 +10,14 @@ map $uri $media_disposition {
     "~*\.(png|jpe?g|gif|webp|avif|mp4|webm|mov|pdf)$" "inline";
 }
 
+# 리버스 프록시(Caddy 등) 뒤에 있을 때 원본 스킴을 보존한다.
+# 앞단이 HTTPS를 종단하면 여기로는 평문이 오므로 $scheme 은 http 가 된다.
+# 그대로 Django 에 넘기면 SECURE_SSL_REDIRECT 가 무한 리디렉션을 일으킨다.
+map $http_x_forwarded_proto $fwd_proto {
+    default $scheme;
+    "~."    $http_x_forwarded_proto;
+}
+
 server {
     listen 80;
     server_name _;
@@ -35,7 +43,7 @@ server {
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Proto $fwd_proto;
         proxy_connect_timeout 3s;
         proxy_next_upstream error timeout http_502 http_503 http_504;
         proxy_next_upstream_tries 3;
@@ -52,7 +60,7 @@ server {
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Proto $fwd_proto;
         proxy_read_timeout 86400;
     }
 
@@ -63,6 +71,7 @@ server {
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $fwd_proto;
     }
 
     # --- 정적 파일 ---
