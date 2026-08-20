@@ -34,4 +34,10 @@ app.conf.beat_schedule = {
         "task": "apps.issues.tasks.permanently_delete_trashed_attachments",
         "schedule": crontab(hour=4, minute=45),
     },
+    # 만료된 데모 샌드박스 삭제 — 매시 정각
+    # 방문자가 언제 들어올지 모르므로 하루 한 번으로는 늦다.
+    "purge-expired-demo-sandboxes": {
+        "task": "apps.demo.tasks.purge_expired_sandboxes",
+        "schedule": crontab(minute=0),
+    },
 }

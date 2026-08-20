@@ -33,6 +33,7 @@ INSTALLED_APPS = [
     "apps.documents",
     "apps.me",
     "apps.admin_console",
+    "apps.demo",
 ]
 
 MIDDLEWARE = [
@@ -46,6 +47,8 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     # axes — 마지막에 위치해야 정상 동작 (다른 미들웨어가 request 처리 후)
     "axes.middleware.AxesMiddleware",
+    # 데모 모드 차단 — DEMO_MODE 가 꺼져 있으면 통과만 시킨다
+    "apps.demo.middleware.DemoGuardMiddleware",
 ]
 
 # axes — 인증 backend 추가 (가장 앞). 실패 시 record + lockout.
@@ -118,6 +121,26 @@ AUTH_PASSWORD_VALIDATORS = [
 MAX_UPLOAD_SIZE_MB = config("MAX_UPLOAD_SIZE_MB", default=10, cast=int)
 DATA_UPLOAD_MAX_MEMORY_SIZE = MAX_UPLOAD_SIZE_MB * 1024 * 1024
 FILE_UPLOAD_MAX_MEMORY_SIZE = MAX_UPLOAD_SIZE_MB * 1024 * 1024
+
+# --- 데모 모드 ---
+# 공개 데모 배포에서만 켠다. 켜지면:
+#   - 방문자가 로그인 없이 격리된 샌드박스(전용 유저 + 워크스페이스)를 발급받는다
+#   - 관리자 콘솔·파일 업로드·메일 발송이 차단된다
+#   - 샌드박스당 생성량에 상한이 걸린다
+# 실사용 배포에서는 반드시 꺼둘 것.
+DEMO_MODE = config("DEMO_MODE", default=False, cast=bool)
+
+# 샌드박스 유지 시간(시간 단위). 지나면 celery beat 가 통째로 삭제한다.
+DEMO_SANDBOX_TTL_HOURS = config("DEMO_SANDBOX_TTL_HOURS", default=24, cast=int)
+
+# 같은 클라이언트(IP 해시)가 이 시간 안에 만들 수 있는 샌드박스 수.
+DEMO_MAX_SANDBOXES_PER_CLIENT = config("DEMO_MAX_SANDBOXES_PER_CLIENT", default=3, cast=int)
+DEMO_RATE_WINDOW_MINUTES = config("DEMO_RATE_WINDOW_MINUTES", default=60, cast=int)
+
+# 샌드박스 하나가 만들 수 있는 최대 개수 — 스크립트로 수만 건 생성하는 것을 막는다.
+DEMO_MAX_ISSUES_PER_SANDBOX = config("DEMO_MAX_ISSUES_PER_SANDBOX", default=500, cast=int)
+DEMO_MAX_DOCUMENTS_PER_SANDBOX = config("DEMO_MAX_DOCUMENTS_PER_SANDBOX", default=200, cast=int)
+DEMO_MAX_WORKSPACES_PER_SANDBOX = config("DEMO_MAX_WORKSPACES_PER_SANDBOX", default=5, cast=int)
 
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "UTC"
@@ -204,6 +227,12 @@ EMAIL_USE_TLS = config("EMAIL_USE_TLS", default=True, cast=bool)
 EMAIL_USE_SSL = config("EMAIL_USE_SSL", default=False, cast=bool)
 EMAIL_HOST_USER = config("EMAIL_HOST_USER", default="")
 EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD", default="")
+
+if DEMO_MODE:
+    # 데모 방문자가 아무 주소로나 초대 메일을 보내는 것을 막는다.
+    # 발송 코드는 그대로 돌고 전송만 버려지므로 화면 동작은 유지된다.
+    EMAIL_BACKEND = "django.core.mail.backends.dummy.EmailBackend"
+
 DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default="noreply@orbitail.local")
 FRONTEND_URL = config("FRONTEND_URL", default="http://localhost:5173")
 
