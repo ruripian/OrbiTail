@@ -1,0 +1,6 @@
+# 개발 환경에서만 설치되는 도구.
+# backend/Dockerfile 의 INSTALL_DEV build arg 가 1 일 때만 들어간다
+# (docker-compose.yml 이 지정). 운영 이미지에는 포함되지 않는다.
+
+# 소스 변경 감지 후 프로세스 재시작 — daphne 은 오토리로드가 없다.
+watchfiles==1.2.0
