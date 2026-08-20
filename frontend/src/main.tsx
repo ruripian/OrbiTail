@@ -26,6 +26,7 @@ import { DemoLandingPage } from "./pages/demo/DemoLandingPage";
 import { DemoBadge } from "./components/demo/DemoBadge";
 import { useAuthStore } from "./stores/authStore";
 import { useDemoStore } from "./stores/demoStore";
+import { decideBoot } from "./lib/boot";
 import { Toaster } from "sonner";
 import { useAppVersionCheck } from "./hooks/useAppVersionCheck";
 
@@ -50,30 +51,25 @@ function AppBootstrap() {
       setupApi.getStatus().catch(() => ({ is_complete: true })),
       demoApi.getStatus().catch(() => ({ enabled: false, ttl_hours: null })),
     ]).then(([setup, demo]) => {
-      if (!setup.is_complete) {
-        setStatus("setup");
-        return;
+      setDemoTtlHours(demo.ttl_hours);
+
+      /* 어느 화면으로 갈지는 lib/boot.ts 의 순수 함수가 정한다 (테스트 있음).
+         데모 배포에서는 "살아 있는 데모 세션" 만 통과시킨다 — 데모가 아닌
+         세션이나 만료된 세션은 들어가 봐야 갈 곳이 없어 버리고 랜딩으로 돌린다. */
+      const { isDemo, expiresAt } = useDemoStore.getState();
+      const { screen, clearSession } = decideBoot({
+        setupComplete: setup.is_complete,
+        demoEnabled: demo.enabled,
+        hasToken: Boolean(useAuthStore.getState().accessToken),
+        isDemoSession: isDemo,
+        expiresAt,
+      });
+
+      if (clearSession) {
+        useAuthStore.getState().clearAuth();
+        useDemoStore.getState().clearDemo();
       }
-
-      if (demo.enabled) {
-        setDemoTtlHours(demo.ttl_hours);
-
-        /* 만료된 샌드박스의 토큰을 들고 들어오면 서버가 401 을 준다.
-           그대로 두면 로그인 화면으로 튕기는데, 로그인이 없는 배포라
-           막다른 길이 된다. 만료가 확인되면 세션을 비우고 랜딩으로 돌린다. */
-        const { expiresAt, clearDemo } = useDemoStore.getState();
-        if (expiresAt && new Date(expiresAt).getTime() <= Date.now()) {
-          useAuthStore.getState().clearAuth();
-          clearDemo();
-        }
-
-        if (!useAuthStore.getState().accessToken) {
-          setStatus("demo");
-          return;
-        }
-      }
-
-      setStatus("ready");
+      setStatus(screen);
     });
   }, []);
 
