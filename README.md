@@ -16,9 +16,20 @@
   📖 <a href="https://github.com/ruripian/OrbiTail/wiki/한국어">사용자 위키 (한국어)</a> · <a href="https://github.com/ruripian/OrbiTail/wiki">User Wiki (English)</a>
 </p>
 
-<p align="center">
-  🚀 <a href="https://orbitail.ruripian.duckdns.org">라이브 데모</a> — 가입도 로그인도 없이 바로 둘러보기
-</p>
+---
+
+## 데모에서 바로 해보기
+
+설치 없이 **[orbitail.ruripian.duckdns.org](https://orbitail.ruripian.duckdns.org)** 에서 바로 만져볼 수 있습니다.
+가입도 로그인도 없습니다. "데모 시작" 을 누르면 예시 데이터가 채워진 워크스페이스가
+**방문자마다 따로** 만들어집니다.
+
+- 이슈를 만들고 상태·담당자·일정을 바꿔보기
+- 테이블 · 보드 · 캘린더 · 타임라인 · 스프린트 뷰 전환
+- 문서를 쓰고 이슈에 연결하기
+
+무엇을 바꾸거나 지워도 다른 사람에게는 영향이 없고, 하루가 지나면 자동으로 사라집니다.
+공개 데모라서 관리자 기능·파일 업로드·메일 발송은 막혀 있습니다.
 
 ---
 

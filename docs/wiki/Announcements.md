@@ -2,6 +2,8 @@
 
 **English** · [한국어](공지사항)
 
+> 💡 **Try it yourself** — the [live demo](https://orbitail.ruripian.duckdns.org) lets you poke at this with no login. You get your own workspace pre-filled with example data; anything you change is yours alone.
+
 The Announcements page is OrbiTail's built-in channel for **release notes** and **broadcast notices**. Every workspace user sees the same feed, and new items trigger an unread dot on the **Announcements** sidebar item until you open the page.
 
 ![Announcements list](https://raw.githubusercontent.com/ruripian/OrbiTail/main/docs/wiki-screenshots/08-announcements-list.png?v=2)

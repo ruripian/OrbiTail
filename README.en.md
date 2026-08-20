@@ -16,9 +16,20 @@
   📖 <a href="https://github.com/ruripian/OrbiTail/wiki">User Wiki (English)</a> · <a href="https://github.com/ruripian/OrbiTail/wiki/한국어">사용자 위키 (한국어)</a>
 </p>
 
-<p align="center">
-  🚀 <a href="https://orbitail.ruripian.duckdns.org">Live demo</a> — no sign-up, no login, just look around
-</p>
+---
+
+## Try it in the demo
+
+No install needed — poke at it right now at **[orbitail.ruripian.duckdns.org](https://orbitail.ruripian.duckdns.org)**.
+No sign-up, no login. Hit "Start the demo" and you get a workspace pre-filled with
+example data, **created just for you**.
+
+- Create issues and change their state, assignee and dates
+- Switch between Table, Board, Calendar, Timeline and Sprint views
+- Write docs and link them to issues
+
+Change or delete anything — nobody else is affected, and it disappears after a day.
+Admin tools, file uploads and outgoing email are disabled in the public demo.
 
 ---
 

@@ -2,6 +2,8 @@
 
 **English** · [한국어](타임라인)
 
+> 💡 **Try it yourself** — the [live demo](https://orbitail.ruripian.duckdns.org) lets you poke at this with no login. You get your own workspace pre-filled with example data; anything you change is yours alone.
+
 The Timeline view is OrbiTail's roadmap — a Gantt-style chart that plots every dated issue and event against a continuous horizontal time axis. It is the best place to spot overlap, slack, and long-running work across a project.
 
 ![Timeline overview](https://raw.githubusercontent.com/ruripian/OrbiTail/main/docs/wiki-screenshots/04-timeline-overview.png?v=2)

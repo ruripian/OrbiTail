@@ -2,6 +2,8 @@
 
 **English** · [한국어](프로젝트)
 
+> 💡 **Try it yourself** — the [live demo](https://orbitail.ruripian.duckdns.org) lets you poke at this with no login. You get your own workspace pre-filled with example data; anything you change is yours alone.
+
 Projects are the unit of organization inside a workspace. Each project has its own issues, states, categories, sprints, labels, events, and members. A workspace can hold any number of projects.
 
 ## Creating a project

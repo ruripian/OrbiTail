@@ -2,6 +2,8 @@
 
 **English** · [한국어](캘린더)
 
+> 💡 **Try it yourself** — the [live demo](https://orbitail.ruripian.duckdns.org) lets you poke at this with no login. You get your own workspace pre-filled with example data; anything you change is yours alone.
+
 The Calendar view shows **issues with dates** and **standalone events** side by side on a monthly grid. Switch to it from the tab bar at the top of any project.
 
 ![Calendar month view](https://raw.githubusercontent.com/ruripian/OrbiTail/main/docs/wiki-screenshots/03-calendar-month.png?v=2)

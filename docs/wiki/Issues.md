@@ -2,6 +2,8 @@
 
 **English** · [한국어](이슈)
 
+> 💡 **Try it yourself** — the [live demo](https://orbitail.ruripian.duckdns.org) lets you poke at this with no login. You get your own workspace pre-filled with example data; anything you change is yours alone.
+
 Issues are the unit of work in OrbiTail. Each one has a title, a state, a priority, an assignee, dates, labels, and an optional parent issue. A project's issues can be viewed as a **Table**, a **Board**, a **Calendar**, a **Timeline**, or as **Sprints** — this page focuses on the Table view, which is the default.
 
 ## Table view
