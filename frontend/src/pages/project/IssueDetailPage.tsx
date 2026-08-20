@@ -391,30 +391,6 @@ export function IssueDetailPage({ issueIdOverride, workspaceSlugOverride, projec
               {issue.title}
             </h1>
           )}
-          {/* 작업 ↔ 필드 토글 — 필드는 상태 없는 상위 분류(폴더 성격) */}
-          {!readOnly && (
-            <div
-              className="inline-flex shrink-0 rounded-md border border-border overflow-hidden text-xs mt-1"
-              title="필드로 전환하면 상태가 없어지고 보드/번다운에서 제외됩니다"
-            >
-              <button
-                type="button"
-                onClick={() => updateMutation.mutate({ is_field: false })}
-                className={cn("px-2.5 py-1 transition-colors",
-                  !issue.is_field ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-muted/40")}
-              >
-                작업
-              </button>
-              <button
-                type="button"
-                onClick={() => updateMutation.mutate({ is_field: true })}
-                className={cn("px-2.5 py-1 border-l border-border transition-colors",
-                  issue.is_field ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-muted/40")}
-              >
-                필드
-              </button>
-            </div>
-          )}
         </div>
 
         <div className={cn("mb-6", readOnly && "pointer-events-none opacity-70")}>

@@ -49,6 +49,18 @@ class IssueSerializer(serializers.ModelSerializer):
         # serializer 단계 validator는 제거 — 그렇지 않으면 default=1이 이미 존재하는 경우 첫 이슈부터 실패
         validators = []
 
+    def update(self, instance, validated_data):
+        """상태와 필드는 상호 배타 — 상태를 지정하면 필드를 해제한다.
+
+        Issue.save() 는 is_field 가 True 면 state 를 비운다. 그래서 필드 이슈에
+        상태만 PATCH 하면 방금 넣은 상태가 곧바로 지워져 아무 일도 일어나지 않는다.
+        상태를 명시적으로 지정한 것은 "이제 일반 작업으로 다루겠다" 는 뜻이므로
+        필드를 함께 해제한다. is_field 를 같이 보냈다면 그쪽 의도를 존중한다.
+        """
+        if validated_data.get("state") is not None and "is_field" not in validated_data:
+            validated_data["is_field"] = False
+        return super().update(instance, validated_data)
+
     def get_sub_issues_count(self, obj):
         # 소프트 삭제된 하위 이슈는 카운트에서 제외
         return obj.sub_issues.filter(deleted_at__isnull=True).count()

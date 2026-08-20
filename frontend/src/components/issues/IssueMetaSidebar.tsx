@@ -92,17 +92,16 @@ export function IssueMetaSidebar({
             <p className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground/70 mb-1.5">
               {t("issues.detail.meta.state")}
             </p>
-            {issue.is_field ? (
-              <div className="border border-border/60 rounded-md px-2.5 py-1.5 text-sm text-muted-foreground bg-muted/30">—</div>
-            ) : (
-              <StatePicker
-                states={states}
-                currentStateId={issue.state}
-                currentState={issue.state_detail}
-                onChange={(id) => onUpdate({ state: id })}
-                className="border border-border rounded-md bg-input/60 hover:bg-primary/10"
-              />
-            )}
+            {/* 필드도 이 선택기에서 고른다 — 전환 경로를 상태 선택기 하나로 통일 */}
+            <StatePicker
+              states={states}
+              currentStateId={issue.state}
+              currentState={issue.state_detail}
+              isField={issue.is_field}
+              onChange={(id) => onUpdate({ state: id })}
+              onSelectField={() => onUpdate({ is_field: true })}
+              className="border border-border rounded-md bg-input/60 hover:bg-primary/10"
+            />
           </div>
           <div>
             <p className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground/70 mb-1.5">

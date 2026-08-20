@@ -19,14 +19,13 @@ import { useRecentChangesStore } from "@/stores/recentChangesStore";
 import {
   Plus, SlidersHorizontal, Check, X, Inbox, Search,
   GitBranch, Link2, LayoutGrid, ChevronDown, ChevronRight,
-  GripVertical, MoreHorizontal, Trash2, CheckCircle2, Copy, Archive, Layers, Circle,
+  GripVertical, MoreHorizontal, Trash2, CheckCircle2, Copy, Archive,
   ArrowUp, ArrowDown, ArrowUpDown, RotateCcw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { AvatarInitials } from "@/components/ui/avatar-initials";
 import { issuesApi } from "@/api/issues";
 import { formatDate } from "@/utils/date-format";
-import { Tooltip } from "@/components/ui/tooltip";
 import { IssueCreateDialog } from "@/components/issues/IssueCreateDialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { StatePicker } from "@/components/issues/state-picker";
@@ -1620,21 +1619,16 @@ function IssueCard({
         );
 
       case "state":
-        // 필드(Field) — 상태 없음. 그래프 뷰와 동일한 라벤더(violet) 칩으로 표시.
-        if (issue.is_field) {
-          return (
-            <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded-md bg-violet-500/15 text-violet-700 dark:text-violet-300">
-              <Layers className="h-3 w-3" />
-              {t("issues.table.fieldLabel", "필드")}
-            </span>
-          );
-        }
+        /* 필드(Field)도 여기서 함께 고른다 — 상태와 필드는 상호 배타라
+           전환 경로를 하나로 둔다. 상태를 고르면 서버가 is_field 를 해제한다. */
         return (
           <StatePicker
             states={states}
             currentStateId={issue.state}
             currentState={issue.state_detail}
+            isField={issue.is_field}
             onChange={(id) => updateMutation.mutate({ state: id })}
+            onSelectField={() => updateMutation.mutate({ is_field: true })}
           />
         );
 
@@ -1867,35 +1861,6 @@ function IssueCard({
           </Fragment>
         ))}
 
-        {/* 작업 ↔ 필드 토글 — 3-dot 메뉴 바로 왼쪽. 테마 토글처럼 현재 상태 아이콘만 보여줌.
-            연타 방지: 뮤테이션 진행 중엔 비활성화. */}
-        <Tooltip
-          content={
-            <div className="space-y-1">
-              <p className="font-semibold">
-                {issue.is_field ? t("issues.table.toField.toIssue") : t("issues.table.toField.toField")}
-              </p>
-              <p className="opacity-80">
-                {issue.is_field ? t("issues.table.toField.toIssueDesc") : t("issues.table.toField.toFieldDesc")}
-              </p>
-            </div>
-          }
-        >
-          <button
-            type="button"
-            disabled={updateMutation.isPending}
-            onClick={(e) => {
-              e.stopPropagation();
-              if (updateMutation.isPending) return;
-              updateMutation.mutate({ is_field: !issue.is_field });
-            }}
-            className="shrink-0 ml-auto opacity-0 group-hover:opacity-100 h-6 w-6 rounded-md flex items-center justify-center hover:bg-muted/60 transition-all disabled:opacity-40 disabled:cursor-wait"
-          >
-            {issue.is_field
-              ? <Layers className="h-3.5 w-3.5 text-violet-500" />
-              : <Circle className="h-3.5 w-3.5 text-muted-foreground" />}
-          </button>
-        </Tooltip>
 
         <div className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
           <DropdownMenu>

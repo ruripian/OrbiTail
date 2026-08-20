@@ -1557,7 +1557,9 @@ export function TimelineView({ workspaceSlug, projectId, onIssueClick, issueFilt
                           states={states}
                           currentStateId={row.issue.state}
                           currentState={row.stateObj}
+                          isField={row.issue.is_field}
                           onChange={(id) => updateMutation.mutate({ id: row.issue.id, data: { state: id } })}
+                          onSelectField={() => updateMutation.mutate({ id: row.issue.id, data: { is_field: true } })}
                         />
                       </div>
 
