@@ -14,6 +14,7 @@ from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.accounts.serializers import MeSerializer
@@ -80,3 +81,28 @@ class DemoSessionView(APIView):
             "user": MeSerializer(sandbox.user).data,
             "expires_at": sandbox.created_at + timedelta(hours=settings.DEMO_SANDBOX_TTL_HOURS),
         }, status=status.HTTP_201_CREATED)
+
+
+class DemoSessionCheckView(APIView):
+    """들고 온 토큰이 지금도 살아 있는 데모 세션인지 서버가 판정한다.
+
+    프론트가 localStorage 의 플래그만 보고 판단하면, 그 값이 서버 상태와
+    어긋났을 때(샌드박스가 이미 지워졌다거나, 데모 전환 이전 세션이 남아
+    있다거나) 갈 곳 없는 화면에 갇힌다. 판정 주체를 서버로 옮긴다.
+
+    토큰이 없거나 만료됐으면 JWTAuthentication 이 401 을 낸다. 프론트는
+    200 + valid=true 가 아닌 모든 경우를 "세션 없음" 으로 취급하면 된다.
+    """
+
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        user = request.user
+        sandbox = getattr(user, "demo_sandbox", None) if user.is_authenticated else None
+        if sandbox is None:
+            return Response({"valid": False})
+        return Response({
+            "valid": True,
+            "expires_at": sandbox.created_at + timedelta(hours=settings.DEMO_SANDBOX_TTL_HOURS),
+        })

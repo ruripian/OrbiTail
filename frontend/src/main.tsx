@@ -47,21 +47,32 @@ function AppBootstrap() {
   useAppVersionCheck();
 
   useEffect(() => {
-    Promise.all([
-      setupApi.getStatus().catch(() => ({ is_complete: true })),
-      demoApi.getStatus().catch(() => ({ enabled: false, ttl_hours: null })),
-    ]).then(([setup, demo]) => {
+    (async () => {
+      const [setup, demo] = await Promise.all([
+        setupApi.getStatus().catch(() => ({ is_complete: true })),
+        demoApi.getStatus().catch(() => ({ enabled: false, ttl_hours: null })),
+      ]);
       setDemoTtlHours(demo.ttl_hours);
 
-      /* 어느 화면으로 갈지는 lib/boot.ts 의 순수 함수가 정한다 (테스트 있음).
-         데모 배포에서는 "살아 있는 데모 세션" 만 통과시킨다 — 데모가 아닌
-         세션이나 만료된 세션은 들어가 봐야 갈 곳이 없어 버리고 랜딩으로 돌린다. */
-      const { isDemo, expiresAt } = useDemoStore.getState();
+      /* 세션이 살아 있는지는 서버가 판정한다. localStorage 의 플래그만 믿으면
+         그 값이 서버 상태와 어긋났을 때(샌드박스가 이미 지워졌거나, 데모 전환
+         이전 세션이 남아 있거나) 갈 곳 없는 화면에 갇힌다. */
+      let isDemoSession = false;
+      let expiresAt = useDemoStore.getState().expiresAt;
+      if (demo.enabled) {
+        const check = await demoApi.checkSession();
+        isDemoSession = check.valid;
+        if (check.valid && check.expires_at) {
+          expiresAt = check.expires_at;
+          useDemoStore.getState().startDemo(check.expires_at);
+        }
+      }
+
       const { screen, clearSession } = decideBoot({
         setupComplete: setup.is_complete,
         demoEnabled: demo.enabled,
         hasToken: Boolean(useAuthStore.getState().accessToken),
-        isDemoSession: isDemo,
+        isDemoSession,
         expiresAt,
       });
 
@@ -70,7 +81,7 @@ function AppBootstrap() {
         useDemoStore.getState().clearDemo();
       }
       setStatus(screen);
-    });
+    })();
   }, []);
 
   if (status === "loading") {

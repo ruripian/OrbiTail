@@ -13,7 +13,9 @@ export interface BootInput {
   demoEnabled: boolean;
   /** 저장된 access token 이 있는지 */
   hasToken: boolean;
-  /** 그 세션이 데모 세션으로 발급된 것인지 */
+  /** 그 세션이 지금도 살아 있는 데모 세션인지 — **서버가 판정한 값**.
+   *  localStorage 의 플래그를 그대로 넣으면 안 된다. 서버에서 샌드박스가
+   *  이미 지워졌는데 브라우저만 살아 있다고 믿는 어긋남이 실제로 났다. */
   isDemoSession: boolean;
   /** 데모 샌드박스 만료 시각 (ISO8601) */
   expiresAt: string | null;
