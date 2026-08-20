@@ -50,6 +50,9 @@ services:
       - .env
     environment:
       - DJANGO_SETTINGS_MODULE=config.settings.production
+      # 마이그레이션은 backend 컨테이너만 적용한다. 여기서는 적용이
+      # 끝날 때까지 기다렸다 시작한다 (backend/entrypoint.sh 참고).
+      - RUN_MIGRATIONS=0
     depends_on:
       - db
       - redis
@@ -63,6 +66,9 @@ services:
       - .env
     environment:
       - DJANGO_SETTINGS_MODULE=config.settings.production
+      # 마이그레이션은 backend 컨테이너만 적용한다. 여기서는 적용이
+      # 끝날 때까지 기다렸다 시작한다 (backend/entrypoint.sh 참고).
+      - RUN_MIGRATIONS=0
     depends_on:
       - db
       - redis
