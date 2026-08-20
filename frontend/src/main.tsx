@@ -21,28 +21,60 @@ import { DensityProvider } from "./lib/density-provider";
 import { FontSettingsProvider } from "./lib/font-settings";
 import { setupApi } from "./api/setup";
 import { SetupPage } from "./pages/setup/SetupPage";
+import { demoApi } from "./api/demo";
+import { DemoLandingPage } from "./pages/demo/DemoLandingPage";
+import { DemoBadge } from "./components/demo/DemoBadge";
+import { useAuthStore } from "./stores/authStore";
+import { useDemoStore } from "./stores/demoStore";
 import { Toaster } from "sonner";
 import { useAppVersionCheck } from "./hooks/useAppVersionCheck";
 
-type BootStatus = "loading" | "setup" | "ready";
+type BootStatus = "loading" | "setup" | "demo" | "ready";
 
 /**
- * 앱 최초 진입 시 서버 초기 설정 완료 여부를 확인한다.
- * - 미완료(유저 없음) → SetupPage 표시
- * - 완료            → 정상 라우터 진입
+ * 앱 최초 진입 시 서버 상태를 확인해 어느 화면으로 들어갈지 정한다.
+ * - 초기 설정 미완료 → SetupPage
+ * - 데모 배포이고 세션 없음 → DemoLandingPage ("데모 시작" 을 눌러야 샌드박스 생성)
+ * - 그 외            → 정상 라우터 진입
  * - API 오류         → 정상 라우터 진입 (서버 점검 중 등 예외 상황)
  */
 function AppBootstrap() {
   const [status, setStatus] = useState<BootStatus>("loading");
+  const [demoTtlHours, setDemoTtlHours] = useState<number | null>(null);
 
   /* 새 배포 감지 — 다른 build_id 면 토스트로 새로고침 안내 */
   useAppVersionCheck();
 
   useEffect(() => {
-    setupApi
-      .getStatus()
-      .then(({ is_complete }) => setStatus(is_complete ? "ready" : "setup"))
-      .catch(() => setStatus("ready")); // 오류 시 정상 플로우
+    Promise.all([
+      setupApi.getStatus().catch(() => ({ is_complete: true })),
+      demoApi.getStatus().catch(() => ({ enabled: false, ttl_hours: null })),
+    ]).then(([setup, demo]) => {
+      if (!setup.is_complete) {
+        setStatus("setup");
+        return;
+      }
+
+      if (demo.enabled) {
+        setDemoTtlHours(demo.ttl_hours);
+
+        /* 만료된 샌드박스의 토큰을 들고 들어오면 서버가 401 을 준다.
+           그대로 두면 로그인 화면으로 튕기는데, 로그인이 없는 배포라
+           막다른 길이 된다. 만료가 확인되면 세션을 비우고 랜딩으로 돌린다. */
+        const { expiresAt, clearDemo } = useDemoStore.getState();
+        if (expiresAt && new Date(expiresAt).getTime() <= Date.now()) {
+          useAuthStore.getState().clearAuth();
+          clearDemo();
+        }
+
+        if (!useAuthStore.getState().accessToken) {
+          setStatus("demo");
+          return;
+        }
+      }
+
+      setStatus("ready");
+    });
   }, []);
 
   if (status === "loading") {
@@ -58,6 +90,10 @@ function AppBootstrap() {
     return <SetupPage onComplete={() => setStatus("ready")} />;
   }
 
+  if (status === "demo") {
+    return <DemoLandingPage ttlHours={demoTtlHours} onStart={() => setStatus("ready")} />;
+  }
+
   return <RouterProvider router={router} />;
 }
 
@@ -70,6 +106,7 @@ createRoot(document.getElementById("root")!).render(
             <QueryClientProvider client={queryClient}>
               <AppBootstrap />
               <Toaster position="top-right" richColors closeButton />
+              <DemoBadge />
               {/* DevTools는 개발 환경에서만 표시 — 프로덕션 빌드 시 제거됨 */}
             </QueryClientProvider>
           </FontSettingsProvider>

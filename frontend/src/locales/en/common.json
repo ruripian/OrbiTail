@@ -1531,5 +1531,19 @@
       "week": "This week",
       "earlier": "Earlier"
     }
+  },
+  "demo": {
+    "subtitle": "A demo to look around",
+    "description": "Try OrbiTail as it is — no sign-up, no login. Start and you get a workspace already filled with example data.",
+    "highlightIssues": "Track work with issues, sprints and boards",
+    "highlightDocs": "Write docs and link them to issues",
+    "highlightPlanning": "Plan on the calendar and timeline",
+    "notice": "This workspace is created just for you. Change or delete anything — nobody else is affected. Admin tools, file uploads and outgoing email are disabled in the demo.",
+    "noticeWithTtl": "This workspace is created just for you and disappears in {{hours}} hours. Change or delete anything — nobody else is affected. Admin tools, file uploads and outgoing email are disabled in the demo.",
+    "start": "Start the demo",
+    "starting": "Creating your workspace",
+    "startFailed": "Could not start the demo. Please try again in a moment.",
+    "badgeLabel": "Demo",
+    "badgeRemaining": "{{hours}}h {{minutes}}m left"
   }
 }
