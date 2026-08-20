@@ -43,9 +43,6 @@ services:
       start_period: 10s
 
   celery:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
     image: "orbitail-backend:${TAG:?TAG 미지정 — 배포할 커밋 SHA 를 TAG 로 넘겨야 한다}"
     pull_policy: never
     command: celery -A config.celery worker -l info --concurrency 4
@@ -59,9 +56,6 @@ services:
     restart: always
 
   celery-beat:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
     image: "orbitail-backend:${TAG:?TAG 미지정 — 배포할 커밋 SHA 를 TAG 로 넘겨야 한다}"
     pull_policy: never
     command: celery -A config.celery beat -l info
