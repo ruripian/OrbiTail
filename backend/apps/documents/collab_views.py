@@ -22,10 +22,9 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .consumers import check_document_access
-from .models import Document
+from .consumers import document_role
+from .models import Document, DocumentSpaceMember
 from .links import sync_document_links
-from .views import _check_space_edit
 
 
 def _secret_ok(request) -> bool:
@@ -45,13 +44,15 @@ class CollabAuthView(APIView):
     """
 
     def get(self, request, doc_pk):
-        if not check_document_access(request.user, str(doc_pk)):
+        # 동기 함수로 판정한다. 전에는 async 로 감싼 함수를 await 없이 불러, 돌아온 코루틴 객체가 항상
+        # 참이라 문서 id 만 알면 누구나 협업 서버에 붙어 본문을 받았다.
+        role = document_role(request.user, str(doc_pk))
+        if role is None:
             return Response({"detail": "접근 권한이 없습니다."}, status=status.HTTP_403_FORBIDDEN)
-        doc = Document.objects.select_related("space").get(pk=doc_pk, deleted_at__isnull=True)
         return Response({
             "allowed": True,
             # 편집 권한이 없으면 협업 서버가 읽기 전용으로 붙인다
-            "can_edit": _check_space_edit(request.user, doc.space),
+            "can_edit": role >= DocumentSpaceMember.Role.EDITOR,
             "user": {
                 "id": str(request.user.id),
                 "name": request.user.display_name or request.user.email,

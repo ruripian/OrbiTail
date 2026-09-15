@@ -121,6 +121,43 @@ def _check_space_admin(user, space):
     return role is not None and role >= DocumentSpaceMember.Role.ADMIN
 
 
+def _get_checked_document(request, kwargs, *, edit=False, doc_key="doc_pk", include_deleted=False):
+    """URL 의 워크스페이스·스페이스·문서가 서로 맞고 요청자가 볼 수(edit=True 면 고칠 수) 있을 때만.
+
+    문서에 딸린 뷰(버전·댓글·스레드·첨부·이슈 연결)가 URL 의 id 로만 조회하면, 로그인한 누구나
+    id 를 아는 문서의 본문·댓글을 읽고 쓸 수 있다. 전부 이 함수를 거친다. 볼 수 없으면 404.
+    """
+    from rest_framework.exceptions import NotFound, PermissionDenied
+    filters = {
+        "pk": kwargs[doc_key],
+        "space_id": kwargs["space_pk"],
+        "space__workspace__slug": kwargs["workspace_slug"],
+    }
+    if not include_deleted:
+        filters["deleted_at__isnull"] = True
+    doc = Document.objects.select_related("space", "space__workspace", "space__project").filter(**filters).first()
+    if doc is None or not _check_space_access(request.user, doc.space):
+        raise NotFound("문서를 찾을 수 없습니다.")
+    if edit and not _check_space_edit(request.user, doc.space):
+        raise PermissionDenied("편집 권한이 없습니다.")
+    return doc
+
+
+class _DocumentScopedMixin:
+    """문서에 딸린 뷰 — 요청을 처리하기 **전에** 권한부터 본다.
+
+    입력 검사가 먼저 돌면 볼 수 없는 문서에도 400 이 나가 "그 문서가 있다"는 사실이 새고,
+    권한 없는 사람이 검증 오류로 필드 규칙을 떠볼 수 있다. write_requires_edit 면 쓰기에 편집 권한.
+    """
+    write_requires_edit = False
+
+    def initial(self, request, *args, **kwargs):
+        super().initial(request, *args, **kwargs)
+        from rest_framework.permissions import SAFE_METHODS
+        editing = self.write_requires_edit and request.method not in SAFE_METHODS
+        self.document = _get_checked_document(request, self.kwargs, edit=editing)
+
+
 def _get_accessible_spaces(user, workspace_slug):
     """유저가 접근 가능한 스페이스 queryset — 프로젝트 멤버 OR space.members 추가 인원 포함.
     비공개 공용 스페이스는 멤버에게만, 공개 공용은 워크스페이스 멤버 모두.
@@ -139,6 +176,10 @@ def _get_accessible_spaces(user, workspace_slug):
             Q(space_type__in=["shared", "project"])
             | Q(space_type="personal", owner=user)
         ).distinct().select_related("project", "owner")
+    # 워크스페이스 멤버가 아니면 아무것도 — 공개 공용 스페이스 조건만으로는 다른 워크스페이스
+    # 사용자에게 스페이스·문서 제목·검색 결과가 보였다(_space_role 은 멤버십을 요구하는데 여기만 달랐다)
+    if not WorkspaceMember.objects.filter(workspace__slug=workspace_slug, member=user).exists():
+        return base.none()
     return base.filter(
         Q(space_type="shared", is_private=False)
         | Q(space_type="shared", is_private=True, members=user)
@@ -165,6 +206,10 @@ class SpaceListCreateView(generics.ListCreateAPIView):
         serializer.is_valid(raise_exception=True)
         from apps.workspaces.models import Workspace
         ws = get_object_or_404(Workspace, slug=self.kwargs["workspace_slug"])
+        if not WorkspaceMember.objects.filter(
+                workspace=ws, member=request.user, role__gte=WorkspaceMember.Role.MEMBER).exists():
+            return Response({"detail": "워크스페이스 멤버만 스페이스를 만들 수 있습니다."},
+                            status=status.HTTP_403_FORBIDDEN)
 
         # members 가 워크스페이스 소속인지 검증 — 외부 인원 추가 차단.
         requested_members = serializer.validated_data.get("members") or []
@@ -385,7 +430,7 @@ class DocumentListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         space = get_object_or_404(
-            DocumentSpace, pk=self.kwargs["space_pk"]
+            DocumentSpace, pk=self.kwargs["space_pk"], workspace__slug=self.kwargs["workspace_slug"],
         )
         if not _check_space_access(self.request.user, space):
             return Document.objects.none()
@@ -403,7 +448,7 @@ class DocumentListCreateView(generics.ListCreateAPIView):
         return qs
 
     def perform_create(self, serializer):
-        space = get_object_or_404(DocumentSpace, pk=self.kwargs["space_pk"])
+        space = get_object_or_404(DocumentSpace, pk=self.kwargs["space_pk"], workspace__slug=self.kwargs["workspace_slug"])
         if not _check_space_edit(self.request.user, space):
             from rest_framework.exceptions import PermissionDenied
             raise PermissionDenied("편집 권한이 없습니다.")
@@ -422,6 +467,13 @@ class DocumentDetailView(generics.RetrieveUpdateDestroyAPIView):
             space_id=self.kwargs["space_pk"],
             deleted_at__isnull=True,
         ).select_related("created_by")
+
+    def get_object(self):
+        # 읽기·수정·삭제 모두 스페이스 접근 권한을 먼저 본다 — 전에는 수정만 검사해서
+        # id 만 알면 누구나 본문을 읽고 문서를 지울 수 있었다
+        doc = _get_checked_document(self.request, self.kwargs, doc_key="pk")
+        self.check_object_permissions(self.request, doc)
+        return doc
 
     def retrieve(self, request, *args, **kwargs):
         response = super().retrieve(request, *args, **kwargs)
@@ -467,6 +519,9 @@ class DocumentDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def perform_destroy(self, instance):
         """소프트 삭제 — 하위 문서 포함"""
+        if not _check_space_edit(self.request.user, instance.space):
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("편집 권한이 없습니다.")
         now = timezone.now()
         actor = self.request.user if self.request.user.is_authenticated else None
         instance.deleted_at = now
@@ -476,7 +531,9 @@ class DocumentDetailView(generics.RetrieveUpdateDestroyAPIView):
         self._soft_delete_children(instance.id, now, actor)
 
     def _soft_delete_children(self, parent_id, timestamp, actor):
-        children = Document.objects.filter(parent_id=parent_id, deleted_at__isnull=True)
+        # 같은 스페이스의 하위만 — 다른 스페이스 문서가 parent 로 이 문서를 가리키게 해 두면 함께 지워지던 것
+        space_id = self.kwargs["space_pk"]
+        children = Document.objects.filter(parent_id=parent_id, space_id=space_id, deleted_at__isnull=True)
         for child in children:
             child.deleted_at = timestamp
             child.deleted_by = actor
@@ -632,11 +689,7 @@ class DocumentMoveView(APIView):
     """문서 트리 이동 — parent + sort_order 변경"""
 
     def post(self, request, workspace_slug, space_pk, pk):
-        doc = get_object_or_404(
-            Document, pk=pk, space_id=space_pk, deleted_at__isnull=True
-        )
-        if not _check_space_edit(request.user, doc.space):
-            return Response({"detail": "편집 권한이 없습니다."}, status=status.HTTP_403_FORBIDDEN)
+        doc = _get_checked_document(request, self.kwargs, edit=True, doc_key="pk")
 
         new_parent = request.data.get("parent")  # uuid or null
         new_sort = request.data.get("sort_order")
@@ -649,6 +702,9 @@ class DocumentMoveView(APIView):
             # 최상위 문서가 사라져 화면에서 트리 전체가 보이지 않게 된다(실제 사고 사례).
             # 형제 사이 드롭도 parent 가 자기 자신이 될 수 있어(자식의 앞/뒤로 놓는 경우) 반드시 검사한다.
             if target_parent:
+                if not Document.objects.filter(pk=target_parent, space_id=doc.space_id).exists():
+                    return Response({"detail": "같은 스페이스의 문서로만 옮길 수 있습니다."},
+                                    status=status.HTTP_400_BAD_REQUEST)
                 if target_parent == str(doc.id):
                     return Response(
                         {"detail": "자신을 부모로 지정할 수 없습니다."},
@@ -668,29 +724,36 @@ class DocumentMoveView(APIView):
 
 # ── 이슈 연결 ──
 
-class DocumentIssueLinkListCreateView(generics.ListCreateAPIView):
+class DocumentIssueLinkListCreateView(_DocumentScopedMixin, generics.ListCreateAPIView):
     """문서에 연결된 이슈 목록 + 연결 추가"""
+    write_requires_edit = True
     serializer_class = DocumentIssueLinkSerializer
     pagination_class = None
 
     def get_queryset(self):
-        return DocumentIssueLink.objects.filter(
-            document_id=self.kwargs["doc_pk"],
-            document__space_id=self.kwargs["space_pk"],
-        ).select_related("issue", "issue__project")
+        doc = _get_checked_document(self.request, self.kwargs)
+        return DocumentIssueLink.objects.filter(document=doc).select_related("issue", "issue__project")
 
     def perform_create(self, serializer):
-        serializer.save(document_id=self.kwargs["doc_pk"])
+        from rest_framework.exceptions import ValidationError
+        from apps.issues.models import Issue
+        from apps.issues.views import _issue_read_q
+        doc = _get_checked_document(self.request, self.kwargs, edit=True)
+        issue = serializer.validated_data["issue"]
+        # 같은 워크스페이스의, 요청자가 읽을 수 있는 이슈만 — 응답에 이슈 제목·상태가 실린다
+        if issue.workspace_id != doc.space.workspace_id or not Issue.objects.filter(pk=issue.pk).filter(
+                _issue_read_q(self.request.user)).exists():
+            raise ValidationError({"issue": "연결할 이슈를 찾을 수 없습니다."})
+        serializer.save(document=doc)
 
 
-class DocumentIssueLinkDeleteView(generics.DestroyAPIView):
+class DocumentIssueLinkDeleteView(_DocumentScopedMixin, generics.DestroyAPIView):
     """이슈 연결 해제"""
+    write_requires_edit = True
 
     def get_queryset(self):
-        return DocumentIssueLink.objects.filter(
-            document_id=self.kwargs["doc_pk"],
-            document__space_id=self.kwargs["space_pk"],
-        )
+        doc = _get_checked_document(self.request, self.kwargs, edit=True)
+        return DocumentIssueLink.objects.filter(document=doc)
 
     def get_object(self):
         return get_object_or_404(
@@ -784,7 +847,7 @@ class DocumentBacklinkView(APIView):
 
         # 나가는 링크 중 대상이 휴지통에 간 것 — 깨진 링크
         broken_qs = DocumentLink.objects.filter(
-            source=doc, target__deleted_at__isnull=False,
+            source=doc, target__deleted_at__isnull=False, target__space__in=spaces,
         ).select_related("target")
 
         return Response({
@@ -913,7 +976,10 @@ class DocumentLabelListCreateView(generics.ListCreateAPIView):
         return get_object_or_404(Workspace, slug=self.kwargs["workspace_slug"])
 
     def get_queryset(self):
-        return DocumentLabel.objects.filter(workspace__slug=self.kwargs["workspace_slug"])
+        return DocumentLabel.objects.filter(
+            workspace__slug=self.kwargs["workspace_slug"],
+            workspace__members__member=self.request.user,
+        ).distinct()
 
     def create(self, request, *args, **kwargs):
         ws = self._get_workspace()
@@ -938,7 +1004,10 @@ class DocumentLabelDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = DocumentLabelSerializer
 
     def get_queryset(self):
-        return DocumentLabel.objects.filter(workspace__slug=self.kwargs["workspace_slug"])
+        return DocumentLabel.objects.filter(
+            workspace__slug=self.kwargs["workspace_slug"],
+            workspace__members__member=self.request.user,
+        ).distinct()
 
     def _can_manage(self, label):
         return label.created_by_id == self.request.user.id or _is_workspace_admin(
@@ -1001,6 +1070,7 @@ class SpaceImportView(APIView):
                 zf = zipfile.ZipFile(upload)
             except zipfile.BadZipFile:
                 return Response({"detail": "zip 파일을 열 수 없습니다."}, status=status.HTTP_400_BAD_REQUEST)
+            unpacked_total = 0
             for info in zf.infolist():
                 if info.is_dir():
                     continue
@@ -1015,6 +1085,11 @@ class SpaceImportView(APIView):
                 if len(entries) >= self.MAX_FILES:
                     skipped_files.append(path)
                     continue
+                # 압축을 풀기 **전에** 풀린 크기로 막는다 — 업로드 크기만 보면 작은 zip 이
+                # 수 GB 로 풀려 서버 메모리를 다 먹는다(zip bomb)
+                unpacked_total += info.file_size
+                if info.file_size > self.MAX_BYTES or unpacked_total > self.MAX_BYTES * 4:
+                    return Response({"detail": "압축을 풀면 너무 큽니다."}, status=status.HTTP_400_BAD_REQUEST)
                 try:
                     text = zf.read(info).decode("utf-8")
                 except (UnicodeDecodeError, KeyError):
@@ -1482,21 +1557,18 @@ class DocumentBookmarkToggleView(APIView):
 
 # ── 버전 ──
 
-class DocumentVersionListCreateView(generics.ListCreateAPIView):
+class DocumentVersionListCreateView(_DocumentScopedMixin, generics.ListCreateAPIView):
     """버전 목록 + 수동 버전 저장"""
+    write_requires_edit = True
     serializer_class = DocumentVersionSerializer
     pagination_class = None
 
     def get_queryset(self):
-        return DocumentVersion.objects.filter(
-            document_id=self.kwargs["doc_pk"],
-            document__space_id=self.kwargs["space_pk"],
-        ).select_related("created_by")
+        doc = _get_checked_document(self.request, self.kwargs)
+        return DocumentVersion.objects.filter(document=doc).select_related("created_by")
 
     def perform_create(self, serializer):
-        doc = get_object_or_404(
-            Document, pk=self.kwargs["doc_pk"], space_id=self.kwargs["space_pk"]
-        )
+        doc = _get_checked_document(self.request, self.kwargs, edit=True)
         last_version = doc.versions.order_by("-version_number").first()
         next_number = (last_version.version_number + 1) if last_version else 1
         serializer.save(
@@ -1508,50 +1580,45 @@ class DocumentVersionListCreateView(generics.ListCreateAPIView):
         )
 
 
-class DocumentVersionDetailView(generics.RetrieveAPIView):
+class DocumentVersionDetailView(_DocumentScopedMixin, generics.RetrieveAPIView):
     """특정 버전 상세"""
     serializer_class = DocumentVersionSerializer
 
     def get_queryset(self):
-        return DocumentVersion.objects.filter(
-            document_id=self.kwargs["doc_pk"],
-            document__space_id=self.kwargs["space_pk"],
-        ).select_related("created_by")
+        doc = _get_checked_document(self.request, self.kwargs)
+        return DocumentVersion.objects.filter(document=doc).select_related("created_by")
 
 
-class DocumentCommentListCreateView(generics.ListCreateAPIView):
+class DocumentCommentListCreateView(_DocumentScopedMixin, generics.ListCreateAPIView):
     """문서 댓글 목록 + 작성"""
     serializer_class = DocumentCommentSerializer
     pagination_class = None
 
     def get_queryset(self):
-        return DocumentComment.objects.filter(
-            document_id=self.kwargs["doc_pk"],
-            document__space_id=self.kwargs["space_pk"],
-        ).select_related("author")
+        doc = _get_checked_document(self.request, self.kwargs)
+        return DocumentComment.objects.filter(document=doc).select_related("author")
 
     def perform_create(self, serializer):
+        doc = _get_checked_document(self.request, self.kwargs)
         serializer.save(
-            document_id=self.kwargs["doc_pk"],
+            document=doc,
             author=self.request.user,
         )
 
 
-class DocumentCommentDetailView(generics.RetrieveUpdateDestroyAPIView):
+class DocumentCommentDetailView(_DocumentScopedMixin, generics.RetrieveUpdateDestroyAPIView):
     """댓글 수정/삭제 — 본인만 (queryset에서 필터링되므로 타인 건은 404)"""
     serializer_class = DocumentCommentSerializer
     http_method_names = ["get", "patch", "delete"]
 
     def get_queryset(self):
-        return DocumentComment.objects.filter(
-            document_id=self.kwargs["doc_pk"],
-            author=self.request.user,
-        )
+        doc = _get_checked_document(self.request, self.kwargs)
+        return DocumentComment.objects.filter(document=doc, author=self.request.user)
 
 
 # ── 블록 댓글 스레드 ──────────────────────────────────────────────
 
-class CommentThreadListCreateView(generics.ListCreateAPIView):
+class CommentThreadListCreateView(_DocumentScopedMixin, generics.ListCreateAPIView):
     """스레드 목록 + 생성.
 
     POST body: { anchor_text, initial_content }
@@ -1563,10 +1630,8 @@ class CommentThreadListCreateView(generics.ListCreateAPIView):
     pagination_class = None
 
     def get_queryset(self):
-        qs = CommentThread.objects.filter(
-            document_id=self.kwargs["doc_pk"],
-            document__space_id=self.kwargs["space_pk"],
-        ).select_related("created_by", "resolved_by").prefetch_related("comments__author")
+        doc = _get_checked_document(self.request, self.kwargs)
+        qs = CommentThread.objects.filter(document=doc).select_related("created_by", "resolved_by").prefetch_related("comments__author")
         resolved = self.request.query_params.get("resolved")
         if resolved in ("true", "1"):
             qs = qs.filter(resolved=True)
@@ -1579,6 +1644,7 @@ class CommentThreadListCreateView(generics.ListCreateAPIView):
         if not initial:
             from rest_framework.exceptions import ValidationError
             raise ValidationError({"initial_content": "첫 댓글 내용이 필요합니다."})
+        _get_checked_document(self.request, self.kwargs)
         thread = serializer.save(
             document_id=self.kwargs["doc_pk"],
             created_by=self.request.user,
@@ -1592,7 +1658,7 @@ class CommentThreadListCreateView(generics.ListCreateAPIView):
         _broadcast_thread_event(self.kwargs["workspace_slug"], self.kwargs["doc_pk"], "created", thread.id)
 
 
-class CommentThreadDetailView(generics.RetrieveDestroyAPIView):
+class CommentThreadDetailView(_DocumentScopedMixin, generics.RetrieveDestroyAPIView):
     """스레드 상세 / 삭제 — 생성자만 삭제 (단순 규칙, 필요 시 권한 확장).
     삭제 시 cascade로 내부 댓글 전부 제거. CommentMark는 프론트에서 같이 제거.
     """
@@ -1600,13 +1666,17 @@ class CommentThreadDetailView(generics.RetrieveDestroyAPIView):
     http_method_names = ["get", "delete"]
 
     def get_queryset(self):
-        return CommentThread.objects.filter(
-            document_id=self.kwargs["doc_pk"],
-            document__space_id=self.kwargs["space_pk"],
-        ).select_related("created_by", "resolved_by").prefetch_related("comments__author")
+        doc = _get_checked_document(self.request, self.kwargs)
+        return CommentThread.objects.filter(document=doc).select_related(
+            "created_by", "resolved_by").prefetch_related("comments__author")
 
     def perform_destroy(self, instance):
-        if instance.created_by_id and instance.created_by_id != self.request.user.id:
+        # 만든 사람이 탈퇴해 created_by 가 비었으면 편집 권한자가 정리한다 — 전에는 누구나 지울 수 있었다
+        if instance.created_by_id is None:
+            if not _check_space_edit(self.request.user, instance.document.space):
+                from rest_framework.exceptions import PermissionDenied
+                raise PermissionDenied("편집 권한이 필요합니다.")
+        elif instance.created_by_id != self.request.user.id:
             from rest_framework.exceptions import PermissionDenied
             raise PermissionDenied("자신이 생성한 스레드만 삭제할 수 있습니다.")
         tid = str(instance.id)
@@ -1615,21 +1685,20 @@ class CommentThreadDetailView(generics.RetrieveDestroyAPIView):
         _broadcast_thread_event(self.kwargs["workspace_slug"], doc_id, "deleted", tid)
 
 
-class CommentThreadReplyView(generics.CreateAPIView):
+class CommentThreadReplyView(_DocumentScopedMixin, generics.CreateAPIView):
     """스레드에 답글 추가."""
     serializer_class = DocumentCommentSerializer
 
     def get_queryset(self):
-        return DocumentComment.objects.filter(
-            document_id=self.kwargs["doc_pk"],
-            thread_id=self.kwargs["thread_pk"],
-        )
+        doc = _get_checked_document(self.request, self.kwargs)
+        return DocumentComment.objects.filter(document=doc, thread_id=self.kwargs["thread_pk"])
 
     def perform_create(self, serializer):
+        doc = _get_checked_document(self.request, self.kwargs)
         thread = get_object_or_404(
             CommentThread,
             pk=self.kwargs["thread_pk"],
-            document_id=self.kwargs["doc_pk"],
+            document=doc,
         )
         if thread.resolved:
             from rest_framework.exceptions import ValidationError
@@ -1644,15 +1713,15 @@ class CommentThreadReplyView(generics.CreateAPIView):
         )
 
 
-class CommentThreadResolveView(APIView):
+class CommentThreadResolveView(_DocumentScopedMixin, APIView):
     """스레드 resolve/reopen 토글."""
 
     def post(self, request, workspace_slug, space_pk, doc_pk, thread_pk):
+        doc = _get_checked_document(request, self.kwargs)
         thread = get_object_or_404(
             CommentThread,
             pk=thread_pk,
-            document_id=doc_pk,
-            document__space_id=space_pk,
+            document=doc,
         )
         if thread.resolved:
             # 재개
@@ -1668,24 +1737,24 @@ class CommentThreadResolveView(APIView):
         return Response(CommentThreadSerializer(thread).data)
 
 
-class DocumentAttachmentListCreateView(generics.ListCreateAPIView):
+class DocumentAttachmentListCreateView(_DocumentScopedMixin, generics.ListCreateAPIView):
     """문서 첨부파일 목록 + 업로드"""
+    write_requires_edit = True
     serializer_class = DocumentAttachmentSerializer
     pagination_class = None
 
     def get_queryset(self):
-        return DocumentAttachment.objects.filter(
-            document_id=self.kwargs["doc_pk"],
-            document__space_id=self.kwargs["space_pk"],
-        ).select_related("uploaded_by")
+        doc = _get_checked_document(self.request, self.kwargs)
+        return DocumentAttachment.objects.filter(document=doc).select_related("uploaded_by")
 
     def perform_create(self, serializer):
+        doc = _get_checked_document(self.request, self.kwargs, edit=True)
         uploaded_file = self.request.FILES.get("file")
         if not uploaded_file:
             from rest_framework.exceptions import ValidationError
             raise ValidationError({"file": "파일이 필요합니다."})
         serializer.save(
-            document_id=self.kwargs["doc_pk"],
+            document=doc,
             uploaded_by=self.request.user,
             filename=uploaded_file.name,
             file_size=uploaded_file.size,
@@ -1704,14 +1773,7 @@ class DocumentShareView(APIView):
     """
 
     def _get_doc(self, request, workspace_slug, space_pk, doc_pk):
-        doc = get_object_or_404(
-            Document.objects.select_related("space"),
-            pk=doc_pk, space_id=space_pk, deleted_at__isnull=True,
-        )
-        if not _check_space_edit(request.user, doc.space):
-            from rest_framework.exceptions import PermissionDenied
-            raise PermissionDenied("공유 링크 관리 권한이 없습니다.")
-        return doc
+        return _get_checked_document(request, self.kwargs, edit=True)
 
     def _shape(self, doc, request):
         if not doc.share_token:
@@ -1776,15 +1838,14 @@ class PublicDocumentView(APIView):
         })
 
 
-class DocumentAttachmentDeleteView(generics.DestroyAPIView):
+class DocumentAttachmentDeleteView(_DocumentScopedMixin, generics.DestroyAPIView):
     """첨부파일 삭제"""
+    write_requires_edit = True
     serializer_class = DocumentAttachmentSerializer
 
     def get_queryset(self):
-        return DocumentAttachment.objects.filter(
-            document_id=self.kwargs["doc_pk"],
-            document__space_id=self.kwargs["space_pk"],
-        )
+        doc = _get_checked_document(self.request, self.kwargs, edit=True)
+        return DocumentAttachment.objects.filter(document=doc)
 
 
 # ── 문서 템플릿 ──────────────────────────────────────────────────
@@ -1813,6 +1874,8 @@ class DocumentTemplateListCreateView(generics.ListCreateAPIView):
     def get_queryset(self):
         ws = self._get_workspace()
         user = self.request.user
+        if not WorkspaceMember.objects.filter(workspace=ws, member=user).exists():
+            return DocumentTemplate.objects.filter(scope=DocumentTemplate.Scope.USER, owner=user)
         visible = (
             Q(scope=DocumentTemplate.Scope.BUILT_IN)
             | Q(scope=DocumentTemplate.Scope.WORKSPACE, workspace=ws)
@@ -1822,7 +1885,10 @@ class DocumentTemplateListCreateView(generics.ListCreateAPIView):
         # 스페이스 템플릿은 그 스페이스에서 문서를 만들 때만 보여야 한다.
         space_id = self.request.query_params.get("space")
         if space_id:
-            visible |= Q(scope=DocumentTemplate.Scope.SPACE, space_id=space_id)
+            # 볼 수 있는 스페이스의 템플릿만
+            space = DocumentSpace.objects.filter(pk=space_id, workspace=ws).first()
+            if space is not None and _check_space_access(user, space):
+                visible |= Q(scope=DocumentTemplate.Scope.SPACE, space=space)
         qs = DocumentTemplate.objects.filter(visible).select_related("created_by")
         scope = self.request.query_params.get("scope")
         if scope in [c[0] for c in DocumentTemplate.Scope.choices]:
@@ -1875,11 +1941,14 @@ class DocumentTemplateDetailView(generics.RetrieveDestroyAPIView):
     def get_queryset(self):
         ws = self._get_workspace()
         user = self.request.user
+        if not WorkspaceMember.objects.filter(workspace=ws, member=user).exists():
+            return DocumentTemplate.objects.filter(scope=DocumentTemplate.Scope.USER, owner=user)
+        accessible = _get_accessible_spaces(user, ws.slug)
         return DocumentTemplate.objects.filter(
             Q(scope=DocumentTemplate.Scope.BUILT_IN)
             | Q(scope=DocumentTemplate.Scope.WORKSPACE, workspace=ws)
             | Q(scope=DocumentTemplate.Scope.USER, owner=user)
-            | Q(scope=DocumentTemplate.Scope.SPACE, workspace=ws)
+            | Q(scope=DocumentTemplate.Scope.SPACE, workspace=ws, space__in=accessible)
         )
 
     def perform_destroy(self, instance):

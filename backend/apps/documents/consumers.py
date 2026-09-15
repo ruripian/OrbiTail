@@ -49,36 +49,30 @@ WS_CODE_NOT_FOUND = 4004
 # 접근 권한 — 문서 앱의 space_type별로 멤버십 검사
 # ──────────────────────────────────────────────────────────────
 
-@database_sync_to_async
-def check_document_access(user, doc_id: str) -> bool:
+def document_role(user, doc_id: str):
+    """이 사용자가 문서에서 갖는 스페이스 등급 (없으면 None). 동기 함수 — HTTP 뷰가 그대로 부른다.
+
+    전에는 공용 스페이스를 "워크스페이스 멤버면 통과"로 봐서 비공개 공용 스페이스가 뚫렸고, 등급도
+    보지 않아 읽기 전용 사용자가 편집을 흘려 넣을 수 있었다. 문서 앱의 _space_role 하나로 판정한다.
+    """
     if user is None or user.is_anonymous:
-        return False
+        return None
     from .models import Document
+    from .views import _space_role
 
-    try:
-        doc = Document.objects.select_related("space", "space__project").get(
-            pk=doc_id, deleted_at__isnull=True,
-        )
-    except Document.DoesNotExist:
-        return False
+    doc = Document.objects.select_related("space", "space__workspace", "space__project").filter(
+        pk=doc_id, deleted_at__isnull=True,
+    ).first()
+    if doc is None:
+        return None
+    return _space_role(user, doc.space)
 
-    space = doc.space
-    if space.space_type == "project" and space.project_id:
-        from apps.projects.models import ProjectMember
-        if ProjectMember.objects.filter(
-            project_id=space.project_id, member=user,
-        ).exists():
-            return True
-        # 프로젝트 멤버가 아니어도 space.members 추가 인원이면 허용
-        return space.members.filter(pk=user.pk).exists()
 
-    if space.space_type == "personal":
-        return space.owner_id == user.id
+def check_document_access(user, doc_id: str) -> bool:
+    return document_role(user, doc_id) is not None
 
-    from apps.workspaces.models import WorkspaceMember
-    return WorkspaceMember.objects.filter(
-        workspace_id=space.workspace_id, member=user,
-    ).exists()
+
+async_document_role = database_sync_to_async(document_role)
 
 
 # ──────────────────────────────────────────────────────────────
@@ -92,6 +86,7 @@ class DocumentConsumer(AsyncWebsocketConsumer):
         self.doc_id: str | None = None
         self.group_name: str | None = None
         self.room = None
+        self.can_edit = False
         self._client_id: int | None = None  # Awareness client id 추적
 
     # -- lifecycle ----------------------------------------------------
@@ -104,9 +99,12 @@ class DocumentConsumer(AsyncWebsocketConsumer):
             await self.close(code=WS_CODE_UNAUTHORIZED)
             return
 
-        if not await check_document_access(user, self.doc_id):
+        role = await async_document_role(user, self.doc_id)
+        if role is None:
             await self.close(code=WS_CODE_FORBIDDEN)
             return
+        from .models import DocumentSpaceMember
+        self.can_edit = role >= DocumentSpaceMember.Role.EDITOR
 
         self.group_name = f"doc_{self.doc_id}"
         self.room = await get_or_create_room(self.doc_id)
@@ -171,14 +169,16 @@ class DocumentConsumer(AsyncWebsocketConsumer):
     async def _handle_sync(self, inner: bytes, original: bytes) -> None:
         if not inner:
             return
-        reply = self.room.handle_sync(inner)
-        if reply:
-            # SYNC_STEP1에 대한 SYNC_STEP2 응답 — 이 클라이언트에게만
-            await self.send(bytes_data=reply)
 
         # 실제 편집(SYNC_UPDATE)일 때만 다른 피어에 릴레이 + 저장 예약.
         # SYNC_STEP1/STEP2는 핸드셰이크라 브로드캐스트 불필요.
         subtype = inner[0]
+        # 편집 권한이 없으면 편집을 받지도, 퍼뜨리지도, 저장하지도 않는다
+        if subtype in (YSyncMessageType.SYNC_STEP2.value, YSyncMessageType.SYNC_UPDATE.value) and not self.can_edit:
+            return
+        reply = self.room.handle_sync(inner)
+        if reply:
+            await self.send(bytes_data=reply)
         if subtype == YSyncMessageType.SYNC_UPDATE.value:
             await self.channel_layer.group_send(self.group_name, {
                 "type": "yjs.relay",

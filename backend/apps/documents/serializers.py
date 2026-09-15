@@ -91,6 +91,30 @@ class DocumentSerializer(serializers.ModelSerializer):
             "cover_image": {"write_only": True, "required": False, "allow_null": True},
         }
 
+    def _space(self):
+        if self.instance is not None:
+            return self.instance.space
+        view = self.context.get("view")
+        space_pk = view.kwargs.get("space_pk") if view else None
+        return DocumentSpace.objects.filter(pk=space_pk).first() if space_pk else None
+
+    def validate_parent(self, value):
+        """부모는 같은 스페이스의 문서만 — 다른 스페이스 폴더를 가리키면 그 폴더의 칸 정의가 응답에 새고,
+        그 폴더를 지울 때 이 문서까지 함께 지워진다."""
+        space = self._space()
+        if value is not None and space is not None and value.space_id != space.pk:
+            raise serializers.ValidationError("같은 스페이스의 문서만 부모로 지정할 수 있습니다.")
+        if value is not None and self.instance is not None and value.pk == self.instance.pk:
+            raise serializers.ValidationError("자신을 부모로 지정할 수 없습니다.")
+        return value
+
+    def validate_labels(self, value):
+        """라벨은 이 스페이스의 워크스페이스 것만 — 다른 워크스페이스 라벨의 이름·만든 사람이 새지 않게."""
+        space = self._space()
+        if space is not None and any(lb.workspace_id != space.workspace_id for lb in value):
+            raise serializers.ValidationError("이 워크스페이스의 라벨이 아닌 것이 있습니다.")
+        return value
+
     #: 표의 칸에 쓸 수 있는 값 종류.
     #  issue · doc 은 다른 것을 가리키는 칸이다. 값은 {"id", "label"} 로 담는다 —
     #  id 만 담으면 `.md` 머리말에 UUID 가 나가 사람이 못 읽고, label 만 담으면 이름이 바뀔 때 끊긴다.

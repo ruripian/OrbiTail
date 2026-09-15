@@ -53,8 +53,12 @@ def sync_document_links(doc) -> bool:
         return False
 
     # 실재하는 문서만 남긴다. 소프트 삭제된 문서는 일부러 포함한다 — 그래야 깨진 링크로 보인다.
+    # 같은 워크스페이스의 문서만 — 아무 id 나 본문에 넣어 다른 워크스페이스 문서를 링크 테이블에
+    # 올린 뒤 백링크·깨진 링크로 그 제목을 읽어 내지 못하게
     valid = set(
-        str(v) for v in Document.objects.filter(id__in=targets).values_list("id", flat=True)
+        str(v) for v in Document.objects.filter(
+            id__in=targets, space__workspace_id=doc.space.workspace_id,
+        ).values_list("id", flat=True)
     )
 
     DocumentLink.objects.filter(source=doc).delete()
