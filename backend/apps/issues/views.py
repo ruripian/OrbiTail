@@ -1333,6 +1333,8 @@ class IssueDocumentLinksView(APIView):
             "document_title": link.document.title,
             "document_icon_prop": link.document.icon_prop,
             "space_id": str(link.document.space_id),
+            # 목록에서 "이 문서가 어느 스페이스 것인지" 를 보여주기 위해 함께 내려준다
+            "space_name": link.document.space.name,
             "created_at": link.created_at.isoformat(),
         }
 
@@ -1341,7 +1343,7 @@ class IssueDocumentLinksView(APIView):
         links = DocumentIssueLink.objects.filter(
             issue_id=pk,
             issue__project_id=project_pk,
-        ).select_related("document")
+        ).select_related("document", "document__space")
         return Response([self._serialize(link) for link in links])
 
     def post(self, request, workspace_slug, project_pk, pk):

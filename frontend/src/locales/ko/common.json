@@ -308,7 +308,9 @@
         "includeSubs": "하위 이슈 포함",
         "download": "다운로드",
         "dropHere": "파일을 여기에 놓으세요"
-      }
+      },
+      "attachDoc": "문서 연결",
+      "unlinkDoc": "연결 해제"
     },
     "field": {
       "label": "필드",

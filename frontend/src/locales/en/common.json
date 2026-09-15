@@ -308,7 +308,9 @@
         "includeSubs": "Include sub-issues",
         "download": "Download",
         "dropHere": "Drop files here"
-      }
+      },
+      "attachDoc": "Attach document",
+      "unlinkDoc": "Unlink"
     },
     "field": {
       "label": "Field",

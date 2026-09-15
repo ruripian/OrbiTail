@@ -2,7 +2,7 @@ import { type ReactNode, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { FileText, Users, UserX } from "lucide-react";
+import { FileText, Users, UserX, Plus, X } from "lucide-react";
 import { issuesApi } from "@/api/issues";
 import { documentsApi } from "@/api/documents";
 import { projectsApi } from "@/api/projects";
@@ -15,7 +15,7 @@ import { SprintPicker } from "@/components/issues/sprint-picker";
 import { ParentPicker } from "@/components/issues/parent-picker";
 import { DatePicker } from "@/components/ui/date-picker";
 import { DocumentPickerDialog } from "@/components/documents/DocumentPickerDialog";
-import { CreateDocumentDialog } from "@/components/documents/CreateDocumentDialog";
+import { ProjectIcon } from "@/components/ui/project-icon-picker";
 import { formatLongDate } from "@/utils/date-format";
 import { cn } from "@/lib/utils";
 import type {
@@ -285,7 +285,6 @@ function LinkedDocumentsSection({ issueId, workspaceSlug, projectId }: { issueId
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [createOpen, setCreateOpen] = useState(false);
   const [showAll, setShowAll] = useState(false);
 
   const { data: links = [] } = useQuery({
@@ -326,23 +325,15 @@ function LinkedDocumentsSection({ issueId, workspaceSlug, projectId }: { issueId
         </p>
       </div>
       {links.length === 0 ? (
-        /* 빈 상태 — primary 한 개(큰 카드: 기존 문서 연결) + secondary 텍스트(새 문서 만들기).
-           위계 분리: 보통 이슈와 연결할 문서는 이미 존재하므로 검색/선택이 주, 신규 생성이 보조. */
-        <div className="space-y-1.5">
-          <button
-            onClick={() => setPickerOpen(true)}
-            className="w-full rounded-md border border-dashed border-primary/40 bg-background/60 px-3 py-3 text-xs text-primary hover:bg-primary/10 hover:border-primary/60 transition-colors flex items-center justify-center gap-1.5 font-medium"
-          >
-            <FileText className="h-3.5 w-3.5" />
-            + 문서 연결
-          </button>
-          <button
-            onClick={() => setCreateOpen(true)}
-            className="block w-full text-center text-2xs text-muted-foreground hover:text-primary transition-colors py-1"
-          >
-            또는 새 문서 만들기
-          </button>
-        </div>
+        /* 빈 상태 — 진입점 하나. 고르는 것과 만드는 것을 다이얼로그 안에서 함께 처리한다.
+           버튼을 둘로 나누면 "있는 걸 찾을지 새로 만들지" 를 열기 전에 정하게 만든다. */
+        <button
+          onClick={() => setPickerOpen(true)}
+          className="w-full rounded-md border border-dashed border-primary/40 bg-background/60 px-3 py-3 text-xs text-primary hover:bg-primary/10 hover:border-primary/60 transition-colors flex items-center justify-center gap-1.5 font-medium"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          {t("issues.detail.attachDoc")}
+        </button>
       ) : (
         <>
           <div className="space-y-1.5">
@@ -351,20 +342,32 @@ function LinkedDocumentsSection({ issueId, workspaceSlug, projectId }: { issueId
                 key={link.id}
                 className="group flex items-center gap-2.5 rounded-md border border-border/40 bg-background/60 hover:bg-background hover:border-primary/40 px-2.5 py-2 transition-colors"
               >
-                <FileText className="h-4 w-4 shrink-0 text-primary/70" />
+                <ProjectIcon
+                  value={(link.document_icon_prop ?? null) as Record<string, unknown> | null}
+                  box={24}
+                  size={14}
+                  className="shrink-0"
+                />
                 <button
                   onClick={() => navigate(`/${workspaceSlug}/documents/space/${link.space_id}/${link.document_id}`)}
-                  className="flex-1 text-left text-sm hover:text-primary transition-colors truncate min-w-0"
+                  className="flex-1 text-left min-w-0"
                   title={link.document_title}
                 >
-                  {link.document_title}
+                  <span className="block text-sm truncate group-hover:text-primary transition-colors">
+                    {link.document_title}
+                  </span>
+                  {link.space_name && (
+                    <span className="block text-2xs text-muted-foreground truncate">{link.space_name}</span>
+                  )}
                 </button>
+                {/* 상시 노출 — hover 로만 뜨면 터치 기기에서 연결 해제가 불가능하다 */}
                 <button
                   onClick={() => unlinkMutation.mutate({ docSpaceId: link.space_id, docId: link.document_id })}
-                  className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity text-xs px-1"
-                  title="연결 해제"
+                  className="shrink-0 text-muted-foreground/50 hover:text-destructive transition-colors p-0.5"
+                  title={t("issues.detail.unlinkDoc")}
+                  aria-label={t("issues.detail.unlinkDoc")}
                 >
-                  ✕
+                  <X className="h-3.5 w-3.5" />
                 </button>
               </div>
             ))}
@@ -377,15 +380,13 @@ function LinkedDocumentsSection({ issueId, workspaceSlug, projectId }: { issueId
               {showAll ? "접기" : `+ ${links.length - VISIBLE_LINK_LIMIT}개 더보기`}
             </button>
           )}
-          <div className="flex items-center gap-2 mt-2 pt-2 border-t border-border/40">
-            <button className="text-2xs text-primary hover:underline" onClick={() => setPickerOpen(true)}>
-              + 문서 연결
-            </button>
-            <span className="text-2xs text-muted-foreground/40">·</span>
-            <button className="text-2xs text-muted-foreground hover:text-primary hover:underline transition-colors" onClick={() => setCreateOpen(true)}>
-              + 새 문서
-            </button>
-          </div>
+          <button
+            onClick={() => setPickerOpen(true)}
+            className="mt-2 pt-2 border-t border-border/40 w-full flex items-center gap-1 text-2xs text-primary hover:underline"
+          >
+            <Plus className="h-3 w-3" />
+            {t("issues.detail.attachDoc")}
+          </button>
         </>
       )}
 
@@ -394,15 +395,9 @@ function LinkedDocumentsSection({ issueId, workspaceSlug, projectId }: { issueId
         onOpenChange={setPickerOpen}
         workspaceSlug={workspaceSlug}
         excludeIds={links.map((l) => l.document_id)}
-        onSelect={async (doc) => { await linkDocToIssue(doc.space, doc.id); }}
-      />
-      <CreateDocumentDialog
-        open={createOpen}
-        onOpenChange={setCreateOpen}
-        workspaceSlug={workspaceSlug}
         defaultSpaceId={projectSpaceId}
-        defaultTitle={`Issue 관련 문서`}
-        onCreated={async (doc) => {
+        onSelect={async (doc) => { await linkDocToIssue(doc.space, doc.id); }}
+        onCreate={async (doc) => {
           await linkDocToIssue(doc.space, doc.id);
           navigate(`/${workspaceSlug}/documents/space/${doc.space}/${doc.id}`);
         }}
