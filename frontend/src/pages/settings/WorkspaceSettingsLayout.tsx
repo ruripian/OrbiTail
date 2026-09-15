@@ -1,7 +1,7 @@
 import { NavLink, Outlet, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { UsersRound, UserCheck, Building2, Settings, Archive } from "lucide-react";
+import { UsersRound, UserCheck, Building2, Settings, Archive, KeyRound } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { workspacesApi } from "@/api/workspaces";
 import { cn } from "@/lib/utils";
@@ -127,6 +127,23 @@ export function WorkspaceSettingsLayout() {
         >
           <Archive className="h-4 w-4 shrink-0" />
           {t("settings.layout.workspaceArchived", "보관함")}
+        </NavLink>
+
+        {/* API 토큰 — 토큰은 만든 사람의 권한으로 동작하므로 모든 멤버가 자기 토큰을 관리한다.
+            관리자는 같은 화면에서 워크스페이스 전체 토큰을 본다. */}
+        <NavLink
+          to={`${base}/api-tokens`}
+          className={({ isActive }) =>
+            cn(
+              "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
+              isActive
+                ? "bg-accent text-foreground font-medium"
+                : "text-muted-foreground hover:bg-accent hover:text-foreground",
+            )
+          }
+        >
+          <KeyRound className="h-4 w-4 shrink-0" />
+          {t("settings.layout.workspaceApiTokens")}
         </NavLink>
 
       </aside>

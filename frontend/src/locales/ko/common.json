@@ -893,7 +893,8 @@
       "sponsor": "이 프로젝트가 마음에 드셨나요?",
       "repository": "GitHub 저장소",
       "sponsorGithub": "GitHub Sponsors",
-      "sponsorKofi": "Ko-fi"
+      "sponsorKofi": "Ko-fi",
+      "workspaceApiTokens": "API 토큰"
     },
     "workspaceMembers": {
       "title": "워크스페이스 멤버",
@@ -1017,6 +1018,56 @@
       "deleteAccountSuccess": "계정이 삭제되었습니다.",
       "deleteAccountFailed": "계정 삭제에 실패했습니다.",
       "deleteAccountCancel": "취소"
+    },
+    "apiTokens": {
+      "title": "API 토큰",
+      "subtitle": "외부 프로그램이 공개 API(/api/v1/)로 이 워크스페이스에 접근할 때 쓰는 토큰입니다. 토큰은 만든 사람의 권한으로 동작합니다.",
+      "loading": "불러오는 중...",
+      "create": "새 토큰",
+      "createSubmit": "토큰 만들기",
+      "createFailed": "토큰을 만들지 못했습니다.",
+      "tabMine": "내 토큰",
+      "tabAll": "워크스페이스 전체",
+      "empty": "아직 만든 토큰이 없습니다.",
+      "demoBlocked": "데모에서는 API 토큰을 만들 수 없습니다.",
+      "guestBlocked": "게스트는 API 토큰을 만들 수 없습니다.",
+      "name": "이름",
+      "namePlaceholder": "예: 배포 알림 봇, CI",
+      "scopeLabel": "권한",
+      "scope": {
+        "read": "읽기",
+        "write": "읽기 · 쓰기"
+      },
+      "scopeHint": {
+        "read": "조회만 할 수 있습니다",
+        "write": "만들기 · 고치기 · 지우기까지"
+      },
+      "expiryLabel": "만료",
+      "days": "{{count}}일",
+      "noExpiry": "만료 없음",
+      "noExpiryHint": "만료 없는 토큰은 유출돼도 직접 폐기하기 전까지 계속 쓸 수 있습니다.",
+      "actsAsYou": "이 토큰으로 들어온 요청은 내 계정으로 처리됩니다. 내가 볼 수 없는 프로젝트나 문서에는 토큰도 접근할 수 없고, 워크스페이스에서 나가면 토큰도 함께 끊깁니다.",
+      "issuedTitle": "토큰이 만들어졌습니다",
+      "issuedWarning": "지금 복사해 두세요. 이 창을 닫으면 다시 볼 수 없습니다.",
+      "copy": "복사",
+      "copied": "복사됨",
+      "tryIt": "확인해 보기",
+      "done": "다 했습니다",
+      "status": {
+        "active": "사용 중",
+        "expired": "만료됨",
+        "revoked": "폐기됨"
+      },
+      "createdOn": "{{date}} 생성",
+      "lastUsed": "마지막 사용 {{when}}",
+      "neverUsed": "사용한 적 없음",
+      "expiresOn": "{{date}} 만료",
+      "revokedOn": "{{date}} 폐기",
+      "revoke": "폐기",
+      "revokeTitle": "'{{name}}' 토큰을 폐기할까요?",
+      "revokeDescription": "이 토큰을 쓰는 프로그램은 즉시 접근이 끊깁니다. 되돌릴 수 없습니다.",
+      "revoked": "토큰을 폐기했습니다.",
+      "revokeFailed": "토큰을 폐기하지 못했습니다."
     }
   },
   "emailVerify": {

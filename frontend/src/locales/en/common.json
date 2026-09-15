@@ -893,7 +893,8 @@
       "sponsor": "Enjoying this project?",
       "repository": "GitHub Repository",
       "sponsorGithub": "GitHub Sponsors",
-      "sponsorKofi": "Ko-fi"
+      "sponsorKofi": "Ko-fi",
+      "workspaceApiTokens": "API tokens"
     },
     "workspaceMembers": {
       "title": "Workspace Members",
@@ -1017,6 +1018,56 @@
       "deleteAccountSuccess": "Account deleted.",
       "deleteAccountFailed": "Failed to delete account.",
       "deleteAccountCancel": "Cancel"
+    },
+    "apiTokens": {
+      "title": "API tokens",
+      "subtitle": "Tokens that let external programs access this workspace through the public API (/api/v1/). A token acts with the permissions of the person who created it.",
+      "loading": "Loading...",
+      "create": "New token",
+      "createSubmit": "Create token",
+      "createFailed": "Couldn't create the token.",
+      "tabMine": "My tokens",
+      "tabAll": "Whole workspace",
+      "empty": "No tokens yet.",
+      "demoBlocked": "API tokens can't be created in the demo.",
+      "guestBlocked": "Guests can't create API tokens.",
+      "name": "Name",
+      "namePlaceholder": "e.g. Deploy notifier, CI",
+      "scopeLabel": "Permission",
+      "scope": {
+        "read": "Read",
+        "write": "Read & write"
+      },
+      "scopeHint": {
+        "read": "Can only view",
+        "write": "Can also create, edit and delete"
+      },
+      "expiryLabel": "Expiration",
+      "days": "{{count}} days",
+      "noExpiry": "No expiration",
+      "noExpiryHint": "A token without expiration keeps working if leaked, until you revoke it.",
+      "actsAsYou": "Requests made with this token are handled as your account. It can't reach projects or documents you can't see, and it stops working if you leave the workspace.",
+      "issuedTitle": "Token created",
+      "issuedWarning": "Copy it now. You won't be able to see it again after closing this dialog.",
+      "copy": "Copy",
+      "copied": "Copied",
+      "tryIt": "Try it",
+      "done": "Done",
+      "status": {
+        "active": "Active",
+        "expired": "Expired",
+        "revoked": "Revoked"
+      },
+      "createdOn": "Created {{date}}",
+      "lastUsed": "Last used {{when}}",
+      "neverUsed": "Never used",
+      "expiresOn": "Expires {{date}}",
+      "revokedOn": "Revoked {{date}}",
+      "revoke": "Revoke",
+      "revokeTitle": "Revoke token '{{name}}'?",
+      "revokeDescription": "Programs using this token lose access immediately. This can't be undone.",
+      "revoked": "Token revoked.",
+      "revokeFailed": "Couldn't revoke the token."
     }
   },
   "emailVerify": {

@@ -23,6 +23,9 @@ urlpatterns = [
     path("api/", include("apps.documents.urls")),
     path("api/me/", include("apps.me.urls")),
     path("api/demo/", include("apps.demo.urls")),
+    # 공개 API — 통합 토큰 인증. 토큰 관리는 사람 세션으로 부르는 내부 API 쪽에 있다
+    path("api/v1/", include("apps.api.urls_v1")),
+    path("api/", include("apps.api.urls")),
     # 초대 수락 — 워크스페이스 slug 없이 토큰으로 직접 접근
     path("api/invitations/<uuid:token>/", InvitationDetailView.as_view(), name="invitation-detail"),
     path("api/invitations/<uuid:token>/accept/", InvitationAcceptView.as_view(), name="invitation-accept"),

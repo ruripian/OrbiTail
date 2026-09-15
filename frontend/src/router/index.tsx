@@ -23,6 +23,7 @@ import { SecurityPage } from "@/pages/settings/SecurityPage";
 import { WorkspaceMembersPage } from "@/pages/settings/WorkspaceMembersPage";
 import { WorkspaceGeneralPage } from "@/pages/settings/WorkspaceGeneralPage";
 import { WorkspaceJoinRequestsPage } from "@/pages/settings/WorkspaceJoinRequestsPage";
+import { WorkspaceApiTokensPage } from "@/pages/settings/WorkspaceApiTokensPage";
 import { AdminConsoleLayout } from "@/pages/admin/AdminConsoleLayout";
 import { AdminOverviewPage } from "@/pages/admin/AdminOverviewPage";
 import { AdminUsersPage } from "@/pages/admin/AdminUsersPage";
@@ -277,6 +278,7 @@ export const router = createBrowserRouter([
           { path: "members", element: <WorkspaceMembersPage /> },
           { path: "join-requests", element: <WorkspaceJoinRequestsPage /> },
           { path: "archived", element: <ArchivedProjectsPage /> },
+          { path: "api-tokens", element: <WorkspaceApiTokensPage /> },
         ],
       },
 

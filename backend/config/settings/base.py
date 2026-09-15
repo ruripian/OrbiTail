@@ -34,6 +34,7 @@ INSTALLED_APPS = [
     "apps.me",
     "apps.admin_console",
     "apps.demo",
+    "apps.api",
 ]
 
 MIDDLEWARE = [
@@ -181,6 +182,8 @@ REST_FRAMEWORK = {
         "anon": "60/minute",      # 비인증 사용자
         "user": "1200/minute",    # 인증 사용자 — 상호작용 UI(테이블 토글, 리치 쿼리 invalidate) 감안해 여유 확보
         "auth": "10/minute",      # 로그인/회원가입 엔드포인트
+        # 공개 API — 통합 토큰 하나당. 사람 세션(user)과 따로 센다
+        "api_token": config("API_TOKEN_RATE", default="600/minute"),
     },
 }
 
