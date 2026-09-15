@@ -115,9 +115,11 @@ export default function DocumentsHomePage() {
   });
 
   // 스페이스 유형별 그룹
-  const projectSpaces = spaces.filter((s) => s.space_type === "project");
-  const personalSpaces = spaces.filter((s) => s.space_type === "personal");
-  const sharedSpaces = spaces.filter((s) => s.space_type === "shared");
+  /* 즐겨찾기한 스페이스는 위 "즐겨찾기" 에만 — 유형 그룹에 한 번 더 보이면 중복이다(사이드바와 같은 규칙) */
+  const unbookmarked = spaces.filter((s) => !bookmarkedSpaceIds.has(s.id));
+  const projectSpaces = unbookmarked.filter((s) => s.space_type === "project");
+  const personalSpaces = unbookmarked.filter((s) => s.space_type === "personal");
+  const sharedSpaces = unbookmarked.filter((s) => s.space_type === "shared");
 
   const SpaceCard = ({ space }: { space: DocumentSpace }) => {
     const isPrivate = isSpacePrivate(space);

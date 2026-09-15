@@ -43,12 +43,23 @@ function readDocIds(dt: DataTransfer): string[] {
 
 /** 사이드바/드롭다운에서 쓰는 스페이스 아이콘. project 스페이스는 프로젝트 아이콘 동기화. */
 function SpaceTypeIcon({ space, className }: { space: DocumentSpace; className?: string }) {
-  if (space.space_type === "project" && space.icon_prop) {
-    return <ProjectIcon value={space.icon_prop} size={10} className={cn("shrink-0", className)} />;
-  }
-  if (space.space_type === "project") return <Layers className={cn("h-3.5 w-3.5 text-primary shrink-0", className)} />;
-  if (space.space_type === "personal") return <UserIcon className={cn("h-3.5 w-3.5 text-amber-500 shrink-0", className)} />;
-  return <Users className={cn("h-3.5 w-3.5 text-blue-500 shrink-0", className)} />;
+  const icon = space.space_type === "project" && space.icon_prop
+    ? <ProjectIcon value={space.icon_prop} size={10} className={cn("shrink-0", className)} />
+    : space.space_type === "project"
+      ? <Layers className={cn("h-3.5 w-3.5 text-primary shrink-0", className)} />
+      : space.space_type === "personal"
+        ? <UserIcon className={cn("h-3.5 w-3.5 text-amber-500 shrink-0", className)} />
+        : <Users className={cn("h-3.5 w-3.5 text-blue-500 shrink-0", className)} />;
+  if (!(space.space_type === "project" && space.project_network === 2)) return icon;
+  /* 비공개 표시는 아이콘 모서리 배지로 — 이름 옆에 따로 두면 좁은 사이드바에서 이름이 잘린다 */
+  return (
+    <span className="relative inline-flex shrink-0" title="비공개 프로젝트">
+      {icon}
+      <span className="absolute -bottom-1 -right-1 flex h-2.5 w-2.5 items-center justify-center rounded-full bg-background">
+        <Lock className="h-2 w-2 text-muted-foreground" aria-label="비공개" />
+      </span>
+    </span>
+  );
 }
 import { TopBar } from "./TopBar";
 import { AppSwitcher } from "./AppSwitcher";
@@ -136,14 +147,15 @@ export function DocumentLayout() {
   });
 
   /* 사이드바 스페이스 그룹 — 빈 그룹은 아예 렌더하지 않는다.
-     즐겨찾기는 유형과 무관한 축이라 원본 그룹에서 빼지 않고 위에 한 번 더 보여준다
-     (문서 홈과 같은 규칙). */
+     즐겨찾기한 스페이스는 위로 **올리고** 원래 유형 그룹에서는 뺀다 — 두 군데 같은 줄이 보이면
+     즐겨찾기가 정리 도구가 아니라 소음이 된다(문서 홈과 같은 규칙). */
   const spaceGroups = useMemo(() => {
+    const rest = spaces.filter((s) => !bookmarkedSpaceIds.has(s.id));
     return [
       { title: "즐겨찾기", items: spaces.filter((s) => bookmarkedSpaceIds.has(s.id)) },
-      { title: t("documents.projectSpaces"), items: spaces.filter((s) => s.space_type === "project") },
-      { title: t("documents.sharedSpaces"), items: spaces.filter((s) => s.space_type === "shared") },
-      { title: t("documents.personalSpaces"), items: spaces.filter((s) => s.space_type === "personal") },
+      { title: t("documents.projectSpaces"), items: rest.filter((s) => s.space_type === "project") },
+      { title: t("documents.sharedSpaces"), items: rest.filter((s) => s.space_type === "shared") },
+      { title: t("documents.personalSpaces"), items: rest.filter((s) => s.space_type === "personal") },
     ].filter((g) => g.items.length > 0);
   }, [spaces, bookmarkedSpaceIds, t]);
 
@@ -281,7 +293,6 @@ export function DocumentLayout() {
             </span>
           ) : (() => {
             const activeSpace = spaces.find((s) => s.id === activeSpaceId);
-            const activePrivate = activeSpace?.space_type === "project" && activeSpace.project_network === 2;
             if (spaces.length > 1) {
               return (
                 <DropdownMenu>
@@ -295,13 +306,11 @@ export function DocumentLayout() {
                       <span className="truncate flex-1 text-left">
                         {activeSpace?.name ?? t("documents.title")}
                       </span>
-                      {activePrivate && <Lock className="h-3 w-3 shrink-0 text-muted-foreground/60" />}
                       <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0" />
                     </button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="start" className="w-56">
                     {spaces.map((s) => {
-                      const isPrivate = s.space_type === "project" && s.project_network === 2;
                       return (
                         <DropdownMenuItem
                           key={s.id}
@@ -310,7 +319,6 @@ export function DocumentLayout() {
                         >
                           <SpaceTypeIcon space={s} />
                           <span className="flex-1 truncate text-sm">{s.name}</span>
-                          {isPrivate && <Lock className="h-3 w-3 shrink-0 text-muted-foreground/60" />}
                           {s.id === activeSpaceId && (
                             <span className="text-xs text-primary">●</span>
                           )}
@@ -325,7 +333,6 @@ export function DocumentLayout() {
               <span className="flex-1 flex items-center gap-1.5 text-xs font-medium px-2.5 truncate">
                 {activeSpace && <SpaceTypeIcon space={activeSpace} />}
                 <span className="truncate flex-1">{activeSpace?.name ?? t("documents.title")}</span>
-                {activePrivate && <Lock className="h-3 w-3 shrink-0 text-muted-foreground/60" />}
               </span>
             );
           })()}
@@ -431,7 +438,6 @@ export function DocumentLayout() {
                   </p>
                   <div className="space-y-0.5">
                     {group.items.map((s) => {
-                      const isPrivate = s.space_type === "project" && s.project_network === 2;
                       const isBookmarked = bookmarkedSpaceIds.has(s.id);
                       return (
                         <div
@@ -444,7 +450,6 @@ export function DocumentLayout() {
                           >
                             <SpaceTypeIcon space={s} />
                             <span className="flex-1 truncate">{s.name}</span>
-                            {isPrivate && <Lock className="h-3 w-3 shrink-0 text-muted-foreground/60" />}
                           </button>
                           {/* 문서 수는 평소에, 별은 hover 시 — 좁은 사이드바에서 둘을 같은 자리에 겹친다 */}
                           <span className="text-2xs text-muted-foreground/60 shrink-0 group-hover/space:hidden">
