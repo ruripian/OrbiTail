@@ -33,6 +33,8 @@ def _broadcast_thread_event(workspace_slug: str, doc_id: str, action: str, threa
         )
     except Exception:
         pass
+from apps.core.html_sanitize import sanitize_html
+
 from .links import sync_document_links
 from .markdown import document_to_markdown, markdown_to_html, parse_frontmatter
 from .models import DocumentSpace, DocumentSpaceMember, DocumentLabel, Document, DocumentLink, DocumentIssueLink, DocumentAttachment, DocumentComment, DocumentVersion, DocumentView, CommentThread, DocumentTemplate, DocumentSpaceBookmark
@@ -1265,7 +1267,7 @@ class SpaceExportView(APIView):
                 used.add(name)
                 zf.writestr(
                     name,
-                    document_to_markdown(doc) if as_markdown else _export_html(doc.title, doc.content_html),
+                    document_to_markdown(doc) if as_markdown else _export_html(doc.title, sanitize_html(doc.content_html)),
                 )
                 index_rows.append((name, doc.title))
 
@@ -1285,7 +1287,9 @@ class SpaceExportView(APIView):
                     f"<p style='color:#b45309'>문서가 {self.MAX_DOCS}개를 넘어 앞의 {self.MAX_DOCS}개만 포함했습니다.</p>"
                     if truncated else ""
                 )
-                links = "".join(f'<li><a href="{n}">{t}</a></li>' for n, t in index_rows)
+                from django.utils.html import escape
+                # 제목은 사용자가 쓴 글자다 — 목차 HTML 에 그대로 넣으면 받은 파일을 연 사람 브라우저에서 실행된다
+                links = "".join(f'<li><a href="{escape(n)}">{escape(t)}</a></li>' for n, t in index_rows)
                 zf.writestr(
                     "index.html",
                     _export_html(space.name, f"{notice}<p>문서 {len(index_rows)}개</p><ul>{links}</ul>"),

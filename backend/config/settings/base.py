@@ -35,6 +35,7 @@ INSTALLED_APPS = [
     "apps.admin_console",
     "apps.demo",
     "apps.api",
+    "apps.core",
 ]
 
 MIDDLEWARE = [

@@ -35,6 +35,7 @@ import { AvatarInitials } from "@/components/ui/avatar-initials";
 import { RichTextEditor } from "@/components/editor/RichTextEditor";
 import { cn } from "@/lib/utils";
 import type { IssueRequest } from "@/types";
+import { sanitizeHtml } from "@/lib/sanitize-html";
 
 type RequestKind = "bug" | "feature";
 type Severity = "blocker" | "critical" | "major" | "minor";
@@ -650,7 +651,7 @@ function RequestRow({
       {req.description_html && (
         <div
           className="mt-2 text-xs text-muted-foreground prose prose-sm max-w-none line-clamp-3 opacity-80"
-          dangerouslySetInnerHTML={{ __html: req.description_html }}
+          dangerouslySetInnerHTML={{ __html: sanitizeHtml(req.description_html) }}
         />
       )}
     </li>

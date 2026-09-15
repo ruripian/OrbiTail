@@ -11,6 +11,7 @@ import { RichTextEditor } from "@/components/editor/RichTextEditor";
 import type { MentionItem } from "@/components/editor/MentionList";
 import { formatLongDate } from "@/utils/date-format";
 import type { IssueComment } from "@/types";
+import { sanitizeHtml } from "@/lib/sanitize-html";
 
 /* tiptap 의 "빈" 상태는 보통 <p></p>. 단순 trim 만으로는 비어 보이는 입력이 통과되므로
  * 빈 태그/<br>/공백을 모두 걷어내고 잔여가 있는지로 판단. */
@@ -144,10 +145,10 @@ export function CommentsTab({ workspaceSlug, projectId, issueId, comments, curre
             </button>
           )}
         </div>
-        {/* comment_html 은 RichTextEditor 가 sanitize 한 HTML. dangerouslySetInnerHTML 사용 안전 가정. */}
+        {/* comment_html 은 API 로 아무 HTML 이나 들어올 수 있다 — 서버가 저장 때 정리하고, 여기서 한 번 더 정리한다. */}
         <div
           className="text-sm prose prose-sm dark:prose-invert max-w-none break-words"
-          dangerouslySetInnerHTML={{ __html: comment.comment_html }}
+          dangerouslySetInnerHTML={{ __html: sanitizeHtml(comment.comment_html) }}
         />
         {!isReply && !readOnly && (
           <button

@@ -32,6 +32,7 @@ import { TableRow } from "@tiptap/extension-table-row";
 import { TableCell } from "@tiptap/extension-table-cell";
 import { TableHeader } from "@tiptap/extension-table-header";
 import { MathExtension } from "@aarkue/tiptap-math-extension";
+import { safeFrameUrl, safeUrl } from "@/lib/safe-url";
 import { common, createLowlight } from "lowlight";
 
 const lowlight = createLowlight(common);
@@ -175,7 +176,10 @@ export const PdfNodeSchema = Node.create({
     }) }];
   },
   renderHTML({ HTMLAttributes }) {
-    const { src, filename } = HTMLAttributes;
+    const { filename } = HTMLAttributes;
+    /* 이 노드에는 React 뷰가 없어 이 결과가 에디터 화면에 그대로 붙는다 — src 가 javascript: 면 문서를
+       여는 순간 iframe 이 스크립트를 실행한다. 저장된 값(HTML·Yjs)은 믿지 않고 여기서 거른다. */
+    const src = safeFrameUrl(HTMLAttributes.src);
     return ["div", {
       "data-node": "pdf",
       "data-src": src,
@@ -214,7 +218,8 @@ export const AttachmentNodeSchema = Node.create({
     }) }];
   },
   renderHTML({ HTMLAttributes }) {
-    const { src, filename, size, mime } = HTMLAttributes;
+    const { filename, size, mime } = HTMLAttributes;
+    const src = safeUrl(HTMLAttributes.src);
     const sizeLabel = typeof size === "number" ? formatFileSize(size) : "";
     return ["div", {
       "data-node": "attachment",

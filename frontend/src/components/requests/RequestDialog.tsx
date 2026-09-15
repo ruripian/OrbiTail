@@ -45,6 +45,7 @@ import { projectsApi } from "@/api/projects";
 import { requestsApi } from "@/api/requests";
 import { cn } from "@/lib/utils";
 import type { IssueRequest } from "@/types";
+import { sanitizeHtml } from "@/lib/sanitize-html";
 
 /* ────────────── 배지 ────────────── */
 function KindBadge({ kind }: { kind: IssueRequest["kind"] }) {
@@ -181,7 +182,7 @@ export function RequestDialog() {
               {current.description_html ? (
                 <div
                   className="prose prose-sm dark:prose-invert max-w-none break-words"
-                  dangerouslySetInnerHTML={{ __html: current.description_html }}
+                  dangerouslySetInnerHTML={{ __html: sanitizeHtml(current.description_html) }}
                 />
               ) : (
                 <p className="text-sm text-muted-foreground italic">설명 없음</p>

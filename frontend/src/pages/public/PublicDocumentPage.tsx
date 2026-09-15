@@ -7,6 +7,7 @@ import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { documentsApi } from "@/api/documents";
+import { sanitizeHtml } from "@/lib/sanitize-html";
 
 export default function PublicDocumentPage() {
   const { token } = useParams<{ token: string }>();
@@ -59,7 +60,7 @@ export default function PublicDocumentPage() {
             <div className="h-px bg-border/40 mb-6" />
             <article
               className="doc-editor prose prose-sm sm:prose-base max-w-none"
-              dangerouslySetInnerHTML={{ __html: data.content_html }}
+              dangerouslySetInnerHTML={{ __html: sanitizeHtml(data.content_html) }}
             />
           </div>
         </div>

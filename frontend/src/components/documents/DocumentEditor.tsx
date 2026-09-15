@@ -116,6 +116,7 @@ import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { matchMentionTrigger, mentionDeleteLength, triggerIncludesLabels, type MentionKind, type MentionTrigger } from "./mention-trigger";
 import { docExtensions, formatFileSize, type CalloutKind } from "./doc-schema";
+import { safeUrl } from "@/lib/safe-url";
 
 
 /* ── 이미지 노드 (React NodeView + 플로팅 툴바) ── */
@@ -251,7 +252,7 @@ function ImageNodeView({ node, updateAttributes, selected, editor }: NodeViewPro
             <AlignRight className="h-4 w-4" />
           </button>
           <div className="w-px h-4 bg-border mx-1" />
-          <a href={src} download={alt || "image"} target="_blank" rel="noreferrer" title="Download"
+          <a href={safeUrl(src, { allowDataImage: true })} download={alt || "image"} target="_blank" rel="noreferrer" title="Download"
             className="h-7 w-7 flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground">
             <Download className="h-4 w-4" />
           </a>
@@ -295,7 +296,7 @@ function AttachmentCardView({ node }: NodeViewProps) {
         <div className="text-sm font-medium truncate text-foreground">{filename || "file"}</div>
         {sizeLabel && <div className="text-xs text-muted-foreground">{sizeLabel}</div>}
       </div>
-      <a href={src} download={filename || "file"} target="_blank" rel="noreferrer"
+      <a href={safeUrl(src)} download={filename || "file"} target="_blank" rel="noreferrer"
         title="Download"
         className="h-8 w-8 flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors shrink-0"
         onMouseDown={(e) => e.stopPropagation()}>
@@ -771,7 +772,9 @@ function IssueCardView({ node }: NodeViewProps) {
 }
 
 /* ── Mermaid ── */
-mermaid.initialize({ startOnLoad: false, theme: "default", securityLevel: "loose" });
+/* strict: 다이어그램은 다른 사람이 쓴 본문이다. loose 는 SVG 정리를 건너뛰고
+   `click A href "javascript:..."` 링크를 그대로 둔다. */
+mermaid.initialize({ startOnLoad: false, theme: "default", securityLevel: "strict" });
 
 function MermaidView({ node, updateAttributes, editor }: NodeViewProps) {
   const code: string = node.attrs.code ?? "";

@@ -7,6 +7,7 @@ import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react";
 import { useRef, useState } from "react";
 import { Link2, Loader2, ExternalLink, X, Plus, Image as ImageIcon, GripVertical, Columns2, Columns3, Columns4 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { safeUrl } from "@/lib/safe-url";
 
 /* ────────────────────────────────────────────────────────────
  * 북마크 카드 — URL 입력 → 미리보기 카드(제목/설명/대표이미지)
@@ -74,7 +75,7 @@ export function BookmarkCardView({ node, updateAttributes }: NodeViewProps) {
   return (
     <NodeViewWrapper as="div" className="my-3" contentEditable={false}>
       <a
-        href={a.url}
+        href={safeUrl(a.url)}
         target="_blank"
         rel="noopener noreferrer"
         className="group flex items-center gap-3 p-3 rounded-lg border bg-card hover:bg-accent/30 transition-colors"

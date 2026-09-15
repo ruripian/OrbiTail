@@ -49,6 +49,7 @@ import { cn } from "@/lib/utils";
 import { getAccessToken } from "@/lib/token-storage";
 import { formatRelativeTime } from "@/lib/relative-time";
 import type { Document as DocType, DbColumn } from "@/types";
+import { sanitizeHtml } from "@/lib/sanitize-html";
 
 interface LayoutContext {
   /** 스페이스를 고르기 전에는 비어 있다 */
@@ -1535,7 +1536,7 @@ function VersionPreviewModal({
           </div>
         </div>
         <div className="flex-1 overflow-y-auto px-6 py-5">
-          <div className="doc-editor" dangerouslySetInnerHTML={{ __html: version.content_html }} />
+          <div className="doc-editor" dangerouslySetInnerHTML={{ __html: sanitizeHtml(version.content_html) }} />
         </div>
       </div>
     </>

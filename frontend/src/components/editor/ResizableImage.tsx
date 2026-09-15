@@ -24,6 +24,7 @@ import {
 } from "@tiptap/react";
 import { AlignLeft, AlignCenter, AlignRight, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { safeUrl } from "@/lib/safe-url";
 
 type ImgAlign = "left" | "center" | "right";
 
@@ -167,7 +168,7 @@ function ImageNodeView({ node, updateAttributes, selected, editor }: NodeViewPro
             <AlignRight className="h-4 w-4" />
           </button>
           <div className="w-px h-4 bg-border mx-1" />
-          <a href={src} download={alt || "image"} target="_blank" rel="noreferrer" title="Download"
+          <a href={safeUrl(src, { allowDataImage: true })} download={alt || "image"} target="_blank" rel="noreferrer" title="Download"
             className="h-7 w-7 flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground">
             <Download className="h-4 w-4" />
           </a>

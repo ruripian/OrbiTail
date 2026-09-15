@@ -18,3 +18,4 @@ Pillow==11.1.0
 pycrdt>=0.10
 pycrdt-websocket>=0.15
 PyYAML==6.0.3
+nh3==0.3.2

@@ -20,6 +20,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiErrorMessage } from "@/lib/api-error";
 import { cn } from "@/lib/utils";
+import { sanitizeHtml } from "@/lib/sanitize-html";
 
 export default function DocumentTrashPage() {
   const { t } = useTranslation();
@@ -244,7 +245,7 @@ export default function DocumentTrashPage() {
                 ) : preview.content_html ? (
                   <article
                     className="doc-editor"
-                    dangerouslySetInnerHTML={{ __html: preview.content_html }}
+                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(preview.content_html) }}
                   />
                 ) : (
                   <p className="text-sm text-muted-foreground">내용이 없는 문서입니다.</p>
