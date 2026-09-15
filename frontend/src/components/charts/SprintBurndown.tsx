@@ -1,9 +1,7 @@
 /**
  * 스프린트 번다운 차트 — 이상(ideal) 라인 vs 실제 잔여량.
  *
- * 잔여량은 **예상 포인트 기준**이다. 건수로 세면 13pt 짜리와 1pt 짜리가 같은 무게라
- * "몇 개 남았나" 는 알아도 "얼마나 남았나" 는 모른다.
- * 추정치를 하나도 안 쓰는 프로젝트에서는 건수로 자동 폴백한다(sprint-metrics).
+ * 잔여량은 **남은 이슈 수**다 — 스프린트 화면의 다른 지표와 같은 기준(sprint-metrics).
  *
  * Props:
  *   sprint: { start_date, end_date } — 스프린트 기간
@@ -18,7 +16,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import type { Issue, State, Sprint } from "@/types";
-import { sprintMetrics, weightOf } from "@/pages/project/views/sprint-metrics";
+import { sprintMetrics } from "@/pages/project/views/sprint-metrics";
 
 const tooltipStyle = {
   contentStyle: {
@@ -55,7 +53,7 @@ export function SprintBurndown({ sprint, issues, states }: Props) {
     if (!sprint.start_date || !sprint.end_date) return [];
 
     const stateMap = new Map(states.map((s) => [s.id, s]));
-    const { unit, total } = sprintMetrics(issues, stateMap);
+    const { total } = sprintMetrics(issues, stateMap);
     if (total === 0) return [];
 
     const completedStateIds = new Set(
@@ -83,7 +81,7 @@ export function SprintBurndown({ sprint, issues, states }: Props) {
             // updated_at이 해당 날짜 이전이면 완료된 것으로 간주
             return issue.updated_at.slice(0, 10) <= date;
           })
-          .reduce((sum, issue) => sum + weightOf(issue, unit), 0);
+          .length;
         actual = total - burned;
       }
 
@@ -92,11 +90,6 @@ export function SprintBurndown({ sprint, issues, states }: Props) {
 
     return points;
   }, [sprint, issues, states]);
-
-  const unit = useMemo(
-    () => sprintMetrics(issues, new Map(states.map((s) => [s.id, s]))).unit,
-    [issues, states],
-  );
 
   if (data.length === 0) {
     return (
@@ -110,9 +103,6 @@ export function SprintBurndown({ sprint, issues, states }: Props) {
     <div className="rounded-xl border p-4">
       <h3 className="text-sm font-semibold mb-3">
         {t("cycles.burndown.title")}
-        <span className="ml-1.5 text-2xs font-normal text-muted-foreground">
-          {unit === "pt" ? "예상 포인트 기준" : "건수 기준"}
-        </span>
       </h3>
       <ResponsiveContainer width="100%" height={220}>
         <LineChart data={data} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>

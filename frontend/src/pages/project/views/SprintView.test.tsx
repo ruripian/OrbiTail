@@ -93,9 +93,9 @@ describe("SprintView", () => {
 
   it("목록 — 진행 중 카드만 진척(완료/전체·%)을 펼쳐 보여준다", async () => {
     renderView();
-    /* 완료 3pt / 전체 16pt = 19% */
-    expect(await screen.findByText("3pt")).toBeInTheDocument();
-    expect(screen.getByText("/ 16pt · 19%")).toBeInTheDocument();
+    /* 완료 1건 / 전체 3건 = 33% — 예상 포인트와 무관하게 이슈 수로 센다 */
+    expect(await screen.findByText("/ 3건 · 33%")).toBeInTheDocument();
+    expect(screen.queryByText(/\dpt\b/)).not.toBeInTheDocument();
     /* 지난 스프린트는 완료율 한 칸만 */
     expect(screen.getByText("0%")).toBeInTheDocument();
   });
@@ -115,10 +115,19 @@ describe("SprintView", () => {
 
     /* 작업 탭 — 그룹 헤더와 이슈 행 */
     expect(screen.getByText("할 일")).toBeInTheDocument();
-    expect(screen.getByText("1건 · 8pt")).toBeInTheDocument(); // 할 일 그룹 합계
+    expect(screen.getAllByText("1건").length).toBeGreaterThan(0); // 그룹 헤더는 건수만
+    expect(screen.queryByText(/\dpt\b/)).not.toBeInTheDocument();
     expect(screen.getByText("로그인 유지 체크박스")).toBeInTheDocument();
     /* 백로그 패널 — 이 스프린트에 없는 이슈 */
     expect(screen.getByText("다크모드 토글")).toBeInTheDocument();
+  });
+
+  it("스프린트 만들기 창에 설명을 적을 수 있다 — 입력 중 포커스가 튀지 않는다", async () => {
+    renderView();
+    await userEvent.click(await screen.findByRole("button", { name: /cycles.create|스프린트/ }));
+    const desc = await screen.findByPlaceholderText("이번 스프린트의 목표");
+    await userEvent.type(desc, "결제 안정화");
+    expect(desc).toHaveValue("결제 안정화");
   });
 
   it("이슈가 없는 스프린트도 상세가 열린다", async () => {

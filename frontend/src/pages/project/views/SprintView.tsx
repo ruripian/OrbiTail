@@ -44,7 +44,7 @@ import { cn } from "@/lib/utils";
 import type { Issue, ProjectEvent, Sprint, State, User } from "@/types";
 import { SprintBurndown } from "@/components/charts/SprintBurndown";
 import {
-  sprintMetrics, weightOf, groupOf, formatMetric,
+  sprintMetrics, groupOf, formatCount,
   GROUP_ORDER, GROUP_LABEL, GROUP_COLOR,
   type SprintMetrics,
 } from "./sprint-metrics";
@@ -107,6 +107,7 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
   const [editEnd, setEditEnd] = useState<string | null>(null);
 
   const [formName, setFormName] = useState("");
+  const [formDesc, setFormDesc] = useState("");
   const [formStart, setFormStart] = useState<string | null>(null);
   const [formEnd, setFormEnd] = useState<string | null>(null);
 
@@ -188,12 +189,12 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
   const createMutation = useMutation({
     mutationFn: () =>
       projectsApi.sprints.create(workspaceSlug, projectId, {
-        name: formName, start_date: formStart!, end_date: formEnd!, status: "draft",
+        name: formName, description: formDesc.trim(), start_date: formStart!, end_date: formEnd!, status: "draft",
       }),
     onSuccess: () => {
       invalidate();
       setCreateOpen(false);
-      setFormName(""); setFormStart(null); setFormEnd(null);
+      setFormName(""); setFormDesc(""); setFormStart(null); setFormEnd(null);
     },
     onError: (e) => toast.error(apiErrorMessage(e, "생성 실패")),
   });
@@ -291,13 +292,7 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
         <StateIcon className="h-4 w-4 shrink-0" style={{ color: state?.color ?? "#9ca3af" }} />
         <PriorityGlyph priority={issue.priority} size={12} />
         <span className="min-w-0 flex-1 truncate text-sm">{issue.title}</span>
-        {/* 예상 포인트 — 스프린트 화면의 모든 지표가 이 값으로 계산된다.
-            화면에 안 보이면 왜 34/89 인지 설명할 방법이 없다.
-            칩 대신 고정폭 우측 정렬 — 행마다 다른 위치에 뜨면 훑을 때 걸린다. */}
-        <span className="w-10 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
-          {issue.estimate_point ? formatMetric(issue.estimate_point, "pt") : ""}
-        </span>
-        {/* 담당자 자리는 비어 있어도 유지 — 있고 없고에 따라 포인트 열이 흔들리지 않게 */}
+        {/* 담당자 자리는 비어 있어도 유지 — 있고 없고에 따라 행 끝이 흔들리지 않게 */}
         {!compact && (
           <span className="flex w-11 shrink-0 justify-end gap-0.5">
             {issue.assignee_details?.slice(0, 2).map((a) => (
@@ -361,7 +356,9 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
     );
   };
 
-  /** 목록·상세가 공유하는 다이얼로그 — 어느 화면에서든 같은 폼을 쓴다 */
+  /** 목록·상세가 공유하는 다이얼로그 — 어느 화면에서든 같은 폼을 쓴다.
+   *  `<Dialogs />` 로 쓰지 말고 `{Dialogs()}` 로 부른다. 렌더 안에서 만든 함수라 컴포넌트로 쓰면
+   *  렌더마다 새 타입이 되어 통째로 다시 마운트되고, 글자를 칠 때마다 입력 포커스가 날아간다. */
   const Dialogs = () => (
     <>
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
@@ -373,6 +370,16 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
             <div className="space-y-1">
               <Label>{t("cycles.name")}</Label>
               <Input value={formName} onChange={(e) => setFormName(e.target.value)} autoFocus />
+            </div>
+            {/* 수정 창과 같은 칸 — 만들 때부터 목표를 적어 두면 목록·상세 헤더에 바로 보인다 */}
+            <div className="space-y-1">
+              <Label>설명</Label>
+              <textarea
+                className="w-full min-h-[64px] rounded-md border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
+                value={formDesc}
+                onChange={(e) => setFormDesc(e.target.value)}
+                placeholder="이번 스프린트의 목표"
+              />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
@@ -504,7 +511,7 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
     const issues = issuesOf(current.id);
     const badge = STATUS_BADGE[current.status];
     const metrics = sprintMetrics(issues, stateMap);
-    const loads = buildLoads(issues, stateMap, projectEvents, current, metrics.unit);
+    const loads = buildLoads(issues, stateMap, projectEvents, current);
     const avgLoad = loads.length ? loads.reduce((n, l) => n + l.value, 0) / loads.length : 0;
     const overloaded = loads.length > 1 ? loads.filter((l) => l.value > avgLoad * 1.5) : [];
 
@@ -558,8 +565,8 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
           {issues.length > 0 && (
             <div className="flex items-center gap-3 px-4 pb-2.5">
               <span className="shrink-0 text-xs tabular-nums">
-                <span className="font-semibold">{formatMetric(metrics.done, metrics.unit)}</span>
-                <span className="text-muted-foreground"> / {formatMetric(metrics.total, metrics.unit)} · {metrics.percent}%</span>
+                <span className="font-semibold">{formatCount(metrics.done)}</span>
+                <span className="text-muted-foreground"> / {formatCount(metrics.total)} · {metrics.percent}%</span>
               </span>
               <div className="relative min-w-0 flex-1">
                 <DistributionBar metrics={metrics} height={6} />
@@ -648,7 +655,7 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
                   <SprintBurndown sprint={current} issues={issues} states={states} />
                   {loads.length > 0 && (
                     <div className="rounded-xl border p-4">
-                      <LoadPanel loads={loads} unit={metrics.unit} />
+                      <LoadPanel loads={loads} />
                     </div>
                   )}
                 </>
@@ -702,7 +709,6 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
                   }
                   const roots = rows.filter(({ depth }) => depth === 0);
                   if (roots.length === 0) return null;
-                  const sum = roots.reduce((n, { issue }) => n + weightOf(issue, metrics.unit), 0);
                   return (
                     <section key={g} className="mb-2">
                       {/* 색은 라벨 자체가 들고 간다 — 점 + 굵은 제목 + 숫자 두 개는 행보다 무거웠다 */}
@@ -714,7 +720,7 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
                           {GROUP_LABEL[g]}
                         </span>
                         <span className="text-2xs tabular-nums text-muted-foreground">
-                          {roots.length}건 · {formatMetric(sum, metrics.unit)}
+                          {formatCount(roots.length)}
                         </span>
                         <span className="ml-1 h-px flex-1 bg-border/60" />
                       </div>
@@ -778,7 +784,7 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
           }}
         />
 
-        <Dialogs />
+        {Dialogs()}
       </PageTransition>
     );
   }
@@ -852,7 +858,7 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
         </div>
       </div>
 
-      <Dialogs />
+      {Dialogs()}
     </PageTransition>
   );
 }
@@ -901,10 +907,10 @@ function ActiveSprintCard({ sprint, m, onOpen }: { sprint: Sprint; m: SprintMetr
         <>
           <div className="mt-2.5 flex items-baseline gap-1.5 tabular-nums">
             <span className="text-lg font-semibold leading-none">
-              {formatMetric(m.done, m.unit)}
+              {formatCount(m.done)}
             </span>
             <span className="text-xs text-muted-foreground">
-              / {formatMetric(m.total, m.unit)} · {m.percent}%
+              / {formatCount(m.total)} · {m.percent}%
             </span>
           </div>
           <div className="relative mt-2">
@@ -917,10 +923,10 @@ function ActiveSprintCard({ sprint, m, onOpen }: { sprint: Sprint; m: SprintMetr
           </div>
           {/* 색 점 범례는 이 카드에만 둔다 — 목록 전체에 반복하면 그게 소음이 된다 */}
           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-2xs text-muted-foreground">
-            {GROUP_ORDER.filter((g) => m.byGroup[g].count > 0).map((g) => (
+            {GROUP_ORDER.filter((g) => m.byGroup[g] > 0).map((g) => (
               <span key={g} className="inline-flex items-center gap-1">
                 <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: GROUP_COLOR[g] }} />
-                {GROUP_LABEL[g]} {m.byGroup[g].count}
+                {GROUP_LABEL[g]} {m.byGroup[g]}
               </span>
             ))}
             {behind >= 15 && (
@@ -952,7 +958,7 @@ function SprintRow({ sprint, m, onOpen }: { sprint: Sprint; m: SprintMetrics; on
       </span>
       {/* 예정은 "얼마나 담겼나", 지난 건 "얼마나 끝냈나" 가 궁금하다 */}
       <span className="w-16 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
-        {isPast ? `${m.percent}%` : m.total === 0 ? "0건" : formatMetric(m.total, m.unit)}
+        {isPast ? `${m.percent}%` : formatCount(m.total)}
       </span>
       <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
     </button>
@@ -967,13 +973,13 @@ function DistributionBar({
   return (
     <div className="flex h-full w-full overflow-hidden rounded-full bg-muted/50" style={{ height }}>
       {GROUP_ORDER.map((g) => {
-        const v = metrics.byGroup[g].value;
+        const v = metrics.byGroup[g];
         if (v <= 0) return null;
         return (
           <div
             key={g}
             style={{ width: `${(v / metrics.total) * 100}%`, backgroundColor: GROUP_COLOR[g] }}
-            title={`${GROUP_LABEL[g]} ${formatMetric(v, metrics.unit)}`}
+            title={`${GROUP_LABEL[g]} ${formatCount(v)}`}
           />
         );
       })}
@@ -984,7 +990,7 @@ function DistributionBar({
 /* ── 담당자별 부하 ──
  * OrbiTail 의 차별점. 다른 도구는 팀원이 언제 자리에 없는지 몰라 가용량을 손으로 받는데,
  * 우리는 프로젝트 캘린더를 이미 갖고 있어서 스프린트 기간과 겹치는 일정을 직접 셀 수 있다.
- * 그래서 "34pt 를 든 사람이 그 기간에 일정 3건으로 막혀 있다" 까지 말할 수 있다. */
+ * 그래서 "이슈 8건을 든 사람이 그 기간에 일정 3일로 막혀 있다" 까지 말할 수 있다. */
 interface Load {
   user: User;
   value: number;
@@ -997,16 +1003,14 @@ function buildLoads(
   stateMap: Map<string, State>,
   events: ProjectEvent[],
   sprint: Sprint,
-  unit: "pt" | "count",
 ): Load[] {
   const map = new Map<string, Load>();
   for (const issue of issues) {
-    const w = weightOf(issue, unit);
     const isDone = groupOf(issue, stateMap) === "completed";
     for (const a of issue.assignee_details ?? []) {
       const cur = map.get(a.id) ?? { user: a, value: 0, done: 0, busyDays: 0 };
-      cur.value += w;
-      if (isDone) cur.done += w;
+      cur.value += 1;
+      if (isDone) cur.done += 1;
       map.set(a.id, cur);
     }
   }
@@ -1028,7 +1032,7 @@ function buildLoads(
   return [...map.values()].sort((a, b) => b.value - a.value);
 }
 
-function LoadPanel({ loads, unit }: { loads: Load[]; unit: "pt" | "count" }) {
+function LoadPanel({ loads }: { loads: Load[] }) {
   if (loads.length === 0) return null;
   const max = Math.max(...loads.map((l) => l.value), 1);
   /* 평균의 1.5배를 넘으면 과부하로 본다 — 절대 기준을 두면 팀마다 안 맞는다 */
@@ -1053,11 +1057,11 @@ function LoadPanel({ loads, unit }: { loads: Load[]; unit: "pt" | "count" }) {
               <div
                 className="absolute inset-y-0 left-0 rounded-full bg-emerald-500/70"
                 style={{ width: `${(l.done / max) * 100}%` }}
-                title={`완료 ${formatMetric(l.done, unit)}`}
+                title={`완료 ${formatCount(l.done)}`}
               />
             </div>
             <span className="w-12 shrink-0 text-right text-2xs tabular-nums text-muted-foreground">
-              {formatMetric(l.value, unit)}
+              {formatCount(l.value)}
             </span>
             {l.busyDays > 0 && (
               <span
