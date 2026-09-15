@@ -34,9 +34,11 @@ export function ActivityTab({ activities, states = [] }: Props) {
             {" "}
             <span className="text-muted-foreground">
               {(() => {
-                /* 필드명은 meta 라벨(상태/우선순위/제목)로, 없으면 원시값 폴백 */
+                /* 필드명은 백엔드 TRACKED_FIELDS 와 키가 1:1 로 맞는 activity.field 에서 찾는다.
+                   meta 는 사이드바 라벨용이라 키 이름이 달라(assignee/startDate…) 대부분 폴백으로
+                   영어 원시값이 그대로 노출됐다. */
                 const rawField = act.field ?? "";
-                const field = t(`issues.detail.meta.${rawField}`, { defaultValue: rawField });
+                const field = t(`issues.detail.activity.field.${rawField}`, { defaultValue: rawField });
                 const from = resolve(act.old_value);
                 const to = resolve(act.new_value);
                 /* old→new 유무에 따라 한/영 어순이 자연스러운 3가지 문형으로 분기 */

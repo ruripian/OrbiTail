@@ -95,9 +95,11 @@ TRACKED_FIELDS = {
     "assignees": "담당자",
     "label": "라벨",
     "sprint": "스프린트",
+    "category": "카테고리",
     "parent": "상위 이슈",
     "start_date": "시작일",
     "due_date": "마감일",
+    "estimate_point": "예상 포인트",
 }
 
 
@@ -114,9 +116,11 @@ def _issue_field_snapshot(issue):
         "assignees": ", ".join(sorted(u.display_name or u.email for u in issue.assignees.all())),
         "label": ", ".join(sorted(lb.name for lb in issue.label.all())),
         "sprint": issue.sprint.name if issue.sprint_id else "",
+        "category": issue.category.name if issue.category_id else "",
         "parent": issue.parent.title if issue.parent_id else "",
         "start_date": str(issue.start_date or ""),
         "due_date": str(issue.due_date or ""),
+        "estimate_point": str(issue.estimate_point) if issue.estimate_point is not None else "",
     }
 
 

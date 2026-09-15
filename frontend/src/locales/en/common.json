@@ -276,7 +276,20 @@
         "empty": "No activity yet",
         "changedFromTo": "changed {{field}} from \"{{from}}\" to \"{{to}}\"",
         "setTo": "set {{field}} to \"{{to}}\"",
-        "cleared": "cleared {{field}}"
+        "cleared": "cleared {{field}}",
+        "field": {
+          "title": "Title",
+          "priority": "Priority",
+          "state": "Status",
+          "assignees": "Assignees",
+          "label": "Labels",
+          "sprint": "Sprint",
+          "category": "Category",
+          "parent": "Parent issue",
+          "start_date": "Start date",
+          "due_date": "Due date",
+          "estimate_point": "Estimate"
+        }
       },
       "toast": {
         "updateFailed": "Failed to update.",

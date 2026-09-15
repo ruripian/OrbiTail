@@ -276,7 +276,20 @@
         "empty": "아직 활동 기록이 없습니다",
         "changedFromTo": "{{field}}을(를) \"{{from}}\"에서 \"{{to}}\"(으)로 변경",
         "setTo": "{{field}}을(를) \"{{to}}\"(으)로 설정",
-        "cleared": "{{field}}을(를) 삭제"
+        "cleared": "{{field}}을(를) 삭제",
+        "field": {
+          "title": "제목",
+          "priority": "우선순위",
+          "state": "상태",
+          "assignees": "담당자",
+          "label": "라벨",
+          "sprint": "스프린트",
+          "category": "카테고리",
+          "parent": "상위 이슈",
+          "start_date": "시작일",
+          "due_date": "마감일",
+          "estimate_point": "예상 포인트"
+        }
       },
       "toast": {
         "updateFailed": "변경에 실패했습니다.",
