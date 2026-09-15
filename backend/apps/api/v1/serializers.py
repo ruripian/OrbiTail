@@ -259,3 +259,43 @@ class DocumentSerializer(serializers.Serializer):
             self.context.get("request"),
             f"/{obj.space.workspace.slug}/documents/space/{obj.space_id}/{obj.id}",
         )
+
+
+def _validate_properties(value):
+    """화면과 같은 규칙 — YAML 머리말로 오갈 수 있는 값만."""
+    from apps.documents.serializers import DocumentSerializer as InternalDocumentSerializer
+    return InternalDocumentSerializer().validate_properties(value)
+
+
+class DocumentCreateSerializer(serializers.Serializer):
+    title = serializers.CharField(max_length=500)
+    parent = serializers.UUIDField(required=False, allow_null=True, help_text="같은 스페이스의 문서·폴더 id")
+    is_folder = serializers.BooleanField(required=False, default=False)
+    content = serializers.CharField(required=False, allow_blank=True, help_text="본문 마크다운")
+    properties = serializers.JSONField(required=False)
+
+    def validate_title(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError("제목을 입력하세요.")
+        return value
+
+    def validate_properties(self, value):
+        return _validate_properties(value)
+
+
+class DocumentUpdateSerializer(serializers.Serializer):
+    """본문은 여기서 받지 않는다 — content/ 와 append/ 로 따로. 메타데이터와 본문은 반영 경로가 다르다."""
+
+    title = serializers.CharField(max_length=500, required=False)
+    parent = serializers.UUIDField(required=False, allow_null=True, help_text="옮길 곳. null 이면 최상위")
+    properties = serializers.JSONField(required=False, help_text="통째로 교체")
+
+    validate_title = DocumentCreateSerializer.validate_title
+
+    def validate_properties(self, value):
+        return _validate_properties(value)
+
+
+class DocumentContentSerializer(serializers.Serializer):
+    content = serializers.CharField(allow_blank=True, help_text="본문 마크다운")

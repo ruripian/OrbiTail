@@ -124,6 +124,9 @@ MAX_UPLOAD_SIZE_MB = config("MAX_UPLOAD_SIZE_MB", default=10, cast=int)
 # 실시간 협업 서버(Hocuspocus)만 내부 문서 상태 엔드포인트를 부를 수 있게 하는 공유 비밀.
 # 비워 두면 그 엔드포인트는 항상 403 이다 — 설정을 빠뜨린 채 열려 있는 편보다 낫다.
 COLLAB_SHARED_SECRET = config("COLLAB_SHARED_SECRET", default="")
+# 협업 서버의 내부 쓰기 창구 — 공개 API 가 문서 본문을 살아 있는 문서에 넣을 때 부른다.
+# 리버스 프록시로 나가는 포트(1234)와 따로 둔다.
+COLLAB_INTERNAL_URL = config("COLLAB_INTERNAL_URL", default="http://collab:1235")
 DATA_UPLOAD_MAX_MEMORY_SIZE = MAX_UPLOAD_SIZE_MB * 1024 * 1024
 FILE_UPLOAD_MAX_MEMORY_SIZE = MAX_UPLOAD_SIZE_MB * 1024 * 1024
 

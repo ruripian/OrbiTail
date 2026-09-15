@@ -27,13 +27,19 @@ g.HTMLElement ??= dom.window.HTMLElement;
 g.Node ??= dom.window.Node;
 g.navigator ??= dom.window.navigator;
 
+import { createServer, type IncomingMessage } from "node:http";
+import { timingSafeEqual } from "node:crypto";
 import { Server } from "@hocuspocus/server";
 import * as Y from "yjs";
+import { Node as PMNode } from "@tiptap/pm/model";
 import { getSchema, getHTMLFromFragment, generateJSON } from "@tiptap/core";
-import { prosemirrorJSONToYXmlFragment, yXmlFragmentToProseMirrorRootNode } from "y-prosemirror";
+import { prosemirrorJSONToYXmlFragment, updateYFragment, yXmlFragmentToProseMirrorRootNode } from "y-prosemirror";
 import { docExtensions } from "../src/components/documents/doc-schema";
 
 const PORT = Number(process.env.COLLAB_PORT || 1234);
+/* 내부 쓰기 창구는 포트를 따로 둔다. PORT 는 리버스 프록시(/collab)로 바깥에 닿으므로,
+   같은 포트에 두면 비밀값 하나만 남은 채 인터넷에 열린다. 이 포트는 도커 네트워크 안에서만 닿는다. */
+const INTERNAL_PORT = Number(process.env.COLLAB_INTERNAL_PORT || 1235);
 const API_BASE = process.env.COLLAB_API_BASE || "http://backend:8000/api";
 const SHARED_SECRET = process.env.COLLAB_SHARED_SECRET || "";
 
@@ -144,4 +150,80 @@ const server = new Server({
 
 server.listen().then(() => {
   console.log(`[collab] Hocuspocus 시작 — 포트 ${PORT}, 백엔드 ${API_BASE}`);
+});
+
+/* ── 서버 쪽 쓰기 (공개 API 가 부른다) ──
+   외부에서 들어온 본문을 **살아 있는 Y.Doc 에 편집으로** 넣는다. content_html 을 DB 에 직접 쓰면
+   편집 중인 사람의 다음 저장에 조용히 덮여 사라지지만, 여기서 넣으면 사람이 친 것과 같은 한 건의
+   편집이 되어 Yjs 가 합치고, 열어 둔 화면에도 바로 나타난다.
+
+   updateYFragment 는 현재 조각과 목표 문서를 앞뒤로 맞춰 보고 **달라진 가운데만** 바꾼다
+   (에디터의 동기화 플러그인이 쓰는 그 함수). 그래서 통째 교체여도 안 바뀐 문단은 그대로 남아,
+   그 문단을 편집하던 사람의 커서와 입력이 날아가지 않는다. */
+
+type ContentMode = "replace" | "append";
+
+function secretMatches(given: string | undefined): boolean {
+  const a = Buffer.from(given || "");
+  const b = Buffer.from(SHARED_SECRET);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+async function readJSON(req: IncomingMessage, limitBytes: number): Promise<unknown> {
+  const chunks: Buffer[] = [];
+  let size = 0;
+  for await (const chunk of req) {
+    size += (chunk as Buffer).length;
+    if (size > limitBytes) throw new Error("too-large");
+    chunks.push(chunk as Buffer);
+  }
+  return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+}
+
+async function writeContent(documentName: string, html: string, mode: ContentMode): Promise<string> {
+  const incoming = PMNode.fromJSON(schema, generateJSON(html, extensions));
+  const connection = await server.hocuspocus.openDirectConnection(documentName, { source: "api" });
+  let rendered = "";
+  try {
+    await connection.transact((document) => {
+      const fragment = document.getXmlFragment(FRAGMENT);
+      let target = incoming;
+      if (mode === "append") {
+        const current = yXmlFragmentToProseMirrorRootNode(fragment, schema);
+        target = current.type.create(current.attrs, current.content.append(incoming.content));
+      }
+      updateYFragment(document, fragment, target, { mapping: new Map(), isOMark: new Map() });
+      rendered = renderHTML(document);
+    });
+  } finally {
+    /* 열어 둔 사람이 없으면 즉시 저장하고 내린다 — 응답이 나갈 때 DB 에도 이미 들어가 있다 */
+    await connection.disconnect();
+  }
+  return rendered;
+}
+
+const CONTENT_PATH = /^\/documents\/([0-9a-f-]{36})\/content$/;
+
+createServer(async (req, res) => {
+  const send = (code: number, body: unknown) => {
+    res.writeHead(code, { "Content-Type": "application/json" });
+    res.end(JSON.stringify(body));
+  };
+  const match = CONTENT_PATH.exec(req.url || "");
+  if (req.method !== "POST" || !match) return send(404, { detail: "not found" });
+  if (!secretMatches(req.headers["x-collab-secret"] as string | undefined)) return send(403, { detail: "forbidden" });
+
+  try {
+    const body = (await readJSON(req, 5 * 1024 * 1024)) as { html?: unknown; mode?: unknown };
+    const mode = body.mode === "append" ? "append" : body.mode === "replace" ? "replace" : null;
+    if (typeof body.html !== "string" || !mode) return send(400, { detail: "html 과 mode(replace|append) 가 필요합니다." });
+    const contentHtml = await writeContent(match[1], body.html, mode);
+    return send(200, { content_html: contentHtml });
+  } catch (err) {
+    if ((err as Error).message === "too-large") return send(413, { detail: "본문이 너무 큽니다." });
+    console.error(`[collab] ${match[1]} 서버 쓰기 실패:`, err);
+    return send(500, { detail: "쓰기에 실패했습니다." });
+  }
+}).listen(INTERNAL_PORT, "0.0.0.0", () => {
+  console.log(`[collab] 내부 쓰기 창구 — 포트 ${INTERNAL_PORT}`);
 });

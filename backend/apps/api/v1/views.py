@@ -14,8 +14,10 @@ from rest_framework.exceptions import NotFound, PermissionDenied, ValidationErro
 from rest_framework.response import Response
 
 from apps.accounts.models import User
+from apps.documents.links import sync_document_links
+from apps.documents.markdown import markdown_to_html
 from apps.documents.models import Document
-from apps.documents.views import _get_accessible_spaces
+from apps.documents.views import _check_space_edit, _get_accessible_spaces
 from apps.issues.models import Issue, IssueActivity, IssueComment, Label
 from apps.issues.views import IssueArchiveView, _issue_field_snapshot, _log_activities
 from apps.projects.models import Category, Project, ProjectMember, Sprint, State
@@ -24,6 +26,7 @@ from apps.workspaces.models import WorkspaceMember
 
 from . import serializers as s
 from .base import PublicApiView
+from .collab_client import CollabUnavailable, write_document_content
 
 UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.IGNORECASE)
 IDENTIFIER_RE = re.compile(r"^([A-Za-z0-9]{1,12})-(\d+)$")
@@ -430,6 +433,33 @@ class DocumentMixin:
             raise NotFound("스페이스를 찾을 수 없습니다.")
         return space
 
+    def require_edit(self, space):
+        if not _check_space_edit(self.request.user, space):
+            raise PermissionDenied("이 스페이스의 편집 권한이 없습니다.")
+
+    def resolve_parent(self, space, parent_id, moving=None):
+        if parent_id is None:
+            return None
+        parent = Document.objects.filter(pk=parent_id, space=space, deleted_at__isnull=True).first()
+        if parent is None:
+            raise ValidationError({"parent": "이 스페이스의 문서가 아닙니다."})
+        if moving is not None:
+            cur, seen = parent, set()
+            while cur is not None and cur.pk not in seen:
+                if cur.pk == moving.pk:
+                    raise ValidationError({"parent": "자기 자신이나 하위 문서 밑으로 옮길 수 없습니다."})
+                seen.add(cur.pk)
+                cur = cur.parent
+        return parent
+
+    def to_html(self, space, markdown):
+        """`[[제목]]` 은 같은 스페이스의 문서로 잇는다 — 가져오기(.md 반입)와 같은 규칙."""
+        by_title = {
+            title.strip().lower(): (str(pk), str(space.id))
+            for pk, title in Document.objects.filter(space=space, deleted_at__isnull=True).values_list("id", "title")
+        }
+        return markdown_to_html(markdown, resolve_wikilink=lambda t: by_title.get(t.strip().lower()))
+
     def get_document(self, doc_id):
         doc = None
         if UUID_RE.match(str(doc_id)):
@@ -469,8 +499,120 @@ class SpaceDocumentListView(DocumentMixin, PublicApiView):
             qs = qs.filter(updated_at__gte=since)
         return self.paginate(qs.order_by("created_at", "id"), s.DocumentListSerializer)
 
+    @extend_schema(tags=["documents"], summary="문서 만들기 (write)", request=s.DocumentCreateSerializer,
+                   responses={201: s.DocumentSerializer})
+    def post(self, request, space_id):
+        space = self.get_space(space_id)
+        self.require_edit(space)
+        ser = s.DocumentCreateSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        data = ser.validated_data
+        if data.get("is_folder") and data.get("content"):
+            raise ValidationError({"content": "폴더에는 본문을 넣을 수 없습니다."})
+
+        # 새 문서는 아직 아무도 열지 않았으므로 DB 에 바로 쓴다. 처음 여는 순간 협업 서버가 이 HTML 로 시작한다.
+        doc = Document.objects.create(
+            space=space, created_by=request.user, title=data["title"],
+            parent=self.resolve_parent(space, data.get("parent")),
+            is_folder=data.get("is_folder", False),
+            properties=data.get("properties") or {},
+            content_html=self.to_html(space, data["content"]) if data.get("content") else "",
+        )
+        if doc.content_html:
+            try:
+                sync_document_links(doc)
+            except Exception:
+                pass  # 링크 반영 실패가 생성을 되돌리면 안 된다 — 다음 저장에서 맞춰진다
+        doc = self.get_document(doc.pk)
+        return Response(s.DocumentSerializer(doc, context={"request": request}).data, status=status.HTTP_201_CREATED)
+
 
 class DocumentDetailView(DocumentMixin, PublicApiView):
     @extend_schema(tags=["documents"], summary="문서 — 본문은 마크다운", responses=s.DocumentSerializer)
     def get(self, request, doc_id):
         return Response(s.DocumentSerializer(self.get_document(doc_id), context={"request": request}).data)
+
+    @extend_schema(tags=["documents"], summary="제목·위치·프로퍼티 고치기 (write) — 본문은 content/",
+                   request=s.DocumentUpdateSerializer, responses=s.DocumentSerializer)
+    def patch(self, request, doc_id):
+        doc = self.get_document(doc_id)
+        self.require_edit(doc.space)
+        ser = s.DocumentUpdateSerializer(data=request.data, partial=True)
+        ser.is_valid(raise_exception=True)
+        data = ser.validated_data
+        fields = []
+        if "title" in data:
+            doc.title = data["title"]
+            fields.append("title")
+        if "parent" in data:
+            doc.parent = self.resolve_parent(doc.space, data["parent"], moving=doc)
+            fields.append("parent")
+        if "properties" in data:
+            doc.properties = data["properties"]
+            fields.append("properties")
+        if fields:
+            doc.save(update_fields=[*fields, "updated_at"])
+        return Response(s.DocumentSerializer(self.get_document(doc.pk), context={"request": request}).data)
+
+    @extend_schema(tags=["documents"], summary="문서 지우기 — 휴지통으로, 하위 문서 포함 (write)",
+                   responses={204: None})
+    def delete(self, request, doc_id):
+        doc = self.get_document(doc_id)
+        self.require_edit(doc.space)
+        now = timezone.now()
+        frontier = [doc.pk]
+        ids = []
+        while frontier:
+            ids.extend(frontier)
+            frontier = list(
+                Document.objects.filter(parent_id__in=frontier, deleted_at__isnull=True).values_list("id", flat=True)
+            )
+        for d in Document.objects.filter(pk__in=ids, deleted_at__isnull=True):
+            # save() 로 하나씩 — 화면의 삭제와 같이 저장 시그널(실시간 반영 등)을 탄다
+            d.deleted_at, d.deleted_by = now, request.user
+            d.save(update_fields=["deleted_at", "deleted_by"])
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class _DocumentContentWrite(DocumentMixin, PublicApiView):
+    mode = "replace"
+
+    def write(self, request, doc_id):
+        doc = self.get_document(doc_id)
+        self.require_edit(doc.space)
+        if doc.is_folder:
+            raise ValidationError({"content": "폴더에는 본문이 없습니다."})
+        ser = s.DocumentContentSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        try:
+            doc.content_html = write_document_content(doc.pk, self.to_html(doc.space, ser.validated_data["content"]),
+                                                      self.mode)
+        except CollabUnavailable:
+            # DB 에 직접 쓰는 우회로를 두지 않는다 — 편집 중인 사람의 저장에 덮여 조용히 사라진다
+            return Response({"detail": "실시간 협업 서버에 닿지 못해 본문을 고치지 못했습니다. 잠시 뒤 다시 시도하세요."},
+                            status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        Document.objects.filter(pk=doc.pk).update(updated_at=timezone.now())
+        return Response(s.DocumentSerializer(doc, context={"request": request}).data)
+
+
+class DocumentContentView(_DocumentContentWrite):
+    mode = "replace"
+
+    @extend_schema(
+        tags=["documents"],
+        summary="본문 통째로 바꾸기 (write)",
+        description="편집 중인 사람이 있어도 안전합니다. 살아 있는 문서에 편집으로 반영되어 열어 둔 화면에도 "
+                    "바로 나타나고, 바뀌지 않은 문단은 그대로 남습니다.",
+        request=s.DocumentContentSerializer, responses={200: s.DocumentSerializer, 503: None},
+    )
+    def put(self, request, doc_id):
+        return self.write(request, doc_id)
+
+
+class DocumentAppendView(_DocumentContentWrite):
+    mode = "append"
+
+    @extend_schema(tags=["documents"], summary="본문 끝에 덧붙이기 (write) — 로그·회의록 누적용",
+                   request=s.DocumentContentSerializer, responses={200: s.DocumentSerializer, 503: None})
+    def post(self, request, doc_id):
+        return self.write(request, doc_id)

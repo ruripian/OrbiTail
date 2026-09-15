@@ -260,3 +260,86 @@ class DocumentReadTests(V1TestBase):
         self.assertIn("## 안건", r.data["content"])
         self.assertIn("**결정**", r.data["content"])
         self.assertEqual(self.r.get(f"/api/v1/documents/{self.hidden.id}/").status_code, 404)
+
+
+class DocumentWriteTests(V1TestBase):
+    def setUp(self):
+        super().setUp()
+        self.space = DocumentSpace.objects.create(workspace=self.ws, name="위키", space_type="shared")
+        self.closed = DocumentSpace.objects.create(workspace=self.ws, name="비밀", space_type="shared", is_private=True)
+        self.doc = Document.objects.create(space=self.space, title="회의록", content_html="<p>처음</p>")
+
+    def test_create_with_markdown_and_wikilink(self):
+        target = Document.objects.create(space=self.space, title="배포 절차", content_html="")
+        r = self.w.post(f"/api/v1/spaces/{self.space.id}/documents/", {
+            "title": "새 문서", "content": "[[배포 절차]] 참고\n\n<script>x</script>", "properties": {"상태": "초안"},
+        }, format="json")
+        self.assertEqual(r.status_code, 201, r.data)
+        doc = Document.objects.get(pk=r.data["id"])
+        self.assertIn(f'data-id="{target.id}"', doc.content_html)
+        self.assertNotIn("<script>", doc.content_html)
+        self.assertEqual(doc.properties, {"상태": "초안"})
+        self.assertEqual(doc.created_by, self.me)
+        self.assertTrue(doc.outgoing_links.filter(target=target).exists())
+
+    def test_create_requires_write_token_edit_right_and_access(self):
+        url = f"/api/v1/spaces/{self.space.id}/documents/"
+        self.assertEqual(self.r.post(url, {"title": "x"}, format="json").status_code, 403)
+        self.assertEqual(self.w.post(f"/api/v1/spaces/{self.closed.id}/documents/", {"title": "x"},
+                                     format="json").status_code, 404)
+        other = Document.objects.create(space=self.closed, title="남의 폴더", is_folder=True)
+        self.assertEqual(self.w.post(url, {"title": "x", "parent": str(other.id)}, format="json").status_code, 400)
+        self.assertEqual(self.w.post(url, {"title": "x", "is_folder": True, "content": "본문"},
+                                     format="json").status_code, 400)
+
+    def test_patch_metadata_and_reject_cycle(self):
+        folder = Document.objects.create(space=self.space, title="폴더", is_folder=True)
+        sub = Document.objects.create(space=self.space, title="하위", is_folder=True, parent=folder)
+        r = self.w.patch(f"/api/v1/documents/{self.doc.id}/",
+                         {"title": "고친 제목", "parent": str(folder.id)}, format="json")
+        self.assertEqual(r.status_code, 200, r.data)
+        self.doc.refresh_from_db()
+        self.assertEqual((self.doc.title, self.doc.parent_id), ("고친 제목", folder.id))
+        self.assertEqual(self.doc.content_html, "<p>처음</p>")  # 본문은 건드리지 않는다
+        r = self.w.patch(f"/api/v1/documents/{folder.id}/", {"parent": str(sub.id)}, format="json")
+        self.assertEqual(r.status_code, 400)
+
+    def test_content_goes_through_collab_server(self):
+        from unittest import mock
+
+        with mock.patch("apps.api.v1.views.write_document_content", return_value="<p>새 본문</p>") as write:
+            r = self.w.put(f"/api/v1/documents/{self.doc.id}/content/", {"content": "새 **본문**"}, format="json")
+            self.assertEqual(r.status_code, 200, r.data)
+            doc_id, html, mode = write.call_args.args
+            self.assertEqual((str(doc_id), mode), (str(self.doc.id), "replace"))
+            self.assertIn("<strong>본문</strong>", html)
+            self.assertEqual(r.data["content"].strip(), "새 본문")
+
+            self.w.post(f"/api/v1/documents/{self.doc.id}/append/", {"content": "끝"}, format="json")
+            self.assertEqual(write.call_args.args[2], "append")
+        # DB 의 본문은 이 경로에서 직접 쓰지 않는다 — 협업 서버의 저장이 쓴다
+        self.doc.refresh_from_db()
+        self.assertEqual(self.doc.content_html, "<p>처음</p>")
+
+    def test_collab_down_is_503_and_nothing_written(self):
+        from unittest import mock
+
+        from .v1.collab_client import CollabUnavailable
+
+        with mock.patch("apps.api.v1.views.write_document_content", side_effect=CollabUnavailable("down")):
+            r = self.w.put(f"/api/v1/documents/{self.doc.id}/content/", {"content": "x"}, format="json")
+        self.assertEqual(r.status_code, 503)
+        self.doc.refresh_from_db()
+        self.assertEqual(self.doc.content_html, "<p>처음</p>")
+
+    def test_read_token_cannot_write_content(self):
+        self.assertEqual(self.r.put(f"/api/v1/documents/{self.doc.id}/content/", {"content": "x"},
+                                    format="json").status_code, 403)
+
+    def test_delete_moves_subtree_to_trash(self):
+        folder = Document.objects.create(space=self.space, title="폴더", is_folder=True)
+        child = Document.objects.create(space=self.space, title="하위", parent=folder)
+        self.assertEqual(self.w.delete(f"/api/v1/documents/{folder.id}/").status_code, 204)
+        child.refresh_from_db()
+        self.assertIsNotNone(child.deleted_at)
+        self.assertEqual(child.deleted_by, self.me)

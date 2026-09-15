@@ -41,6 +41,8 @@ urlpatterns = [
     path("spaces/", v.SpaceListView.as_view(), name="v1-spaces"),
     path("spaces/<str:space_id>/documents/", v.SpaceDocumentListView.as_view(), name="v1-space-documents"),
     path("documents/<str:doc_id>/", v.DocumentDetailView.as_view(), name="v1-document"),
+    path("documents/<str:doc_id>/content/", v.DocumentContentView.as_view(), name="v1-document-content"),
+    path("documents/<str:doc_id>/append/", v.DocumentAppendView.as_view(), name="v1-document-append"),
 
     # 문서 — 토큰 없이 볼 수 있다. 계약 자체는 비밀이 아니다.
     path(
