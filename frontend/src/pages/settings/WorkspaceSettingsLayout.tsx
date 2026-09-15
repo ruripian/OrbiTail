@@ -1,7 +1,7 @@
 import { NavLink, Outlet, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { UsersRound, UserCheck, Building2, Settings, Archive, KeyRound, Webhook, FolderLock } from "lucide-react";
+import { UsersRound, UserCheck, Building2, Settings, Archive, KeyRound, Webhook, FolderLock, FolderKanban, Users, History, HardDrive } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { workspacesApi } from "@/api/workspaces";
 import { cn } from "@/lib/utils";
@@ -110,6 +110,22 @@ export function WorkspaceSettingsLayout() {
               )}
             </NavLink>
 
+            {/* 프로젝트 — 비공개 포함 전체. 이슈 내용 없이 멤버·리드·보관·휴지통만 */}
+            <NavLink
+              to={`${base}/projects`}
+              className={({ isActive }) =>
+                cn(
+                  "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
+                  isActive
+                    ? "bg-accent text-foreground font-medium"
+                    : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                )
+              }
+            >
+              <FolderKanban className="h-4 w-4 shrink-0" />
+              프로젝트
+            </NavLink>
+
             {/* 문서 스페이스 — 비공개 포함 전체 공용 스페이스 관리. 문서 화면에서는 관리자에게도 숨긴다 */}
             <NavLink
               to={`${base}/spaces`}
@@ -126,6 +142,22 @@ export function WorkspaceSettingsLayout() {
               문서 스페이스
             </NavLink>
 
+            {/* 팀 — 전체 팀 목록과 삭제 */}
+            <NavLink
+              to={`${base}/teams`}
+              className={({ isActive }) =>
+                cn(
+                  "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
+                  isActive
+                    ? "bg-accent text-foreground font-medium"
+                    : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                )
+              }
+            >
+              <Users className="h-4 w-4 shrink-0" />
+              팀
+            </NavLink>
+
             {/* 웹훅 — 워크스페이스의 일을 밖으로 내보내는 설정이라 관리자 전용 */}
             <NavLink
               to={`${base}/webhooks`}
@@ -140,6 +172,38 @@ export function WorkspaceSettingsLayout() {
             >
               <Webhook className="h-4 w-4 shrink-0" />
               {t("settings.layout.workspaceWebhooks")}
+            </NavLink>
+
+            {/* 활동 기록 — 관리 동작 기록. 비공개에 자신을 추가한 기록도 여기 남는다 */}
+            <NavLink
+              to={`${base}/activity`}
+              className={({ isActive }) =>
+                cn(
+                  "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
+                  isActive
+                    ? "bg-accent text-foreground font-medium"
+                    : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                )
+              }
+            >
+              <History className="h-4 w-4 shrink-0" />
+              활동 기록
+            </NavLink>
+
+            {/* 사용량 — 규모·첨부 용량·주인 없는 개인 스페이스 */}
+            <NavLink
+              to={`${base}/usage`}
+              className={({ isActive }) =>
+                cn(
+                  "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
+                  isActive
+                    ? "bg-accent text-foreground font-medium"
+                    : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                )
+              }
+            >
+              <HardDrive className="h-4 w-4 shrink-0" />
+              사용량
             </NavLink>
           </>
         )}

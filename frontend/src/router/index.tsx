@@ -26,6 +26,10 @@ import { WorkspaceJoinRequestsPage } from "@/pages/settings/WorkspaceJoinRequest
 import { WorkspaceApiTokensPage } from "@/pages/settings/WorkspaceApiTokensPage";
 import { WorkspaceWebhooksPage } from "@/pages/settings/WorkspaceWebhooksPage";
 import { WorkspaceSpacesPage } from "@/pages/settings/WorkspaceSpacesPage";
+import { WorkspaceProjectsManagePage } from "@/pages/settings/WorkspaceProjectsManagePage";
+import { WorkspaceTeamsManagePage } from "@/pages/settings/WorkspaceTeamsManagePage";
+import { WorkspaceActivityPage } from "@/pages/settings/WorkspaceActivityPage";
+import { WorkspaceUsagePage } from "@/pages/settings/WorkspaceUsagePage";
 import { AdminConsoleLayout } from "@/pages/admin/AdminConsoleLayout";
 import { AdminOverviewPage } from "@/pages/admin/AdminOverviewPage";
 import { AdminUsersPage } from "@/pages/admin/AdminUsersPage";
@@ -283,6 +287,10 @@ export const router = createBrowserRouter([
           { path: "api-tokens", element: <WorkspaceApiTokensPage /> },
           { path: "webhooks", element: <WorkspaceWebhooksPage /> },
           { path: "spaces", element: <WorkspaceSpacesPage /> },
+          { path: "projects", element: <WorkspaceProjectsManagePage /> },
+          { path: "teams", element: <WorkspaceTeamsManagePage /> },
+          { path: "activity", element: <WorkspaceActivityPage /> },
+          { path: "usage", element: <WorkspaceUsagePage /> },
         ],
       },
 

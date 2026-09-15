@@ -16,6 +16,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { formatDate } from "@/utils/date-format";
+import { MemberDetailDialog } from "./MemberDetailDialog";
 import type { WorkspaceMember } from "@/types";
 
 /**
@@ -55,6 +56,9 @@ export function WorkspaceMembersPage() {
     enabled: !!workspaceSlug,
   });
 
+
+  /* 멤버 상세 — 소속 프로젝트·스페이스·팀. 내보내기 전에 영향 확인 */
+  const [detailUserId, setDetailUserId] = useState<string | null>(null);
 
   /* 초대 폼 state */
   const [inviteEmail, setInviteEmail] = useState("");
@@ -312,7 +316,10 @@ export function WorkspaceMembersPage() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5">
                   <p className="text-sm font-medium truncate">
-                    {wm.member.display_name}
+                    <button type="button" onClick={() => setDetailUserId(wm.member.id)}
+                      className="hover:underline text-left" title="소속·맡은 일 보기">
+                      {wm.member.display_name}
+                    </button>
                     {isMe && (
                       <span className="ml-1.5 text-xs text-muted-foreground">
                         ({t("settings.workspaceMembers.you")})
@@ -377,6 +384,10 @@ export function WorkspaceMembersPage() {
           );
         })}
       </div>
+
+      {detailUserId && workspaceSlug && (
+        <MemberDetailDialog workspaceSlug={workspaceSlug} userId={detailUserId} onClose={() => setDetailUserId(null)} />
+      )}
     </div>
   );
 }
