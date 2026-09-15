@@ -6,7 +6,7 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.workspaces.models import WorkspaceMember
+from apps.workspaces.models import WorkspaceActivity, WorkspaceMember, log_workspace_activity
 
 import secrets
 
@@ -82,6 +82,9 @@ class ApiTokenListCreateView(APIView):
             scope=s.validated_data["scope"],
             expires_at=now + timedelta(days=days) if days else None,
         )
+        log_workspace_activity(wm.workspace, request.user, WorkspaceActivity.Action.API_TOKEN_CREATED,
+                               target=token, target_type="api_token", target_label=f"{token.name} ({token.prefix}…)",
+                               scope=token.scope)
         data = ApiTokenSerializer(token).data
         data["token"] = raw
         return Response(data, status=status.HTTP_201_CREATED)
@@ -104,6 +107,9 @@ class ApiTokenRevokeView(APIView):
             token.revoked_at = timezone.now()
             token.revoked_by = request.user
             token.save(update_fields=["revoked_at", "revoked_by"])
+            log_workspace_activity(wm.workspace, request.user, WorkspaceActivity.Action.API_TOKEN_REVOKED,
+                                   target=token, target_type="api_token", target_label=f"{token.name} ({token.prefix}…)",
+                                   owner=token.user.email)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -152,6 +158,8 @@ class WebhookListCreateView(APIView):
             workspace=wm.workspace, created_by=request.user, secret=secrets.token_hex(32),
             name=s.validated_data["name"], url=s.validated_data["url"], events=s.validated_data["events"],
         )
+        log_workspace_activity(wm.workspace, request.user, WorkspaceActivity.Action.WEBHOOK_CREATED,
+                               target=hook, target_type="webhook", url=hook.url, events=hook.events)
         data = WebhookSerializer(hook).data
         data["secret"] = hook.secret  # 발급 응답에서만
         return Response(data, status=status.HTTP_201_CREATED)
@@ -181,12 +189,16 @@ class WebhookDetailView(_WebhookLookup):
             # 다시 켜면 실패 이력을 새로 센다 — 안 그러면 한 번만 실패해도 곧바로 다시 꺼진다
             hook.consecutive_failures, hook.disabled_reason = 0, ""
         hook.save()
+        log_workspace_activity(hook.workspace_id, request.user, WorkspaceActivity.Action.WEBHOOK_UPDATED,
+                               target=hook, target_type="webhook", changed=sorted(s.validated_data.keys()))
         return Response(WebhookSerializer(hook).data)
 
     def delete(self, request, workspace_slug, pk):
         hook, err = self._get(request, workspace_slug, pk)
         if err:
             return err
+        log_workspace_activity(hook.workspace_id, request.user, WorkspaceActivity.Action.WEBHOOK_DELETED,
+                               target=hook, target_type="webhook", url=hook.url)
         hook.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 

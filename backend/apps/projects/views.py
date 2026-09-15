@@ -10,7 +10,7 @@ from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 
 from apps.accounts.models import User
-from apps.workspaces.models import Workspace, WorkspaceMember
+from apps.workspaces.models import Workspace, WorkspaceActivity, WorkspaceMember, log_workspace_activity
 from .models import Project, ProjectMember, Category, Sprint, State, ProjectEvent, SavedFilter
 
 
@@ -130,7 +130,13 @@ class ProjectDetailView(generics.RetrieveUpdateDestroyAPIView):
         관리자로 올라가거나(ProjectSerializer.update 가 lead 를 ADMIN 으로 만든다) 비공개를 공개로 돌린다."""
         obj = self.get_object()
         _require_project_perm(request.user, self.kwargs["workspace_slug"], obj.pk, "admin")
-        return super().update(request, *args, **kwargs)
+        old_lead = obj.lead_id
+        response = super().update(request, *args, **kwargs)
+        obj.refresh_from_db(fields=["lead"])
+        if obj.lead_id != old_lead:
+            log_workspace_activity(obj.workspace_id, request.user, WorkspaceActivity.Action.PROJECT_LEAD_CHANGED,
+                                   target=obj, lead=obj.lead.email if obj.lead else None)
+        return response
 
     def destroy(self, request, *args, **kwargs):
         """삭제는 프로젝트 관리자만 — 바로 지우지 않고 휴지통으로 옮긴다.
@@ -142,6 +148,7 @@ class ProjectDetailView(generics.RetrieveUpdateDestroyAPIView):
         obj.deleted_at = timezone.now()
         obj.deleted_by = request.user
         obj.save(update_fields=["deleted_at", "deleted_by"])
+        log_workspace_activity(obj.workspace_id, request.user, WorkspaceActivity.Action.PROJECT_TRASHED, target=obj)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -195,10 +202,13 @@ class ProjectTrashDetailView(APIView):
         project.deleted_at = None
         project.deleted_by = None
         project.save(update_fields=["deleted_at", "deleted_by"])
+        log_workspace_activity(project.workspace_id, request.user, WorkspaceActivity.Action.PROJECT_RESTORED, target=project)
         return Response(ProjectSerializer(project, context={"request": request}).data)
 
     def delete(self, request, workspace_slug, pk):
         project = self._get(request, workspace_slug, pk)
+        log_workspace_activity(project.workspace_id, request.user, WorkspaceActivity.Action.PROJECT_PURGED,
+                               target=project, target_label=f"{project.identifier} · {project.name}")
         project.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -247,6 +257,7 @@ class ProjectArchiveView(APIView):
             return Response({"detail": "이미 보관된 프로젝트입니다."}, status=status.HTTP_400_BAD_REQUEST)
         project.archived_at = timezone.now()
         project.save(update_fields=["archived_at"])
+        log_workspace_activity(project.workspace_id, request.user, WorkspaceActivity.Action.PROJECT_ARCHIVED, target=project)
         return Response(ProjectSerializer(project).data)
 
     def delete(self, request, workspace_slug, pk):
@@ -255,6 +266,7 @@ class ProjectArchiveView(APIView):
             return Response({"detail": "보관되지 않은 프로젝트입니다."}, status=status.HTTP_400_BAD_REQUEST)
         project.archived_at = None
         project.save(update_fields=["archived_at"])
+        log_workspace_activity(project.workspace_id, request.user, WorkspaceActivity.Action.PROJECT_UNARCHIVED, target=project)
         return Response(ProjectSerializer(project).data)
 
 
@@ -386,6 +398,8 @@ class ProjectMemberListCreateView(generics.ListCreateAPIView):
                 {"detail": "이미 프로젝트 멤버입니다."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        log_workspace_activity(project.workspace_id, request.user, WorkspaceActivity.Action.PROJECT_MEMBER_ADDED,
+                               target=project, member=member.email, role=pm.role)
         return Response(ProjectMemberSerializer(pm).data, status=status.HTTP_201_CREATED)
 
 
@@ -441,7 +455,13 @@ class ProjectMemberDetailView(generics.RetrieveUpdateDestroyAPIView):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-        return super().update(request, *args, **kwargs)
+        old_role = target.role
+        response = super().update(request, *args, **kwargs)
+        target.refresh_from_db(fields=["role"])
+        if target.role != old_role:
+            log_workspace_activity(target.project.workspace_id, request.user, WorkspaceActivity.Action.PROJECT_MEMBER_ROLE,
+                                   target=target.project, member=target.member.email, old_role=old_role, new_role=target.role)
+        return response
 
     def destroy(self, request, *args, **kwargs):
         if not self._check_admin():
@@ -469,6 +489,8 @@ class ProjectMemberDetailView(generics.RetrieveUpdateDestroyAPIView):
             project.lead = None
             project.save(update_fields=["lead"])
 
+        log_workspace_activity(project.workspace_id, request.user, WorkspaceActivity.Action.PROJECT_MEMBER_REMOVED,
+                               target=project, member=target.member.email)
         return super().destroy(request, *args, **kwargs)
 
 

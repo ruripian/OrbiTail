@@ -9,7 +9,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.accounts.permissions import IsSuperUser
-from .models import Workspace, WorkspaceMember, WorkspaceInvitation, WorkspaceJoinRequest, Team, TeamMember
+from .models import Workspace, WorkspaceMember, WorkspaceInvitation, WorkspaceJoinRequest, Team, TeamMember, WorkspaceActivity, log_workspace_activity
 
 
 def _notify_workspace_admins_join_request(join_request):
@@ -276,6 +276,11 @@ class WorkspaceJoinRequestDecisionView(APIView):
         jr.decided_by = request.user
         jr.decided_at = timezone.now()
         jr.save(update_fields=["status", "decided_by", "decided_at", "updated_at"])
+        log_workspace_activity(
+            jr.workspace, request.user,
+            WorkspaceActivity.Action.JOIN_APPROVED if action == "approve" else WorkspaceActivity.Action.JOIN_REJECTED,
+            target=jr.user, target_type="user", target_label=jr.user.email,
+        )
 
         try:
             _notify_user_join_decision(jr, approved=(action == "approve"))
@@ -416,8 +421,13 @@ class WorkspaceMemberDetailView(APIView):
             workspace.owner = target.member
             workspace.save(update_fields=["owner"])
 
+        old_role = target.role
         target.role = new_role
         target.save(update_fields=["role"])
+        if old_role != new_role:
+            log_workspace_activity(workspace, request.user, WorkspaceActivity.Action.MEMBER_ROLE,
+                                   target=target.member, target_type="user", target_label=target.member.email,
+                                   old_role=old_role, new_role=new_role)
         return Response(WorkspaceMemberSerializer(target).data)
 
     def delete(self, request, slug, member_id):
@@ -456,6 +466,8 @@ class WorkspaceMemberDetailView(APIView):
         target_user = target.member
         workspace = target.workspace
         target.delete()
+        log_workspace_activity(workspace, request.user, WorkspaceActivity.Action.MEMBER_REMOVED,
+                               target=target_user, target_type="user", target_label=target_user.email)
         # 워크스페이스에서 나간 사람이 그 안의 비공개 프로젝트·팀·문서 스페이스에 계속 접근하지 못하게
         # 딸린 멤버십도 함께 지운다(프로젝트·팀 뷰는 워크스페이스 멤버십을 따로 보지 않는 곳이 있다).
         _remove_workspace_scoped_memberships(workspace, target_user)
@@ -551,6 +563,8 @@ class WorkspaceInvitationListCreateView(APIView):
             message=data.get("message", ""),
             expires_at=timezone.now() + timedelta(days=7),
         )
+        log_workspace_activity(workspace, request.user, WorkspaceActivity.Action.INVITATION_SENT,
+                               target_type="invitation", target_label=data["email"], role=data["role"])
 
         # 초대 이메일 발송 — HTML + 텍스트 멀티파트
         invite_url = f"{settings.FRONTEND_URL}/invite/{invitation.token}"
@@ -624,6 +638,8 @@ class WorkspaceInvitationRevokeView(APIView):
 
         invitation.status = WorkspaceInvitation.Status.REVOKED
         invitation.save()
+        log_workspace_activity(membership.workspace, request.user, WorkspaceActivity.Action.INVITATION_REVOKED,
+                               target_type="invitation", target_label=invitation.email)
         return Response({"detail": "초대가 취소되었습니다."})
 
 
@@ -950,6 +966,7 @@ class TeamDetailView(generics.RetrieveUpdateDestroyAPIView):
         team = self.get_object()
         if not _is_team_admin(request.user, team):
             return Response({"detail": "팀 관리자만 삭제할 수 있습니다."}, status=status.HTTP_403_FORBIDDEN)
+        log_workspace_activity(team.workspace, request.user, WorkspaceActivity.Action.TEAM_DELETED, target=team)
         return super().destroy(request, *args, **kwargs)
 
 

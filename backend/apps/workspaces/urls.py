@@ -1,4 +1,15 @@
 from django.urls import path
+from .admin_views import (
+    ManageMemberDetailView,
+    ManageProjectDetailView,
+    ManageProjectListView,
+    ManageProjectMemberDetailView,
+    ManageProjectMemberListView,
+    ManageTeamDetailView,
+    ManageTeamListView,
+    ManageUsageView,
+    WorkspaceActivityListView,
+)
 from .views import (
     WorkspaceListCreateView,
     WorkspacePublicListView,
@@ -27,6 +38,18 @@ from .views import (
 )
 
 urlpatterns = [
+    # 워크스페이스 설정의 관리 화면 — 관리자 전용, 내용 없이 관리만(apps/workspaces/admin_views.py)
+    path("<slug:workspace_slug>/manage/activity/", WorkspaceActivityListView.as_view(), name="manage-activity"),
+    path("<slug:workspace_slug>/manage/projects/", ManageProjectListView.as_view(), name="manage-projects"),
+    path("<slug:workspace_slug>/manage/projects/<uuid:pk>/", ManageProjectDetailView.as_view(), name="manage-project"),
+    path("<slug:workspace_slug>/manage/projects/<uuid:pk>/members/", ManageProjectMemberListView.as_view(),
+         name="manage-project-members"),
+    path("<slug:workspace_slug>/manage/projects/<uuid:pk>/members/<uuid:member_id>/",
+         ManageProjectMemberDetailView.as_view(), name="manage-project-member"),
+    path("<slug:workspace_slug>/manage/members/<uuid:user_id>/", ManageMemberDetailView.as_view(), name="manage-member"),
+    path("<slug:workspace_slug>/manage/teams/", ManageTeamListView.as_view(), name="manage-teams"),
+    path("<slug:workspace_slug>/manage/teams/<uuid:pk>/", ManageTeamDetailView.as_view(), name="manage-team"),
+    path("<slug:workspace_slug>/manage/usage/", ManageUsageView.as_view(), name="manage-usage"),
     path("", WorkspaceListCreateView.as_view(), name="workspace-list"),
     # 공개 워크스페이스 목록 — 회원가입 폼의 워크스페이스 셀렉터용 (비로그인 가능)
     path("public/", WorkspacePublicListView.as_view(), name="workspace-public-list"),

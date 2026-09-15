@@ -252,3 +252,82 @@ class TeamMember(models.Model):
 
     def __str__(self):
         return f"{self.member.email} in {self.team.name}"
+
+
+class WorkspaceActivity(models.Model):
+    """워크스페이스 관리 기록 — 누가 언제 무엇을 관리했나.
+
+    관리자는 문서·이슈 내용을 보지 않고도 비공개 프로젝트·스페이스를 관리할 수 있다. 그 대신 관리 동작은
+    전부 여기 남는다 — 특히 "관리자가 비공개 스페이스에 자기를 멤버로 추가했다" 같은 일이 나중에 보여야 한다.
+    내용 변경(이슈 수정 등)은 기록하지 않는다. 그건 각 이슈·문서의 이력이 맡는다.
+
+    target_label 은 대상이 지워진 뒤에도 무엇이었는지 읽을 수 있게 남기는 스냅샷이다.
+    """
+
+    class Action(models.TextChoices):
+        PROJECT_TRASHED = "project.trashed"
+        PROJECT_RESTORED = "project.restored"
+        PROJECT_PURGED = "project.purged"
+        PROJECT_ARCHIVED = "project.archived"
+        PROJECT_UNARCHIVED = "project.unarchived"
+        PROJECT_LEAD_CHANGED = "project.lead_changed"
+        PROJECT_MEMBER_ADDED = "project.member_added"
+        PROJECT_MEMBER_REMOVED = "project.member_removed"
+        PROJECT_MEMBER_ROLE = "project.member_role"
+        SPACE_VISIBILITY = "space.visibility"
+        SPACE_ARCHIVED = "space.archived"
+        SPACE_UNARCHIVED = "space.unarchived"
+        SPACE_DELETED = "space.deleted"
+        SPACE_MEMBER_ADDED = "space.member_added"
+        SPACE_MEMBER_REMOVED = "space.member_removed"
+        SPACE_MEMBER_ROLE = "space.member_role"
+        PERSONAL_SPACE_DELETED = "space.personal_deleted"
+        MEMBER_ROLE = "member.role"
+        MEMBER_REMOVED = "member.removed"
+        INVITATION_SENT = "invitation.sent"
+        INVITATION_REVOKED = "invitation.revoked"
+        JOIN_APPROVED = "join.approved"
+        JOIN_REJECTED = "join.rejected"
+        TEAM_DELETED = "team.deleted"
+        API_TOKEN_CREATED = "api_token.created"
+        API_TOKEN_REVOKED = "api_token.revoked"
+        WEBHOOK_CREATED = "webhook.created"
+        WEBHOOK_UPDATED = "webhook.updated"
+        WEBHOOK_DELETED = "webhook.deleted"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    workspace = models.ForeignKey(Workspace, on_delete=models.CASCADE, related_name="activities")
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                              related_name="+")
+    actor_label = models.CharField(max_length=255, blank=True, default="")
+    action = models.CharField(max_length=40, choices=Action.choices)
+    target_type = models.CharField(max_length=20, blank=True, default="")
+    target_id = models.UUIDField(null=True, blank=True)
+    target_label = models.CharField(max_length=255, blank=True, default="")
+    metadata = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        db_table = "workspace_activities"
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["workspace", "-created_at"]), models.Index(fields=["workspace", "action"])]
+
+
+def log_workspace_activity(workspace, actor, action, *, target=None, target_type="", target_label="", **metadata):
+    """관리 기록 한 줄. 실패해도 관리 동작 자체를 되돌리지 않는다 — 기록은 부수 효과다."""
+    try:
+        if target is not None:
+            target_type = target_type or target._meta.model_name
+            target_label = target_label or str(getattr(target, "name", None) or getattr(target, "title", None) or target)
+        return WorkspaceActivity.objects.create(
+            workspace_id=getattr(workspace, "pk", workspace),
+            actor=actor if getattr(actor, "is_authenticated", False) else None,
+            actor_label=(actor.display_name or actor.email) if getattr(actor, "is_authenticated", False) else "",
+            action=action,
+            target_type=target_type,
+            target_id=getattr(target, "pk", None),
+            target_label=target_label[:255],
+            metadata=metadata,
+        )
+    except Exception:
+        return None

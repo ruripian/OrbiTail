@@ -11,7 +11,7 @@ from rest_framework.views import APIView
 
 from apps.accounts.permissions import IsSuperUser
 from apps.projects.models import ProjectMember
-from apps.workspaces.models import WorkspaceMember
+from apps.workspaces.models import WorkspaceActivity, WorkspaceMember, log_workspace_activity
 
 
 def _broadcast_thread_event(workspace_slug: str, doc_id: str, action: str, thread_id: str = "") -> None:
@@ -308,7 +308,13 @@ class SpaceDetailView(generics.RetrieveUpdateDestroyAPIView):
                 {"detail": "프로젝트 스페이스의 보관은 프로젝트 설정에서 변경합니다."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        return super().update(request, *args, **kwargs)
+        was_private = space.is_private
+        response = super().update(request, *args, **kwargs)
+        space.refresh_from_db(fields=["is_private"])
+        if space.is_private != was_private:
+            log_workspace_activity(space.workspace_id, request.user, WorkspaceActivity.Action.SPACE_VISIBILITY,
+                                   target=space, is_private=space.is_private, via="space_settings")
+        return response
 
     def destroy(self, request, *args, **kwargs):
         space = self.get_object()
@@ -322,6 +328,8 @@ class SpaceDetailView(generics.RetrieveUpdateDestroyAPIView):
                 {"detail": "스페이스 삭제는 관리자만 할 수 있습니다."},
                 status=status.HTTP_403_FORBIDDEN,
             )
+        log_workspace_activity(space.workspace_id, request.user, WorkspaceActivity.Action.SPACE_DELETED,
+                               target=space, via="space_settings")
         return super().destroy(request, *args, **kwargs)
 
 
@@ -367,6 +375,11 @@ class SpaceMemberListCreateView(APIView):
         obj, _ = DocumentSpaceMember.objects.update_or_create(
             space=space, member_id=member_id, defaults={"role": role},
         )
+        # 관리자가 워크스페이스 설정에서 **자기 자신을** 비공개 스페이스에 넣는 일은 특히 드러나야 한다
+        log_workspace_activity(space.workspace_id, request.user, WorkspaceActivity.Action.SPACE_MEMBER_ADDED,
+                               target=space, member=obj.member.email, role=role, is_private=space.is_private,
+                               self_added=str(obj.member_id) == str(request.user.id),
+                               via="workspace_settings" if isinstance(self, _WorkspaceSpaceAdminMixin) else "space_settings")
         return Response(DocumentSpaceMemberSerializer(obj).data, status=status.HTTP_201_CREATED)
 
 
@@ -403,8 +416,12 @@ class SpaceMemberDetailView(APIView):
                     {"detail": "마지막 관리자는 강등할 수 없습니다."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
+        old_role = membership.role
         membership.role = role
         membership.save(update_fields=["role"])
+        if old_role != role:
+            log_workspace_activity(membership.space.workspace_id, request.user, WorkspaceActivity.Action.SPACE_MEMBER_ROLE,
+                                   target=membership.space, member=membership.member.email, old_role=old_role, new_role=role)
         return Response(DocumentSpaceMemberSerializer(membership).data)
 
     def delete(self, request, workspace_slug, space_pk, member_pk):
@@ -419,6 +436,8 @@ class SpaceMemberDetailView(APIView):
                     {"detail": "마지막 관리자는 제거할 수 없습니다."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
+        log_workspace_activity(membership.space.workspace_id, request.user, WorkspaceActivity.Action.SPACE_MEMBER_REMOVED,
+                               target=membership.space, member=membership.member.email)
         membership.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -483,18 +502,25 @@ class WorkspaceSpaceAdminDetailView(_WorkspaceSpaceAdminMixin, APIView):
     def patch(self, request, workspace_slug, pk):
         space = self._get_managed_space(request, workspace_slug, pk)
         fields = []
-        if "is_private" in request.data:
+        if "is_private" in request.data and bool(request.data["is_private"]) != space.is_private:
             space.is_private = bool(request.data["is_private"])
             fields.append("is_private")
-        if "archived" in request.data:
+            log_workspace_activity(space.workspace_id, request.user, WorkspaceActivity.Action.SPACE_VISIBILITY,
+                                   target=space, is_private=space.is_private, via="workspace_settings")
+        if "archived" in request.data and bool(request.data["archived"]) != bool(space.archived_at):
             space.archived_at = timezone.now() if request.data["archived"] else None
             fields.append("archived_at")
+            log_workspace_activity(space.workspace_id, request.user,
+                                   WorkspaceActivity.Action.SPACE_ARCHIVED if space.archived_at else WorkspaceActivity.Action.SPACE_UNARCHIVED,
+                                   target=space, via="workspace_settings")
         if fields:
             space.save(update_fields=fields)
         return Response({"id": str(space.id), "is_private": space.is_private, "archived_at": space.archived_at})
 
     def delete(self, request, workspace_slug, pk):
         space = self._get_managed_space(request, workspace_slug, pk)
+        log_workspace_activity(space.workspace_id, request.user, WorkspaceActivity.Action.SPACE_DELETED,
+                               target=space, via="workspace_settings")
         space.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -1597,6 +1623,8 @@ class OrphanSpaceDeleteView(APIView):
                 {"detail": "활성 사용자의 개인 스페이스는 삭제할 수 없습니다."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        log_workspace_activity(space.workspace_id, request.user, WorkspaceActivity.Action.PERSONAL_SPACE_DELETED,
+                               target=space, owner=owner.email if owner else None)
         space.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
