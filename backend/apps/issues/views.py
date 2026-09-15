@@ -639,6 +639,100 @@ class IssueDuplicateView(APIView):
         )
 
 
+class IssueMoveView(APIView):
+    """이슈를 같은 워크스페이스의 다른 프로젝트로 옮긴다 — 하위 이슈 트리째.
+
+    POST body: { target_project }
+
+    이슈 수정(PATCH)으로 project 를 바꾸는 길은 막아 두었다. 프로젝트마다 상태·라벨·스프린트·
+    카테고리가 따로라 project 만 바꾸면 이슈가 남의 프로젝트 상태를 가리키는 깨진 상태가 된다.
+    여기서 값을 대상 프로젝트 것으로 맞춰 준다:
+      - 번호: 대상 프로젝트에서 새로 매긴다(OUR-12 → PAY-5)
+      - 상태: 같은 이름 → 같은 그룹 → 대상의 기본 상태
+      - 라벨: 같은 이름만 옮기고 나머지는 뗀다
+      - 스프린트·카테고리: 대상에 없는 값이라 비운다
+      - 옮기는 이슈의 상위 이슈 연결은 끊는다(상위는 원래 프로젝트에 남는다)
+    댓글·첨부·문서 연결·관계 링크는 이슈에 붙어 있어 그대로 따라간다.
+    권한: 원래 프로젝트와 대상 프로젝트 양쪽의 can_edit.
+    """
+
+    def post(self, request, workspace_slug, project_pk, pk):
+        from django.db import transaction
+        from apps.projects.models import Project, State
+
+        issue = _get_readable_issue(request, self.kwargs, issue_key="pk")
+        _require_perm(request.user, issue.project_id, "can_edit")
+
+        target_id = request.data.get("target_project")
+        target = Project.objects.filter(
+            pk=target_id, workspace_id=issue.workspace_id, kind=Project.Kind.NORMAL,
+        ).first() if target_id else None
+        if target is None:
+            return Response({"target_project": ["옮길 프로젝트를 찾을 수 없습니다."]}, status=status.HTTP_400_BAD_REQUEST)
+        if target.pk == issue.project_id:
+            return Response({"target_project": ["이미 이 프로젝트의 이슈입니다."]}, status=status.HTTP_400_BAD_REQUEST)
+        _require_perm(request.user, target.pk, "can_edit")
+
+        source = issue.project
+        target_states = list(State.objects.filter(project=target).order_by("sequence"))
+        if not target_states:
+            return Response({"target_project": ["대상 프로젝트에 상태가 없어 옮길 수 없습니다."]},
+                            status=status.HTTP_400_BAD_REQUEST)
+        by_name = {st.name.strip().lower(): st for st in target_states}
+        by_group = {}
+        for st in target_states:
+            by_group.setdefault(st.group, st)
+        fallback = by_group.get("unstarted") or target_states[0]
+        target_labels = {lb.name.strip().lower(): lb for lb in Label.objects.filter(project=target)}
+
+        def map_state(state):
+            if state is None:
+                return None  # 필드(상태 없는 묶음)는 그대로 상태 없음
+            return by_name.get(state.name.strip().lower()) or by_group.get(state.group) or fallback
+
+        ids = [issue.pk, *IssueArchiveView._collect_descendant_ids(issue.pk)]
+        # 부모가 먼저 옮겨져야 자식의 카테고리 상속 규칙이 새 부모 기준으로 맞는다 — 트리 순서(루트부터)
+        order = {pid: i for i, pid in enumerate(ids)}
+        moving = sorted(
+            Issue.objects.filter(pk__in=ids).select_related("state", "sprint", "category", "parent")
+            .prefetch_related("label", "assignees"),
+            key=lambda i: order[i.pk],
+        )
+
+        with transaction.atomic():
+            for item in moving:
+                before = _issue_field_snapshot(item)
+                labels = [target_labels[lb.name.strip().lower()] for lb in item.label.all()
+                          if lb.name.strip().lower() in target_labels]
+                item.project = target
+                item.sequence_id = 0  # Issue.save 가 대상 프로젝트에서 다음 번호를 매긴다
+                item.state = map_state(item.state)
+                item.sprint = None
+                item.category = None
+                if item.pk == issue.pk:
+                    item.parent = None
+                item.save()
+                item.label.set(labels)
+                after = _issue_field_snapshot(item)
+                _log_activities(item, request.user, before, after)
+                IssueActivity.objects.create(
+                    issue=item, actor=request.user, verb="updated", field="project",
+                    old_value=source.name, new_value=target.name,
+                )
+
+        moved = Issue.objects.select_related("state", "created_by", "project").prefetch_related(
+            "assignees", "label").get(pk=issue.pk)
+        for project_id in (source.pk, target.pk):
+            _ws_broadcast(project_id, {
+                "type": "issue.bulk_updated", "project_id": str(project_id),
+                "actor_color": _actor_color(request.user),
+            })
+        return Response({
+            "issue": IssueSerializer(moved, context={"request": request}).data,
+            "moved_count": len(moving),
+        })
+
+
 class SubIssueListCreateView(generics.ListCreateAPIView):
     """특정 이슈의 하위 이슈 목록 조회 및 생성"""
     serializer_class = IssueSerializer

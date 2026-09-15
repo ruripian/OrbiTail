@@ -289,7 +289,8 @@
           "parent": "상위 이슈",
           "start_date": "시작일",
           "due_date": "마감일",
-          "estimate_point": "예상 포인트"
+          "estimate_point": "예상 포인트",
+          "project": "프로젝트"
         }
       },
       "toast": {
@@ -316,6 +317,19 @@
     "field": {
       "label": "필드",
       "hint": "상태 없음"
+    },
+    "move": {
+      "open": "다른 프로젝트로 이동",
+      "title": "다른 프로젝트로 이동",
+      "loading": "불러오는 중...",
+      "noTargets": "옮길 수 있는 프로젝트가 없습니다. 편집 권한이 있는 다른 프로젝트가 필요합니다.",
+      "noteSubIssues": "하위 이슈 {{count}}개도 함께 옮겨집니다.",
+      "noteNumber": "이슈 번호가 대상 프로젝트 기준으로 새로 매겨집니다.",
+      "noteValues": "상태·라벨은 같은 이름으로 맞추고, 스프린트·카테고리·상위 이슈 연결은 해제됩니다.",
+      "noteKept": "댓글·첨부·문서 연결은 그대로 따라갑니다.",
+      "submit": "이동",
+      "moved": "{{identifier}}(으)로 옮겼습니다",
+      "failed": "이동하지 못했습니다"
     }
   },
   "setup": {

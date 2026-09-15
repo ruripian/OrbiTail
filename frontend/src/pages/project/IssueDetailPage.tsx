@@ -2,7 +2,8 @@ import { useState, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ChevronLeft, GitBranch, MessageSquare, Activity, X, AlertTriangle, Paperclip, Copy, Archive, RotateCcw, Share2, Link2 } from "lucide-react";
+import { ChevronLeft, GitBranch, MessageSquare, Activity, X, AlertTriangle, Paperclip, Copy, Archive, RotateCcw, Share2, Link2, FolderInput } from "lucide-react";
+import { MoveIssueDialog } from "@/components/issues/MoveIssueDialog";
 import { toast } from "sonner";
 import { issuesApi } from "@/api/issues";
 import { projectsApi } from "@/api/projects";
@@ -75,6 +76,7 @@ export function IssueDetailPage({ issueIdOverride, workspaceSlugOverride, projec
     enabled: !!workspaceSlug && !!projectId,
   });
 
+  const [moveOpen, setMoveOpen] = useState(false);
   const isArchived = !!issue?.archived_at;
   const canEdit = perms.can_edit;
   const canArchive = perms.can_archive;
@@ -565,6 +567,31 @@ export function IssueDetailPage({ issueIdOverride, workspaceSlugOverride, projec
               )}
             </div>
           )}
+          {!isArchived && canEdit && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full text-xs font-semibold h-7 gap-1.5 mb-3"
+              onClick={() => setMoveOpen(true)}
+            >
+              <FolderInput className="h-3 w-3" />
+              {t("issues.move.open")}
+            </Button>
+          )}
+          <MoveIssueDialog
+            open={moveOpen}
+            onOpenChange={setMoveOpen}
+            workspaceSlug={workspaceSlug!}
+            projectId={projectId!}
+            issue={issue}
+            subIssueCount={issue.sub_issues_count ?? 0}
+            onMoved={(moved, targetProjectId) => {
+              refresh(issue.parent);
+              /* 이슈는 이제 대상 프로젝트에 있다 — 거기서 연다 */
+              if (onClose) onClose();
+              navigate(`/${workspaceSlug}/projects/${targetProjectId}/issues?issue=${moved.id}`);
+            }}
+          />
           {canDelete && (
             <div className="p-2.5 border border-destructive/20 bg-destructive/5 rounded-lg">
               <p className="text-2xs font-bold text-destructive mb-2 flex items-center gap-1.5">

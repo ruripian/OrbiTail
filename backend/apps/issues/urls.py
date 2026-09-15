@@ -8,6 +8,7 @@ from .views import (
     IssueArchiveListView,
     IssueArchiveView,
     IssueDuplicateView,
+    IssueMoveView,
     SubIssueListCreateView,
     IssueCommentListCreateView,
     IssueCommentDetailView,
@@ -76,6 +77,12 @@ urlpatterns = [
         "workspaces/<slug:workspace_slug>/projects/<uuid:project_pk>/issues/<uuid:pk>/duplicate/",
         IssueDuplicateView.as_view(),
         name="issue-duplicate",
+    ),
+    # 다른 프로젝트로 이동 (하위 이슈 포함)
+    path(
+        "workspaces/<slug:workspace_slug>/projects/<uuid:project_pk>/issues/<uuid:pk>/move/",
+        IssueMoveView.as_view(),
+        name="issue-move",
     ),
     # 영구 삭제
     path(

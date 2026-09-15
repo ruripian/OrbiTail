@@ -104,6 +104,15 @@ export const issuesApi = {
       .then((r) => r.data.results),
 
   /** 이슈 보관 */
+  /** 다른 프로젝트로 옮기기 — 하위 이슈 포함. 번호·상태·라벨은 서버가 대상 프로젝트 기준으로 맞춘다 */
+  move: (workspaceSlug: string, projectId: string, issueId: string, targetProjectId: string) =>
+    api
+      .post<{ issue: Issue; moved_count: number }>(
+        `/workspaces/${workspaceSlug}/projects/${projectId}/issues/${issueId}/move/`,
+        { target_project: targetProjectId },
+      )
+      .then((r) => r.data),
+
   archive: (workspaceSlug: string, projectId: string, issueId: string) =>
     api
       .post<Issue>(`/workspaces/${workspaceSlug}/projects/${projectId}/issues/${issueId}/archive/`)

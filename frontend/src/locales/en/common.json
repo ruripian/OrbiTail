@@ -289,7 +289,8 @@
           "parent": "Parent issue",
           "start_date": "Start date",
           "due_date": "Due date",
-          "estimate_point": "Estimate"
+          "estimate_point": "Estimate",
+          "project": "Project"
         }
       },
       "toast": {
@@ -316,6 +317,19 @@
     "field": {
       "label": "Field",
       "hint": "no state"
+    },
+    "move": {
+      "open": "Move to another project",
+      "title": "Move to another project",
+      "loading": "Loading...",
+      "noTargets": "No projects to move to. You need edit access to another project.",
+      "noteSubIssues": "Its {{count}} sub-issues move along.",
+      "noteNumber": "The issue gets a new number in the target project.",
+      "noteValues": "State and labels are matched by name; sprint, category and parent link are cleared.",
+      "noteKept": "Comments, attachments and document links stay with it.",
+      "submit": "Move",
+      "moved": "Moved to {{identifier}}",
+      "failed": "Couldn't move the issue"
     }
   },
   "setup": {
