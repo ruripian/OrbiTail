@@ -1,5 +1,6 @@
 from datetime import timedelta
 
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db.models import Count, Q
 from django.db.models.functions import TruncDate
 from django.utils import timezone
@@ -84,6 +85,54 @@ def _check_perm(user, project_id, perm_key):
     return True, None
 
 
+# ── 읽기 권한 ──
+#
+# 이슈와 그 하위 자원(댓글·활동·링크·첨부 등)은 전부 이 규칙 하나로 읽기 권한을 판정한다.
+# 하위 자원 뷰가 URL 의 id 만으로 조회하면, 로그인한 누구나 id 를 아는 이슈의 내용을 읽고 쓸 수 있다.
+
+def _issue_read_q(user, prefix=""):
+    """이 사용자가 읽을 수 있는 이슈 — 프로젝트 멤버, 공개 프로젝트의 **같은 워크스페이스** 멤버,
+    또는 같은 팀에 공유된 단발성 이슈. prefix 는 다른 모델에서 이슈를 따라갈 때(예: "issue__")."""
+    from apps.projects.models import Project
+    p = prefix
+    return (
+        Q(**{f"{p}project__members__member": user})
+        | (Q(**{f"{p}project__network": Project.Network.PUBLIC})
+           & Q(**{f"{p}project__workspace__members__member": user}))
+        | (Q(**{f"{p}project__kind": Project.Kind.PERSONAL})
+           & Q(**{f"{p}shared_with_team": True})
+           & Q(**{f"{p}project__owner__team_memberships__team__members__member": user}))
+    )
+
+
+def _get_readable_issue(request, kwargs, issue_key="issue_pk"):
+    """URL 의 워크스페이스·프로젝트·이슈가 서로 맞고, 요청자가 그 이슈를 읽을 수 있을 때만 돌려준다.
+    없거나 볼 수 없으면 404 — 존재 여부를 드러내지 않는다."""
+    from rest_framework.exceptions import NotFound
+    issue = (
+        Issue.objects.filter(
+            pk=kwargs[issue_key],
+            project_id=kwargs["project_pk"],
+            project__workspace__slug=kwargs["workspace_slug"],
+            deleted_at__isnull=True,
+        )
+        .filter(_issue_read_q(request.user))
+        .distinct()
+        .first()
+    )
+    if issue is None:
+        raise NotFound("이슈를 찾을 수 없습니다.")
+    return issue
+
+
+def _require_perm(user, project_id, perm_key):
+    """_check_perm 의 예외 버전 — get_queryset·perform_create 안에서 쓴다."""
+    from rest_framework.exceptions import PermissionDenied
+    ok, err = _check_perm(user, project_id, perm_key)
+    if not ok:
+        raise PermissionDenied(err.data["detail"])
+
+
 # ── 활동 로그 ──
 
 #: 활동 로그로 추적하는 필드와 사람이 읽는 이름.
@@ -160,9 +209,11 @@ class IssueListCreateView(generics.ListCreateAPIView):
             base_filter["parent"] = None
         qs = (
             Issue.objects.filter(**base_filter)
+            .filter(project__workspace__slug=self.kwargs["workspace_slug"])
             .filter(
                 Q(project__members__member=self.request.user) |
-                Q(project__network=Project.Network.PUBLIC)
+                (Q(project__network=Project.Network.PUBLIC)
+                 & Q(project__workspace__members__member=self.request.user))
             )
             .distinct()
             .prefetch_related("assignees", "label")
@@ -189,10 +240,17 @@ class IssueListCreateView(generics.ListCreateAPIView):
         ok, err = _check_perm(request.user, self.kwargs["project_pk"], "can_edit")
         if not ok:
             return err
+        if str(request.data.get("project", self.kwargs["project_pk"])) != str(self.kwargs["project_pk"]):
+            return Response({"project": ["주소의 프로젝트와 다릅니다."]}, status=status.HTTP_400_BAD_REQUEST)
         return super().create(request, *args, **kwargs)
 
     def perform_create(self, serializer):
-        issue = serializer.save()
+        # 권한은 URL 의 프로젝트로 확인했다 — 본문의 project 로 다른 프로젝트에 만들지 못하게 URL 값으로 고정한다
+        from apps.projects.models import Project
+        project = get_object_or_404(
+            Project, pk=self.kwargs["project_pk"], workspace__slug=self.kwargs["workspace_slug"],
+        )
+        issue = serializer.save(project=project)
         # 타임라인의 시작점 — 이게 없으면 활동 탭이 "중간부터" 시작한다
         IssueActivity.objects.create(issue=issue, actor=self.request.user, verb="created")
 
@@ -207,21 +265,13 @@ class IssueDetailView(generics.RetrieveUpdateDestroyAPIView):
         # 팀 캘린더 목록(TeamCalendarIssuesView)은 노출하는데 상세는 멤버만 허용해서
         # 다른 팀원이 클릭 시 404 나던 문제를 맞춰줌. 수정/삭제는 update/destroy 의
         # _check_perm(멤버 한정)이 별도로 막으므로 이 확장은 읽기 전용에 그친다.
-        team_shared = (
-            Q(project__kind=Project.Kind.PERSONAL)
-            & Q(shared_with_team=True)
-            & Q(project__owner__team_memberships__team__members__member=user)
-        )
         return (
             Issue.objects.filter(
                 project_id=self.kwargs["project_pk"],
+                project__workspace__slug=self.kwargs["workspace_slug"],
                 deleted_at__isnull=True,
             )
-            .filter(
-                Q(project__members__member=user) |
-                Q(project__network=Project.Network.PUBLIC) |
-                team_shared
-            )
+            .filter(_issue_read_q(user))
             .distinct()
             .prefetch_related("assignees", "label")
             .select_related("state", "created_by")
@@ -262,10 +312,16 @@ class IssueDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 
 class IssueCommentListCreateView(generics.ListCreateAPIView):
+    """댓글 — 읽을 수 있는 이슈에만 읽고 쓴다(공개 프로젝트의 워크스페이스 멤버 포함)."""
     serializer_class = IssueCommentSerializer
 
     def get_queryset(self):
-        return IssueComment.objects.filter(issue_id=self.kwargs["issue_pk"])
+        issue = _get_readable_issue(self.request, self.kwargs)
+        return IssueComment.objects.filter(issue=issue)
+
+    def perform_create(self, serializer):
+        _get_readable_issue(self.request, self.kwargs)
+        serializer.save()
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -277,17 +333,15 @@ class IssueCommentDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = IssueCommentSerializer
 
     def get_queryset(self):
-        return IssueComment.objects.filter(
-            issue_id=self.kwargs["issue_pk"],
-            actor=self.request.user,
-        )
+        issue = _get_readable_issue(self.request, self.kwargs)
+        return IssueComment.objects.filter(issue=issue, actor=self.request.user)
 
 
 class IssueActivityListView(generics.ListAPIView):
     serializer_class = IssueActivitySerializer
 
     def get_queryset(self):
-        return IssueActivity.objects.filter(issue_id=self.kwargs["issue_pk"])
+        return IssueActivity.objects.filter(issue=_get_readable_issue(self.request, self.kwargs))
 
 
 class WorkspaceRecentIssuesView(generics.ListAPIView):
@@ -336,7 +390,8 @@ class WorkspaceIssueSearchView(generics.ListAPIView):
             )
             .filter(
                 Q(project__members__member=self.request.user) |
-                Q(project__network=Project.Network.PUBLIC)
+                (Q(project__network=Project.Network.PUBLIC)
+                 & Q(project__workspace__members__member=self.request.user))
             )
             .distinct()
             .prefetch_related("assignees", "label")
@@ -375,6 +430,7 @@ class IssueRestoreView(generics.GenericAPIView):
         )
 
     def post(self, request, *args, **kwargs):
+        _require_perm(request.user, self.kwargs["project_pk"], "can_delete")
         instance = self.get_object()
         saved_at = instance.deleted_at
         # 모든 깊이의 하위 이슈도 복구 (같은 deleted_at 시점 기준)
@@ -547,6 +603,7 @@ class IssueDuplicateView(APIView):
         return new_issue
 
     def post(self, request, workspace_slug, project_pk, pk):
+        _require_perm(request.user, project_pk, "can_edit")
         original = get_object_or_404(
             Issue,
             pk=pk,
@@ -566,10 +623,10 @@ class SubIssueListCreateView(generics.ListCreateAPIView):
     serializer_class = IssueSerializer
 
     def get_queryset(self):
+        parent = _get_readable_issue(self.request, self.kwargs)
         return (
             Issue.objects.filter(
-                parent_id=self.kwargs["issue_pk"],
-                project_id=self.kwargs["project_pk"],
+                parent=parent,
                 deleted_at__isnull=True,
                 archived_at__isnull=True,
             )
@@ -578,12 +635,10 @@ class SubIssueListCreateView(generics.ListCreateAPIView):
         )
 
     def perform_create(self, serializer):
-        # 부모 이슈에서 project 주입, 클라이언트는 project를 별도로 전송해야 함
-        parent = Issue.objects.get(
-            id=self.kwargs["issue_pk"],
-            project_id=self.kwargs["project_pk"],
-        )
-        serializer.save(parent=parent)
+        parent = _get_readable_issue(self.request, self.kwargs)
+        _require_perm(self.request.user, parent.project_id, "can_edit")
+        # 프로젝트는 부모의 것으로 고정한다 — 본문의 project 로 다른 프로젝트에 만들지 못하게
+        serializer.save(parent=parent, project=parent.project)
 
 
 class IssueLinkListCreateView(generics.ListCreateAPIView):
@@ -591,7 +646,12 @@ class IssueLinkListCreateView(generics.ListCreateAPIView):
     serializer_class = IssueLinkSerializer
 
     def get_queryset(self):
-        return IssueLink.objects.filter(issue_id=self.kwargs["issue_pk"])
+        return IssueLink.objects.filter(issue=_get_readable_issue(self.request, self.kwargs))
+
+    def perform_create(self, serializer):
+        issue = _get_readable_issue(self.request, self.kwargs)
+        _require_perm(self.request.user, issue.project_id, "can_edit")
+        serializer.save()
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -605,7 +665,7 @@ class IssueLinkDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
         return IssueLink.objects.filter(
-            issue_id=self.kwargs["issue_pk"],
+            issue=_get_readable_issue(self.request, self.kwargs),
             created_by=self.request.user,
         )
 
@@ -620,16 +680,12 @@ class IssueNodeLinkListCreateView(generics.ListCreateAPIView):
     serializer_class = IssueNodeLinkSerializer
 
     def get_queryset(self):
-        issue_id = self.kwargs["issue_pk"]
-        # source 또는 target 어느 한쪽이라도 본인 멤버 프로젝트면 조회 가능
+        issue = _get_readable_issue(self.request, self.kwargs)
+        # 양 끝을 모두 읽을 수 있는 링크만 — 한쪽만 보면 비공개 프로젝트 이슈의 제목이 반대편으로 샌다
         return (
-            IssueNodeLink.objects.filter(
-                Q(source_id=issue_id) | Q(target_id=issue_id)
-            )
-            .filter(
-                Q(source__project__members__member=self.request.user) |
-                Q(target__project__members__member=self.request.user)
-            )
+            IssueNodeLink.objects.filter(Q(source=issue) | Q(target=issue))
+            .filter(_issue_read_q(self.request.user, "source__"))
+            .filter(_issue_read_q(self.request.user, "target__"))
             .distinct()
             .select_related("source", "target", "source__project", "target__project")
         )
@@ -641,6 +697,14 @@ class IssueNodeLinkListCreateView(generics.ListCreateAPIView):
         return super().create(request, *args, **kwargs)
 
     def perform_create(self, serializer):
+        from rest_framework.exceptions import ValidationError
+        source, target = serializer.validated_data["source"], serializer.validated_data["target"]
+        if str(source.project_id) != str(self.kwargs["project_pk"]):
+            raise ValidationError({"source": "주소의 프로젝트 이슈가 아닙니다."})
+        readable = Issue.objects.filter(pk__in=[source.pk, target.pk], deleted_at__isnull=True).filter(
+            _issue_read_q(self.request.user)).values("pk").distinct().count()
+        if readable != 2:
+            raise ValidationError({"target": "연결할 이슈를 찾을 수 없습니다."})
         serializer.save(created_by=self.request.user)
 
 
@@ -680,6 +744,13 @@ class ProjectNodeGraphView(APIView):
         manual_only = request.query_params.get("manual_only", "false").lower() == "true"
         # 부모-자식(sub-issue) 트리 엣지 — 기본 포함. Obsidian 스타일 기본 그래프에서 트리 구조 시각화.
         include_parent_edges = request.query_params.get("include_parent_edges", "true").lower() != "false"
+
+        from apps.projects.models import Project
+        from apps.projects.views import _project_readable_q
+        if not Project.objects.filter(pk=project_pk, workspace__slug=workspace_slug,
+                                      workspace__members__member=request.user).filter(
+                _project_readable_q(request.user)).exists():
+            return Response(status=status.HTTP_404_NOT_FOUND)
 
         node_map = {}
 
@@ -736,9 +807,10 @@ class ProjectNodeGraphView(APIView):
                 })
 
         # 3) 수동 node-link 엣지 (프로젝트 경계 넘는 링크 포함 → 외부 이슈 노드 추가)
+        # 프로젝트 밖으로 이어진 링크는 요청자가 그 이슈를 읽을 수 있을 때만 — 아니면 제목이 샌다
         manual_edges = IssueNodeLink.objects.filter(
             source__project_id=project_pk,
-        ).select_related(
+        ).filter(_issue_read_q(request.user, "target__")).distinct().select_related(
             "source", "target", "source__project", "target__project",
             "source__state", "target__state",
         )
@@ -800,6 +872,10 @@ class WorkspaceNodeGraphView(APIView):
         include_label_edges = request.query_params.get("include_label_edges", "true").lower() != "false"
         manual_only = request.query_params.get("manual_only", "false").lower() == "true"
 
+        from apps.workspaces.models import WorkspaceMember
+        if not WorkspaceMember.objects.filter(workspace__slug=workspace_slug, member=request.user).exists():
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
         node_map = {}
 
         def add_node(issue, labels=None):
@@ -829,7 +905,8 @@ class WorkspaceNodeGraphView(APIView):
         # 수동 node-links
         edges = IssueNodeLink.objects.filter(
             source__workspace__slug=workspace_slug,
-        ).select_related(
+        ).filter(_issue_read_q(request.user, "source__")).filter(
+            _issue_read_q(request.user, "target__")).distinct().select_related(
             "source", "target", "source__project", "target__project",
             "source__state", "target__state",
         )
@@ -852,6 +929,8 @@ class WorkspaceNodeGraphView(APIView):
             issues_with_labels = (
                 Issue.objects
                 .filter(workspace__slug=workspace_slug, deleted_at__isnull=True, archived_at__isnull=True)
+                .filter(_issue_read_q(request.user))
+                .distinct()
                 .prefetch_related("label")
                 .select_related("project", "state")
             )
@@ -900,9 +979,14 @@ class IssueAttachmentListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         return IssueAttachment.objects.filter(
-            issue_id=self.kwargs["issue_pk"],
+            issue=_get_readable_issue(self.request, self.kwargs),
             deleted_at__isnull=True,
         )
+
+    def perform_create(self, serializer):
+        issue = _get_readable_issue(self.request, self.kwargs)
+        _require_perm(self.request.user, issue.project_id, "can_edit")
+        serializer.save()
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -923,10 +1007,7 @@ class IssueAttachmentTreeView(APIView):
         from .models import Issue
         from .serializers import IssueAttachmentSerializer
 
-        root = get_object_or_404(
-            Issue.objects.filter(deleted_at__isnull=True),
-            pk=issue_pk, project_id=project_pk,
-        )
+        root = _get_readable_issue(request, self.kwargs)
 
         def build(issue, depth):
             attachments = list(
@@ -977,7 +1058,7 @@ class IssueAttachmentDetailView(generics.DestroyAPIView):
 
     def get_queryset(self):
         return IssueAttachment.objects.filter(
-            issue_id=self.kwargs["issue_pk"],
+            issue=_get_readable_issue(self.request, self.kwargs),
             uploaded_by=self.request.user,
             deleted_at__isnull=True,
         )
@@ -994,8 +1075,10 @@ class ProjectAttachmentTrashListView(generics.ListAPIView):
     pagination_class = None
 
     def get_queryset(self):
+        # 휴지통은 프로젝트 멤버만 본다 — 이슈 휴지통(IssueTrashListView)과 같은 규칙
         return IssueAttachment.objects.filter(
             issue__project_id=self.kwargs["project_pk"],
+            issue__project__members__member=self.request.user,
             issue__deleted_at__isnull=True,
             issue__archived_at__isnull=True,
             deleted_at__isnull=False,
@@ -1006,6 +1089,7 @@ class IssueAttachmentRestoreView(APIView):
     """첨부파일 복구"""
 
     def post(self, request, workspace_slug, project_pk, pk):
+        _require_perm(request.user, project_pk, "can_delete")
         att = get_object_or_404(
             IssueAttachment.objects.filter(
                 issue__project_id=project_pk,
@@ -1022,6 +1106,7 @@ class IssueAttachmentHardDeleteView(APIView):
     """첨부파일 영구 삭제 — 휴지통에 있는 항목만"""
 
     def delete(self, request, workspace_slug, project_pk, pk):
+        _require_perm(request.user, project_pk, "can_purge")
         att = get_object_or_404(
             IssueAttachment.objects.filter(
                 issue__project_id=project_pk,
@@ -1059,6 +1144,55 @@ class WorkspaceMyIssuesView(generics.ListAPIView):
         )
 
 
+BULK_SCALAR_FIELDS = {"priority", "start_date", "due_date", "estimate_point"}
+BULK_FK_FIELDS = {"state": "State", "sprint": "Sprint", "category": "Category"}
+
+
+def _clean_bulk_updates(project_pk, updates):
+    """(정리된 updates, 오류 메시지). FK 는 `<field>_id` 로 바꿔 돌려준다."""
+    from rest_framework import serializers as drf_serializers
+    from apps.projects import models as project_models
+    from apps.projects.models import Project
+    from apps.workspaces.models import WorkspaceMember
+
+    allowed = BULK_SCALAR_FIELDS | set(BULK_FK_FIELDS) | {"assignees", "label"}
+    unknown = set(updates) - allowed
+    if unknown:
+        return None, f"일괄 변경할 수 없는 필드입니다: {', '.join(sorted(unknown))}"
+
+    cleaned = {}
+    try:
+        for field, value in updates.items():
+            if field == "priority":
+                if value not in Issue.Priority.values:
+                    return None, "우선순위 값이 잘못되었습니다."
+                cleaned[field] = value
+            elif field in ("start_date", "due_date"):
+                cleaned[field] = None if value is None else drf_serializers.DateField().to_internal_value(value)
+            elif field == "estimate_point":
+                cleaned[field] = None if value is None else drf_serializers.IntegerField(min_value=0).to_internal_value(value)
+            elif field in BULK_FK_FIELDS:
+                model = getattr(project_models, BULK_FK_FIELDS[field])
+                if value is not None and not model.objects.filter(pk=value, project_id=project_pk).exists():
+                    return None, f"이 프로젝트의 {field} 가 아닙니다."
+                cleaned[f"{field}_id"] = value
+            elif field == "label":
+                ids = set(value or [])
+                if Label.objects.filter(pk__in=ids, project_id=project_pk).count() != len(ids):
+                    return None, "이 프로젝트의 라벨이 아닌 것이 있습니다."
+                cleaned[field] = list(ids)
+            elif field == "assignees":
+                ids = set(value or [])
+                workspace_id = Project.objects.filter(pk=project_pk).values_list("workspace_id", flat=True).first()
+                found = WorkspaceMember.objects.filter(workspace_id=workspace_id, member_id__in=ids).count()
+                if found != len(ids):
+                    return None, "이 워크스페이스의 멤버가 아닌 사용자가 있습니다."
+                cleaned[field] = list(ids)
+    except (drf_serializers.ValidationError, ValueError, TypeError, DjangoValidationError):
+        return None, "값 형식이 잘못되었습니다."
+    return cleaned, None
+
+
 class IssueBulkUpdateView(APIView):
     """이슈 일괄 업데이트 — 상태/우선순위/담당자/라벨 일괄 변경
 
@@ -1086,6 +1220,14 @@ class IssueBulkUpdateView(APIView):
 
         if issues.count() != len(issue_ids):
             return Response({"detail": "일부 이슈를 찾을 수 없습니다."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not isinstance(updates, dict) or not isinstance(issue_ids, list):
+            return Response({"detail": "형식이 잘못되었습니다."}, status=status.HTTP_400_BAD_REQUEST)
+        # 본문을 그대로 queryset.update() 에 넣으면 project_id·deleted_at·description_html 등 무엇이든
+        # 바꿀 수 있다. 일괄 변경 화면이 쓰는 필드만 받고, 관계 값은 같은 프로젝트 소속인지 확인한다.
+        updates, error = _clean_bulk_updates(project_pk, updates)
+        if error:
+            return Response({"detail": error}, status=status.HTTP_400_BAD_REQUEST)
 
         # M2M 필드 분리
         assignees = updates.pop("assignees", None)
@@ -1142,18 +1284,23 @@ class IssueBulkDeleteView(APIView):
             return Response({"detail": "issue_ids가 필요합니다."}, status=status.HTTP_400_BAD_REQUEST)
 
         now = timezone.now()
-        updated = Issue.objects.filter(
+        targets = Issue.objects.filter(
             id__in=issue_ids,
             project_id=project_pk,
             project__members__member=request.user,
             deleted_at__isnull=True,
-        ).update(deleted_at=now)
+        )
+        # 하위 이슈는 **이 프로젝트에서 실제로 지운 이슈의 하위**만 — 본문의 id 를 그대로 쓰면
+        # 다른 프로젝트 이슈의 id 를 넣어 그 하위 이슈를 지울 수 있다
+        matched_ids = list(targets.values_list("id", flat=True))
+        updated = targets.update(deleted_at=now)
 
-        # 하위 이슈도 함께 소프트 삭제
-        Issue.objects.filter(
-            parent_id__in=issue_ids,
-            deleted_at__isnull=True,
-        ).update(deleted_at=now)
+        # 하위 이슈도 함께 소프트 삭제 (모든 깊이)
+        descendant_ids = []
+        for issue_id in matched_ids:
+            descendant_ids.extend(IssueArchiveView._collect_descendant_ids(issue_id))
+        if descendant_ids:
+            Issue.objects.filter(id__in=descendant_ids, project_id=project_pk, deleted_at__isnull=True).update(deleted_at=now)
 
         _ws_broadcast(project_pk, {
             "type": "issue.bulk_deleted",

@@ -61,6 +61,34 @@ class IssueSerializer(serializers.ModelSerializer):
             validated_data["is_field"] = False
         return super().update(instance, validated_data)
 
+    def validate(self, attrs):
+        """관계 값은 모두 **이 이슈의 프로젝트** 소속이어야 한다.
+
+        검사가 없으면 다른(볼 수 없는) 프로젝트의 상태·스프린트·상위 이슈를 붙여 그 이름을 읽어 내거나,
+        project 를 바꿔 권한 없는 프로젝트로 이슈를 옮길 수 있다. 권한 확인은 URL 의 프로젝트로 하기 때문이다.
+        """
+        instance = self.instance
+        if instance is not None and "project" in attrs and attrs["project"].pk != instance.project_id:
+            raise serializers.ValidationError({"project": "이슈를 다른 프로젝트로 옮길 수 없습니다."})
+        project = attrs.get("project") or (instance.project if instance is not None else None)
+        if project is None:
+            return attrs
+        for field in ("state", "sprint", "category", "parent"):
+            value = attrs.get(field)
+            if value is not None and value.project_id != project.pk:
+                raise serializers.ValidationError({field: "이 프로젝트의 값이 아닙니다."})
+        if any(lb.project_id != project.pk for lb in attrs.get("label", [])):
+            raise serializers.ValidationError({"label": "이 프로젝트의 라벨이 아닌 것이 있습니다."})
+        assignees = attrs.get("assignees")
+        if assignees:
+            from apps.workspaces.models import WorkspaceMember
+            member_ids = set(WorkspaceMember.objects.filter(
+                workspace_id=project.workspace_id, member__in=assignees,
+            ).values_list("member_id", flat=True))
+            if any(u.pk not in member_ids for u in assignees):
+                raise serializers.ValidationError({"assignees": "이 워크스페이스의 멤버가 아닌 사용자가 있습니다."})
+        return attrs
+
     def get_sub_issues_count(self, obj):
         # 소프트 삭제된 하위 이슈는 카운트에서 제외
         return obj.sub_issues.filter(deleted_at__isnull=True).count()
