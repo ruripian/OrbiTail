@@ -38,3 +38,64 @@ class ApiTokenCreateSerializer(serializers.Serializer):
         if not value:
             raise serializers.ValidationError("이름을 입력하세요.")
         return value
+
+
+class WebhookSerializer(serializers.ModelSerializer):
+    created_by = serializers.SerializerMethodField()
+    last_delivery = serializers.SerializerMethodField()
+
+    class Meta:
+        from .models import Webhook
+        model = Webhook
+        fields = [
+            "id", "name", "url", "events", "is_active", "disabled_reason", "consecutive_failures",
+            "created_by", "created_at", "last_delivery",
+        ]
+
+    def get_created_by(self, obj):
+        return {"id": str(obj.created_by_id), "display_name": obj.created_by.display_name}
+
+    def get_last_delivery(self, obj):
+        d = obj.deliveries.order_by("-created_at").first()
+        if d is None:
+            return None
+        return {"event": d.event, "status": d.status, "response_status": d.response_status, "created_at": d.created_at}
+
+
+class WebhookWriteSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=100, required=False)
+    url = serializers.URLField(max_length=500, required=False)
+    events = serializers.ListField(child=serializers.CharField(), required=False, allow_empty=False)
+    is_active = serializers.BooleanField(required=False)
+
+    def validate_name(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError("이름을 입력하세요.")
+        return value
+
+    def validate_url(self, value):
+        from .webhook_http import WebhookTargetError, resolve_target
+        try:
+            resolve_target(value)
+        except WebhookTargetError as exc:
+            raise serializers.ValidationError(str(exc))
+        return value
+
+    def validate_events(self, value):
+        from .models import Webhook
+        allowed = set(Webhook.Event.values)
+        unknown = [e for e in value if e not in allowed]
+        if unknown:
+            raise serializers.ValidationError(f"알 수 없는 이벤트: {', '.join(unknown)}")
+        return sorted(set(value))
+
+
+class WebhookDeliverySerializer(serializers.ModelSerializer):
+    class Meta:
+        from .models import WebhookDelivery
+        model = WebhookDelivery
+        fields = [
+            "id", "event", "status", "attempts", "response_status", "response_body", "error",
+            "created_at", "delivered_at", "payload",
+        ]

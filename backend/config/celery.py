@@ -40,4 +40,9 @@ app.conf.beat_schedule = {
         "task": "apps.demo.tasks.purge_expired_sandboxes",
         "schedule": crontab(minute=0),
     },
+    # 30일 지난 웹훅 발송 기록 삭제 — 매일 새벽 5시
+    "prune-webhook-deliveries": {
+        "task": "apps.api.tasks.prune_webhook_deliveries",
+        "schedule": crontab(hour=5, minute=0),
+    },
 }

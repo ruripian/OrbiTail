@@ -60,6 +60,7 @@ docker compose up -d
 - 프론트엔드: http://localhost:5173
 - 백엔드 API: http://localhost:8000/api
 - Swagger: http://localhost:8000/api/docs
+- 공개 API 문서: http://localhost:5173/api/v1/docs — 워크스페이스 설정 › API 토큰에서 만든 토큰으로 호출합니다. 이벤트 알림은 워크스페이스 설정 › 웹훅
 
 **최초 접속 시 관리자 계정 + 워크스페이스 생성 셋업 화면이 자동으로 뜹니다.**
 

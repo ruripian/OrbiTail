@@ -17,14 +17,14 @@ from apps.accounts.models import User
 from apps.documents.links import sync_document_links
 from apps.documents.markdown import markdown_to_html
 from apps.documents.models import Document
-from apps.documents.views import _check_space_edit, _get_accessible_spaces
+from apps.documents.views import _check_space_edit
 from apps.issues.models import Issue, IssueActivity, IssueComment, Label
 from apps.issues.views import IssueArchiveView, _issue_field_snapshot, _log_activities
-from apps.projects.models import Category, Project, ProjectMember, Sprint, State
-from apps.projects.views import _project_readable_q
+from apps.projects.models import Category, ProjectMember, Sprint, State
 from apps.workspaces.models import WorkspaceMember
 
 from . import serializers as s
+from .access import accessible_spaces, readable_projects
 from .base import PublicApiView
 from .collab_client import CollabUnavailable, write_document_content
 
@@ -68,12 +68,7 @@ class MeView(PublicApiView):
 
 class ProjectMixin:
     def readable_projects(self):
-        return (
-            Project.objects.filter(workspace=self.workspace, kind=Project.Kind.NORMAL)
-            .filter(_project_readable_q(self.request.user))
-            .distinct()
-            .select_related("workspace")
-        )
+        return readable_projects(self.request.user, self.workspace)
 
     def get_project(self, project_id):
         if not UUID_RE.match(str(project_id)):
@@ -399,8 +394,6 @@ class IssueCommentListView(IssueMixin, PublicApiView):
     @extend_schema(tags=["issues"], summary="댓글 달기 (write)", request=s.CommentWriteSerializer,
                    responses={201: s.CommentSerializer})
     def post(self, request, ref):
-        from apps.documents.markdown import markdown_to_html
-
         issue = self.get_issue(ref)
         # 읽을 수 있는 이슈(공개 프로젝트 포함)에는 댓글을 달 수 있다 — 화면과 같은 규칙
         ser = s.CommentWriteSerializer(data=request.data)
@@ -425,7 +418,7 @@ class IssueCommentListView(IssueMixin, PublicApiView):
 
 class DocumentMixin:
     def accessible_spaces(self):
-        return _get_accessible_spaces(self.request.user, self.workspace.slug)
+        return accessible_spaces(self.request.user, self.workspace)
 
     def get_space(self, space_id):
         space = self.accessible_spaces().filter(pk=space_id).first() if UUID_RE.match(str(space_id)) else None

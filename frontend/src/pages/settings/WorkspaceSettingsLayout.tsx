@@ -1,7 +1,7 @@
 import { NavLink, Outlet, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { UsersRound, UserCheck, Building2, Settings, Archive, KeyRound } from "lucide-react";
+import { UsersRound, UserCheck, Building2, Settings, Archive, KeyRound, Webhook } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { workspacesApi } from "@/api/workspaces";
 import { cn } from "@/lib/utils";
@@ -108,6 +108,22 @@ export function WorkspaceSettingsLayout() {
                   {pendingRequests.length}
                 </span>
               )}
+            </NavLink>
+
+            {/* 웹훅 — 워크스페이스의 일을 밖으로 내보내는 설정이라 관리자 전용 */}
+            <NavLink
+              to={`${base}/webhooks`}
+              className={({ isActive }) =>
+                cn(
+                  "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
+                  isActive
+                    ? "bg-accent text-foreground font-medium"
+                    : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                )
+              }
+            >
+              <Webhook className="h-4 w-4 shrink-0" />
+              {t("settings.layout.workspaceWebhooks")}
             </NavLink>
           </>
         )}

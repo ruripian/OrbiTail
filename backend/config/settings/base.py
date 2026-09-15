@@ -127,6 +127,11 @@ COLLAB_SHARED_SECRET = config("COLLAB_SHARED_SECRET", default="")
 # 협업 서버의 내부 쓰기 창구 — 공개 API 가 문서 본문을 살아 있는 문서에 넣을 때 부른다.
 # 리버스 프록시로 나가는 포트(1234)와 따로 둔다.
 COLLAB_INTERNAL_URL = config("COLLAB_INTERNAL_URL", default="http://collab:1235")
+
+# 웹훅을 사설망(192.168.x, 10.x, 도커 내부 이름 등)으로 보내도 되는가. 기본은 막는다 —
+# 사용자가 정한 주소로 서버가 요청을 보내므로, 열어 두면 서버 안쪽을 찌르는 통로가 된다.
+# 받는 쪽을 같은 사설망에 두는 자체 호스팅에서만 켠다.
+WEBHOOK_ALLOW_PRIVATE_NETWORKS = config("WEBHOOK_ALLOW_PRIVATE_NETWORKS", default=False, cast=bool)
 DATA_UPLOAD_MAX_MEMORY_SIZE = MAX_UPLOAD_SIZE_MB * 1024 * 1024
 FILE_UPLOAD_MAX_MEMORY_SIZE = MAX_UPLOAD_SIZE_MB * 1024 * 1024
 

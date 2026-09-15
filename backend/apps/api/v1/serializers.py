@@ -20,7 +20,11 @@ def _user_brief(user):
 
 
 def _absolute(request, path: str) -> str:
-    return request.build_absolute_uri(path) if request is not None else path
+    # 요청이 없는 곳(웹훅 발송)에서는 설정된 주소를 쓴다
+    if request is not None:
+        return request.build_absolute_uri(path)
+    from django.conf import settings
+    return settings.FRONTEND_URL.rstrip("/") + path
 
 
 class UserBriefSerializer(serializers.Serializer):

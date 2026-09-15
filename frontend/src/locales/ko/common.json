@@ -894,7 +894,8 @@
       "repository": "GitHub 저장소",
       "sponsorGithub": "GitHub Sponsors",
       "sponsorKofi": "Ko-fi",
-      "workspaceApiTokens": "API 토큰"
+      "workspaceApiTokens": "API 토큰",
+      "workspaceWebhooks": "웹훅"
     },
     "workspaceMembers": {
       "title": "워크스페이스 멤버",
@@ -1068,6 +1069,57 @@
       "revokeDescription": "이 토큰을 쓰는 프로그램은 즉시 접근이 끊깁니다. 되돌릴 수 없습니다.",
       "revoked": "토큰을 폐기했습니다.",
       "revokeFailed": "토큰을 폐기하지 못했습니다."
+    },
+    "webhooks": {
+      "title": "웹훅",
+      "subtitle": "이슈나 문서에 일이 생기면 정한 주소로 알립니다. 슬랙·자동화 도구·직접 만든 서버에 연결할 수 있습니다.",
+      "loading": "불러오는 중...",
+      "create": "새 웹훅",
+      "createSubmit": "웹훅 만들기",
+      "createFailed": "웹훅을 만들지 못했습니다.",
+      "updateFailed": "웹훅을 고치지 못했습니다.",
+      "deleteFailed": "웹훅을 지우지 못했습니다.",
+      "empty": "아직 만든 웹훅이 없습니다.",
+      "demoBlocked": "데모에서는 웹훅을 만들 수 없습니다.",
+      "name": "이름",
+      "namePlaceholder": "예: 슬랙 #dev 채널",
+      "url": "받는 주소",
+      "events": "보낼 이벤트",
+      "event": {
+        "issue_created": "이슈 생성",
+        "issue_updated": "이슈 수정",
+        "issue_deleted": "이슈 삭제",
+        "comment_created": "댓글 작성",
+        "document_created": "문서 생성",
+        "document_updated": "문서 수정",
+        "document_deleted": "문서 삭제"
+      },
+      "actsAsYou": "웹훅은 만든 사람의 권한으로 봅니다. 내가 볼 수 없는 프로젝트나 문서의 이벤트는 보내지 않습니다. 문서 수정은 편집 중 잦은 저장을 1분 단위로 묶어 보냅니다.",
+      "createdTitle": "웹훅이 만들어졌습니다",
+      "secretWarning": "서명 비밀값을 지금 복사해 두세요. 이 창을 닫으면 다시 볼 수 없습니다.",
+      "verifyHint": "요청마다 X-OrbiTail-Signature 헤더에 sha256=HMAC(비밀값, \"타임스탬프.본문\") 이 실립니다. 타임스탬프는 X-OrbiTail-Timestamp 헤더에 있습니다. 받는 쪽에서 같은 값을 계산해 비교하세요.",
+      "copy": "복사",
+      "copied": "복사됨",
+      "done": "다 했습니다",
+      "active": "켜짐",
+      "inactive": "꺼짐",
+      "enable": "켜기",
+      "disable": "끄기",
+      "delete": "삭제",
+      "deleteTitle": "'{{name}}' 웹훅을 지울까요?",
+      "deleteDescription": "더 이상 알림을 보내지 않고, 발송 기록도 함께 지워집니다.",
+      "ping": "시험 발송",
+      "pingQueued": "시험 발송을 보냈습니다. 결과는 아래 기록에 나타납니다.",
+      "pingFailed": "시험 발송을 보내지 못했습니다.",
+      "deliveries": "발송 기록",
+      "noDeliveries": "아직 보낸 기록이 없습니다.",
+      "lastDelivery": "마지막 발송 {{when}} · {{status}}",
+      "attempts": "{{count}}회 시도",
+      "status": {
+        "pending": "보내는 중",
+        "success": "성공",
+        "failed": "실패"
+      }
     }
   },
   "emailVerify": {

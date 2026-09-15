@@ -894,7 +894,8 @@
       "repository": "GitHub Repository",
       "sponsorGithub": "GitHub Sponsors",
       "sponsorKofi": "Ko-fi",
-      "workspaceApiTokens": "API tokens"
+      "workspaceApiTokens": "API tokens",
+      "workspaceWebhooks": "Webhooks"
     },
     "workspaceMembers": {
       "title": "Workspace Members",
@@ -1068,6 +1069,57 @@
       "revokeDescription": "Programs using this token lose access immediately. This can't be undone.",
       "revoked": "Token revoked.",
       "revokeFailed": "Couldn't revoke the token."
+    },
+    "webhooks": {
+      "title": "Webhooks",
+      "subtitle": "Notify a URL when something happens to issues or documents. Connect Slack, automation tools, or your own server.",
+      "loading": "Loading...",
+      "create": "New webhook",
+      "createSubmit": "Create webhook",
+      "createFailed": "Couldn't create the webhook.",
+      "updateFailed": "Couldn't update the webhook.",
+      "deleteFailed": "Couldn't delete the webhook.",
+      "empty": "No webhooks yet.",
+      "demoBlocked": "Webhooks can't be created in the demo.",
+      "name": "Name",
+      "namePlaceholder": "e.g. Slack #dev channel",
+      "url": "Endpoint URL",
+      "events": "Events to send",
+      "event": {
+        "issue_created": "Issue created",
+        "issue_updated": "Issue updated",
+        "issue_deleted": "Issue deleted",
+        "comment_created": "Comment added",
+        "document_created": "Document created",
+        "document_updated": "Document updated",
+        "document_deleted": "Document deleted"
+      },
+      "actsAsYou": "A webhook sees with its creator's permissions. Events for projects or documents you can't see are not sent. Document updates are batched to at most once a minute while editing.",
+      "createdTitle": "Webhook created",
+      "secretWarning": "Copy the signing secret now. You won't be able to see it again after closing this dialog.",
+      "verifyHint": "Every request carries X-OrbiTail-Signature: sha256=HMAC(secret, \"timestamp.body\"), with the timestamp in X-OrbiTail-Timestamp. Compute the same value on your side and compare.",
+      "copy": "Copy",
+      "copied": "Copied",
+      "done": "Done",
+      "active": "On",
+      "inactive": "Off",
+      "enable": "Turn on",
+      "disable": "Turn off",
+      "delete": "Delete",
+      "deleteTitle": "Delete webhook '{{name}}'?",
+      "deleteDescription": "It stops sending, and its delivery history is deleted too.",
+      "ping": "Send test",
+      "pingQueued": "Test sent. The result will appear in the history below.",
+      "pingFailed": "Couldn't send the test.",
+      "deliveries": "Delivery history",
+      "noDeliveries": "Nothing sent yet.",
+      "lastDelivery": "Last sent {{when}} · {{status}}",
+      "attempts": "{{count}} attempts",
+      "status": {
+        "pending": "Sending",
+        "success": "Delivered",
+        "failed": "Failed"
+      }
     }
   },
   "emailVerify": {

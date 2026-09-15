@@ -60,6 +60,7 @@ Access:
 - Frontend: http://localhost:5173
 - Backend API: http://localhost:8000/api
 - Swagger: http://localhost:8000/api/docs
+- Public API docs: http://localhost:5173/api/v1/docs — call it with a token from Workspace settings › API tokens. Event notifications live in Workspace settings › Webhooks
 
 **First visit opens the admin + workspace setup wizard automatically.**
 
