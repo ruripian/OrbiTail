@@ -11,7 +11,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
   FileText, FolderOpen, FilePlus, FolderPlus,
-  ArrowLeft, ChevronRight, ChevronDown, Star, LayoutGrid,
+  ChevronRight, ChevronDown, Star, LayoutGrid,
   MoreHorizontal, Trash2, Pencil, Link as LinkIcon, Settings, Share2, Table2,
   Lock, Layers, User as UserIcon, Users,
 } from "lucide-react";
@@ -265,10 +265,12 @@ export function DocumentLayout() {
 
   const sidebarContent = (
     <ResizableAside
-      storageKey="sidebar_doc_width"
+      /* 이슈 사이드바(Sidebar.tsx)와 같은 키·범위 — 앱을 오갈 때 사이드바 폭이 달라지지 않게 한쪽에서
+         조절한 폭을 양쪽이 같이 쓴다. 전에는 키가 따로라 한쪽만 넓힌 채로 남았다. */
+      storageKey="sidebar_main_width"
       defaultWidth={256}
       minWidth={256}
-      maxWidth={520}
+      maxWidth={480}
       handleSide="right"
       className="border-r glass-sidebar flex flex-col"
     >
@@ -277,16 +279,8 @@ export function DocumentLayout() {
 
         {/* 스페이스 + 생성 버튼 — 스페이스를 고르기 전에는 목록 헤더만 둔다 */}
         <div className="flex items-center gap-1 px-2 pt-2 pb-1">
-          {/* 목록으로 — 사이드바가 트리로 바뀌면 스페이스 목록에 닿을 길이 없어진다 */}
-          {activeSpaceId && (
-            <Button
-              variant="ghost" size="icon" className="h-7 w-7 shrink-0"
-              title="스페이스 목록"
-              onClick={() => navigate(`/${workspaceSlug}/documents`)}
-            >
-              <ArrowLeft className="h-3.5 w-3.5" />
-            </Button>
-          )}
+          {/* 스페이스 목록으로 가는 뒤로 버튼은 두지 않는다 — 바로 옆 선택기로 스페이스를 바꾸고,
+              위 앱 전환기의 "문서" 가 스페이스 목록으로 간다. 같은 일을 하는 버튼이 셋이었다. */}
           {!activeSpaceId ? (
             <span className="flex-1 px-2.5 text-2xs font-semibold uppercase tracking-widest text-muted-foreground">
               스페이스
