@@ -1,6 +1,15 @@
 """
 YRoom — 문서별 Y.Doc + Awareness 상태 관리자.
 
+⚠️ 2026-09-14 이후 **문서 협업에는 더 이상 쓰이지 않는다.** 프론트는 Hocuspocus
+(`frontend/collab/server.ts`)에 붙는다. 갈아끼운 이유는 이 파일이 Yjs 바이트를 중계·보관만 할 뿐
+**문서가 무엇인지 모르기 때문**이다 — 서버가 본문을 읽고 쓸 수 없으면 검색·AI·공개 API·
+블록 참조가 전부 막힌다. Node 서버라야 프론트와 같은 TipTap 스키마를 그대로 재사용할 수 있다.
+
+되돌리려면 `useDocumentWebSocket.ts` 를 y-websocket 으로 돌리면 된다. 그 가능성 때문에 남겨 뒀다.
+(`consumers.check_document_access` 는 새 경로에서도 계속 쓰인다.)
+
+
 추후 Hocuspocus 등 외부 서비스로 교체할 때 이 파일의 퍼블릭 API(get_or_create_room,
 release_room, YRoom.handle_sync, apply_awareness_update, schedule_save)만 유지하면
 DocumentConsumer 변경 없이 갈아끼울 수 있도록 분리.

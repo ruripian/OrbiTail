@@ -8,8 +8,7 @@
  *  - 문서가 프로젝트 스페이스에 있으면 그 프로젝트로 자동 잠김 (선택 UI 안 보임)
  *  - 워크스페이스 스페이스의 문서면 사용자가 직접 프로젝트 선택
  */
-import { Node, mergeAttributes } from "@tiptap/core";
-import { ReactNodeViewRenderer, NodeViewWrapper, type NodeViewProps } from "@tiptap/react";
+import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react";
 import { useState, useEffect, useContext } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -63,7 +62,7 @@ const DEFAULT_CAL_SETTINGS: CalendarSettings = {
   showCompleted: true, hideWeekends: false, showEvents: false, alwaysExpand: false, showFields: false,
 };
 
-function IssueViewEmbedView({ node, updateAttributes }: NodeViewProps) {
+export function IssueViewEmbedView({ node, updateAttributes }: NodeViewProps) {
   const attrs = node.attrs as EmbedAttrs;
   const { workspaceSlug } = useParams<{ workspaceSlug: string }>();
   const docCtx = useContext(DocEditorContext);
@@ -288,40 +287,4 @@ function FilterSelect({
   );
 }
 
-export const IssueViewEmbed = Node.create({
-  name: "issueViewEmbed",
-  group: "block",
-  atom: true,
-  selectable: true,
-  draggable: true,
-
-  addAttributes() {
-    return {
-      projectId: { default: "" },
-      viewMode:  { default: "board" },
-      filters:   { default: {} },
-      height:    { default: 480 },
-    };
-  },
-
-  parseHTML() {
-    return [{ tag: 'div[data-type="issue-view-embed"]' }];
-  },
-
-  renderHTML({ HTMLAttributes, node }) {
-    return [
-      "div",
-      mergeAttributes(HTMLAttributes, {
-        "data-type": "issue-view-embed",
-        "data-project-id": node.attrs.projectId,
-        "data-view-mode": node.attrs.viewMode,
-        "data-filters": JSON.stringify(node.attrs.filters || {}),
-      }),
-      `[이슈 ${VIEW_LABELS[node.attrs.viewMode as ViewMode]?.label ?? "뷰"} 임베드]`,
-    ];
-  },
-
-  addNodeView() {
-    return ReactNodeViewRenderer(IssueViewEmbedView);
-  },
-});
+/* 스키마는 doc-schema.ts 한 곳에만 있다 — 여기서는 노드뷰만 제공한다 */

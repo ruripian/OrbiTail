@@ -4,45 +4,25 @@
 
 import { useState, useEffect, useCallback, useRef, createContext, useContext, useMemo } from "react";
 import { createPortal } from "react-dom";
-import katex from "katex";
 import "katex/dist/katex.min.css";
 import mermaid from "mermaid";
-import { MathExtension } from "@aarkue/tiptap-math-extension";
 import { useAuthStore } from "@/stores/authStore";
 import { useIssueDialogStore } from "@/stores/issueDialogStore";
 import { useTranslation } from "react-i18next";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEditor, EditorContent, NodeViewWrapper, NodeViewContent, ReactNodeViewRenderer, type NodeViewProps, type Editor } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import { computePosition, autoUpdate, offset, flip, shift } from "@floating-ui/dom";
-import StarterKit from "@tiptap/starter-kit";
-import LinkExt from "@tiptap/extension-link";
-import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
-import { Underline } from "@tiptap/extension-underline";
-import { Highlight } from "@tiptap/extension-highlight";
-import { TextStyle } from "@tiptap/extension-text-style";
-import { Color } from "@tiptap/extension-color";
-import { TextAlign } from "@tiptap/extension-text-align";
-import { Superscript } from "@tiptap/extension-superscript";
-import { Subscript } from "@tiptap/extension-subscript";
-import { TaskList } from "@tiptap/extension-task-list";
-import { TaskItem } from "@tiptap/extension-task-item";
-import { Table } from "@tiptap/extension-table";
-import { TableRow } from "@tiptap/extension-table-row";
-import { TableCell } from "@tiptap/extension-table-cell";
-import { TableHeader } from "@tiptap/extension-table-header";
 import { CharacterCount } from "@tiptap/extension-character-count";
 import GlobalDragHandle from "tiptap-extension-global-drag-handle";
 import { SearchAndReplace } from "@memfoldai/tiptap-search-and-replace";
-import { Node, Extension, Mark, mergeAttributes } from "@tiptap/core";
-import type { SingleCommands } from "@tiptap/core";
-import { common, createLowlight } from "lowlight";
+import { Extension } from "@tiptap/core";
 import { Collaboration } from "@tiptap/extension-collaboration";
 import { yCursorPlugin, defaultSelectionBuilder } from "@tiptap/y-tiptap";
 import type { DocCollab } from "@/hooks/useDocumentWebSocket";
 import type { Issue, IssueSearchResult, User, WorkspaceMember, Document as DocType } from "@/types";
-import { IssueViewEmbed } from "./IssueViewEmbed";
-import { BookmarkCard, ImageGallery } from "./RichBlocks";
+import { IssueViewEmbedView } from "./IssueViewEmbed";
+import { BookmarkCardView, ImageGalleryView } from "./RichBlocks";
 
 /*
  * CollaborationCaret — @tiptap/extension-collaboration-cursor는 v3.0.0에서
@@ -130,18 +110,13 @@ import {
   AtSign, User as UserIcon, Hash,
   Merge, Split, Trash2,
   ArrowLeftToLine, ArrowRightToLine, ArrowUpToLine, ArrowDownToLine,
-  PanelTop, PanelLeft, MessageSquare,
+  PanelTop, PanelLeft, MessageSquare, FilePlus2, Unlink,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { matchMentionTrigger, mentionDeleteLength, triggerIncludesLabels, type MentionKind, type MentionTrigger } from "./mention-trigger";
+import { docExtensions, formatFileSize, type CalloutKind } from "./doc-schema";
 
-const lowlight = createLowlight(common);
-
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
 
 /* ── 이미지 노드 (React NodeView + 플로팅 툴바) ── */
 type ImgAlign = "left" | "center" | "right";
@@ -300,153 +275,6 @@ declare module "@tiptap/core" {
   }
 }
 
-const CommentMark = Mark.create({
-  name: "comment",
-  exitable: true,
-  inclusive: false,
-
-  addAttributes() {
-    return {
-      threadId: {
-        default: null,
-        parseHTML: (el: HTMLElement) => el.getAttribute("data-thread-id"),
-        renderHTML: (attrs: Record<string, any>) =>
-          attrs.threadId ? { "data-thread-id": attrs.threadId } : {},
-      },
-    };
-  },
-
-  parseHTML() {
-    return [{ tag: "span[data-comment-thread]" }];
-  },
-
-  renderHTML({ HTMLAttributes }) {
-    return [
-      "span",
-      mergeAttributes(HTMLAttributes, {
-        "data-comment-thread": "true",
-        class: "doc-comment-mark",
-      }),
-      0,
-    ];
-  },
-
-  addCommands() {
-    return {
-      setCommentMark:
-        (threadId: string) =>
-        ({ commands }) =>
-          commands.setMark(this.name, { threadId }),
-      unsetCommentMark:
-        () =>
-        ({ commands }) =>
-          commands.unsetMark(this.name),
-    };
-  },
-});
-
-const ImageNode = Node.create({
-  name: "image",
-  group: "block",
-  atom: true,
-  draggable: true,
-  addAttributes() {
-    return {
-      src:   { default: null },
-      alt:   { default: null },
-      width: { default: null, parseHTML: (el) => (el as HTMLElement).getAttribute("data-width") || (el as HTMLImageElement).style.width || null },
-      align: { default: "center", parseHTML: (el) => (el as HTMLElement).getAttribute("data-align") || "center" },
-    };
-  },
-  parseHTML() { return [{ tag: "img[src]" }]; },
-  renderHTML({ HTMLAttributes }) {
-    const { width, align, ...rest } = HTMLAttributes;
-    /* HTML로 직렬화될 때는 NodeView 없이 유지되도록 data-* 속성으로 원본 메타 보존 */
-    const style: string[] = [];
-    if (width) style.push(`width:${width}`);
-    if (align === "left")   style.push("margin:0 auto 0 0");
-    else if (align === "right") style.push("margin:0 0 0 auto");
-    else style.push("margin:0 auto");
-    style.push("display:block");
-    return ["img", mergeAttributes(rest, {
-      "data-width": width || undefined,
-      "data-align": align || undefined,
-      class: "doc-img",
-      style: style.join(";"),
-    })];
-  },
-  addNodeView() {
-    return ReactNodeViewRenderer(ImageNodeView);
-  },
-});
-
-/* ── 비디오 노드 ── */
-const VideoNode = Node.create({
-  name: "video",
-  group: "block",
-  atom: true,
-  draggable: true,
-  addAttributes() {
-    return {
-      src: { default: null },
-      filename: { default: null, parseHTML: (el) => (el as HTMLElement).getAttribute("data-filename") },
-    };
-  },
-  parseHTML() {
-    return [
-      { tag: "video[src]" },
-      { tag: "div[data-node=\"video\"]", getAttrs: (el) => ({
-        src: (el as HTMLElement).getAttribute("data-src"),
-        filename: (el as HTMLElement).getAttribute("data-filename"),
-      }) },
-    ];
-  },
-  renderHTML({ HTMLAttributes }) {
-    const { src, filename } = HTMLAttributes;
-    return ["div", {
-      "data-node": "video",
-      "data-src": src,
-      "data-filename": filename ?? undefined,
-      class: "doc-video",
-    }, ["video", { src, controls: "controls", preload: "metadata" }]];
-  },
-});
-
-/* ── PDF 노드 — iframe으로 임베드 (nginx가 PDF는 inline으로 서빙) ── */
-const PdfNode = Node.create({
-  name: "pdf",
-  group: "block",
-  atom: true,
-  draggable: true,
-  addAttributes() {
-    return {
-      src: { default: null },
-      filename: { default: null, parseHTML: (el) => (el as HTMLElement).getAttribute("data-filename") },
-    };
-  },
-  parseHTML() {
-    return [{ tag: "div[data-node=\"pdf\"]", getAttrs: (el) => ({
-      src: (el as HTMLElement).getAttribute("data-src"),
-      filename: (el as HTMLElement).getAttribute("data-filename"),
-    }) }];
-  },
-  renderHTML({ HTMLAttributes }) {
-    const { src, filename } = HTMLAttributes;
-    return ["div", {
-      "data-node": "pdf",
-      "data-src": src,
-      "data-filename": filename ?? undefined,
-      class: "doc-pdf",
-    },
-      ["div", { class: "doc-pdf-head" },
-        ["span", { class: "doc-pdf-name" }, filename ?? "document.pdf"],
-        ["a", { href: src, target: "_blank", rel: "noreferrer", class: "doc-pdf-open" }, "Open"],
-      ],
-      ["iframe", { src, class: "doc-pdf-frame" }],
-    ];
-  },
-});
-
 /* ── 첨부파일 카드 노드 ── */
 function iconFor(mime: string | null, filename: string | null) {
   const ext = (filename ?? "").split(".").pop()?.toLowerCase() ?? "";
@@ -477,8 +305,7 @@ function AttachmentCardView({ node }: NodeViewProps) {
   );
 }
 
-/* ── Callout 노드 — info/success/warning/danger 4종 ── */
-type CalloutKind = "info" | "success" | "warning" | "danger";
+/* ── Callout 노드뷰 — 종류는 doc-schema 의 CalloutKind ── */
 
 /* 커스텀 확장이 추가하는 커맨드를 TipTap 타입에 등록 —
    이게 없으면 editor.chain().setCallout() 이 타입 에러라 호출부마다 as any 를 붙이게 된다. */
@@ -553,42 +380,6 @@ function CalloutView({ node, updateAttributes, editor }: NodeViewProps) {
   );
 }
 
-const Callout = Node.create({
-  name: "callout",
-  group: "block",
-  content: "block+",
-  defining: true,
-  addAttributes() {
-    return {
-      kind: {
-        default: "info",
-        parseHTML: (el) => (el as HTMLElement).getAttribute("data-kind") || "info",
-      },
-    };
-  },
-  parseHTML() { return [{ tag: "div[data-node=\"callout\"]" }]; },
-  renderHTML({ HTMLAttributes }) {
-    const { kind } = HTMLAttributes;
-    return ["div", mergeAttributes(HTMLAttributes, {
-      "data-node": "callout",
-      "data-kind": kind,
-      class: `doc-callout doc-callout-${kind ?? "info"}`,
-    }), 0];
-  },
-  addNodeView() { return ReactNodeViewRenderer(CalloutView); },
-  addCommands() {
-    return {
-      /* 슬래시 메뉴에서는 항상 새 callout 삽입. kind 변경은 CalloutView 내부 메뉴로 */
-      setCallout: (kind: CalloutKind = "info") => ({ commands }: { commands: SingleCommands }) =>
-        commands.insertContent({
-          type: "callout",
-          attrs: { kind },
-          content: [{ type: "paragraph" }],
-        }),
-    };
-  },
-});
-
 /* ── Toggle(Details) 노드 ── */
 function ToggleView({ node, updateAttributes, editor }: NodeViewProps) {
   const open = !!node.attrs.open;
@@ -611,84 +402,6 @@ function ToggleView({ node, updateAttributes, editor }: NodeViewProps) {
   );
 }
 
-const Toggle = Node.create({
-  name: "toggle",
-  group: "block",
-  content: "block+",
-  defining: true,
-  addAttributes() {
-    return {
-      open: {
-        default: true,
-        parseHTML: (el) => (el as HTMLElement).getAttribute("data-open") !== "false",
-      },
-    };
-  },
-  parseHTML() { return [{ tag: "div[data-node=\"toggle\"]" }]; },
-  renderHTML({ HTMLAttributes }) {
-    const { open } = HTMLAttributes;
-    return ["div", mergeAttributes(HTMLAttributes, {
-      "data-node": "toggle",
-      "data-open": open === false ? "false" : "true",
-      class: "doc-toggle",
-    }), 0];
-  },
-  addNodeView() { return ReactNodeViewRenderer(ToggleView); },
-  addCommands() {
-    return {
-      setToggle: () => ({ commands }: { commands: SingleCommands }) =>
-        commands.insertContent({
-          type: "toggle",
-          attrs: { open: true },
-          content: [{ type: "paragraph" }],
-        }),
-    };
-  },
-});
-
-const AttachmentNode = Node.create({
-  name: "attachment",
-  group: "block",
-  atom: true,
-  draggable: true,
-  addAttributes() {
-    return {
-      src: { default: null },
-      filename: { default: null },
-      size: { default: null, parseHTML: (el) => Number((el as HTMLElement).getAttribute("data-size")) || null },
-      mime: { default: null, parseHTML: (el) => (el as HTMLElement).getAttribute("data-mime") },
-    };
-  },
-  parseHTML() {
-    return [{ tag: "div[data-node=\"attachment\"]", getAttrs: (el) => ({
-      src: (el as HTMLElement).getAttribute("data-src"),
-      filename: (el as HTMLElement).getAttribute("data-filename"),
-      size: Number((el as HTMLElement).getAttribute("data-size")) || null,
-      mime: (el as HTMLElement).getAttribute("data-mime"),
-    }) }];
-  },
-  renderHTML({ HTMLAttributes }) {
-    const { src, filename, size, mime } = HTMLAttributes;
-    const sizeLabel = typeof size === "number" ? formatFileSize(size) : "";
-    return ["div", {
-      "data-node": "attachment",
-      "data-src": src,
-      "data-filename": filename ?? undefined,
-      "data-size": size ?? undefined,
-      "data-mime": mime ?? undefined,
-      class: "doc-attachment",
-    },
-      ["a", { href: src, download: filename ?? "file", target: "_blank", rel: "noreferrer", class: "doc-attachment-link" },
-        ["span", { class: "doc-attachment-name" }, filename ?? "file"],
-        sizeLabel ? ["span", { class: "doc-attachment-size" }, sizeLabel] : "",
-      ],
-    ];
-  },
-  addNodeView() {
-    return ReactNodeViewRenderer(AttachmentCardView);
-  },
-});
-
 /* ── 문서 컨텍스트 (Subpages, Mention, IssueViewEmbed 등에서 사용) ── */
 export const DocEditorContext = createContext<{
   workspaceSlug?: string;
@@ -698,18 +411,37 @@ export const DocEditorContext = createContext<{
 } | null>(null);
 
 /* ── @Mention 노드 ── */
-type MentionKind = "user" | "doc" | "issue";
+
+interface MentionItem {
+  kind: MentionKind;
+  id: string;
+  label: string;
+  sublabel?: string;
+  identifier?: string;
+  parent?: string | null;
+  depth?: number;
+  hasChildren?: boolean;
+  /** 문서 멘션이 가리키는 스페이스 — 다른 스페이스 문서도 검색되므로 함께 실어 나른다 */
+  space?: string;
+  /** "새 문서 만들기" 행 — 선택하면 문서를 먼저 만들고 그 문서로 링크한다 */
+  isCreate?: boolean;
+}
 
 function MentionView({ node }: NodeViewProps) {
+  const { t } = useTranslation();
   const ctx = useContext(DocEditorContext);
   const kind = (node.attrs.kind ?? "user") as MentionKind;
   const id: string = node.attrs.id ?? "";
   const label: string = node.attrs.label ?? "";
   const identifier: string = node.attrs.identifier ?? "";
+  /* 멘션에 스페이스가 박혀 있으면 그쪽으로. 없으면(구 데이터) 현재 스페이스로 폴백. */
+  const docSpace: string = node.attrs.space || ctx?.spaceId || "";
 
   const href =
-    kind === "doc"   ? `/${ctx?.workspaceSlug}/documents/space/${ctx?.spaceId}/${id}` :
+    kind === "doc"   ? `/${ctx?.workspaceSlug}/documents/space/${docSpace}/${id}` :
     kind === "issue" ? `/${ctx?.workspaceSlug}/projects/${ctx?.projectId}/issues?issue=${id}` :
+    // 태그를 누르면 그 태그가 붙은 문서만 걸러 보여준다 — 태그가 분류축 노릇을 하려면 이게 있어야 한다
+    kind === "label" ? `/${ctx?.workspaceSlug}/documents/space/${ctx?.spaceId}/explorer?labels=${id}` :
     undefined;
 
   /* 이슈 멘션 클릭 — 라우팅 대신 전역 모달로 띄움. Cmd/Ctrl-클릭은 새 탭으로 이동 유지. */
@@ -724,6 +456,28 @@ function MentionView({ node }: NodeViewProps) {
   /* 이슈 멘션에 상세 정보 hover card */
   const [hoverCard, setHoverCard] = useState(false);
   const [details, setDetails] = useState<Issue | null>(null);
+  /* 문서 멘션 hover 프리뷰 — 열지 않고도 무슨 문서인지 확인.
+     제목은 여기서 받아온 현재 값을 쓴다(멘션에 박힌 label 은 삽입 시점의 옛 제목일 수 있다). */
+  const [docPreview, setDocPreview] = useState<{ title: string; excerpt: string } | null>(null);
+  const [docPreviewFailed, setDocPreviewFailed] = useState(false);
+  useEffect(() => {
+    if (kind !== "doc" || !hoverCard || docPreview || docPreviewFailed) return;
+    if (!ctx?.workspaceSlug || !docSpace || !id) return;
+    import("@/api/documents").then(({ documentsApi }) => {
+      documentsApi.get(ctx.workspaceSlug!, docSpace, id)
+        .then((d) => {
+          /* content_html 에서 태그를 걷어내 앞부분만 — 미리보기라 정확한 렌더는 불필요 */
+          const text = new DOMParser()
+            .parseFromString(d.content_html || "", "text/html")
+            .body.textContent?.replace(/\s+/g, " ").trim() ?? "";
+          setDocPreview({ title: d.title, excerpt: text.slice(0, 140) });
+        })
+        /* 휴지통에 갔거나 볼 수 없는 문서 — 링크가 깨졌다는 사실을 그 자리에서 알린다.
+           어느 쪽인지는 구분하지 않는다. 구분하려면 볼 수 없는 문서의 존재 여부를
+           알려주는 셈이 되어, 권한으로 가린 것이 도로 새어 나간다. */
+        .catch(() => setDocPreviewFailed(true));
+    });
+  }, [kind, hoverCard, docPreview, docPreviewFailed, ctx?.workspaceSlug, docSpace, id]);
   const [subExpanded, setSubExpanded] = useState(false);
   const [subIssues, setSubIssues] = useState<Issue[]>([]);
   useEffect(() => {
@@ -753,6 +507,16 @@ function MentionView({ node }: NodeViewProps) {
     });
   }, [subExpanded, subIssues.length, ctx?.workspaceSlug, ctx?.projectId, id]);
 
+  /* 라벨 멘션은 이름·색을 박아 두지 않고 워크스페이스 라벨 목록에서 찾아 그린다 —
+     라벨 이름이나 색을 바꾸면 본문에 박힌 태그도 함께 따라온다. */
+  const { data: wsLabels } = useQuery({
+    queryKey: ["document-labels", ctx?.workspaceSlug],
+    queryFn: () => import("@/api/documents").then(({ documentsApi }) => documentsApi.labels.list(ctx!.workspaceSlug!)),
+    enabled: kind === "label" && !!ctx?.workspaceSlug,
+    staleTime: 60_000,
+  });
+  const labelDetail = kind === "label" ? wsLabels?.find((l) => l.id === id) : undefined;
+
   // 유저 멘션은 워크스페이스 멤버 캐시에서 현재 아바타를 조회해 최신 상태로 표시
   const { data: wsMembers } = useQuery({
     queryKey: ["workspace-members", ctx?.workspaceSlug],
@@ -772,8 +536,14 @@ function MentionView({ node }: NodeViewProps) {
           : <AtSign className="h-3 w-3" />
       )}
       {kind === "doc"  && <FileText className="h-3 w-3" />}
+      {kind === "label" && (
+        <span
+          className="inline-block h-2 w-2 rounded-full shrink-0"
+          style={{ background: labelDetail?.color ?? "#6b7280" }}
+        />
+      )}
       {kind === "issue" && <span className="doc-mention-id">{identifier}</span>}
-      <span className="doc-mention-label">{label}</span>
+      <span className="doc-mention-label">{kind === "label" ? `#${labelDetail?.name ?? label}` : label}</span>
       {/* 이슈 멘션 카운트 배지 — 댓글/첨부 활동량 한눈에. 둘 다 0 이면 표시 안 함. */}
       {kind === "issue" && (mentionCommentCount > 0 || mentionAttachmentCount > 0) && (
         <span className="inline-flex items-center gap-1 ml-1 text-[0.625rem] text-muted-foreground/80">
@@ -796,10 +566,32 @@ function MentionView({ node }: NodeViewProps) {
 
   return (
     <NodeViewWrapper as="span" contentEditable={false} className="relative inline-block"
-      onMouseEnter={() => kind === "issue" && setHoverCard(true)}
+      onMouseEnter={() => (kind === "issue" || kind === "doc") && setHoverCard(true)}
       onMouseLeave={() => setHoverCard(false)}
     >
       {href ? <a href={href} className="no-underline" onMouseDown={(e) => e.stopPropagation()} onClick={handleMentionClick}>{Body}</a> : Body}
+      {hoverCard && kind === "doc" && docPreviewFailed && (
+        <span className="doc-mention-card" contentEditable={false}>
+          <span className="doc-mention-card-header">
+            <Unlink className="h-3 w-3 shrink-0 text-amber-500" />
+            <span className="doc-mention-card-title">{t("documents.mentionDocUnavailable", "열 수 없는 문서")}</span>
+          </span>
+          <span className="doc-mention-card-meta block text-muted-foreground">
+            {t("documents.mentionDocUnavailableHint", "휴지통에 있거나 접근 권한이 없습니다")}
+          </span>
+        </span>
+      )}
+      {hoverCard && kind === "doc" && docPreview && (
+        <span className="doc-mention-card" contentEditable={false}>
+          <span className="doc-mention-card-header">
+            <FileText className="h-3 w-3 shrink-0 text-blue-400" />
+            <span className="doc-mention-card-title">{docPreview.title}</span>
+          </span>
+          {docPreview.excerpt && (
+            <span className="doc-mention-card-meta block text-muted-foreground">{docPreview.excerpt}</span>
+          )}
+        </span>
+      )}
       {hoverCard && kind === "issue" && details && (
         <span className="doc-mention-card" contentEditable={false}>
           <span className="doc-mention-card-header">
@@ -865,31 +657,6 @@ function MentionView({ node }: NodeViewProps) {
     </NodeViewWrapper>
   );
 }
-
-const Mention = Node.create({
-  name: "mention",
-  group: "inline",
-  inline: true,
-  atom: true,
-  addAttributes() {
-    return {
-      kind:       { default: "user",  parseHTML: (el) => (el as HTMLElement).getAttribute("data-kind") || "user" },
-      id:         { default: "",      parseHTML: (el) => (el as HTMLElement).getAttribute("data-id") || "" },
-      label:      { default: "",      parseHTML: (el) => (el as HTMLElement).getAttribute("data-label") || "" },
-      identifier: { default: "",      parseHTML: (el) => (el as HTMLElement).getAttribute("data-identifier") || "" },
-    };
-  },
-  parseHTML() { return [{ tag: "span[data-mention]" }]; },
-  renderHTML({ HTMLAttributes }) {
-    const { kind, id, label, identifier } = HTMLAttributes;
-    const display = kind === "user" ? `@${label}` : kind === "issue" ? `${identifier} ${label}` : `[[${label}]]`;
-    return ["span", {
-      "data-mention": "", "data-kind": kind, "data-id": id, "data-label": label, "data-identifier": identifier ?? "",
-      class: `doc-mention doc-mention-${kind}`,
-    }, display];
-  },
-  addNodeView() { return ReactNodeViewRenderer(MentionView); },
-});
 
 /* ── 이슈 카드 (block) — 이슈 정보를 테이블처럼 영구 임베드 ── */
 function IssueCardView({ node }: NodeViewProps) {
@@ -1003,128 +770,6 @@ function IssueCardView({ node }: NodeViewProps) {
   );
 }
 
-const IssueCard = Node.create({
-  name: "issueCard",
-  group: "block",
-  atom: true,
-  draggable: true,
-  addAttributes() {
-    return {
-      id:         { default: "", parseHTML: (el) => (el as HTMLElement).getAttribute("data-id") || "" },
-      identifier: { default: "", parseHTML: (el) => (el as HTMLElement).getAttribute("data-identifier") || "" },
-      label:      { default: "", parseHTML: (el) => (el as HTMLElement).getAttribute("data-label") || "" },
-    };
-  },
-  parseHTML() {
-    return [
-      { tag: "div[data-issue-card]" },
-      /* legacy: 기존에 inline mention kind=issue로 저장된 건 자동으로 카드로 업그레이드 */
-      {
-        tag: "span[data-mention]",
-        priority: 60,
-        getAttrs: (el) => {
-          const kind = (el as HTMLElement).getAttribute("data-kind");
-          if (kind !== "issue") return false;
-          return {
-            id: (el as HTMLElement).getAttribute("data-id") || "",
-            identifier: (el as HTMLElement).getAttribute("data-identifier") || "",
-            label: (el as HTMLElement).getAttribute("data-label") || "",
-          };
-        },
-      },
-    ];
-  },
-  renderHTML({ HTMLAttributes }) {
-    const { id, identifier, label } = HTMLAttributes;
-    return ["div", {
-      "data-issue-card": "", "data-id": id, "data-identifier": identifier, "data-label": label,
-      class: "doc-issue-card",
-    }, `${identifier ?? ""} ${label ?? ""}`];
-  },
-  addNodeView() { return ReactNodeViewRenderer(IssueCardView); },
-});
-
-/* ── Math (KaTeX) 인라인/블록 ── */
-function MathView({ node, updateAttributes, editor }: NodeViewProps) {
-  const latex: string = node.attrs.latex ?? "";
-  const isBlock = node.type.name === "mathBlock";
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(latex);
-  const renderRef = useRef<HTMLSpanElement>(null);
-
-  useEffect(() => {
-    if (editing || !renderRef.current) return;
-    try {
-      katex.render(
-        latex || (isBlock ? "\\text{수식 입력}" : "x"),
-        renderRef.current,
-        { throwOnError: false, displayMode: isBlock },
-      );
-    } catch { /* invalid latex — katex already handles */ }
-  }, [latex, isBlock, editing]);
-
-  const commit = () => { updateAttributes({ latex: draft }); setEditing(false); };
-  const Tag = isBlock ? "div" : "span";
-
-  return (
-    <NodeViewWrapper as={Tag as any} className={cn("doc-math", isBlock && "doc-math-block")}>
-      {editing ? (
-        <span className="inline-flex items-center gap-1" contentEditable={false}>
-          <input
-            autoFocus
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onBlur={commit}
-            onMouseDown={(e) => e.stopPropagation()}
-            onClick={(e) => e.stopPropagation()}
-            onKeyDown={(e) => {
-              e.stopPropagation();
-              if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); commit(); }
-              if (e.key === "Escape") { e.preventDefault(); setEditing(false); }
-            }}
-            placeholder="LaTeX..."
-            className="text-sm font-mono bg-muted border rounded px-2 py-0.5 outline-none min-w-[200px]"
-          />
-        </span>
-      ) : (
-        <span
-          ref={renderRef}
-          contentEditable={false}
-          onClick={(e) => { e.stopPropagation(); if (editor.isEditable) { setDraft(latex); setEditing(true); } }}
-          className="cursor-pointer"
-        />
-      )}
-    </NodeViewWrapper>
-  );
-}
-
-// @ts-expect-error unused — reserved for future math node registration
-const _MathInline = Node.create({
-  name: "mathInline",
-  group: "inline",
-  inline: true,
-  atom: true,
-  addAttributes() { return { latex: { default: "", parseHTML: (el) => (el as HTMLElement).getAttribute("data-latex") } }; },
-  parseHTML() { return [{ tag: "span[data-math-inline]" }]; },
-  renderHTML({ HTMLAttributes }) {
-    return ["span", { "data-math-inline": "", "data-latex": HTMLAttributes.latex, class: "doc-math" }, HTMLAttributes.latex];
-  },
-  addNodeView() { return ReactNodeViewRenderer(MathView); },
-});
-
-// @ts-expect-error unused — reserved for future math node registration
-const _MathBlock = Node.create({
-  name: "mathBlock",
-  group: "block",
-  atom: true,
-  addAttributes() { return { latex: { default: "", parseHTML: (el) => (el as HTMLElement).getAttribute("data-latex") } }; },
-  parseHTML() { return [{ tag: "div[data-math-block]" }]; },
-  renderHTML({ HTMLAttributes }) {
-    return ["div", { "data-math-block": "", "data-latex": HTMLAttributes.latex, class: "doc-math doc-math-block" }, HTMLAttributes.latex];
-  },
-  addNodeView() { return ReactNodeViewRenderer(MathView); },
-});
-
 /* ── Mermaid ── */
 mermaid.initialize({ startOnLoad: false, theme: "default", securityLevel: "loose" });
 
@@ -1184,52 +829,7 @@ function MermaidView({ node, updateAttributes, editor }: NodeViewProps) {
   );
 }
 
-const Mermaid = Node.create({
-  name: "mermaid",
-  group: "block",
-  atom: true,
-  addAttributes() {
-    return { code: { default: "", parseHTML: (el) => (el as HTMLElement).getAttribute("data-code") || "" } };
-  },
-  parseHTML() { return [{ tag: "div[data-mermaid]" }]; },
-  renderHTML({ HTMLAttributes }) {
-    return ["div", { "data-mermaid": "", "data-code": HTMLAttributes.code, class: "doc-mermaid" }];
-  },
-  addNodeView() { return ReactNodeViewRenderer(MermaidView); },
-});
-
 /* ── Columns 레이아웃 ── */
-const ColumnList = Node.create({
-  name: "columnList",
-  group: "block",
-  content: "column+",
-  parseHTML() { return [{ tag: "div[data-column-list]" }]; },
-  renderHTML({ HTMLAttributes }) {
-    return ["div", mergeAttributes(HTMLAttributes, { "data-column-list": "", class: "doc-columns" }), 0];
-  },
-  addCommands() {
-    return {
-      setColumns: (n: number) => ({ commands }: any) => {
-        const cols = Array.from({ length: n }, () => ({
-          type: "column",
-          content: [{ type: "paragraph" }],
-        }));
-        return commands.insertContent({ type: "columnList", content: cols });
-      },
-    } as any;
-  },
-});
-
-const Column = Node.create({
-  name: "column",
-  content: "block+",
-  isolating: true,
-  parseHTML() { return [{ tag: "div[data-column]" }]; },
-  renderHTML({ HTMLAttributes }) {
-    return ["div", mergeAttributes(HTMLAttributes, { "data-column": "", class: "doc-column" }), 0];
-  },
-});
-
 /* ── Status 배지 (인라인) ── */
 const STATUS_COLORS = ["gray", "red", "orange", "green", "blue", "purple", "pink"] as const;
 type StatusColor = typeof STATUS_COLORS[number];
@@ -1287,25 +887,6 @@ function StatusView({ node, updateAttributes, editor }: NodeViewProps) {
   );
 }
 
-const Status = Node.create({
-  name: "status",
-  group: "inline",
-  inline: true,
-  atom: true,
-  addAttributes() {
-    return {
-      label: { default: "Status", parseHTML: (el) => (el as HTMLElement).getAttribute("data-label") || "Status" },
-      color: { default: "gray", parseHTML: (el) => (el as HTMLElement).getAttribute("data-color") || "gray" },
-    };
-  },
-  parseHTML() { return [{ tag: "span[data-status]" }]; },
-  renderHTML({ HTMLAttributes }) {
-    const { label, color } = HTMLAttributes;
-    return ["span", { "data-status": "", "data-label": label, "data-color": color, class: `doc-status doc-status-${color}` }, `● ${label}`];
-  },
-  addNodeView() { return ReactNodeViewRenderer(StatusView); },
-});
-
 /* ── Subpages (현재 문서의 하위 문서 자동 리스트) ── */
 function SubpagesView() {
   const ctx = useContext(DocEditorContext);
@@ -1342,16 +923,28 @@ function SubpagesView() {
   );
 }
 
-const Subpages = Node.create({
-  name: "subpages",
-  group: "block",
-  atom: true,
-  parseHTML() { return [{ tag: "div[data-subpages]" }]; },
-  renderHTML({ HTMLAttributes }) {
-    return ["div", mergeAttributes(HTMLAttributes, { "data-subpages": "", class: "doc-subpages" }), ""];
-  },
-  addNodeView() { return ReactNodeViewRenderer(SubpagesView); },
-});
+/**
+ * 노드 이름 → 그 노드를 그리는 React 컴포넌트.
+ *
+ * 스키마 목록(doc-schema)과 이 표를 나눠 둔 것이 이 파일의 요점이다. 서버는 목록만 쓰고,
+ * 브라우저는 목록에 이 표를 얹는다. 여기 없는 노드는 renderHTML 결과가 그대로 그려진다.
+ */
+/* 값 타입을 ReactNodeViewRenderer 가 받는 형태로 둔다 — NodeViewProps 로 좁히면
+   ref 가 빠져 있어 렌더러에 넘길 때 어긋난다 */
+const NODE_VIEWS: Record<string, Parameters<typeof ReactNodeViewRenderer>[0]> = {
+  image:          ImageNodeView,
+  attachment:     AttachmentCardView,
+  callout:        CalloutView,
+  toggle:         ToggleView,
+  mention:        MentionView,
+  issueCard:      IssueCardView,
+  mermaid:        MermaidView,
+  status:         StatusView,
+  subpages:       SubpagesView,
+  bookmarkCard:   BookmarkCardView,
+  imageGallery:   ImageGalleryView,
+  issueViewEmbed: IssueViewEmbedView,
+};
 
 interface Props {
   content: string;
@@ -1366,8 +959,6 @@ interface Props {
   projectId?: string;
   /* 실시간 협업 — 주어지면 Yjs Collaboration 확장 활성화, content는 Y.Doc 기반 */
   collab?: DocCollab;
-  /* true면 Y.Doc이 비어 있을 때 content를 Y.Doc에 시드 (최초 연결 사용자만) */
-  shouldSeed?: boolean;
   /* 블록 댓글 시작 — 선택된 텍스트 전달, 스레드 ID 리턴 시 에디터가 mark 적용 */
   onStartComment?: (selectedText: string) => Promise<string | null>;
   /* 댓글 마크 클릭 시 부모에 알림 */
@@ -1376,6 +967,9 @@ interface Props {
   onCommentMarksRemoved?: (threadIds: string[]) => void;
   /* 해결됨 상태로 스타일 분기할 thread id 집합 — DOM에 data-resolved 주입 */
   resolvedThreadIds?: Set<string>;
+  /* 본문에서 #태그를 고르면 그 라벨을 문서에도 붙인다. 현재 라벨 목록을 아는 쪽(페이지)이
+     붙이는 일을 맡는다 — 에디터가 직접 PATCH 하면 기존 라벨을 덮어쓴다. */
+  onAttachLabel?: (labelId: string) => void;
 }
 
 /* ── 슬래시 명령어 ── */
@@ -1442,7 +1036,7 @@ const EMOJIS: Array<{ name: string; char: string; kw?: string }> = [
   { name: "hundred", char: "💯" }, { name: "muscle", char: "💪" }, { name: "coffee", char: "☕" },
 ];
 
-export function DocumentEditor({ content, onChange, onBlur, placeholder: _placeholder, editable = true, onFileUpload, workspaceSlug, spaceId, docId, projectId, collab, shouldSeed, onStartComment, onCommentMarkClick, onCommentMarksRemoved, resolvedThreadIds }: Props) {
+export function DocumentEditor({ content, onChange, onBlur, placeholder: _placeholder, editable = true, onFileUpload, workspaceSlug, spaceId, docId, projectId, collab, onStartComment, onCommentMarkClick, onCommentMarksRemoved, resolvedThreadIds, onAttachLabel }: Props) {
   const docCtx = useMemo(() => ({ workspaceSlug, spaceId, docId, projectId }), [workspaceSlug, spaceId, docId, projectId]);
   const { t } = useTranslation();
   const [slashOpen, setSlashOpen] = useState(false);
@@ -1455,10 +1049,14 @@ export function DocumentEditor({ content, onChange, onBlur, placeholder: _placeh
   const [emojiIdx, setEmojiIdx] = useState(0);
   const [mentionOpen, setMentionOpen] = useState(false);
   const [mentionKind, setMentionKind] = useState<MentionKind>("user");
+  /* 문서 멘션은 트리거가 둘(`#`, `[[`)이라 kind 만으로는 지울 텍스트 범위를 못 정한다 */
+  const [mentionTrigger, setMentionTrigger] = useState<MentionTrigger>("@");
   const [mentionPos, setMentionPos] = useState<{ top: number; left: number } | null>(null);
   const [mentionQuery, setMentionQuery] = useState("");
+  /* 소문자화 이전의 입력 그대로 — 새 문서를 만들 때 제목으로 쓴다 */
+  const [mentionRaw, setMentionRaw] = useState("");
   const [mentionIdx, setMentionIdx] = useState(0);
-  const [mentionResults, setMentionResults] = useState<Array<{ kind: MentionKind; id: string; label: string; sublabel?: string; identifier?: string; parent?: string | null; depth?: number; hasChildren?: boolean }>>([]);
+  const [mentionResults, setMentionResults] = useState<MentionItem[]>([]);
   const [mentionCollapsed, setMentionCollapsed] = useState<Set<string>>(new Set());
   const currentUser = useAuthStore((s) => s.user);
   const [uploading, setUploading] = useState(false);
@@ -1474,38 +1072,22 @@ export function DocumentEditor({ content, onChange, onBlur, placeholder: _placeh
     addStorage() { return { uploadFn: onFileUpload }; },
   }), [onFileUpload]);
 
+  /* 스키마 확장에 노드뷰를 덧입힌다. 목록 자체는 doc-schema 가 갖고 있고 여기서는
+     "이 노드는 이 React 컴포넌트로 그린다"만 얹는다 — 노드를 한쪽에만 추가하는 사고가 구조적으로 막힌다. */
+  const schemaExtensions = useMemo(
+    () => docExtensions({ collab: !!collab }).map((ext) => {
+      const view = NODE_VIEWS[ext.name];
+      /* addNodeView 는 Node 에만 있는데 목록 타입은 Extension 이라 여기서만 느슨하게 다룬다 */
+      return view ? (ext as any).extend({ addNodeView: () => ReactNodeViewRenderer(view) }) : ext;
+    }),
+    [collab],
+  );
+
   const editor = useEditor({
     extensions: [
       FileUploadStore,
-      /* Collaboration 사용 시 StarterKit의 undoRedo를 비활성화 —
-         Yjs UndoManager(Collaboration extension 내장)가 이 역할 담당. 중복되면 히스토리 깨짐. */
-      StarterKit.configure({
-        heading: { levels: [1, 2, 3] },
-        codeBlock: false,
-        ...(collab ? { undoRedo: false as const } : {}),
-      }),
-      LinkExt.configure({ openOnClick: false }),
-      CodeBlockLowlight.configure({ lowlight }),
-      Underline,
-      Highlight.configure({ multicolor: true }),
-      TextStyle,
-      Color,
-      TextAlign.configure({ types: ["heading", "paragraph"] }),
-      Superscript,
-      Subscript,
-      TaskList,
-      TaskItem.configure({ nested: true }),
-      Table.configure({
-        resizable: true,
-        cellMinWidth: 60,
-        allowTableNodeSelection: false,
-        HTMLAttributes: { class: "doc-table" },
-      }),
-      TableRow,
-      TableHeader,
-      TableCell,
-      Callout,
-      Toggle,
+      ...schemaExtensions,
+      /* 아래는 스키마에 영향이 없는 브라우저 전용 확장 — 서버는 쓰지 않는다 */
       CharacterCount,
       GlobalDragHandle.configure({
         dragHandleWidth: 20,
@@ -1515,23 +1097,6 @@ export function DocumentEditor({ content, onChange, onBlur, placeholder: _placeh
         searchResultClass: "doc-search-hit",
         disableRegex: false,
       }),
-      /* Math/Mermaid/Columns: 슬래시에서는 제거했지만 기존 문서 호환을 위해 노드/익스텐션은 유지 */
-      MathExtension.configure({ evaluation: false, addInlineMath: true }),
-      Mermaid,
-      ColumnList,
-      Column,
-      Status,
-      Subpages,
-      IssueViewEmbed,
-      BookmarkCard,
-      ImageGallery,
-      Mention,
-      IssueCard,
-      CommentMark,
-      ImageNode,
-      VideoNode,
-      PdfNode,
-      AttachmentNode,
       /* 협업 확장 — ydoc이 있을 때만. provider가 아직 없어도 Collaboration은 동작.
          CollaborationCaret은 provider.awareness가 있을 때만 yCursorPlugin 붙임. */
       ...(collab ? [
@@ -1546,11 +1111,12 @@ export function DocumentEditor({ content, onChange, onBlur, placeholder: _placeh
       ] : []),
     ],
     /* Collaboration 모드: Y.Doc이 content의 source of truth. 초기 content는
-       비워두고, shouldSeed 사용자만 mount 후 seed. */
+       비워둔다 — 서버가 Y.Doc 을 채워 보낸다. */
     content: collab ? "" : content,
     editable,
     editorProps: {
-      attributes: { class: "doc-editor outline-none min-h-[400px]" },
+      /* flex-1 — 부모가 준 높이를 본문이 채운다. min-h 는 flex 가 통하지 않는 맥락(인쇄 등) 대비 바닥값. */
+      attributes: { class: "doc-editor outline-none flex-1 min-h-[200px]" },
     },
     onUpdate: ({ editor: e }) => {
       onChange(e.getHTML());
@@ -1562,9 +1128,7 @@ export function DocumentEditor({ content, onChange, onBlur, placeholder: _placeh
          `\s`만 쓰면 한글 뒤엔 매치 안 됨(한글은 \w도 \s도 아님). */
       const ms  = txt.match(/(?:^|[^\w])\/([\w]*)$/);
       const me  = txt.match(/(?:^|[^\w]):([\w]*)$/);
-      const mAt  = txt.match(/(?:^|[^\w])@([\w가-힣ㄱ-ㅎㅏ-ㅣ\- ]*)$/);
-      const mHash = txt.match(/(?:^|[^\w])#([\w가-힣ㄱ-ㅎㅏ-ㅣ\- ]*)$/);
-      const mDollar = txt.match(/(?:^|[^\w])\$([\w-]*)$/);
+      const mention = matchMentionTrigger(txt);
       /* 팝업 위치 계산 — 뷰포트 벗어나면 위로 뒤집고, 좌우도 clamp */
       const placePopup = (coords: { top: number; bottom: number; left: number }, w: number, h: number) => {
         const topCandidate = coords.bottom + 4;
@@ -1575,8 +1139,10 @@ export function DocumentEditor({ content, onChange, onBlur, placeholder: _placeh
         const left = Math.max(8, Math.min(coords.left, window.innerWidth - w - 8));
         return { top, left };
       };
-      const openMention = (kind: MentionKind, q: string) => {
+      const openMention = (kind: MentionKind, q: string, trigger: MentionTrigger) => {
         setMentionKind(kind);
+        setMentionTrigger(trigger);
+        setMentionRaw(q);
         setMentionQuery(q.toLowerCase());
         setMentionIdx(0);
         const coords = e.view.coordsAtPos(from);
@@ -1598,12 +1164,8 @@ export function DocumentEditor({ content, onChange, onBlur, placeholder: _placeh
         setEmojiPos(placePopup(coords, 256, 320));
         setEmojiOpen(true);
         setSlashOpen(false); setMentionOpen(false);
-      } else if (mAt) {
-        openMention("user", mAt[1]);
-      } else if (mHash) {
-        openMention("doc", mHash[1]);
-      } else if (mDollar) {
-        openMention("issue", mDollar[1]);
+      } else if (mention) {
+        openMention(mention.kind, mention.query, mention.trigger);
       } else {
         setSlashOpen(false);
         setEmojiOpen(false);
@@ -1619,23 +1181,9 @@ export function DocumentEditor({ content, onChange, onBlur, placeholder: _placeh
     if (content !== editor.getHTML()) editor.commands.setContent(content, { emitUpdate: false });
   }, [content, collab, editor]);
 
-  /* 협업 초기 시드: has_yjs_state=false였던 문서를 처음 연 사용자가 기존 HTML을
-     Y.Doc에 주입. 서버 측 sync 이후 실행 (너무 이른 시점엔 원격 상태가 안 도착). */
-  const seededRef = useRef(false);
-  useEffect(() => {
-    if (!editor || !collab || !shouldSeed || seededRef.current) return;
-    if (!collab.synced) return;
-    const trimmed = (content || "").replace(/<p><\/p>/g, "").trim();
-    if (!trimmed) return;
-    if (!editor.isEmpty) return;
-    /* 동시 연결 시드 레이스 완화 — 짧게 대기 후 여전히 비어 있으면 시드 */
-    const t = setTimeout(() => {
-      if (!editor.isEmpty || seededRef.current) return;
-      seededRef.current = true;
-      editor.commands.setContent(content);
-    }, 300);
-    return () => clearTimeout(t);
-  }, [editor, collab?.synced, shouldSeed, content, collab]);
+  /* 초기 시드는 이제 협업 서버가 한다(onLoadDocument).
+     전에는 "먼저 접속한 브라우저"가 뿌렸는데, 동시에 들어오면 누가 뿌릴지 겨루는 문제가 있어
+     300ms 지연으로 완화해야 했다. 서버가 하면 그 경합 자체가 없다. */
 
   /* 댓글 마크 클릭 → 부모에 thread id 전달. capture 단계에서 받아 에디터 기본
      포커스보다 먼저 처리 (selection이 마크에 걸리면 사이드바 트리거) */
@@ -1783,7 +1331,14 @@ export function DocumentEditor({ content, onChange, onBlur, placeholder: _placeh
     el?.scrollIntoView({ block: "nearest" });
   }, [emojiIdx, emojiOpen]);
 
-  // @Mention 검색 — kind별로 해당 종류만 검색 (@=user, #=doc, $=issue)
+  /* 검색 effect 안에서 원본 질의를 읽기 위한 ref — state 로 의존성에 넣으면
+     소문자 질의와 원본이 각각 바뀔 때마다 검색이 두 번 돈다. */
+  const mentionRawRef = useRef("");
+  mentionRawRef.current = mentionRaw;
+  const triggerRef = useRef<MentionTrigger>("@");
+  triggerRef.current = mentionTrigger;
+
+  // @Mention 검색 — kind별로 해당 종류만 검색 (@=user, [[·#=doc, $=issue)
   useEffect(() => {
     if (!mentionOpen || !workspaceSlug) { setMentionResults([]); return; }
     const q = mentionQuery.trim().toLowerCase();
@@ -1806,9 +1361,33 @@ export function DocumentEditor({ content, onChange, onBlur, placeholder: _placeh
           setMentionResults(items);
         } else if (kind === "doc") {
           const docMod = await import("@/api/documents");
-          const docs = await docMod.documentsApi.search(workspaceSlug, q || "")
-            .catch((): DocType[] => []);
-          const items = docs.slice(0, 10).map((d) => ({ kind: "doc" as MentionKind, id: d.id, label: d.title }));
+          const withLabels = triggerIncludesLabels(triggerRef.current);
+          const [docs, labels] = await Promise.all([
+            docMod.documentsApi.search(workspaceSlug, q || "").catch((): DocType[] => []),
+            withLabels
+              ? docMod.documentsApi.labels.list(workspaceSlug).catch(() => [])
+              : Promise.resolve([]),
+          ]);
+          const raw0 = mentionRawRef.current.trim();
+          /* `#` 은 Obsidian 에서 태그를 뜻하므로 태그를 위에 둔다. 문서는 그 아래 —
+             `#` 으로 문서를 부르던 기존 손버릇도 그대로 통한다. */
+          const matchedLabels = labels
+            .filter((l) => !q || l.name.toLowerCase().includes(q))
+            .slice(0, 6)
+            .map((l) => ({ kind: "label" as MentionKind, id: l.id, label: l.name, sublabel: "태그" }));
+          const items: MentionItem[] = [...matchedLabels];
+          if (withLabels && raw0 && !labels.some((l) => l.name.trim().toLowerCase() === q)) {
+            items.push({ kind: "label", id: "__create__", label: raw0, isCreate: true, sublabel: "태그" });
+          }
+          items.push(...docs.slice(0, 10).map((d) => ({
+            kind: "doc" as MentionKind, id: d.id, label: d.title, space: d.space,
+          })));
+          /* 찾는 문서가 아직 없을 때 — 링크를 걸면서 그 자리에서 만든다.
+             제목이 정확히 일치하는 문서가 이미 있으면 굳이 권하지 않는다. */
+          const exact = docs.some((d) => d.title.trim().toLowerCase() === q);
+          if (raw0 && !exact && spaceId) {
+            items.push({ kind: "doc", id: "__create__", label: raw0, isCreate: true, space: spaceId });
+          }
           setMentionResults(items);
         } else if (kind === "issue") {
           if (!projectId) { setMentionResults([]); return; }
@@ -1844,38 +1423,69 @@ export function DocumentEditor({ content, onChange, onBlur, placeholder: _placeh
       } catch { setMentionResults([]); }
     }, 200);
     return () => clearTimeout(handle);
-  }, [mentionOpen, mentionKind, mentionQuery, workspaceSlug, projectId, currentUser]);
+  }, [mentionOpen, mentionKind, mentionTrigger, mentionQuery, workspaceSlug, projectId, currentUser]);
 
-  const runMention = useCallback((item: { kind: MentionKind; id: string; label: string; identifier?: string }) => {
+  const qc = useQueryClient();
+
+  const runMention = useCallback((item: MentionItem) => {
     if (!editor) return;
     const { from } = editor.state.selection;
     const txt = editor.state.doc.textBetween(Math.max(0, from - 30), from, "\n");
-    /* kind에 맞는 트리거 문자로 텍스트 제거 범위 결정 */
-    const regex = item.kind === "user"
-      ? /(?:^|[^\w])@([\w가-힣ㄱ-ㅎㅏ-ㅣ\- ]*)$/
-      : item.kind === "doc"
-        ? /(?:^|[^\w])#([\w가-힣ㄱ-ㅎㅏ-ㅣ\- ]*)$/
-        : /(?:^|[^\w])\$([\w-]*)$/;
-    const m = txt.match(regex);
-    let df = from;
-    if (m) df = from - m[0].length + (m[0].startsWith(" ") ? 1 : 0);
+    /* 팝업을 연 트리거를 기준으로 지울 범위를 잡는다 (`#`과 `[[`는 길이가 다르다) */
+    const df = from - mentionDeleteLength(txt, mentionTrigger);
+
+    const insertMention = (attrs: { kind: MentionKind; id: string; label: string; identifier?: string; space?: string }) => {
+      editor.chain().focus()
+        .deleteRange({ from: df, to: from })
+        .insertContent([
+          { type: "mention", attrs: { identifier: "", space: "", ...attrs } },
+          { type: "text", text: " " },
+        ])
+        .run();
+    };
+
     /* 이슈는 block 카드로, user/doc은 inline mention */
     if (item.kind === "issue") {
       editor.chain().focus()
         .deleteRange({ from: df, to: from })
         .insertContent({ type: "issueCard", attrs: { id: item.id, identifier: item.identifier ?? "", label: item.label } })
         .run();
+    } else if (item.kind === "label") {
+      /* 태그를 고르면 본문에 칩을 박고, 같은 라벨을 문서에도 붙인다.
+         본문에서 지워도 라벨은 유지된다 — 해제는 제목 아래 라벨 줄에서 한다.
+         본문을 라벨의 원본으로 삼으면 라벨 피커로 붙인 것이 저장할 때마다 지워진다. */
+      const attach = (labelId: string, name: string) => {
+        insertMention({ kind: "label", id: labelId, label: name });
+        onAttachLabel?.(labelId);
+      };
+      if (item.isCreate) {
+        if (!workspaceSlug) { setMentionOpen(false); return; }
+        import("@/api/documents")
+          /* 같은 이름이 이미 있으면 서버가 기존 라벨을 그대로 돌려준다 — 분류가 갈라지지 않는다 */
+          .then(({ documentsApi }) => documentsApi.labels.create(workspaceSlug, { name: item.label }))
+          .then((created) => {
+            attach(created.id, created.name);
+            qc.invalidateQueries({ queryKey: ["document-labels", workspaceSlug] });
+          })
+          .catch(() => {});
+      } else {
+        attach(item.id, item.label);
+      }
+    } else if (item.isCreate) {
+      /* 없는 문서로의 링크 — 문서를 먼저 만들고, 만들어진 id 로 멘션을 넣는다.
+         만들기가 실패하면 아무것도 삽입하지 않는다(빈 곳을 가리키는 링크가 남지 않게). */
+      if (!workspaceSlug || !spaceId) { setMentionOpen(false); return; }
+      import("@/api/documents").then(({ documentsApi }) =>
+        documentsApi.create(workspaceSlug, spaceId, { title: item.label, parent: docId ?? null })
+      ).then((created) => {
+        insertMention({ kind: "doc", id: created.id, label: created.title, space: created.space });
+        qc.invalidateQueries({ queryKey: ["documents", workspaceSlug, spaceId] });
+      }).catch(() => {});
     } else {
-      editor.chain().focus()
-        .deleteRange({ from: df, to: from })
-        .insertContent([
-          { type: "mention", attrs: { kind: item.kind, id: item.id, label: item.label, identifier: item.identifier ?? "" } },
-          { type: "text", text: " " },
-        ])
-        .run();
+      insertMention({ kind: item.kind, id: item.id, label: item.label, identifier: item.identifier ?? "", space: item.space ?? "" });
     }
     setMentionOpen(false);
-  }, [editor]);
+  }, [editor, mentionTrigger, workspaceSlug, spaceId, docId, qc, onAttachLabel]);
 
   // 멘션 키보드
   useEffect(() => {
@@ -2077,7 +1687,9 @@ export function DocumentEditor({ content, onChange, onBlur, placeholder: _placeh
 
   return (
     <DocEditorContext.Provider value={docCtx}>
-    <div className="flex flex-col h-full relative" ref={wrapperRef}>
+    {/* flex-1 — 부모가 준 세로 공간을 채운다. min-h-0 은 쓰지 않는다:
+        그러면 내용이 길 때 카드(overflow-hidden)에 잘린다. */}
+    <div className="flex flex-col flex-1 relative" ref={wrapperRef}>
       {/* 편집 중 업로드 인디케이터 */}
       {uploading && (
         <div className="flex items-center gap-2 px-4 py-1.5 bg-primary/5 border-b text-xs text-primary">
@@ -2119,10 +1731,12 @@ export function DocumentEditor({ content, onChange, onBlur, placeholder: _placeh
       {/* Phase 2.6 — 본문은 사용자의 density 토글과 무관하게 항상 comfortable 강제.
           좌우 padding 은 부모(DocumentSpacePage 의 px-6 sm:px-10) 가 담당 — 여기서 또
           px-6 을 두면 제목 input(w-full) 보다 24px 좁아져 정렬이 어긋난다. */}
-      <div className="flex-1 overflow-y-auto py-4 cursor-text"
+      {/* 세로로 남는 공간을 본문이 가져간다 — 빈 문서에서도 편집 영역이 화면을 채운다.
+          여기서 overflow-y-auto 를 쓰면 페이지 스크롤 안에 스크롤이 하나 더 생긴다. 페이지 쪽 하나로 둔다. */}
+      <div className="flex-1 flex flex-col py-4 cursor-text"
         data-density="comfortable"
         onClick={() => { if (!editor.isFocused) editor.chain().focus().run(); }}>
-        <EditorContent editor={editor} />
+        <EditorContent editor={editor} className="flex-1 flex flex-col" />
       </div>
 
       {slashOpen && slashPos && filtered.length > 0 && (
@@ -2175,7 +1789,9 @@ export function DocumentEditor({ content, onChange, onBlur, placeholder: _placeh
           {/* 헤더 — 현재 검색 대상 명시 */}
           <div className="flex items-center gap-1.5 px-3 py-1.5 border-b bg-muted/30 text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
             {mentionKind === "user"  && <><AtSign className="h-3 w-3" /> {t("documents.mentionUser", "사용자 멘션")}</>}
-            {mentionKind === "doc"   && <><FileText className="h-3 w-3" /> {t("documents.mentionDoc", "문서 참조")}</>}
+            {mentionKind === "doc"   && (triggerIncludesLabels(mentionTrigger)
+              ? <><Tag className="h-3 w-3" /> {t("documents.mentionTagOrDoc", "태그 · 문서")}</>
+              : <><FileText className="h-3 w-3" /> {t("documents.mentionDoc", "문서 참조")}</>)}
             {mentionKind === "issue" && <><Hash className="h-3 w-3" /> {t("documents.mentionIssue", "이슈 참조")}</>}
           </div>
           <div className="p-1 max-h-72 overflow-y-auto">
@@ -2227,14 +1843,23 @@ export function DocumentEditor({ content, onChange, onBlur, placeholder: _placeh
                       </span>
                     ) : <span className="w-4 shrink-0" />}
                     {item.kind === "user" && <UserIcon className="h-3.5 w-3.5 shrink-0 text-primary" />}
-                    {item.kind === "doc"  && <FileText className="h-3.5 w-3.5 shrink-0 text-blue-400" />}
+                    {item.kind === "doc"  && (item.isCreate
+                      ? <FilePlus2 className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
+                      : <FileText className="h-3.5 w-3.5 shrink-0 text-blue-400" />)}
+                    {item.kind === "label" && <Tag className="h-3.5 w-3.5 shrink-0 text-violet-400" />}
                     {item.kind === "issue" && <Hash className="h-3.5 w-3.5 shrink-0 text-amber-500" />}
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5">
                         {item.identifier && <span className="text-2xs font-mono font-semibold text-muted-foreground/70">{item.identifier}</span>}
                         <span className="truncate text-foreground">{item.label}</span>
                       </div>
-                      {item.sublabel && <div className="text-2xs text-muted-foreground truncate">{item.sublabel}</div>}
+                      {item.isCreate
+                        ? <div className="text-2xs text-emerald-600 dark:text-emerald-400 truncate">
+                            {item.kind === "label"
+                              ? t("documents.mentionCreateLabel", "새 태그로 만들어 붙이기")
+                              : t("documents.mentionCreateDoc", "새 문서로 만들어 연결")}
+                          </div>
+                        : item.sublabel && <div className="text-2xs text-muted-foreground truncate">{item.sublabel}</div>}
                     </div>
                   </button>
                 );

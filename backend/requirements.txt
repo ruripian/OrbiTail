@@ -17,3 +17,4 @@ django-axes==7.0.2
 Pillow==11.1.0
 pycrdt>=0.10
 pycrdt-websocket>=0.15
+PyYAML==6.0.3

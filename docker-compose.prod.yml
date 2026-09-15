@@ -91,6 +91,23 @@ services:
       retries: 20
       start_period: 5s
 
+  # 실시간 협업 서버 — 문서 구조를 아는 쪽. 내부 전용이라 포트를 바깥에 열지 않는다
+  # (nginx 의 /collab 경로로만 닿는다).
+  collab:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.collab
+    image: "orbitail-collab:${TAG:-local}"
+    pull_policy: never
+    env_file:
+      - .env
+    environment:
+      - COLLAB_API_BASE=http://backend:8000/api
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: always
+
   nginx:
     build:
       context: ./nginx
@@ -118,6 +135,9 @@ services:
         restart: true
       frontend:
         condition: service_healthy
+        restart: true
+      collab:
+        condition: service_started
         restart: true
     restart: always
 

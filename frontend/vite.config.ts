@@ -102,6 +102,12 @@ export default defineConfig(({ mode }) => {
           target: "ws://backend:8000",
           ws: true,
         },
+        /* 문서 실시간 협업 — Django 가 아니라 collab(Hocuspocus) 로 간다 */
+        "/collab": {
+          target: "ws://collab:1234",
+          ws: true,
+          rewrite: (p) => p.replace(/^\/collab/, ""),
+        },
         "/media": {
           target: "http://backend:8000",
           changeOrigin: true,

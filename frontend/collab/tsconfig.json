@@ -1,0 +1,13 @@
+{
+  "//": "협업 서버는 Node 에서 돈다 — 브라우저용 tsconfig(include: src)와 별개로 타입 검사한다.",
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "types": ["node"],
+    "lib": ["ES2022", "DOM"],
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "module": "ESNext",
+    "moduleResolution": "bundler"
+  },
+  "include": ["server.ts", "../src/components/documents/doc-schema.ts"]
+}

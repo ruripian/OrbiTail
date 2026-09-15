@@ -12,7 +12,7 @@ import { toast } from "sonner";
 import {
   FileText, FolderOpen, FilePlus, FolderPlus,
   ArrowLeft, ChevronRight, ChevronDown, Star, LayoutGrid,
-  MoreHorizontal, Trash2, Pencil, Link as LinkIcon, Settings,
+  MoreHorizontal, Trash2, Pencil, Link as LinkIcon, Settings, Share2, Table2,
   Lock, Layers, User as UserIcon, Users,
 } from "lucide-react";
 import { documentsApi } from "@/api/documents";
@@ -175,6 +175,9 @@ export function DocumentLayout() {
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["documents", workspaceSlug, activeSpaceId] });
     qc.invalidateQueries({ queryKey: ["document-spaces", workspaceSlug] });
+    /* 열려 있는 문서 상세도 함께 — 이게 빠져 있어서 폴더를 표로 바꿔도 화면은
+       옛 응답(db_columns=null)을 그대로 그려 일반 문서처럼 보였다. */
+    qc.invalidateQueries({ queryKey: ["document", workspaceSlug, activeSpaceId] });
   };
 
   /* 순환 참조 감지 — targetId가 draggedId의 자손이면 true (순환 생김) */
@@ -216,11 +219,12 @@ export function DocumentLayout() {
 
   // 문서 생성
   const createMutation = useMutation({
-    mutationFn: (data: { title?: string; parent?: string | null; is_folder?: boolean; content_html?: string }) =>
+    mutationFn: (data: Partial<DocType>) =>
       documentsApi.create(workspaceSlug!, activeSpaceId!, data),
     onSuccess: (doc) => {
       invalidate();
-      if (!doc.is_folder) {
+      /* 표는 폴더지만 열 것이 있으므로 만들자마자 연다 — 평범한 폴더는 열어도 보여줄 게 없다 */
+      if (!doc.is_folder || doc.db_columns) {
         navigate(`/${workspaceSlug}/documents/space/${activeSpaceId}/${doc.id}`);
       }
     },
@@ -342,6 +346,10 @@ export function DocumentLayout() {
                     <LayoutGrid className="h-3.5 w-3.5 mr-2" />
                     {t("documents.explorer")}
                   </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate(`/${workspaceSlug}/documents/graph?space=${activeSpaceId}`)}>
+                    <Share2 className="h-3.5 w-3.5 mr-2" />
+                    {t("documents.graph", "관계망")}
+                  </DropdownMenuItem>
                   <DropdownMenuItem
                     onClick={() =>
                       toggleSpaceBookmark.mutate({
@@ -388,6 +396,18 @@ export function DocumentLayout() {
                 onClick={() => createMutation.mutate({ title: t("documents.newFolder"), is_folder: true })}
               >
                 <FolderPlus className="h-3.5 w-3.5" />
+              </Button>
+              {/* 새 표 — 같은 모양의 문서를 모아 정렬·필터할 때. 폴더를 만들고 따로 바꾸지 않아도 되게 한다. */}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 shrink-0"
+                title={t("documents.newDatabase", "새 표")}
+                onClick={() => createMutation.mutate({
+                  title: t("documents.newDatabase", "새 표"), is_folder: true, db_columns: [],
+                })}
+              >
+                <Table2 className="h-3.5 w-3.5" />
               </Button>
             </>
           )}
@@ -482,6 +502,10 @@ export function DocumentLayout() {
                     if (window.confirm(t("documents.deleteConfirm"))) deleteMutation.mutate(id);
                   }}
                   onRename={(id, title) => updateMutation.mutate({ id, data: { title } })}
+                  onUpdate={(id, data) => updateMutation.mutate({ id, data })}
+                  onCreateTable={(parentId) => createMutation.mutate({
+                    title: t("documents.newDatabase", "새 표"), parent: parentId, is_folder: true, db_columns: [],
+                  })}
                   onCreate={(parentId, isFolder) => {
                     if (isFolder) {
                       createMutation.mutate({
@@ -674,7 +698,7 @@ export function DocumentLayout() {
 
 function TreeNode({
   doc, childrenMap, depth, activeId, spaceId, workspaceSlug,
-  onDelete, onRename, onCreate, onMove, onIconChange: _onIconChange, expandIds,
+  onDelete, onRename, onCreate, onCreateTable, onMove, onUpdate, onIconChange: _onIconChange, expandIds,
   onDragStartGlobal, onDragEndGlobal,
 }: {
   doc: DocType;
@@ -686,6 +710,10 @@ function TreeNode({
   onDelete: (id: string) => void;
   onRename: (id: string, title: string) => void;
   onCreate: (parentId: string | null, isFolder: boolean) => void;
+  /** 하위에 표(칸을 가진 폴더)를 바로 만든다 */
+  onCreateTable: (parentId: string | null) => void;
+  /** 트리에서 바로 고치는 값 — 지금은 폴더의 표 칸(db_columns) 토글에 쓴다 */
+  onUpdate: (id: string, data: Partial<DocType>) => void;
   onIconChange?: (id: string, icon: IconProp) => void;
   onMove: (docIds: string[], targetId: string, position: "before" | "after" | "inside") => void;
   /** 이 집합에 든 노드는 자동으로 펼친다(이동 직후 대상 경로) */
@@ -757,7 +785,10 @@ function TreeNode({
           onMove(ids, doc.id, pos);
           if (pos === "inside") setExpanded(true);
         }}
-        onClick={() => doc.is_folder
+        /* 표로 만든 폴더는 "열 것"이 있으므로 누르면 표를 연다.
+           평범한 폴더는 지금까지처럼 펼치기만 한다 — 열어도 보여줄 게 없다.
+           어느 쪽이든 왼쪽 화살표로는 펼치고 접을 수 있다. */
+        onClick={() => (doc.is_folder && !doc.db_columns)
           ? setExpanded(!expanded)
           : navigate(`/${workspaceSlug}/documents/space/${spaceId}/${doc.id}`)
         }
@@ -856,6 +887,24 @@ function TreeNode({
               <DropdownMenuItem onClick={() => onCreate(doc.id, true)}>
                 <FolderPlus className="h-3.5 w-3.5 mr-2" /> {t("documents.newFolder")}
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onCreateTable(doc.id)}>
+                <Table2 className="h-3.5 w-3.5 mr-2" /> {t("documents.newDatabase", "새 표")}
+              </DropdownMenuItem>
+              {/* 폴더를 표로 — 같은 모양의 문서를 모아 정렬·필터하고 싶을 때만 켠다.
+                  켜면 그 폴더를 누를 때 표가 열린다. */}
+              {doc.is_folder && (
+                <DropdownMenuItem
+                  onClick={() => {
+                    onUpdate(doc.id, { db_columns: doc.db_columns ? null : [] });
+                    if (!doc.db_columns) navigate(`/${workspaceSlug}/documents/space/${spaceId}/${doc.id}`);
+                  }}
+                >
+                  <Table2 className="h-3.5 w-3.5 mr-2" />
+                  {doc.db_columns
+                    ? t("documents.backToDocument", "표 해제")
+                    : t("documents.makeDatabase", "표로 만들기")}
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem
                 className="text-destructive focus:text-destructive"
                 onClick={() => onDelete(doc.id)}
@@ -879,7 +928,9 @@ function TreeNode({
           onDelete={onDelete}
           onRename={onRename}
           onCreate={onCreate}
+          onCreateTable={onCreateTable}
           onMove={onMove}
+          onUpdate={onUpdate}
           expandIds={expandIds}
           onDragStartGlobal={onDragStartGlobal}
           onDragEndGlobal={onDragEndGlobal}

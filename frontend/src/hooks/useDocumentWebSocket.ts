@@ -1,15 +1,20 @@
 /**
- * 문서 실시간 동시 편집 WebSocket provider
+ * 문서 실시간 동시 편집 provider
  *
- * Yjs CRDT + y-websocket protocol로 동일 문서를 여러 사용자가 동시 편집.
+ * Yjs CRDT 로 동일 문서를 여러 사용자가 동시 편집. 서버는 Hocuspocus(`frontend/collab/server.ts`)다.
  * 문서 ID가 바뀔 때마다 완전히 새로 연결 (이전 Y.Doc 재사용 금지 — 상태 오염 방지).
  * 페이지를 떠나면 즉시 해제 (ClickUp 성능 문제 방지).
+ *
+ * Django Channels 대신 Hocuspocus 를 쓰는 이유: 서버가 문서 **구조**를 알아야 본문을 읽고 쓸 수
+ * 있고(검색·AI·API·블록 참조가 전부 여기에 걸려 있다), Node 서버여야 프론트와 같은 TipTap
+ * 스키마를 그대로 재사용할 수 있다. 병합은 그대로 Yjs 가 한다.
  */
 
 import { useEffect, useState, useMemo } from "react";
 import * as Y from "yjs";
-import { WebsocketProvider } from "y-websocket";
+import { HocuspocusProvider } from "@hocuspocus/provider";
 import { useAuthStore } from "@/stores/authStore";
+import { getAccessToken } from "@/lib/token-storage";
 
 export interface PresencePeer {
   clientID: number;
@@ -21,7 +26,7 @@ export interface PresencePeer {
 
 export interface DocCollab {
   ydoc: Y.Doc;
-  provider: WebsocketProvider | null;
+  provider: HocuspocusProvider | null;
   connected: boolean;
   synced: boolean;         // 초기 sync 완료 여부 — 시드 판단 후 false이면 여전히 seed 가능
   peers: PresencePeer[];    // 자신 제외 접속자
@@ -60,26 +65,29 @@ export function useDocumentWebSocket(docId: string | undefined): DocCollab {
 
   /* provider는 state로 관리 — useEditor가 첫 렌더에서만 extensions를 고정하므로
      ref로 돌리면 provider가 null인 채로 CollaborationCursor가 영영 등록 안 됨. */
-  const [provider, setProvider] = useState<WebsocketProvider | null>(null);
+  const [provider, setProvider] = useState<HocuspocusProvider | null>(null);
 
   useEffect(() => {
     if (!docId) return;
 
-    const token = localStorage.getItem("access_token");
+    const token = getAccessToken();
     if (!token) return;
 
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsUrl = `${protocol}//${window.location.host}/ws/documents`;
+    const wsUrl = `${protocol}//${window.location.host}/collab`;
 
-    const p = new WebsocketProvider(wsUrl, docId, ydoc, {
-      params: { token },
-      connect: true,
+    const p = new HocuspocusProvider({
+      url: wsUrl,
+      name: docId,
+      document: ydoc,
+      /* 서버가 이 토큰을 Django 에 그대로 물어본다 — 권한 판정은 Django 한 곳에만 있다 */
+      token,
     });
 
     /* 커서/프레즌스 초기화 — CollaborationCursor도 동일 필드를 설정하지만
        provider 생성 시점에 한 번 해두면 초기 broadcast에 user 정보가 실림.
        id는 다중 탭/유령 세션 필터링용. */
-    p.awareness.setLocalStateField("user", {
+    p.awareness?.setLocalStateField("user", {
       id: me.id,
       name: me.name,
       color: me.color,
@@ -89,10 +97,11 @@ export function useDocumentWebSocket(docId: string | undefined): DocCollab {
     const onStatus = ({ status }: { status: string }) => {
       setConnected(status === "connected");
     };
-    const onSync = (isSynced: boolean) => {
-      if (isSynced) setSynced(true);
+    const onSync = ({ state }: { state: boolean }) => {
+      if (state) setSynced(true);
     };
     const onAwarenessChange = () => {
+      if (!p.awareness) return;
       const states = Array.from(p.awareness.getStates().entries()) as Array<[number, any]>;
       const self = p.awareness.clientID;
       const myUserId = me.id;
@@ -127,15 +136,16 @@ export function useDocumentWebSocket(docId: string | undefined): DocCollab {
     };
 
     p.on("status", onStatus);
-    p.on("sync", onSync);
-    p.awareness.on("change", onAwarenessChange);
+    p.on("synced", onSync);
+    /* awareness 는 연결이 서면 생긴다 — 있을 때만 붙인다 */
+    p.awareness?.on("change", onAwarenessChange);
 
     setProvider(p);
 
     return () => {
       p.off("status", onStatus);
-      p.off("sync", onSync);
-      p.awareness.off("change", onAwarenessChange);
+      p.off("synced", onSync);
+      p.awareness?.off("change", onAwarenessChange);
       p.destroy();
       setProvider(null);
       setConnected(false);

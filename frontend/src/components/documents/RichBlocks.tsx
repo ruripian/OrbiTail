@@ -3,8 +3,7 @@
  *
  * 둘 다 atom 노드 (NodeViewProps로 attrs 관리). content_html에 직렬화돼 영구 저장.
  */
-import { Node, mergeAttributes } from "@tiptap/core";
-import { ReactNodeViewRenderer, NodeViewWrapper, type NodeViewProps } from "@tiptap/react";
+import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react";
 import { useRef, useState } from "react";
 import { Link2, Loader2, ExternalLink, X, Plus, Image as ImageIcon, GripVertical, Columns2, Columns3, Columns4 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -17,7 +16,7 @@ import { cn } from "@/lib/utils";
 
 interface BookmarkAttrs { url: string; title?: string; description?: string; image?: string; }
 
-function BookmarkCardView({ node, updateAttributes }: NodeViewProps) {
+export function BookmarkCardView({ node, updateAttributes }: NodeViewProps) {
   const a = node.attrs as BookmarkAttrs;
   const [editing, setEditing] = useState(!a.url);
   const [draft, setDraft] = useState(a.url);
@@ -102,35 +101,7 @@ function BookmarkCardView({ node, updateAttributes }: NodeViewProps) {
   );
 }
 
-export const BookmarkCard = Node.create({
-  name: "bookmarkCard",
-  group: "block",
-  atom: true,
-  selectable: true,
-  draggable: true,
-  addAttributes() {
-    return {
-      url:         { default: "" },
-      title:       { default: "" },
-      description: { default: "" },
-      image:       { default: "" },
-    };
-  },
-  parseHTML() { return [{ tag: 'div[data-type="bookmark-card"]' }]; },
-  renderHTML({ HTMLAttributes, node }) {
-    return [
-      "div",
-      mergeAttributes(HTMLAttributes, {
-        "data-type": "bookmark-card",
-        "data-url": node.attrs.url,
-        "data-title": node.attrs.title,
-      }),
-      `🔗 ${node.attrs.title || node.attrs.url}`,
-    ];
-  },
-  addNodeView() { return ReactNodeViewRenderer(BookmarkCardView); },
-});
-
+/* 스키마는 doc-schema.ts 한 곳에만 있다 — 여기서는 노드뷰(BookmarkCardView)만 제공한다 */
 
 /* ────────────────────────────────────────────────────────────
  * 이미지 갤러리 — 여러 이미지를 그리드로. 컬럼 수 조절(2/3/4).
@@ -142,7 +113,7 @@ export const BookmarkCard = Node.create({
 interface GalleryItem { url: string; alt?: string; }
 interface GalleryAttrs { items: GalleryItem[]; columns: 2 | 3 | 4; }
 
-function ImageGalleryView({ node, updateAttributes, editor }: NodeViewProps) {
+export function ImageGalleryView({ node, updateAttributes, editor }: NodeViewProps) {
   const a = node.attrs as GalleryAttrs;
   const items = a.items ?? [];
   const cols = a.columns ?? 3;
@@ -260,32 +231,7 @@ function ImageGalleryView({ node, updateAttributes, editor }: NodeViewProps) {
   );
 }
 
-export const ImageGallery = Node.create({
-  name: "imageGallery",
-  group: "block",
-  atom: true,
-  selectable: true,
-  draggable: true,
-  addAttributes() {
-    return {
-      items:   { default: [] },
-      columns: { default: 3 },
-    };
-  },
-  parseHTML() { return [{ tag: 'div[data-type="image-gallery"]' }]; },
-  renderHTML({ HTMLAttributes, node }) {
-    const items = (node.attrs.items as GalleryItem[]) || [];
-    return [
-      "div",
-      mergeAttributes(HTMLAttributes, {
-        "data-type": "image-gallery",
-        "data-columns": String(node.attrs.columns),
-      }),
-      ...items.map((it) => ["img", { src: it.url, alt: it.alt || "" }] as any),
-    ];
-  },
-  addNodeView() { return ReactNodeViewRenderer(ImageGalleryView); },
-});
+/* 스키마는 doc-schema.ts — 노드뷰(ImageGalleryView)만 제공 */
 
 // 사용하지 않는 import 표시 회피
 export const __used_grip = GripVertical;

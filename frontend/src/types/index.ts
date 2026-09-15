@@ -336,6 +336,22 @@ export interface DocumentLabel {
   document_count: number;
 }
 
+/** 표(폴더 데이터베이스)의 칸 하나 */
+export type DbColumnType =
+  | "text" | "number" | "date" | "select" | "multi_select" | "checkbox"
+  /** 이슈·문서를 가리키는 칸 — 값은 { id, label } */
+  | "issue" | "doc"
+  /** 문서 자체에서 나오는 칸 — 사람이 채우지 않는다 */
+  | "created" | "updated";
+
+export interface DbColumn {
+  /** 이름이 곧 값의 key 다 — `.md` 머리말로 그대로 오간다 */
+  name: string;
+  type: DbColumnType;
+  /** select · multi_select 전용 */
+  options?: string[];
+}
+
 export interface Document {
   id: string;
   space: string;
@@ -354,6 +370,13 @@ export interface Document {
   font_size_h3?: number;
   font_size_h2?: number;
   font_size_h1?: number;
+  /** 문서 프로퍼티 — Obsidian 의 YAML 머리말에 대응. `.md` 로 오갈 수 있는 값만 담긴다.
+      폴더가 표라면 그 칸 이름이 곧 여기의 key 다. */
+  properties?: Record<string, string | number | boolean | string[] | { id: string; label: string } | null>;
+  /** 이 폴더를 표로 쓸 때의 칸 정의. null 이면 평범한 폴더. 폴더가 아닌 문서에는 의미 없음. */
+  db_columns?: DbColumn[] | null;
+  /** 이 문서가 든 폴더의 칸 정의 (읽기 전용) — 문서 화면이 채울 칸을 안다 */
+  parent_db_columns?: DbColumn[] | null;
   content_html: string;
   is_folder: boolean;
   created_by: string | null;

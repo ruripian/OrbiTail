@@ -4,10 +4,10 @@
  * 휴지통은 설정이 아니라 전용 화면(DocumentTrashPage)에 있다 — 문서를 되찾는 건
  * 설정을 바꾸는 일이 아니라 목록을 훑고 고르는 작업이라서.
  */
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Download, FileText, Trash2 } from "lucide-react";
+import { Download, Upload, FileText, Trash2 } from "lucide-react";
 import { documentsApi } from "@/api/documents";
 import { Button } from "@/components/ui/button";
 import { apiErrorMessage } from "@/lib/api-error";
@@ -51,20 +51,38 @@ export default function SpaceContentPage() {
     onError: (e) => toast.error(apiErrorMessage(e, "라벨 삭제 실패")),
   });
 
-  const handleExport = async () => {
+  const handleExport = async (type: "html" | "md") => {
     setExporting(true);
     try {
-      const blob = await documentsApi.spaces.exportZip(workspaceSlug, spaceId);
+      const blob = await documentsApi.spaces.exportZip(workspaceSlug, spaceId, type);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${space.name}.zip`;
+      a.download = `${space.name}${type === "md" ? "-markdown" : ""}.zip`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
       toast.error(apiErrorMessage(e, "내보내기 실패"));
     } finally {
       setExporting(false);
+    }
+  };
+
+  const importFile = useRef<HTMLInputElement>(null);
+  const [importing, setImporting] = useState(false);
+  const handleImport = async (file: File) => {
+    setImporting(true);
+    try {
+      const r = await documentsApi.spaces.importMarkdown(workspaceSlug, spaceId, file);
+      /* 건너뛴 파일이 있으면 조용히 넘기지 않는다 — 이미지·첨부는 문서로 만들 수 없다 */
+      const skipped = r.skipped > 0 ? ` · 건너뜀 ${r.skipped}건(${r.skipped_examples.slice(0, 2).join(", ")}…)` : "";
+      toast.success(`문서 ${r.created}개 · 폴더 ${r.folders}개 반입${skipped}`);
+      qc.invalidateQueries({ queryKey: ["documents", workspaceSlug, spaceId] });
+    } catch (e) {
+      toast.error(apiErrorMessage(e, "반입 실패"));
+    } finally {
+      setImporting(false);
+      if (importFile.current) importFile.current.value = "";
     }
   };
 
@@ -156,13 +174,46 @@ export default function SpaceContentPage() {
         <div>
           <h2 className="text-sm font-semibold">스페이스 내보내기</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            모든 문서를 폴더 구조 그대로 HTML 묶음(zip)으로 받습니다. 첨부 이미지는 링크로만 남습니다.
+            모든 문서를 폴더 구조 그대로 zip 으로 받습니다. 마크다운으로 받으면 머리말(YAML)과
+            <code className="mx-1">[[링크]]</code>가 함께 나가 Obsidian 볼트에 그대로 옮길 수 있습니다.
+            첨부 이미지는 링크로만 남습니다.
           </p>
         </div>
-        <Button size="sm" variant="outline" disabled={exporting} onClick={handleExport}>
-          <Download className="h-3.5 w-3.5 mr-1.5" />
-          {exporting ? "준비 중..." : "zip 내려받기"}
-        </Button>
+        <div className="flex gap-2 shrink-0">
+          <Button size="sm" variant="outline" disabled={exporting} onClick={() => handleExport("md")}>
+            <Download className="h-3.5 w-3.5 mr-1.5" />
+            {exporting ? "준비 중..." : "마크다운"}
+          </Button>
+          <Button size="sm" variant="outline" disabled={exporting} onClick={() => handleExport("html")}>
+            <Download className="h-3.5 w-3.5 mr-1.5" />
+            HTML
+          </Button>
+        </div>
+      </section>
+
+      {/* 반입 */}
+      <section className="rounded-xl border bg-card p-5 flex items-center justify-between gap-4">
+        <div>
+          <h2 className="text-sm font-semibold">마크다운 반입</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            <code>.md</code> 한 장 또는 볼트를 압축한 <code>.zip</code> 을 이 스페이스로 가져옵니다.
+            폴더 구조·머리말·태그·<code className="mx-1">[[링크]]</code>가 함께 들어옵니다.
+            이미지 등 마크다운이 아닌 파일은 건너뜁니다.
+          </p>
+        </div>
+        <div className="shrink-0">
+          <input
+            ref={importFile}
+            type="file"
+            accept=".md,.zip"
+            className="hidden"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImport(f); }}
+          />
+          <Button size="sm" variant="outline" disabled={importing} onClick={() => importFile.current?.click()}>
+            <Upload className="h-3.5 w-3.5 mr-1.5" />
+            {importing ? "가져오는 중..." : "파일 고르기"}
+          </Button>
+        </div>
       </section>
 
       <section className="rounded-xl border bg-card">

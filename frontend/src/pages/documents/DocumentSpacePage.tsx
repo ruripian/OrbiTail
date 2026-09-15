@@ -14,6 +14,7 @@ import {
   List, MoreHorizontal, Maximize2, Minimize2, ALargeSmall,
   History, FolderInput, Download, Printer, FileDown, Trash2, LayoutGrid,
   FolderOpen, FilePlus, Image as ImageIcon, Lock, Paperclip,
+  Link2, Unlink, EyeOff, Table2,
 } from "lucide-react";
 import { documentsApi } from "@/api/documents";
 import { useAuthStore } from "@/stores/authStore";
@@ -26,6 +27,8 @@ import { CoverEditDialog } from "@/components/documents/CoverEditDialog";
 import { CoverView } from "@/components/documents/CoverView";
 import { IssuePickerDialog } from "@/components/documents/IssuePickerDialog";
 import { DocumentLabelPicker, LabelChip } from "@/components/documents/DocumentLabelPicker";
+import { DatabaseFolderView } from "./DatabaseFolderView";
+import { DbValueInput, type DbValue } from "@/components/documents/DbValueInput";
 import { useDocumentWebSocket } from "@/hooks/useDocumentWebSocket";
 import {
   useDocReadingPrefs, adjustFontSizes, docFontCss,
@@ -43,8 +46,9 @@ import {
 import { PanelHeader } from "@/components/ui/panel-header";
 import { UserLine } from "@/components/ui/user-line";
 import { cn } from "@/lib/utils";
+import { getAccessToken } from "@/lib/token-storage";
 import { formatRelativeTime } from "@/lib/relative-time";
-import type { Document as DocType } from "@/types";
+import type { Document as DocType, DbColumn } from "@/types";
 
 interface LayoutContext {
   /** 스페이스를 고르기 전에는 비어 있다 */
@@ -119,8 +123,29 @@ export default function DocumentSpacePage() {
     );
   }
 
+  /* 칸이 정의된 폴더는 문서가 아니라 표다 — 에디터 대신 표를 연다.
+     칸이 없는 평범한 폴더는 지금까지처럼 문서로 연다(설명글을 쓰는 데 쓰인다). */
+  if (currentDoc.is_folder && currentDoc.db_columns) {
+    return (
+      <DatabaseFolderView
+        folder={currentDoc}
+        workspaceSlug={workspaceSlug!}
+        spaceId={spaceId!}
+        /* 편집 가능 여부는 서버가 판정한다 — 문서 화면이 editMode 를 기본 true 로 두는 것과 같은 방침.
+           권한이 없으면 저장에서 403 이 돌아오고 그때 알린다. */
+        editable
+        projectId={projectId}
+        onUpdateFolder={(data) => updateMutation.mutate(data)}
+        onInvalidate={() => ctx?.invalidate()}
+      />
+    );
+  }
+
   return (
     <DocumentEditorView
+      /* 문서가 바뀌면 화면 상태(제목 입력 등)를 통째로 새로 시작한다.
+         key 가 없으면 제목 input 이 이전 문서 값을 그대로 들고 있다. */
+      key={currentDoc.id}
       doc={currentDoc}
       projectId={projectId ?? undefined}
       onUpdate={(data) => updateMutation.mutate(data)}
@@ -189,6 +214,12 @@ function DocumentEditorView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthor, fullWidth, doc.preferred_width]);
   const [tocOpen, setTocOpen] = useState(false);
+  const [backlinksOpen, setBacklinksOpen] = useState(false);
+  /* 표 칸 패널 — 이슈가 메타 필드를 오른쪽 사이드바에 두는 것과 같은 자리.
+     본문 위에 두면 글을 쓰기 전에 폼부터 보이고 세로 공간을 먹는다. */
+  const [fieldsOpen, setFieldsOpen] = useState(false);
+  const dbColumns = doc.parent_db_columns ?? null;
+  const hasFields = (dbColumns?.length ?? 0) > 0 || Object.keys(doc.properties ?? {}).length > 0;
   const [historyOpen, setHistoryOpen] = useState(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [moveOpen, setMoveOpen] = useState(false);
@@ -211,9 +242,9 @@ function DocumentEditorView({
   /* doc.id 바뀌면 초기화 */
   useEffect(() => { contentRef.current = doc.content_html; }, [doc.id, doc.content_html]);
 
-  /* 실시간 협업 — Y.Doc + WebSocket provider + Awareness. editMode일 때만 연결. */
+  /* 실시간 협업 — Y.Doc + provider + Awareness. editMode일 때만 연결.
+     본문 저장(yjs_state + content_html)은 이제 협업 서버가 함께 한다. */
   const collab = useDocumentWebSocket(editMode ? doc.id : undefined);
-  const shouldSeed = !doc.has_yjs_state;
 
   /* 블록 댓글 상태 */
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
@@ -250,14 +281,18 @@ function DocumentEditorView({
     qc.invalidateQueries({ queryKey: ["doc-threads-all", doc.id] });
   }, [workspaceSlug, spaceId, doc.id, qc]);
 
-  /* content_html 안전망 저장 — Yjs WS가 refresh 직전 마지막 업데이트를 flush 못
-     해도, content_html이 REST로 저장되어 있으면 다음 로드에서 seed로 복원된다.
-     1) 편집 중 debounce 2초 뒤 저장
-     2) 페이지 언로드 시 keepalive fetch로 즉시 저장 (sendBeacon은 인증 헤더 불가) */
+  /* content_html 안전망 저장.
+     평소에는 **협업 서버가 저장한다** — 같은 순간의 Y.Doc 에서 yjs_state 와 content_html 을
+     함께 만들어 내보내므로, 둘이 어긋날 수 없다. 여기서 또 쓰면 같은 값을 두 번 쓰는 셈이고
+     서버가 쓴 것을 브라우저가 덮는 순서 문제도 생긴다.
+     그래서 **협업 연결이 서지 않았을 때만** 쓴다 — 협업 서버가 죽어 있어도 타이핑이 날아가지 않게. */
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const collabConnectedRef = useRef(false);
+  collabConnectedRef.current = collab.connected;
   const queueAutoSave = useCallback(() => {
     if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
     autoSaveTimer.current = setTimeout(() => {
+      if (collabConnectedRef.current) return;
       const html = contentRef.current;
       if (html && html !== doc.content_html) {
         documentsApi.update(workspaceSlug!, spaceId!, doc.id, { content_html: html }).catch(() => {});
@@ -267,10 +302,12 @@ function DocumentEditorView({
 
   useEffect(() => {
     const handler = () => {
+      /* 협업 서버가 붙어 있으면 그쪽이 disconnect 시점에 저장한다 */
+      if (collabConnectedRef.current) return;
       const html = contentRef.current;
       if (!html || html === doc.content_html) return;
       try {
-        const token = localStorage.getItem("access_token");
+        const token = getAccessToken();
         fetch(
           `/api/workspaces/${workspaceSlug}/documents/spaces/${spaceId}/docs/${doc.id}/`,
           {
@@ -353,6 +390,23 @@ function DocumentEditorView({
     URL.revokeObjectURL(url);
     toast.success(t("documents.exported"));
   }, [title, t]);
+
+  /* 마크다운 내보내기 — 변환은 서버가 한다. 콜아웃·멘션을 되돌릴 수 있는 형태로 내보내려면
+     본문 HTML 전체를 봐야 하고, 그 규칙은 반입 쪽과 같은 자리에 있어야 어긋나지 않는다. */
+  const exportMarkdown = useCallback(async () => {
+    try {
+      const blob = await documentsApi.exportMarkdown(workspaceSlug!, spaceId!, doc.id);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${title || "document"}.md`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success(t("documents.exported"));
+    } catch {
+      toast.error(t("documents.exportFailed", "내보내기 실패"));
+    }
+  }, [workspaceSlug, spaceId, doc.id, title, t]);
 
   // docx 가져오기
   const importDocx = useCallback(async () => {
@@ -485,6 +539,38 @@ function DocumentEditorView({
           {t("documents.toc")}
         </Button>
 
+        {/* 칸 — 표에 속한 문서일 때만. 채워진 개수를 같이 보여 안 채운 칸이 있는지 알게 한다. */}
+        {hasFields && (
+          <Button
+            variant={fieldsOpen ? "secondary" : "ghost"}
+            size="sm"
+            className="h-7 text-xs gap-1.5 px-2.5"
+            onClick={() => setFieldsOpen(!fieldsOpen)}
+          >
+            <Table2 className="h-3.5 w-3.5" />
+            {t("documents.fields", "칸")}
+            {dbColumns && (
+              <span className="text-muted-foreground">
+                {dbColumns.filter((c) => {
+                  const v = (doc.properties ?? {})[c.name];
+                  return c.type === "created" || c.type === "updated" || (v !== undefined && v !== null && v !== "");
+                }).length}/{dbColumns.length}
+              </span>
+            )}
+          </Button>
+        )}
+
+        {/* 백링크 — 이 문서를 가리키는 문서들 */}
+        <Button
+          variant={backlinksOpen ? "secondary" : "ghost"}
+          size="sm"
+          className="h-7 text-xs gap-1.5 px-2.5"
+          onClick={() => setBacklinksOpen(!backlinksOpen)}
+        >
+          <Link2 className="h-3.5 w-3.5" />
+          {t("documents.backlinks", "백링크")}
+        </Button>
+
         <div className="w-px h-5 bg-border mx-1" />
 
         {/* 너비 토글 — 본인 세션만 영향. 단 작성자가 토글하면 그 값이 문서의 추천 너비로 자동 저장된다. */}
@@ -563,6 +649,14 @@ function DocumentEditorView({
               </DropdownMenuSubContent>
             </DropdownMenuSub>
             <DropdownMenuSeparator />
+            {/* 폴더를 표로 — 같은 모양의 문서를 모아 정렬·필터하고 싶을 때만 켠다.
+                대부분의 폴더는 표가 아니므로 기본은 꺼짐이고, 켜면 이 폴더는 표로 열린다. */}
+            {doc.is_folder && (
+              <DropdownMenuItem onClick={() => onUpdate({ db_columns: [] })}>
+                <Table2 className="h-3.5 w-3.5 mr-2" />
+                {t("documents.makeDatabase", "표로 만들기")}
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem onClick={() => setHistoryOpen(!historyOpen)}>
               <History className="h-3.5 w-3.5 mr-2" />
               {t("documents.pageHistory")}
@@ -574,6 +668,10 @@ function DocumentEditorView({
             <DropdownMenuItem onClick={exportDocx}>
               <Download className="h-3.5 w-3.5 mr-2" />
               {t("documents.exportDocx")}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={exportMarkdown}>
+              <Download className="h-3.5 w-3.5 mr-2" />
+              {t("documents.exportMarkdown", "마크다운(.md)으로 내보내기")}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={importDocx}>
               <Download className="h-3.5 w-3.5 mr-2 rotate-180" />
@@ -611,7 +709,11 @@ function DocumentEditorView({
           {/* --doc-fs-* 를 컨테이너에 선언한다 — 자식 doc-frame 이 상속받고,
               폭 토큰(--w-doc)도 본문 글자 크기를 참조해 같이 넓어진다 */}
           <div
-            className={cn("mx-auto w-full py-6 px-4 sm:px-6", fullWidth ? "max-w-none" : "doc-width")}
+            /* min-h-full + flex — 내용이 적어도 카드가 화면 아래까지 내려오게 한다.
+               카드에만 높이를 주면 아래의 "연결된 이슈"·"하위 문서"가 화면 밖으로 밀리므로,
+               그 둘은 제 높이를 갖고 남는 공간을 카드가 가져가게 둔다. */
+            className={cn("doc-page-fill mx-auto w-full py-6 px-4 sm:px-6 min-h-full flex flex-col",
+              fullWidth ? "max-w-none" : "doc-width")}
             style={{
               ["--doc-fs-body" as string]: `${docFs.body}px`,
               ["--doc-fs-h3" as string]:   `${docFs.h3}px`,
@@ -621,7 +723,7 @@ function DocumentEditorView({
             }}
           >
             <div
-              className="doc-frame rounded-2xl border bg-card shadow-sm overflow-hidden"
+              className="doc-frame rounded-2xl border bg-card shadow-sm overflow-hidden flex-1 flex flex-col"
               data-print-width={fullWidth ? "wide" : "narrow"}
             >
               {/* 커버 이미지 배너 — CoverView 공용 렌더러 (다이얼로그 미리보기와 동일 공식) */}
@@ -647,7 +749,7 @@ function DocumentEditorView({
                 </CoverView>
               )}
 
-              <div className="px-6 sm:px-10 py-8">
+              <div className="px-6 sm:px-10 py-8 flex-1 flex flex-col">
               {/* 커버 없는 상태의 편집 모드: 커버 추가 유도 */}
               {!doc.cover_image_url && editMode && (
                 <button
@@ -710,6 +812,7 @@ function DocumentEditorView({
                   )}
                 </div>
               )}
+              {/* 프로퍼티 — `.md` 로 내보낼 때 YAML 머리말이 되는 자리 */}
               <div className="h-px bg-border/40 mb-4" />
 
               {editMode && !collab.provider ? (
@@ -720,6 +823,10 @@ function DocumentEditorView({
               <DocumentEditor
               key={doc.id + (editMode ? ":edit" : ":read")}
               content={doc.content_html}
+              onAttachLabel={(labelId) => {
+                const current = doc.labels ?? [];
+                if (!current.includes(labelId)) onUpdate({ labels: [...current, labelId] });
+              }}
               onChange={(html) => { contentRef.current = html; queueAutoSave(); }}
               onBlur={() => {
                 if (contentRef.current !== doc.content_html) onUpdate({ content_html: contentRef.current });
@@ -730,7 +837,6 @@ function DocumentEditorView({
               docId={doc.id}
               projectId={projectId}
               collab={editMode ? collab : undefined}
-              shouldSeed={editMode && shouldSeed}
               onStartComment={editMode ? handleStartComment : undefined}
               onCommentMarkClick={(id) => { setActiveThreadId(id); setCommentsOpen(true); }}
               onCommentMarksRemoved={editMode ? handleCommentMarksRemoved : undefined}
@@ -797,6 +903,49 @@ function DocumentEditorView({
               {t("documents.toc")}
             </p>
             <TableOfContents html={contentRef.current} />
+          </ResizableAside>
+        )}
+
+        {/* 칸 패널 */}
+        {fieldsOpen && (
+          <ResizableAside
+            storageKey="doc_fields_width"
+            defaultWidth={264}
+            minWidth={224}
+            maxWidth={480}
+            handleSide="left"
+            className="border-l overflow-y-auto p-3 hidden lg:block"
+            ariaLabel={t("documents.fields", "칸")}
+          >
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+              {t("documents.fields", "칸")}
+            </p>
+            <DocumentFields
+              columns={dbColumns}
+              properties={doc.properties ?? {}}
+              doc={doc}
+              editable={editMode}
+              onChange={(next) => onUpdate({ properties: next })}
+            />
+          </ResizableAside>
+        )}
+
+        {/* 백링크 패널 */}
+        {backlinksOpen && (
+          <ResizableAside
+            storageKey="doc_backlinks_width"
+            defaultWidth={248}
+            minWidth={224}
+            maxWidth={520}
+            handleSide="left"
+            className="border-l overflow-y-auto p-3 hidden lg:block"
+            ariaLabel={t("documents.backlinks", "백링크")}
+          >
+            <BacklinksPanel
+              workspaceSlug={workspaceSlug!}
+              spaceId={spaceId!}
+              docId={doc.id}
+            />
           </ResizableAside>
         )}
 
@@ -1057,6 +1206,156 @@ function SpaceHome({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+/* ── 프로퍼티 ── */
+
+/**
+ * 문서의 칸 값 — 제목 아래 줄.
+ *
+ * 두 가지 경우를 한 컴포넌트가 맡는다.
+ *   1) 속한 폴더가 표다 → 그 칸을 순서대로, 종류에 맞는 위젯으로 (빈 칸도 보인다 — 안 채우고 넘어가기 어렵게)
+ *   2) 그냥 문서다 → properties 에 값이 있으면 읽기 전용으로만 (주로 `.md` 로 들어온 머리말)
+ */
+function DocumentFields({ columns, properties, doc, editable, onChange }: {
+  columns: DbColumn[] | null;
+  properties: Record<string, DbValue>;
+  doc: DocType;
+  editable: boolean;
+  onChange: (next: Record<string, DbValue>) => void;
+}) {
+  if (columns && columns.length > 0) {
+    return (
+      <div className="space-y-2.5" data-print-hide>
+        {columns.map((col) => {
+          const derived = col.type === "created" || col.type === "updated";
+          const value = derived
+            ? ((col.type === "created" ? doc.created_at : doc.updated_at) ?? null)
+            : (properties[col.name] ?? null);
+          return (
+            <div key={col.name} className="min-w-0">
+              <p className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground/70 mb-1">
+                {col.name}
+              </p>
+              <DbValueInput
+                key={`${col.name}:${JSON.stringify(value ?? null)}`}
+                column={col}
+                value={value as DbValue}
+                editable={editable && !derived}
+                onChange={(v) => onChange({ ...properties, [col.name]: v })}
+              />
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  /* 표가 아닌 문서 — 값이 있을 때만, 읽기 전용 */
+  const entries = Object.entries(properties);
+  if (entries.length === 0) return null;
+  return (
+    <div className="space-y-2" data-print-hide>
+      {entries.map(([key, v]) => (
+        <div key={key} className="min-w-0">
+          <p className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground/70 mb-0.5">{key}</p>
+          <p className="text-xs truncate">
+            {Array.isArray(v) ? v.join(", ")
+              : v && typeof v === "object" ? (v as { label?: string }).label ?? ""
+              : v === null || v === undefined ? "" : String(v)}
+          </p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ── 백링크 ── */
+
+function BacklinksPanel({ workspaceSlug, spaceId, docId }: { workspaceSlug: string; spaceId: string; docId: string }) {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const { data, isLoading } = useQuery({
+    queryKey: ["doc-backlinks", workspaceSlug, spaceId, docId],
+    queryFn: () => documentsApi.backlinks(workspaceSlug, spaceId, docId),
+    staleTime: 30_000,
+  });
+
+  if (isLoading) {
+    return <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />;
+  }
+
+  const incoming = data?.incoming ?? [];
+  const broken = data?.broken ?? [];
+  const hidden = data?.incoming_hidden ?? 0;
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+          {t("documents.backlinks", "백링크")}
+          {incoming.length > 0 && <span className="ml-1 font-normal">{incoming.length}</span>}
+        </p>
+        {incoming.length === 0 ? (
+          <p className="text-xs text-muted-foreground italic">
+            {t("documents.backlinksEmpty", "이 문서를 가리키는 문서가 없습니다")}
+          </p>
+        ) : (
+          <div className="space-y-0.5">
+            {incoming.map((it) => (
+              <button
+                key={it.id}
+                className="flex items-center gap-1.5 w-full text-left text-xs text-muted-foreground hover:text-foreground transition-colors py-1 rounded hover:bg-accent/50 px-1"
+                onClick={() => navigate(`/${workspaceSlug}/documents/space/${it.space}/${it.id}`)}
+              >
+                <FileText className="h-3 w-3 shrink-0 text-blue-400" />
+                <span className="truncate flex-1">{it.title}</span>
+                {/* 다른 스페이스에서 온 링크면 어디서 왔는지 밝힌다 */}
+                {it.space !== spaceId && (
+                  <span className="text-2xs text-muted-foreground shrink-0">{it.space_name}</span>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
+        {/* 가린 건수를 조용히 넘기지 않는다 — 목록이 전부가 아니라는 사실을 알린다 */}
+        {hidden > 0 && (
+          <p className="flex items-center gap-1 text-2xs text-muted-foreground mt-1.5">
+            <EyeOff className="h-3 w-3 shrink-0" />
+            {t("documents.backlinksHidden", { n: hidden, defaultValue: "볼 수 없는 스페이스의 문서 {{n}}건" })}
+          </p>
+        )}
+      </div>
+
+      {/* 이 문서 주변만 그린 관계망 — Obsidian 의 로컬 그래프 자리 */}
+      <button
+        className="flex items-center gap-1.5 w-full text-left text-xs text-muted-foreground hover:text-foreground transition-colors py-1 px-1 rounded hover:bg-accent/50"
+        onClick={() => navigate(`/${workspaceSlug}/documents/graph?doc=${docId}&depth=2`)}
+      >
+        <Share2 className="h-3 w-3 shrink-0" />
+        {t("documents.graphOpenLocal", "관계망에서 보기")}
+      </button>
+
+      {broken.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+            {t("documents.brokenLinks", "깨진 링크")} <span className="font-normal">{broken.length}</span>
+          </p>
+          <div className="space-y-0.5">
+            {broken.map((it) => (
+              <div key={it.id} className="flex items-center gap-1.5 text-xs text-muted-foreground/70 py-1 px-1">
+                <Unlink className="h-3 w-3 shrink-0 text-amber-500" />
+                <span className="truncate line-through">{it.title}</span>
+              </div>
+            ))}
+          </div>
+          <p className="text-2xs text-muted-foreground mt-1.5">
+            {t("documents.brokenLinksHint", "휴지통에 있는 문서를 가리킵니다. 복원하면 다시 이어집니다.")}
+          </p>
+        </div>
+      )}
     </div>
   );
 }

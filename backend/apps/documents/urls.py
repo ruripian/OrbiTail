@@ -1,4 +1,5 @@
 from django.urls import path
+from .collab_views import CollabAuthView, CollabDocumentView
 from .views import (
     SpaceListCreateView,
     SpaceDetailView,
@@ -7,6 +8,7 @@ from .views import (
     SpaceMemberListCreateView,
     SpaceMemberDetailView,
     SpaceExportView,
+    SpaceImportView,
     SpaceAnalyticsView,
     TrashedDocumentDetailView,
     DocumentLabelListCreateView,
@@ -16,6 +18,9 @@ from .views import (
     DocumentMoveView,
     DocumentBulkMoveView,
     DocumentTrashView,
+    DocumentBacklinkView,
+    DocumentMarkdownExportView,
+    DocumentGraphView,
     DocumentIssueLinkListCreateView,
     DocumentIssueLinkDeleteView,
     DocumentSearchView,
@@ -131,6 +136,46 @@ urlpatterns = [
         "workspaces/<slug:workspace_slug>/documents/spaces/<uuid:space_pk>/docs/<uuid:pk>/move/",
         DocumentMoveView.as_view(),
         name="document-move",
+    ),
+
+    # 마크다운 반입 — .md 또는 볼트 .zip
+    path(
+        "workspaces/<slug:workspace_slug>/documents/spaces/<uuid:space_pk>/import/",
+        SpaceImportView.as_view(),
+        name="document-space-import",
+    ),
+
+    # 문서 한 장을 .md 로
+    path(
+        "workspaces/<slug:workspace_slug>/documents/spaces/<uuid:space_pk>/docs/<uuid:doc_pk>/export-md/",
+        DocumentMarkdownExportView.as_view(),
+        name="document-export-md",
+    ),
+
+    # 실시간 협업 서버(Hocuspocus) 전용 — 사람이 직접 쓰는 API 가 아니다
+    path(
+        "internal/collab/documents/<uuid:doc_pk>/auth/",
+        CollabAuthView.as_view(),
+        name="collab-auth",
+    ),
+    path(
+        "internal/collab/documents/<uuid:doc_pk>/state/",
+        CollabDocumentView.as_view(),
+        name="collab-state",
+    ),
+
+    # 문서 관계망 — 본문 링크로 이어진 그래프
+    path(
+        "workspaces/<slug:workspace_slug>/documents/graph/",
+        DocumentGraphView.as_view(),
+        name="document-graph",
+    ),
+
+    # 백링크 — 이 문서를 가리키는 문서 + 깨진 나가는 링크
+    path(
+        "workspaces/<slug:workspace_slug>/documents/spaces/<uuid:space_pk>/docs/<uuid:doc_pk>/backlinks/",
+        DocumentBacklinkView.as_view(),
+        name="document-backlinks",
     ),
 
     # 이슈 연결

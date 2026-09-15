@@ -231,8 +231,9 @@ export function ExplorerPanel({
   };
 
   const openDoc = (doc: DocType) => {
-    if (doc.is_folder) openFolder(doc);
-    else navigate(`/${workspaceSlug}/documents/space/${spaceId}/${doc.id}`);
+    /* 표로 만든 폴더는 탐색기 안으로 들어가는 대신 표를 연다 — 그게 그 폴더를 만든 이유다 */
+    if (doc.is_folder && !doc.db_columns) { openFolder(doc); return; }
+    navigate(`/${workspaceSlug}/documents/space/${spaceId}/${doc.id}`);
   };
 
   /* ── 러버밴드 선택 ── */

@@ -74,11 +74,13 @@ export function CommandSearchDialog({ open, onOpenChange, documentMode = false }
     staleTime: 1000 * 30,
   });
 
-  // 문서 검색
+  /* 문서 검색 — `title:` `tag:` `space:` 는 서버가 해석한다(라벨·스페이스 이름을 DB 에서 찾아야 해서).
+     이슈용 연산자만 여기서 떼어낸 parsed.text 를 그대로 넘기면 문서 연산자는 살아서 간다. */
+  const docQuery = parsed.text || debouncedQuery;
   const { data: docResults = [] } = useQuery({
     queryKey: ["doc-search", workspaceSlug, debouncedQuery],
-    queryFn: () => documentsApi.search(workspaceSlug!, parsed.text || debouncedQuery),
-    enabled: !!workspaceSlug && debouncedQuery.length >= 2,
+    queryFn: () => documentsApi.search(workspaceSlug!, docQuery),
+    enabled: !!workspaceSlug && docQuery.trim().length >= 2,
     staleTime: 1000 * 30,
   });
 
@@ -274,7 +276,11 @@ export function CommandSearchDialog({ open, onOpenChange, documentMode = false }
             <span>↑↓ {t("search.navigate")}</span>
             <span>↵ {t("search.open")}</span>
             <span>esc {t("search.close")}</span>
-            <span className="opacity-60">priority:high · status:backlog · assignee:me</span>
+            <span className="opacity-60">
+              {documentMode
+                ? "title:회의 · tag:정책 · space:기획"
+                : "priority:high · status:backlog · assignee:me"}
+            </span>
           </div>
         </div>
       </div>

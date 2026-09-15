@@ -62,6 +62,9 @@ class DocumentSerializer(serializers.ModelSerializer):
     has_yjs_state = serializers.SerializerMethodField()
     cover_image_url = serializers.SerializerMethodField()
     labels_detail = DocumentLabelSerializer(source="labels", many=True, read_only=True)
+    # 이 문서가 속한 폴더가 표라면 그 칸 정의 — 문서 화면이 채울 칸을 알아야 한다.
+    # 따로 조회하게 두면 폴더 칸을 고쳤을 때 두 응답이 어긋난다.
+    parent_db_columns = serializers.SerializerMethodField()
 
     class Meta:
         model = Document
@@ -72,6 +75,7 @@ class DocumentSerializer(serializers.ModelSerializer):
             "cover_offset_x", "cover_offset_y", "cover_zoom", "cover_height",
             "preferred_width",
             "font_size_body", "font_size_h3", "font_size_h2", "font_size_h1",
+            "properties", "db_columns", "parent_db_columns",
             "content_html", "is_folder",
             "created_by", "created_by_detail",
             "sort_order", "children_count",
@@ -80,12 +84,93 @@ class DocumentSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             "id", "space", "created_by", "deleted_at", "created_at", "updated_at",
-            "has_yjs_state", "cover_image_url", "labels_detail",
+            "has_yjs_state", "cover_image_url", "labels_detail", "parent_db_columns",
         ]
         # cover_image 자체는 write-only로 허용 (multipart PATCH 가능), 읽기는 cover_image_url
         extra_kwargs = {
             "cover_image": {"write_only": True, "required": False, "allow_null": True},
         }
+
+    #: 표의 칸에 쓸 수 있는 값 종류.
+    #  issue · doc 은 다른 것을 가리키는 칸이다. 값은 {"id", "label"} 로 담는다 —
+    #  id 만 담으면 `.md` 머리말에 UUID 가 나가 사람이 못 읽고, label 만 담으면 이름이 바뀔 때 끊긴다.
+    #  created · updated 는 문서 자체에서 나오는 값이라 사람이 채우지 않는다 —
+    #  "회의 날짜" 같은 걸 매번 손으로 적게 하지 않으려고 둔다.
+    COLUMN_TYPES = {
+        "text", "number", "date", "select", "multi_select", "checkbox",
+        "issue", "doc", "created", "updated",
+    }
+    MAX_COLUMNS = 20
+
+    def validate_db_columns(self, value):
+        """폴더를 표로 쓸 때의 칸 정의. None 이면 평범한 폴더."""
+        if value is None:
+            return None
+        if not isinstance(value, list):
+            raise serializers.ValidationError("칸 정의는 목록이어야 합니다.")
+        if len(value) > self.MAX_COLUMNS:
+            raise serializers.ValidationError(f"칸은 최대 {self.MAX_COLUMNS}개까지입니다.")
+        cleaned = []
+        seen = set()
+        for col in value:
+            if not isinstance(col, dict):
+                raise serializers.ValidationError("칸 하나는 이름과 종류를 가진 묶음이어야 합니다.")
+            name = str(col.get("name", "")).strip()
+            if not name:
+                raise serializers.ValidationError("칸 이름은 비워 둘 수 없습니다.")
+            # 이름이 곧 값의 key 라 중복되면 한 칸이 다른 칸의 값을 덮는다
+            if name.lower() in seen:
+                raise serializers.ValidationError(f"칸 이름 '{name}' 이 중복됩니다.")
+            seen.add(name.lower())
+            ctype = str(col.get("type", "text"))
+            if ctype not in self.COLUMN_TYPES:
+                raise serializers.ValidationError(f"'{name}' 의 종류 '{ctype}' 를 알 수 없습니다.")
+            entry = {"name": name[:100], "type": ctype}
+            if ctype in ("select", "multi_select"):
+                options = col.get("options") or []
+                if not isinstance(options, list):
+                    raise serializers.ValidationError(f"'{name}' 의 선택지는 목록이어야 합니다.")
+                entry["options"] = [str(o).strip()[:100] for o in options if str(o).strip()][:50]
+            cleaned.append(entry)
+        return cleaned
+
+    # YAML 머리말로 오갈 수 있는 값만 받는다. 중첩 객체를 허용하면 내보낸 마크다운을
+    # 다시 읽어 들일 때 같은 모양으로 복원된다는 보장이 사라진다.
+    MAX_PROPERTY_KEYS = 50
+
+    def validate_properties(self, value):
+        if not isinstance(value, dict):
+            raise serializers.ValidationError("프로퍼티는 key-value 묶음이어야 합니다.")
+        if len(value) > self.MAX_PROPERTY_KEYS:
+            raise serializers.ValidationError(
+                f"프로퍼티는 최대 {self.MAX_PROPERTY_KEYS}개까지입니다."
+            )
+        cleaned = {}
+        for key, val in value.items():
+            name = str(key).strip()
+            if not name:
+                raise serializers.ValidationError("프로퍼티 이름은 비워 둘 수 없습니다.")
+            # 무언가를 가리키는 칸 — 보여줄 이름과 따라갈 id 를 함께 담는다
+            if isinstance(val, dict):
+                ref_id = str(val.get("id", "")).strip()
+                label = str(val.get("label", "")).strip()
+                if not ref_id:
+                    raise serializers.ValidationError(f"'{name}' 이 가리키는 대상이 없습니다.")
+                cleaned[name] = {"id": ref_id[:64], "label": label[:200]}
+            elif isinstance(val, list):
+                if not all(isinstance(v, (str, int, float, bool)) for v in val):
+                    raise serializers.ValidationError(f"'{name}' 목록에는 값만 넣을 수 있습니다.")
+                cleaned[name] = [str(v) if not isinstance(v, bool) else v for v in val]
+            elif isinstance(val, (str, int, float, bool)) or val is None:
+                cleaned[name] = val
+            else:
+                raise serializers.ValidationError(
+                    f"'{name}' 값은 글자·숫자·참거짓 또는 그 목록만 됩니다."
+                )
+        return cleaned
+
+    def get_parent_db_columns(self, obj):
+        return obj.parent.db_columns if obj.parent_id and obj.parent else None
 
     def get_children_count(self, obj):
         return obj.children.filter(deleted_at__isnull=True).count()
@@ -113,6 +198,8 @@ class DocumentTreeSerializer(serializers.ModelSerializer):
         fields = [
             "id", "space", "parent", "title", "icon_prop", "is_folder",
             "labels", "labels_detail",
+            # 표 뷰가 행을 그리려면 값이 목록 응답에 실려야 한다 — 문서마다 따로 부르면 N+1 이다
+            "properties", "db_columns",
             "sort_order", "children_count",
             "created_at", "updated_at",
         ]

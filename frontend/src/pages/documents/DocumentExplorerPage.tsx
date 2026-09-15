@@ -6,7 +6,7 @@
  * 트리 규칙(순환 차단·sort_order·폴더 우선 정렬)은 사이드바와 공유한다 — lib/document-tree.
  */
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useParams, useNavigate, useOutletContext, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -37,7 +37,20 @@ export default function DocumentExplorerPage() {
 
   const [split, setSplit] = useState(false);
   const [activePanel, setActivePanel] = useState<0 | 1>(0);
-  const [labelFilter, setLabelFilter] = useState<string[]>([]);
+  /* 라벨 필터도 URL 에 싣는다 — 본문의 #태그를 눌러 들어오는 경로가 여기이고,
+     걸러 놓은 화면을 그대로 공유할 수 있어야 한다. */
+  const labelFilter = useMemo(
+    () => (searchParams.get("labels") ?? "").split(",").filter(Boolean),
+    [searchParams],
+  );
+  const setLabelFilter = useCallback((ids: string[]) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (ids.length) next.set("labels", ids.join(","));
+      else next.delete("labels");
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
   /* 클립보드는 패널 밖에 둔다 — 한쪽에서 잘라 다른 쪽에 붙여넣는 게 분할의 핵심 용도다 */
   const [clipboard, setClipboard] = useState<string[]>([]);
 

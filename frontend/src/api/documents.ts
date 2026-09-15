@@ -1,6 +1,22 @@
 import { api } from "@/lib/axios";
 import type { DocumentSpace, DocumentSpaceMember, DocumentSpaceRole, DocumentLabel, TrashedDocument, Document, DocumentIssueLink, DocumentComment, DocumentVersion, CommentThread, DocumentTemplate, DocumentAttachment } from "@/types";
 
+/** 문서를 둘러싼 링크 — 들어오는 링크와, 대상이 휴지통에 간 나가는 링크 */
+export interface DocumentBacklinks {
+  incoming: { id: string; title: string; icon_prop: unknown; space: string; space_name: string }[];
+  /** 접근 권한이 없어 목록에서 뺀 건수 — 0 이 아니면 가린 사실을 밝힌다 */
+  incoming_hidden: number;
+  broken: { id: string; title: string }[];
+}
+
+/** 문서 관계망 — 노드는 문서, 엣지는 본문 링크 */
+export interface DocumentGraph {
+  nodes: { id: string; title: string; icon_prop: unknown; space: string; space_name: string; degree: number }[];
+  edges: { source: string; target: string }[];
+  /** 상한(500)에 걸려 뺀 문서 수 — 0 이 아니면 화면에 밝힌다 */
+  truncated: number;
+}
+
 /** 스페이스 조회 통계 — 개인 이력은 내보내지 않고 집계만 */
 export interface SpaceAnalytics {
   days: number;
@@ -74,9 +90,23 @@ export const documentsApi = {
         api.delete<{ deleted: number }>(`/workspaces/${workspaceSlug}/documents/spaces/${spaceId}/trash/`, { data: { ids } }).then((r) => r.data),
     },
 
-    /** 스페이스 전체를 zip 으로 — 응답이 바이너리라 blob 으로 받는다 */
-    exportZip: (workspaceSlug: string, spaceId: string) =>
-      api.get<Blob>(`/workspaces/${workspaceSlug}/documents/spaces/${spaceId}/export/`, { responseType: "blob" }).then((r) => r.data),
+    /** 스페이스 전체를 zip 으로 — 응답이 바이너리라 blob 으로 받는다.
+        type="md" 면 마크다운(.md, 머리말 포함) 묶음. 파라미터 이름이 `format` 이 아닌 이유는
+        DRF 가 그 이름을 응답 형식 협상에 이미 쓰기 때문이다. */
+    exportZip: (workspaceSlug: string, spaceId: string, type: "html" | "md" = "html") =>
+      api.get<Blob>(`/workspaces/${workspaceSlug}/documents/spaces/${spaceId}/export/`, {
+        params: { type }, responseType: "blob",
+      }).then((r) => r.data),
+
+    /** 마크다운 반입 — .md 한 장 또는 볼트를 압축한 .zip */
+    importMarkdown: (workspaceSlug: string, spaceId: string, file: File) => {
+      const fd = new FormData();
+      fd.append("file", file);
+      return api.post<{ created: number; folders: number; skipped: number; skipped_examples: string[] }>(
+        `/workspaces/${workspaceSlug}/documents/spaces/${spaceId}/import/`, fd,
+        { headers: { "Content-Type": "multipart/form-data" } },
+      ).then((r) => r.data);
+    },
 
     analytics: (workspaceSlug: string, spaceId: string, days = 30) =>
       api.get<SpaceAnalytics>(`/workspaces/${workspaceSlug}/documents/spaces/${spaceId}/analytics/`, { params: { days } }).then((r) => r.data),
@@ -141,6 +171,19 @@ export const documentsApi = {
   /** 여러 문서를 한 폴더로 — 순환 검사를 모두 통과해야 저장된다(부분 적용 없음) */
   bulkMove: (workspaceSlug: string, spaceId: string, ids: string[], parent: string | null) =>
     api.post<{ moved: number }>(`/workspaces/${workspaceSlug}/documents/spaces/${spaceId}/docs/bulk-move/`, { ids, parent }).then((r) => r.data),
+
+  /** 문서 한 장을 .md 로 */
+  exportMarkdown: (workspaceSlug: string, spaceId: string, docId: string) =>
+    api.get<Blob>(`/workspaces/${workspaceSlug}/documents/spaces/${spaceId}/docs/${docId}/export-md/`,
+      { responseType: "blob" }).then((r) => r.data),
+
+  /* ─── 관계망 ─── */
+  graph: (workspaceSlug: string, params?: { space?: string; doc?: string; depth?: number }) =>
+    api.get<DocumentGraph>(`/workspaces/${workspaceSlug}/documents/graph/`, { params }).then((r) => r.data),
+
+  /* ─── 백링크 ─── */
+  backlinks: (workspaceSlug: string, spaceId: string, docId: string) =>
+    api.get<DocumentBacklinks>(`/workspaces/${workspaceSlug}/documents/spaces/${spaceId}/docs/${docId}/backlinks/`).then((r) => r.data),
 
   /* ─── 이슈 연결 ─── */
   issues: {

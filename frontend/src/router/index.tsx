@@ -56,6 +56,7 @@ const DocumentsHomePage = lazy(() => import("@/pages/documents/DocumentsHomePage
 const DocumentSpacePage = lazy(() => import("@/pages/documents/DocumentSpacePage"));
 const DocumentExplorerPage = lazy(() => import("@/pages/documents/DocumentExplorerPage"));
 const DocumentTrashPage = lazy(() => import("@/pages/documents/DocumentTrashPage"));
+const DocumentGraphPage = lazy(() => import("@/pages/documents/DocumentGraphPage"));
 const DocumentSpaceSettingsLayout = lazy(() => import("@/pages/documents/settings/DocumentSpaceSettingsLayout"));
 const SpaceGeneralPage = lazy(() => import("@/pages/documents/settings/SpaceGeneralPage"));
 const SpaceMembersPage = lazy(() => import("@/pages/documents/settings/SpaceMembersPage"));
@@ -319,6 +320,7 @@ export const router = createBrowserRouter([
       { path: "space/:spaceId", element: <LazyPage Component={DocumentSpacePage} /> },
       { path: "space/:spaceId/explorer", element: <LazyPage Component={DocumentExplorerPage} /> },
       { path: "space/:spaceId/trash", element: <LazyPage Component={DocumentTrashPage} /> },
+      { path: "graph", element: <LazyPage Component={DocumentGraphPage} /> },
       {
         path: "space/:spaceId/settings",
         element: <LazyPage Component={DocumentSpaceSettingsLayout} />,

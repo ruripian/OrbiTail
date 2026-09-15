@@ -119,6 +119,10 @@ AUTH_PASSWORD_VALIDATORS = [
 # --- 파일 업로드 크기 제한 ---
 # MAX_UPLOAD_SIZE_MB env 로 nginx/Django 모두 동일 값 유지 (.env)
 MAX_UPLOAD_SIZE_MB = config("MAX_UPLOAD_SIZE_MB", default=10, cast=int)
+
+# 실시간 협업 서버(Hocuspocus)만 내부 문서 상태 엔드포인트를 부를 수 있게 하는 공유 비밀.
+# 비워 두면 그 엔드포인트는 항상 403 이다 — 설정을 빠뜨린 채 열려 있는 편보다 낫다.
+COLLAB_SHARED_SECRET = config("COLLAB_SHARED_SECRET", default="")
 DATA_UPLOAD_MAX_MEMORY_SIZE = MAX_UPLOAD_SIZE_MB * 1024 * 1024
 FILE_UPLOAD_MAX_MEMORY_SIZE = MAX_UPLOAD_SIZE_MB * 1024 * 1024
 

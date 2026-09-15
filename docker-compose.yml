@@ -94,6 +94,25 @@ services:
       redis:
         condition: service_healthy
 
+  # 실시간 협업 서버 — Yjs 문서를 들고 있으면서 **문서 구조를 이해한다**.
+  # frontend 이미지를 그대로 쓴다: 스키마 파일과 TipTap 을 프론트와 한 벌로 공유해야
+  # 서버가 만드는 HTML 이 브라우저가 만드는 것과 어긋나지 않는다.
+  collab:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    command: sh -c "npm install && npm run collab"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    env_file:
+      - .env
+    environment:
+      - COLLAB_API_BASE=http://backend:8000/api
+    restart: unless-stopped
+    depends_on:
+      - backend
+
   frontend:
     build:
       context: ./frontend
@@ -107,6 +126,7 @@ services:
       - .env
     depends_on:
       - backend
+      - collab
 
 volumes:
   postgres_data:

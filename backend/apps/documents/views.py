@@ -1,3 +1,5 @@
+import re
+
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from django.db.models import Q, Count, F
@@ -31,7 +33,9 @@ def _broadcast_thread_event(workspace_slug: str, doc_id: str, action: str, threa
         )
     except Exception:
         pass
-from .models import DocumentSpace, DocumentSpaceMember, DocumentLabel, Document, DocumentIssueLink, DocumentAttachment, DocumentComment, DocumentVersion, DocumentView, CommentThread, DocumentTemplate, DocumentSpaceBookmark
+from .links import sync_document_links
+from .markdown import document_to_markdown, markdown_to_html, parse_frontmatter
+from .models import DocumentSpace, DocumentSpaceMember, DocumentLabel, Document, DocumentLink, DocumentIssueLink, DocumentAttachment, DocumentComment, DocumentVersion, DocumentView, CommentThread, DocumentTemplate, DocumentSpaceBookmark
 from .serializers import (
     DocumentSpaceSerializer,
     DocumentSpaceMemberSerializer,
@@ -446,7 +450,20 @@ class DocumentDetailView(generics.RetrieveUpdateDestroyAPIView):
         doc = self.get_object()
         if not _check_space_edit(request.user, doc.space):
             return Response({"detail": "편집 권한이 없습니다."}, status=status.HTTP_403_FORBIDDEN)
-        return super().update(request, *args, **kwargs)
+        # 표의 칸은 폴더에만 의미가 있다. 문서에 붙이면 아무도 읽지 않는 값이 되어 혼란만 남는다.
+        if "db_columns" in request.data and request.data.get("db_columns") is not None and not doc.is_folder:
+            return Response({"detail": "표의 칸은 폴더에만 지정할 수 있습니다."},
+                            status=status.HTTP_400_BAD_REQUEST)
+        response = super().update(request, *args, **kwargs)
+        if "content_html" in request.data:
+            # 링크 반영이 실패해도 본문 저장은 성공해야 한다. 지문을 마지막에 쓰므로
+            # 실패하면 지문이 옛 값으로 남아 다음 저장에서 다시 시도된다.
+            try:
+                doc.refresh_from_db(fields=["content_html", "links_hash"])
+                sync_document_links(doc)
+            except Exception:
+                pass
+        return response
 
     def perform_destroy(self, instance):
         """소프트 삭제 — 하위 문서 포함"""
@@ -684,30 +701,206 @@ class DocumentIssueLinkDeleteView(generics.DestroyAPIView):
 
 # ── 검색 ──
 
+_SEARCH_OP_RE = re.compile(r"^(title|tag|space):(.+)$", re.IGNORECASE)
+
+
+def _parse_search_query(raw: str) -> tuple[str, dict[str, list[str]]]:
+    """검색어에서 `title:` `tag:` `space:` 연산자를 떼어내고 나머지를 자유 텍스트로 돌려준다.
+
+    따옴표 묶음(`tag:"기획 회의"`)은 지원하지 않는다. 새 문법을 익혀야 하는 비용이
+    지금 얻는 것보다 크다 — 공백이 든 값이 실제로 필요해지면 그때 붙인다.
+    같은 연산자를 여러 번 쓰면 AND 로 좁혀진다(`tag:정책 tag:회의` = 둘 다 붙은 문서).
+    """
+    ops: dict[str, list[str]] = {"title": [], "tag": [], "space": []}
+    text: list[str] = []
+    for token in raw.split():
+        m = _SEARCH_OP_RE.match(token)
+        if m:
+            ops[m.group(1).lower()].append(m.group(2))
+        else:
+            text.append(token)
+    return " ".join(text), ops
+
+
 class DocumentSearchView(generics.ListAPIView):
     """문서 검색 — 제목 + 본문 (접근 가능한 스페이스만)
 
-    ?q=키워드      제목·본문 부분 일치
-    ?labels=id,id  라벨 필터 (하나라도 붙어 있으면 포함)
+    ?q=키워드      제목·본문 부분 일치. 아래 연산자를 섞어 쓸 수 있다.
+                     title:<말>  제목에만
+                     tag:<라벨>  그 라벨이 붙은 문서만
+                     space:<스페이스>  그 스페이스의 문서만 (이름 부분일치 또는 구분자 일치)
+    ?labels=id,id  라벨 ID 필터 (하나라도 붙어 있으면 포함) — 탐색기 필터가 쓰는 경로
     """
     serializer_class = DocumentTreeSerializer
     pagination_class = None
 
     def get_queryset(self):
         spaces = _get_accessible_spaces(self.request.user, self.kwargs["workspace_slug"])
-        q = self.request.query_params.get("q", "").strip()
+        raw = self.request.query_params.get("q", "").strip()
+        text, ops = _parse_search_query(raw)
         qs = Document.objects.filter(
             space__in=spaces,
             deleted_at__isnull=True,
             is_folder=False,
         )
-        if q:
-            qs = qs.filter(Q(title__icontains=q) | Q(content_html__icontains=q))
+        for v in ops["title"]:
+            qs = qs.filter(title__icontains=v)
+        for v in ops["tag"]:
+            # 라벨마다 따로 filter — 한 번에 묶으면 "아무거나 하나"가 되어 AND 가 안 된다
+            qs = qs.filter(labels__name__icontains=v)
+        for v in ops["space"]:
+            qs = qs.filter(Q(space__name__icontains=v) | Q(space__identifier__iexact=v))
+        if text:
+            qs = qs.filter(Q(title__icontains=text) | Q(content_html__icontains=text))
         labels = [v for v in self.request.query_params.get("labels", "").split(",") if v]
         if labels:
-            # distinct — 라벨 여러 개가 걸리면 조인으로 같은 문서가 중복된다
-            qs = qs.filter(labels__in=labels).distinct()
+            qs = qs.filter(labels__in=labels)
+        # distinct — 라벨 조인이 걸리면 같은 문서가 조인 수만큼 중복된다
+        if labels or ops["tag"]:
+            qs = qs.distinct()
         return qs.order_by("-updated_at")[:20]
+
+
+class DocumentBacklinkView(APIView):
+    """이 문서를 둘러싼 링크 — 들어오는 링크(백링크)와 깨진 나가는 링크.
+
+    권한 경계를 넘지 않는다. 볼 수 없는 스페이스의 문서는 제목조차 내보내지 않고,
+    대신 몇 건이 가려졌는지만 숫자로 알린다 — 가린 사실을 조용히 숨기지 않기 위함이다.
+    """
+
+    def get(self, request, workspace_slug, space_pk, doc_pk):
+        doc = get_object_or_404(Document, pk=doc_pk, space_id=space_pk, deleted_at__isnull=True)
+        if not _check_space_access(request.user, doc.space):
+            return Response({"detail": "접근 권한이 없습니다."}, status=status.HTTP_403_FORBIDDEN)
+
+        spaces = _get_accessible_spaces(request.user, workspace_slug)
+
+        # 들어오는 링크 — 휴지통에 간 문서에서 오는 링크는 링크가 아니다
+        incoming_qs = DocumentLink.objects.filter(
+            target=doc, source__deleted_at__isnull=True,
+        ).select_related("source", "source__space")
+        incoming_all = list(incoming_qs)
+        visible = [ln for ln in incoming_all if ln.source.space_id in {s.id for s in spaces}]
+
+        # 나가는 링크 중 대상이 휴지통에 간 것 — 깨진 링크
+        broken_qs = DocumentLink.objects.filter(
+            source=doc, target__deleted_at__isnull=False,
+        ).select_related("target")
+
+        return Response({
+            "incoming": [
+                {
+                    "id": str(ln.source_id),
+                    "title": ln.source.title,
+                    "icon_prop": ln.source.icon_prop,
+                    "space": str(ln.source.space_id),
+                    "space_name": ln.source.space.name,
+                }
+                for ln in visible
+            ],
+            # 가려진 건수 — 0 이 아니면 프론트가 "볼 수 없는 문서 N건"으로 밝힌다
+            "incoming_hidden": len(incoming_all) - len(visible),
+            "broken": [
+                {"id": str(ln.target_id), "title": ln.target.title}
+                for ln in broken_qs
+            ],
+        })
+
+
+class DocumentGraphView(APIView):
+    """문서 링크 관계망 — 노드는 문서, 엣지는 DocumentLink.
+
+    ?space=<id>        그 스페이스만 (생략하면 접근 가능한 스페이스 전부)
+    ?doc=<id>&depth=N  그 문서에서 N 단계 안에 닿는 것만 (Obsidian 의 로컬 그래프)
+
+    이슈 그래프(apps/issues 의 node-graph)와 합치지 않았다. 그쪽은 상태·우선순위·수동 링크
+    같은 이슈 고유 개념을 그리고, 이쪽은 본문에서 파생된 참조만 그린다 — 노드에 실리는 것도,
+    엣지가 생기는 방식도 다르다.
+    """
+
+    # 그래프가 커지면 화면에서도 의미를 잃고 브라우저도 버거워진다. 자른 사실은 응답에 밝힌다.
+    MAX_NODES = 500
+    MAX_DEPTH = 5
+
+    def get(self, request, workspace_slug):
+        spaces = _get_accessible_spaces(request.user, workspace_slug)
+        docs = Document.objects.filter(
+            space__in=spaces, deleted_at__isnull=True, is_folder=False,
+        ).select_related("space")
+
+        space_id = request.query_params.get("space")
+        if space_id:
+            docs = docs.filter(space_id=space_id)
+
+        focus_id = request.query_params.get("doc")
+        if focus_id:
+            try:
+                depth = int(request.query_params.get("depth", 1))
+            except ValueError:
+                depth = 1
+            depth = max(1, min(depth, self.MAX_DEPTH))
+            keep = self._neighbourhood(focus_id, depth, set(docs.values_list("id", flat=True)))
+            docs = docs.filter(id__in=keep)
+
+        total = docs.count()
+        docs = list(docs.order_by("-updated_at")[: self.MAX_NODES])
+        ids = {d.id for d in docs}
+
+        # 양 끝이 모두 보이는 문서인 링크만 — 한쪽이 잘려 나간 엣지는 허공을 가리킨다
+        edges = DocumentLink.objects.filter(source_id__in=ids, target_id__in=ids)
+
+        degree: dict[str, int] = {}
+        edge_rows = []
+        for src, tgt in edges.values_list("source_id", "target_id"):
+            edge_rows.append({"source": str(src), "target": str(tgt)})
+            degree[str(src)] = degree.get(str(src), 0) + 1
+            degree[str(tgt)] = degree.get(str(tgt), 0) + 1
+
+        return Response({
+            "nodes": [
+                {
+                    "id": str(d.id),
+                    "title": d.title,
+                    "icon_prop": d.icon_prop,
+                    "space": str(d.space_id),
+                    "space_name": d.space.name,
+                    # 연결 수 — 프론트가 노드 크기를 정하고, 0 이면 고립 문서로 표시한다
+                    "degree": degree.get(str(d.id), 0),
+                }
+                for d in docs
+            ],
+            "edges": edge_rows,
+            # 자른 건수를 조용히 넘기지 않는다
+            "truncated": max(0, total - len(docs)),
+        })
+
+    @staticmethod
+    def _neighbourhood(focus_id, depth, allowed):
+        """focus 에서 링크를 따라 depth 단계 안에 닿는 문서 id 집합. 방향은 무시한다.
+
+        "이 문서와 관계있는 것"을 보는 게 목적이라, 내가 가리킨 쪽과 나를 가리킨 쪽을
+        구분하면 오히려 반쪽만 보인다.
+        """
+        import uuid as _uuid
+        try:
+            frontier = {_uuid.UUID(str(focus_id))}
+        except (ValueError, AttributeError, TypeError):
+            return set()
+        seen = set(frontier)
+        for _ in range(depth):
+            if not frontier:
+                break
+            links = DocumentLink.objects.filter(
+                Q(source_id__in=frontier) | Q(target_id__in=frontier)
+            ).values_list("source_id", "target_id")
+            nxt = set()
+            for src, tgt in links:
+                for node in (src, tgt):
+                    if node not in seen and node in allowed:
+                        nxt.add(node)
+            seen |= nxt
+            frontier = nxt
+        return seen
 
 
 class DocumentLabelListCreateView(generics.ListCreateAPIView):
@@ -763,8 +956,183 @@ class DocumentLabelDetailView(generics.RetrieveUpdateDestroyAPIView):
         return super().destroy(request, *args, **kwargs)
 
 
+class SpaceImportView(APIView):
+    """마크다운 반입 — `.md` 한 장 또는 볼트를 압축한 `.zip`.
+
+    zip 이면 폴더 구조를 그대로 문서 트리로 옮긴다. 머리말(YAML)은 프로퍼티로,
+    `tags:` 는 라벨로 들어간다.
+
+    위키링크는 **모든 문서를 만든 뒤에** 잇는다. 한 번에 하면 아직 안 만들어진 문서를
+    가리키는 링크가 전부 끊긴 채로 들어온다 — 볼트는 서로 가리키는 게 정상이라 그 손실이 크다.
+    """
+
+    from rest_framework.parsers import MultiPartParser, FormParser
+    parser_classes = [MultiPartParser, FormParser]
+
+    MAX_FILES = 500
+    MAX_BYTES = 32 * 1024 * 1024
+
+    # 머리말 중 문서 자체의 속성이 되는 이름들 — 프로퍼티로 중복해서 넣지 않는다
+    RESERVED_KEYS = {"title", "tags", "orbitail-id", "created", "updated"}
+
+    def post(self, request, workspace_slug, space_pk):
+        import zipfile
+
+        space = get_object_or_404(DocumentSpace, pk=space_pk, workspace__slug=workspace_slug)
+        if not _check_space_edit(request.user, space):
+            return Response({"detail": "편집 권한이 없습니다."}, status=status.HTTP_403_FORBIDDEN)
+
+        upload = request.FILES.get("file")
+        if not upload:
+            return Response({"detail": "파일이 없습니다."}, status=status.HTTP_400_BAD_REQUEST)
+        if upload.size > self.MAX_BYTES:
+            return Response(
+                {"detail": f"파일이 너무 큽니다(최대 {self.MAX_BYTES // (1024 * 1024)}MB)."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # [(폴더 경로 조각들, 파일이름, 본문)]
+        entries: list[tuple[list[str], str, str]] = []
+        skipped_files: list[str] = []
+        name = (upload.name or "").lower()
+
+        if name.endswith(".zip"):
+            try:
+                zf = zipfile.ZipFile(upload)
+            except zipfile.BadZipFile:
+                return Response({"detail": "zip 파일을 열 수 없습니다."}, status=status.HTTP_400_BAD_REQUEST)
+            for info in zf.infolist():
+                if info.is_dir():
+                    continue
+                path = info.filename.replace("\\", "/")
+                parts = [p for p in path.split("/") if p not in ("", ".", "..")]
+                # 맥에서 압축하면 딸려 오는 메타 폴더·숨김 파일은 문서가 아니다
+                if not parts or parts[0] == "__MACOSX" or parts[-1].startswith("."):
+                    continue
+                if not parts[-1].lower().endswith(".md"):
+                    skipped_files.append(path)
+                    continue
+                if len(entries) >= self.MAX_FILES:
+                    skipped_files.append(path)
+                    continue
+                try:
+                    text = zf.read(info).decode("utf-8")
+                except (UnicodeDecodeError, KeyError):
+                    skipped_files.append(path)
+                    continue
+                entries.append((parts[:-1], parts[-1], text))
+        elif name.endswith(".md"):
+            try:
+                entries.append(([], upload.name, upload.read().decode("utf-8")))
+            except UnicodeDecodeError:
+                return Response({"detail": "UTF-8 로 읽을 수 없는 파일입니다."}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            return Response({"detail": ".md 또는 .zip 만 받습니다."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not entries:
+            return Response({"detail": "가져올 마크다운 파일이 없습니다."}, status=status.HTTP_400_BAD_REQUEST)
+
+        actor = request.user if request.user.is_authenticated else None
+        folder_cache: dict[tuple[str, ...], Document] = {}
+
+        def folder_for(parts: list[str]) -> Document | None:
+            """경로 조각을 따라 폴더 문서를 만들어 가며 마지막 폴더를 돌려준다."""
+            parent = None
+            for depth in range(len(parts)):
+                key = tuple(parts[: depth + 1])
+                node = folder_cache.get(key)
+                if node is None:
+                    node = Document.objects.create(
+                        space=space, parent=parent, title=parts[depth],
+                        is_folder=True, created_by=actor,
+                    )
+                    folder_cache[key] = node
+                parent = node
+            return parent
+
+        created: list[tuple[Document, str]] = []   # (문서, 본문 마크다운)
+        for parts, filename, text in entries:
+            front, body = parse_frontmatter(text)
+            title = str(front.get("title") or filename[:-3]).strip() or "제목 없음"
+            properties = {
+                k: v for k, v in front.items()
+                if k not in self.RESERVED_KEYS and isinstance(v, (str, int, float, bool, list))
+            }
+            doc = Document.objects.create(
+                space=space, parent=folder_for(parts), title=title[:500],
+                properties=properties, created_by=actor,
+            )
+            tags = front.get("tags") or []
+            if isinstance(tags, str):
+                tags = [tags]
+            for tag in [str(x).strip() for x in tags if str(x).strip()][:20]:
+                label, _ = DocumentLabel.objects.get_or_create(
+                    workspace=space.workspace, name=tag[:100],
+                    defaults={"created_by": actor},
+                )
+                doc.labels.add(label)
+            created.append((doc, body))
+
+        # ── 2차: 위키링크 잇기 ──
+        # 이번에 만든 문서 + 스페이스에 이미 있던 문서를 제목으로 찾는다.
+        # 같은 제목이 둘이면 이번에 만든 쪽을 쓴다(볼트 안의 링크는 볼트 안을 가리킨다).
+        by_title: dict[str, tuple[str, str]] = {}
+        for doc in Document.objects.filter(space=space, deleted_at__isnull=True, is_folder=False):
+            by_title.setdefault(doc.title.strip().lower(), (str(doc.id), str(doc.space_id)))
+        for doc, _ in created:
+            by_title[doc.title.strip().lower()] = (str(doc.id), str(doc.space_id))
+
+        def resolve(title: str):
+            return by_title.get(title.strip().lower())
+
+        for doc, body in created:
+            doc.content_html = markdown_to_html(body, resolve_wikilink=resolve)
+            doc.save(update_fields=["content_html"])
+            try:
+                sync_document_links(doc)
+            except Exception:
+                # 링크 반영이 실패해도 문서는 들어와야 한다. 다음 저장에서 다시 맞춰진다.
+                pass
+
+        return Response({
+            "created": len(created),
+            "folders": len(folder_cache),
+            # 건너뛴 파일을 조용히 숨기지 않는다 — 이미지·첨부는 문서로 만들 수 없다
+            "skipped": len(skipped_files),
+            "skipped_examples": skipped_files[:10],
+            "truncated": len(skipped_files) > 0 and len(entries) >= self.MAX_FILES,
+        }, status=status.HTTP_201_CREATED)
+
+
+class DocumentMarkdownExportView(APIView):
+    """문서 한 장을 `.md` 로. 머리말(YAML) + 본문 마크다운.
+
+    Obsidian 볼트에 그대로 떨어뜨릴 수 있는 형태다. 콜아웃은 `> [!info]` 로,
+    문서 링크는 `[[제목]]` 으로 나가고, 되돌리기용 정보는 HTML 주석에 숨긴다.
+    """
+
+    def get(self, request, workspace_slug, space_pk, doc_pk):
+        doc = get_object_or_404(Document, pk=doc_pk, space_id=space_pk, deleted_at__isnull=True)
+        if not _check_space_access(request.user, doc.space):
+            return Response({"detail": "접근 권한이 없습니다."}, status=status.HTTP_403_FORBIDDEN)
+
+        from django.http import HttpResponse
+        from urllib.parse import quote
+
+        response = HttpResponse(document_to_markdown(doc), content_type="text/markdown; charset=utf-8")
+        # 한글 파일명은 RFC 5987 로 — 안 그러면 브라우저가 깨진 이름으로 저장한다
+        response["Content-Disposition"] = f"attachment; filename*=UTF-8\'\'{quote(doc.title)}.md"
+        return response
+
+
 class SpaceExportView(APIView):
-    """스페이스 전체를 zip 으로 내보내기 — 트리 구조를 폴더로 재현한 HTML 묶음.
+    """스페이스 전체를 zip 으로 내보내기 — 트리 구조를 폴더로 재현한 묶음.
+
+    ?type=md    마크다운(.md, 머리말 포함) — Obsidian 볼트로 그대로 옮길 수 있다
+    ?type=html  (기본) 단독 HTML
+
+    파라미터 이름으로 `format` 을 쓰지 않는다 — DRF 가 응답 형식 협상에 이미 쓰는 이름이라
+    `?format=md` 를 주면 "md 렌더러가 없다"며 404 가 난다.
 
     zip 생성은 백엔드에서 한다. 프론트에서 만들면 압축 라이브러리를 새로 들여야 하고
     브라우저 메모리도 쓴다. 첨부 이미지는 절대 URL 로 남기므로 오프라인에서는 보이지 않는다.
@@ -782,8 +1150,13 @@ class SpaceExportView(APIView):
         if not _check_space_access(request.user, space):
             return Response({"detail": "접근 권한이 없습니다."}, status=status.HTTP_403_FORBIDDEN)
 
+        as_markdown = request.query_params.get("type", "html").lower() in ("md", "markdown")
+        ext = "md" if as_markdown else "html"
+
         docs = list(
-            Document.objects.filter(space=space, deleted_at__isnull=True).order_by("sort_order", "created_at")
+            Document.objects.filter(space=space, deleted_at__isnull=True)
+            .prefetch_related("labels")
+            .order_by("sort_order", "created_at")
         )
         truncated = len(docs) > self.MAX_DOCS
         docs = docs[: self.MAX_DOCS]
@@ -811,22 +1184,37 @@ class SpaceExportView(APIView):
                 if doc.is_folder:
                     continue
                 base = path_of(doc)
-                name, n = f"{base}.html", 2
+                name, n = f"{base}.{ext}", 2
                 while name in used:          # 같은 이름이 겹치면 -2, -3 을 붙인다
-                    name, n = f"{base}-{n}.html", n + 1
+                    name, n = f"{base}-{n}.{ext}", n + 1
                 used.add(name)
-                zf.writestr(name, _export_html(doc.title, doc.content_html))
+                zf.writestr(
+                    name,
+                    document_to_markdown(doc) if as_markdown else _export_html(doc.title, doc.content_html),
+                )
                 index_rows.append((name, doc.title))
 
-            notice = (
-                f"<p style='color:#b45309'>문서가 {self.MAX_DOCS}개를 넘어 앞의 {self.MAX_DOCS}개만 포함했습니다.</p>"
-                if truncated else ""
-            )
-            links = "".join(f'<li><a href="{n}">{t}</a></li>' for n, t in index_rows)
-            zf.writestr(
-                "index.html",
-                _export_html(space.name, f"{notice}<p>문서 {len(index_rows)}개</p><ul>{links}</ul>"),
-            )
+            if as_markdown:
+                # 마크다운 묶음에 HTML 목차를 끼우면 볼트에 이물질이 섞인다 — 목차도 마크다운으로.
+                notice = (
+                    f"> [!warning]\n> 문서가 {self.MAX_DOCS}개를 넘어 앞의 {self.MAX_DOCS}개만 포함했습니다.\n\n"
+                    if truncated else ""
+                )
+                links = "\n".join(f"- [[{t}]]" for _, t in index_rows)
+                zf.writestr(
+                    "index.md",
+                    f"# {space.name}\n\n{notice}문서 {len(index_rows)}개\n\n{links}\n",
+                )
+            else:
+                notice = (
+                    f"<p style='color:#b45309'>문서가 {self.MAX_DOCS}개를 넘어 앞의 {self.MAX_DOCS}개만 포함했습니다.</p>"
+                    if truncated else ""
+                )
+                links = "".join(f'<li><a href="{n}">{t}</a></li>' for n, t in index_rows)
+                zf.writestr(
+                    "index.html",
+                    _export_html(space.name, f"{notice}<p>문서 {len(index_rows)}개</p><ul>{links}</ul>"),
+                )
 
         from django.http import HttpResponse
         from urllib.parse import quote

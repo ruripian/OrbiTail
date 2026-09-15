@@ -203,8 +203,28 @@ class Document(models.Model):
     share_token = models.CharField(max_length=64, unique=True, null=True, blank=True, db_index=True)
     share_expires_at = models.DateTimeField(null=True, blank=True)
 
+    # 이 폴더를 "표"로 쓸 때의 칸 정의. None 이면 평범한 폴더다(대부분의 폴더가 그렇다).
+    # 폴더가 아닌 문서에는 의미가 없다.
+    #   [{"name": "날짜", "type": "date"},
+    #    {"name": "상태", "type": "select", "options": ["제안", "승인", "폐기"]}]
+    #
+    # 칸을 폴더에 두는 이유: 문서마다 제멋대로 칸을 만들면 모아서 표로 볼 수가 없다.
+    # 같은 폴더에 있는 문서들이 같은 칸을 갖기 때문에 정렬·필터가 성립한다.
+    # 값은 각 문서의 properties 에 **칸 이름을 key 로** 들어간다 — 그래야 `.md` 머리말로
+    # 그대로 오갈 수 있고, 칸에 없는 key(가져온 볼트의 머리말 등)도 버려지지 않는다.
+    db_columns = models.JSONField(null=True, blank=True, default=None)
+
+    # 문서 프로퍼티 — Obsidian 의 YAML 머리말에 대응하는 key→value.
+    # `.md` 로 내보낼 때 frontmatter 로 나가고, 반입할 때 여기로 들어온다.
+    # 값은 문자열·숫자·불리언·문자열 목록만 받는다(serializers 에서 검증) — YAML 로 오갈 수 있는 범위.
+    properties = models.JSONField(default=dict, blank=True)
+
     content_html = models.TextField(blank=True, default="")
     yjs_state = models.BinaryField(null=True, blank=True)
+
+    # 본문에서 뽑아낸 문서→문서 링크 집합의 지문. 본문 저장은 편집 중 2초마다 들어오는데
+    # 대부분은 링크가 그대로다 — 지문이 같으면 링크 테이블을 건드리지 않는다.
+    links_hash = models.CharField(max_length=40, blank=True, default="")
 
     is_folder = models.BooleanField(default=False)
     created_by = models.ForeignKey(
@@ -285,6 +305,41 @@ class DocumentSpaceBookmark(models.Model):
         db_table = "document_space_bookmarks"
         unique_together = ("user", "space")
         indexes = [models.Index(fields=["user", "-created_at"])]
+
+
+class DocumentLink(models.Model):
+    """문서 → 문서 참조 — 본문의 문서 멘션에서 파생된다.
+
+    DocumentIssueLink 와 나란한 자리지만 성격이 다르다. 그쪽은 사용자가 명시적으로 거는
+    연결이라 사용자가 지우기 전까지 남고, 이쪽은 본문에서 파생되는 것이라 저장할 때마다
+    본문과 일치하도록 통째로 갈아끼운다(apps/documents/links.py).
+
+    target 에 소프트 삭제된 문서가 남아 있을 수 있다 — 일부러 남긴다. 지워 버리면
+    "가리키던 문서가 휴지통에 갔다"는 사실(깨진 링크)을 알 방법이 없어진다.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    source = models.ForeignKey(
+        Document,
+        on_delete=models.CASCADE,
+        related_name="outgoing_links",
+    )
+    target = models.ForeignKey(
+        Document,
+        on_delete=models.CASCADE,
+        related_name="incoming_links",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "document_links"
+        # 같은 문서를 본문에서 여러 번 가리켜도 연결은 하나
+        unique_together = [("source", "target")]
+        # 백링크("나를 가리키는 문서") 조회가 주 경로라 target 에 인덱스를 둔다
+        indexes = [models.Index(fields=["target"])]
+
+    def __str__(self):
+        return f"{self.source_id} → {self.target_id}"
 
 
 class DocumentIssueLink(models.Model):
