@@ -356,7 +356,13 @@ def broadcast_issue_change(sender, instance, created, **kwargs):
         .exclude(user=actor)
         .select_related("user")
     )
-    recipients = [p.user for p in subscribers_qs if p.user.is_active]
+    # 설정을 켜 둔 뒤 프로젝트에서 빠졌거나 워크스페이스를 떠난 사람에게는 보내지 않는다 — 발송 시점에 다시 본다
+    from apps.projects.models import Project
+    from apps.projects.views import _project_readable_q
+    recipients = [
+        p.user for p in subscribers_qs
+        if p.user.is_active and Project.objects.filter(pk=issue.project_id).filter(_project_readable_q(p.user)).exists()
+    ]
     if not recipients:
         return
 

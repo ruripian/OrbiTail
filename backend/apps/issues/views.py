@@ -125,6 +125,23 @@ def _get_readable_issue(request, kwargs, issue_key="issue_pk"):
     return issue
 
 
+def _get_readable_project(request, workspace_slug, project_pk):
+    """URL 의 워크스페이스에 속하고 요청자가 읽을 수 있는 프로젝트. 아니면 404."""
+    from rest_framework.exceptions import NotFound
+    from apps.projects.models import Project
+    from apps.projects.views import _project_readable_q
+    project = (
+        Project.objects.filter(pk=project_pk, workspace__slug=workspace_slug)
+        .filter(_project_readable_q(request.user))
+        .select_related("workspace")
+        .distinct()
+        .first()
+    )
+    if project is None:
+        raise NotFound("프로젝트를 찾을 수 없습니다.")
+    return project
+
+
 def _require_perm(user, project_id, perm_key):
     """_check_perm 의 예외 버전 — get_queryset·perform_create 안에서 쓴다."""
     from rest_framework.exceptions import PermissionDenied
@@ -1321,16 +1338,15 @@ class ProjectIssueStatsView(APIView):
     """
 
     def get(self, request, workspace_slug, project_pk):
-        from apps.projects.models import Project
+        # 먼저 프로젝트를 읽을 수 있는지 본다 — 아래 완료 추이 집계는 이 필터를 거치지 않는 쿼리라,
+        # 전에는 비공개 프로젝트 id 만 알면 일별 완료 수가 새어 나갔다
+        _get_readable_project(request, workspace_slug, project_pk)
         # 필드(Field) 이슈는 상태/진척 개념이 없어 통계에서 제외.
         base_qs = Issue.objects.filter(
             project_id=project_pk,
             deleted_at__isnull=True,
             is_field=False,
-        ).filter(
-            Q(project__members__member=request.user) |
-            Q(project__network=Project.Network.PUBLIC)
-        ).distinct()
+        )
 
         # 1) 상태별 이슈 수 (state가 NULL인 이슈는 "미분류"로 처리)
         by_state = list(
@@ -1432,7 +1448,21 @@ class ProjectIssueStatsView(APIView):
         })
 
 
-class LabelListCreateView(generics.ListCreateAPIView):
+class _ProjectScopedWriteMixin:
+    """라벨·이슈 템플릿 — 읽기는 프로젝트를 읽을 수 있을 때, 쓰기는 can_edit. 요청 처리 전에 판정한다.
+
+    전에는 project_pk 로만 걸러 로그인한 누구나(다른 워크스페이스 포함) 남의 프로젝트 라벨·템플릿을
+    읽고 만들고 지울 수 있었다."""
+
+    def initial(self, request, *args, **kwargs):
+        super().initial(request, *args, **kwargs)
+        from rest_framework.permissions import SAFE_METHODS
+        project = _get_readable_project(request, self.kwargs["workspace_slug"], self.kwargs["project_pk"])
+        if request.method not in SAFE_METHODS:
+            _require_perm(request.user, project.pk, "can_edit")
+
+
+class LabelListCreateView(_ProjectScopedWriteMixin, generics.ListCreateAPIView):
     serializer_class = LabelSerializer
 
     def get_queryset(self):
@@ -1442,14 +1472,14 @@ class LabelListCreateView(generics.ListCreateAPIView):
         serializer.save(project_id=self.kwargs["project_pk"])
 
 
-class LabelDetailView(generics.RetrieveUpdateDestroyAPIView):
+class LabelDetailView(_ProjectScopedWriteMixin, generics.RetrieveUpdateDestroyAPIView):
     serializer_class = LabelSerializer
 
     def get_queryset(self):
         return Label.objects.filter(project_id=self.kwargs["project_pk"])
 
 
-class IssueTemplateListCreateView(generics.ListCreateAPIView):
+class IssueTemplateListCreateView(_ProjectScopedWriteMixin, generics.ListCreateAPIView):
     """이슈 템플릿 목록 조회 및 생성"""
     serializer_class = IssueTemplateSerializer
 
@@ -1462,7 +1492,7 @@ class IssueTemplateListCreateView(generics.ListCreateAPIView):
         return ctx
 
 
-class IssueTemplateDetailView(generics.RetrieveUpdateDestroyAPIView):
+class IssueTemplateDetailView(_ProjectScopedWriteMixin, generics.RetrieveUpdateDestroyAPIView):
     """이슈 템플릿 단건 조회/수정/삭제"""
     serializer_class = IssueTemplateSerializer
 
@@ -1493,9 +1523,13 @@ class IssueDocumentLinksView(APIView):
 
     def get(self, request, workspace_slug, project_pk, pk):
         from apps.documents.models import DocumentIssueLink
+        from apps.documents.views import _get_accessible_spaces
+        issue = _get_readable_issue(request, self.kwargs, issue_key="pk")
+        # 요청자가 볼 수 있는 스페이스의 문서만 — 아니면 비공개·개인 스페이스 문서 제목이 샌다
         links = DocumentIssueLink.objects.filter(
-            issue_id=pk,
-            issue__project_id=project_pk,
+            issue=issue,
+            document__deleted_at__isnull=True,
+            document__space__in=_get_accessible_spaces(request.user, workspace_slug),
         ).select_related("document", "document__space")
         return Response([self._serialize(link) for link in links])
 
@@ -1506,6 +1540,8 @@ class IssueDocumentLinksView(APIView):
             project_id=project_pk, member=request.user,
         ).exists():
             return Response({"detail": "이슈 접근 권한 없음"}, status=status.HTTP_403_FORBIDDEN)
+        # URL 의 이슈가 그 프로젝트 것이어야 한다 — 멤버인 프로젝트 id 로 남의 이슈에 연결하던 것
+        _get_readable_issue(request, self.kwargs, issue_key="pk")
 
         # 문서 존재/접근 검증
         from apps.documents.models import Document, DocumentIssueLink
@@ -1545,8 +1581,9 @@ class IssueDocumentLinkDeleteView(APIView):
         ).exists():
             return Response({"detail": "이슈 접근 권한 없음"}, status=status.HTTP_403_FORBIDDEN)
         from apps.documents.models import DocumentIssueLink
+        issue = _get_readable_issue(request, self.kwargs, issue_key="pk")
         deleted, _ = DocumentIssueLink.objects.filter(
-            issue_id=pk, document_id=doc_pk,
+            issue=issue, document_id=doc_pk,
         ).delete()
         if not deleted:
             return Response(status=status.HTTP_404_NOT_FOUND)
@@ -1609,8 +1646,9 @@ class IssueRequestListCreateView(generics.ListCreateAPIView):
         return qs
 
     def perform_create(self, serializer):
-        from apps.projects.models import Project
-        project = Project.objects.get(pk=self.kwargs["project_pk"])
+        # 요청 화면이 여는 프로젝트(읽을 수 있는 프로젝트)에만 제출할 수 있다 — 전에는 id 만 알면 어느
+        # 프로젝트에나 요청을 넣을 수 있었고, 없는 id 면 500 이었다
+        project = _get_readable_project(self.request, self.kwargs["workspace_slug"], self.kwargs["project_pk"])
         serializer.save(
             project=project,
             workspace=project.workspace,
@@ -1639,6 +1677,14 @@ class IssueRequestApproveView(APIView):
         req = get_object_or_404(IssueRequest, pk=pk, project_id=project_pk)
         if req.status != IssueRequest.Status.PENDING:
             return Response({"detail": "이미 처리된 요청입니다."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 관계 값은 이 프로젝트 것만, 담당자는 워크스페이스 멤버만 — 일괄 수정과 같은 규칙
+        relation_updates = {k: request.data.get(k) for k in ("state", "category", "sprint", "assignees", "label",
+                                                               "start_date", "due_date", "estimate_point")
+                            if request.data.get(k) not in (None, "", [])}
+        _, error = _clean_bulk_updates(project.pk, relation_updates)
+        if error:
+            return Response({"detail": error}, status=status.HTTP_400_BAD_REQUEST)
 
         state_id = request.data.get("state")
         if not state_id:

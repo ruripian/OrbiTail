@@ -157,3 +157,46 @@ class IssueSecurityTests(TestCase):
                    {"title": "새 하위", "project": str(self.secret.id)}, format="json")
         self.assertEqual(r.status_code, 201, r.data)
         self.assertEqual(Issue.objects.get(title="새 하위").project_id, self.secret.id)
+
+
+class IssueProjectResourceSecurityTests(IssueSecurityTests):
+    """라벨·템플릿·요청·통계·이슈↔문서 연결 — 같은 픽스처를 쓰되 기존 테스트는 다시 돌지 않게 비운다."""
+
+    def test_labels_and_templates(self):
+        c = self.as_(self.intruder)
+        base = f"/api/workspaces/ws/projects/{self.secret.id}/"
+        self.assertEqual(c.get(base + "labels/").status_code, 404)
+        self.assertEqual(c.post(base + "labels/", {"name": "x", "color": "#000"}, format="json").status_code, 404)
+        self.assertEqual(c.get(base + "templates/").status_code, 404)
+        self.assertEqual(c.post(base + "templates/", {"name": "t"}, format="json").status_code, 404)
+        # 공개 프로젝트: 워크스페이스 멤버는 읽기만
+        pub = f"/api/workspaces/ws/projects/{self.public.id}/"
+        self.assertEqual(c.get(pub + "labels/").status_code, 200)
+        self.assertEqual(c.post(pub + "labels/", {"name": "x", "color": "#000"}, format="json").status_code, 403)
+        self.assertEqual(self.as_(self.stranger).get(pub + "labels/").status_code, 404)
+
+    def test_requests_and_stats(self):
+        c = self.as_(self.intruder)
+        self.assertEqual(c.post(f"/api/workspaces/ws/projects/{self.secret.id}/requests/",
+                                {"title": "x", "kind": "bug"}, format="json").status_code, 404)
+        self.assertEqual(c.get(f"/api/workspaces/ws/projects/{self.secret.id}/issues/stats/").status_code, 404)
+
+    def test_issue_document_links(self):
+        c = self.as_(self.intruder)
+        url = f"/api/workspaces/ws/projects/{self.mine.id}/issues/{self.issue.id}/documents/"
+        self.assertEqual(c.get(url).status_code, 404)
+        self.assertEqual(c.get(f"/api/workspaces/ws/projects/{self.secret.id}/issues/{self.issue.id}/documents/").status_code, 404)
+
+    # 부모 클래스의 테스트는 여기서 다시 돌리지 않는다
+    test_sub_resources_of_unreadable_issue_are_404 = None
+    test_project_pk_mismatch_does_not_bypass = None
+    test_public_project_is_not_readable_from_other_workspace = None
+    test_public_project_readable_by_workspace_member = None
+    test_cannot_create_issue_in_other_project_via_body = None
+    test_cannot_move_issue_or_borrow_foreign_relations = None
+    test_bulk_update_only_allows_known_fields = None
+    test_bulk_delete_cannot_reach_other_projects_children = None
+    test_attachment_trash_needs_membership_and_permission = None
+    test_graphs_hide_unreadable_issues = None
+    test_node_link_cannot_target_unreadable_issue = None
+    test_owner_still_works = None

@@ -360,6 +360,17 @@ class DeleteAccountView(APIView):
         return Response({"detail": "계정이 삭제되었습니다."}, status=status.HTTP_200_OK)
 
 
+def _revoke_refresh_tokens(user):
+    """이 사용자에게 발급된 refresh 토큰을 전부 폐기한다.
+
+    비밀번호를 바꾸는 대표적인 이유가 "누가 내 계정을 쓰는 것 같다"인데, 토큰을 그대로 두면 훔친
+    refresh 토큰으로 7일 동안 계속 새 access 토큰을 받을 수 있다. (이미 발급된 access 토큰은 만료까지 남는다.)
+    """
+    from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
+    for token in OutstandingToken.objects.filter(user=user, blacklistedtoken__isnull=True):
+        BlacklistedToken.objects.get_or_create(token=token)
+
+
 class ChangePasswordView(APIView):
     """현재 비밀번호 확인 후 새 비밀번호로 변경"""
 
@@ -376,7 +387,12 @@ class ChangePasswordView(APIView):
 
         user.set_password(serializer.validated_data["new_password"])
         user.save()
-        return Response({"detail": "비밀번호가 변경되었습니다."})
+        _revoke_refresh_tokens(user)
+        # 다른 기기의 세션은 끊고, 지금 바꾼 이 세션만 새 토큰으로 이어 간다
+        from rest_framework_simplejwt.tokens import RefreshToken
+        refresh = RefreshToken.for_user(user)
+        return Response({"detail": "비밀번호가 변경되었습니다.",
+                         "access": str(refresh.access_token), "refresh": str(refresh)})
 
 
 class EmailChangeRequestView(APIView):
@@ -562,6 +578,7 @@ class PasswordResetConfirmView(APIView):
         user = token_obj.user
         user.set_password(serializer.validated_data["new_password"])
         user.save()
+        _revoke_refresh_tokens(user)
 
         token_obj.is_used = True
         token_obj.save()
@@ -782,7 +799,12 @@ class AnnouncementListCreateView(generics.ListCreateAPIView):
 
 class AnnouncementDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = AnnouncementSerializer
-    queryset = Announcement.objects.all()
+
+    def get_queryset(self):
+        # 목록과 같은 규칙 — 게시 전 공지는 관리자만 본다
+        if self.request.user.is_staff:
+            return Announcement.objects.all()
+        return Announcement.objects.filter(is_published=True)
 
     def get_permissions(self):
         if self.request.method in ("GET", "HEAD", "OPTIONS"):

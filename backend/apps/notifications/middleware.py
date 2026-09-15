@@ -18,7 +18,11 @@ def get_user_from_token(token_str):
     """JWT access token에서 사용자 객체를 반환"""
     try:
         token = AccessToken(token_str)
-        return User.objects.get(id=token["user_id"])
+        user = User.objects.get(id=token["user_id"])
+        # HTTP 쪽 로그인과 같은 조건 — 정지·탈퇴한 계정이 남은 access 토큰으로 실시간 이벤트를 계속 받지 못하게
+        if not user.is_active or user.is_suspended or user.deleted_at is not None:
+            return AnonymousUser()
+        return user
     except Exception:
         return AnonymousUser()
 

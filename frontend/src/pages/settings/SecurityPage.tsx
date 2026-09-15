@@ -17,6 +17,7 @@ export function SecurityPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const clearAuth = useAuthStore((s) => s.clearAuth);
+  const updateTokens = useAuthStore((s) => s.updateTokens);
 
   /* 계정 탈퇴 — PASS3-7: DangerZone 으로 통합 (password+DELETE 입력 inline) */
   const deleteMutation = useMutation({
@@ -54,7 +55,9 @@ export function SecurityPage() {
         current_password: data.current_password,
         new_password: data.new_password,
       }),
-    onSuccess: () => {
+    onSuccess: (data: { access?: string; refresh?: string }) => {
+      /* 서버가 다른 기기의 세션을 끊고 이 세션에만 새 토큰을 준다 — 받아 두지 않으면 곧 로그아웃된다 */
+      if (data?.access) updateTokens(data.access, data.refresh);
       reset();
       toast.success(t("common.passwordChanged"));
     },

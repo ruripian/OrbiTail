@@ -136,6 +136,15 @@ class MeIssuesView(generics.ListCreateAPIView):
 
         # 기본 state — Personal 프로젝트의 unstarted 상태(서비스에서 자동 생성됨)
         state_id = request.data.get("state")
+        # 상태는 본인 개인 프로젝트 것만 — 다른 프로젝트 상태 id 를 넣어 그 이름을 응답으로 받아 보던 것
+        if state_id and not State.objects.filter(pk=state_id, project=personal_project).exists():
+            return Response({"state": ["이 프로젝트의 상태가 아닙니다."]}, status=status.HTTP_400_BAD_REQUEST)
+        priority = request.data.get("priority", Issue.Priority.NONE)
+        if priority not in Issue.Priority.values:
+            return Response({"priority": ["우선순위 값이 잘못되었습니다."]}, status=status.HTTP_400_BAD_REQUEST)
+        shared = request.data.get("shared_with_team", True)
+        # bool("false") 는 True 라서 문자열로 보내면 끌 수 없었다
+        shared = shared if isinstance(shared, bool) else str(shared).lower() not in ("false", "0", "")
         if not state_id:
             default_state = (
                 State.objects.filter(project=personal_project, group="unstarted")
@@ -149,11 +158,11 @@ class MeIssuesView(generics.ListCreateAPIView):
             title=request.data.get("title", "").strip() or "제목 없음",
             description=request.data.get("description"),
             description_html=request.data.get("description_html", ""),
-            priority=request.data.get("priority", Issue.Priority.NONE),
+            priority=priority,
             state_id=state_id,
             due_date=request.data.get("due_date") or None,
             start_date=request.data.get("start_date") or None,
-            shared_with_team=bool(request.data.get("shared_with_team", True)),
+            shared_with_team=shared,
             created_by=request.user,
         )
         # 본인 자동 담당자 — me/issues 목록에 즉시 노출

@@ -129,18 +129,16 @@ class ProjectNotificationPreferenceView(APIView):
     """
 
     def _get_project(self, request, workspace_slug, project_pk):
-        from apps.projects.models import Project, ProjectMember
-        from django.db.models import Q
-        # 멤버 여부 확인 — 비공개 프로젝트 차단
-        try:
-            project = Project.objects.filter(
-                Q(members__member=request.user) | Q(network=Project.Network.PUBLIC),
-                workspace__slug=workspace_slug,
-                id=project_pk,
-            ).distinct().get()
-        except Project.DoesNotExist:
-            return None
-        return project
+        from apps.projects.models import Project
+        from apps.projects.views import _project_readable_q
+        # 읽을 수 있는 프로젝트만 — 공개 프로젝트도 같은 워크스페이스 멤버여야 한다. 전에는 다른 워크스페이스
+        # 사용자가 "새 이슈 알림"을 켜 두고 그 프로젝트의 새 이슈 제목을 알림·메일로 받아볼 수 있었다.
+        return (
+            Project.objects.filter(workspace__slug=workspace_slug, id=project_pk)
+            .filter(_project_readable_q(request.user))
+            .distinct()
+            .first()
+        )
 
     def get(self, request, workspace_slug, project_pk):
         project = self._get_project(request, workspace_slug, project_pk)

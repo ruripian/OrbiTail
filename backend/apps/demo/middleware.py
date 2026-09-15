@@ -8,7 +8,10 @@ from django.conf import settings
 from django.http import JsonResponse
 
 # 관리자 영역 — 전역 콘솔, 감사 로그, Django admin
-BLOCKED_PREFIXES = ("/api/admin/", "/admin/")
+BLOCKED_PREFIXES = ("/api/admin/", "/admin/", "/api/auth/admin/")
+
+# 공지 쓰기 — 방문자 모두에게 보이는 곳이라 막는다. 읽음 표시(mark-seen)는 방문자도 쓴다.
+ANNOUNCEMENT_PREFIX = "/api/auth/announcements/"
 
 # 파일 업로드는 multipart 로만 들어온다. 다만 컨텐츠 타입만 보고 끊으면
 # 안 된다. 커버 이미지 "제거" 처럼 파일 없이 multipart 로 오는 정상 요청이
@@ -35,6 +38,9 @@ class DemoGuardMiddleware:
         path = request.path
         if path.startswith(BLOCKED_PREFIXES):
             return "데모에서는 관리자 기능을 사용할 수 없습니다."
+        if request.method not in SAFE_METHODS and path.startswith(ANNOUNCEMENT_PREFIX) \
+                and not path.rstrip("/").endswith("mark-seen"):
+            return "데모에서는 공지를 바꿀 수 없습니다."
         if request.method not in SAFE_METHODS:
             content_type = (request.META.get("CONTENT_TYPE") or "").lower()
             if content_type.startswith(UPLOAD_CONTENT_TYPE) and request.FILES:
