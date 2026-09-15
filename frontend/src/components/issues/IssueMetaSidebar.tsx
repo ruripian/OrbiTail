@@ -396,6 +396,7 @@ function LinkedDocumentsSection({ issueId, workspaceSlug, projectId }: { issueId
         workspaceSlug={workspaceSlug}
         excludeIds={links.map((l) => l.document_id)}
         defaultSpaceId={projectSpaceId}
+        focusSpaceId={projectSpaceId}
         onSelect={async (doc) => { await linkDocToIssue(doc.space, doc.id); }}
         onCreate={async (doc) => {
           await linkDocToIssue(doc.space, doc.id);

@@ -7,6 +7,10 @@
  * onCreate 를 넘기면 입력창이 검색어와 새 문서 제목을 겸한다. 찾는 문서가 없을 때
  * 다이얼로그를 닫고 다른 다이얼로그를 여는 대신, 친 그대로 만들어 이어붙일 수 있다.
  * (부모 폴더 지정은 여기서 다루지 않는다 — 연결이 목적이고, 위치는 나중에 옮기면 된다.)
+ *
+ * focusSpaceId 를 넘기면 처음에는 그 스페이스(보통 이슈가 속한 프로젝트의 스페이스)만 펼쳐 보여 주고,
+ * 다른 스페이스는 "다른 스페이스 문서도 보기"를 눌러야 나온다. 이슈에 붙이는 문서는 대개 같은
+ * 프로젝트 문서라, 워크스페이스의 모든 스페이스가 한꺼번에 깔려 있으면 찾는 데 방해가 된다.
  */
 import { useEffect, useMemo, useState } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -30,10 +34,12 @@ interface Props {
   onCreate?: (doc: Document) => void | Promise<void>;
   /** 새 문서를 만들 기본 스페이스 (보통 이슈가 속한 프로젝트의 스페이스) */
   defaultSpaceId?: string;
+  /** 넘기면 처음엔 이 스페이스만 보여 준다(트리·검색 모두). 다른 스페이스는 버튼으로 펼친다. */
+  focusSpaceId?: string;
 }
 
 export function DocumentPickerDialog({
-  open, onOpenChange, workspaceSlug, excludeIds = [], onSelect, onCreate, defaultSpaceId,
+  open, onOpenChange, workspaceSlug, excludeIds = [], onSelect, onCreate, defaultSpaceId, focusSpaceId,
 }: Props) {
   const [q, setQ] = useState("");
   const [debounced, setDebounced] = useState("");
@@ -42,15 +48,20 @@ export function DocumentPickerDialog({
   const [expandedDocs, setExpandedDocs] = useState<Set<string>>(new Set());
   const [createSpaceId, setCreateSpaceId] = useState(defaultSpaceId ?? "");
   const [creating, setCreating] = useState(false);
+  const [showOthers, setShowOthers] = useState(false);
 
   useEffect(() => {
     const t = setTimeout(() => setDebounced(q.trim()), 200);
     return () => clearTimeout(t);
   }, [q]);
   useEffect(() => {
-    if (!open) { setQ(""); setExpandedSpaces(new Set()); setExpandedDocs(new Set()); }
-    else setCreateSpaceId(defaultSpaceId ?? "");
-  }, [open, defaultSpaceId]);
+    if (!open) { setQ(""); setExpandedSpaces(new Set()); setExpandedDocs(new Set()); setShowOthers(false); }
+    else {
+      setCreateSpaceId(defaultSpaceId ?? "");
+      /* 프로젝트 스페이스는 펼친 채로 연다 — 한 번 더 누르게 할 이유가 없다 */
+      if (focusSpaceId) setExpandedSpaces(new Set([focusSpaceId]));
+    }
+  }, [open, defaultSpaceId, focusSpaceId]);
 
   const isSearching = debounced.length > 0;
 
@@ -83,6 +94,18 @@ export function DocumentPickerDialog({
     });
     return m;
   }, [expandedSpaces, spaceDocQueries]);
+
+  /* 초점 스페이스가 실제로 보이는 스페이스일 때만 좁힌다 — 권한이 없거나 아직 목록이 안 왔으면 전부 */
+  const hasFocus = !!focusSpaceId && spaces.some((sp) => sp.id === focusSpaceId);
+  const narrowed = hasFocus && !showOthers;
+  const visibleSpaces = !hasFocus
+    ? spaces
+    : narrowed
+      ? spaces.filter((sp) => sp.id === focusSpaceId)
+      : [...spaces.filter((sp) => sp.id === focusSpaceId), ...spaces.filter((sp) => sp.id !== focusSpaceId)];
+  const documentResults = searchResults.filter((d) => !d.is_folder);
+  const visibleResults = narrowed ? documentResults.filter((d) => d.space === focusSpaceId) : documentResults;
+  const hiddenResultCount = documentResults.length - visibleResults.length;
 
   const toggleSpace = (sid: string) => {
     setExpandedSpaces((prev) => {
@@ -139,10 +162,10 @@ export function DocumentPickerDialog({
         </div>
         <div className="max-h-96 overflow-y-auto">
           {isSearching ? (
-            <SearchResults results={searchResults.filter((d) => !d.is_folder)} excludeIds={excludeIds} busy={busy} onSelect={handleSelect} />
+            <SearchResults results={visibleResults} excludeIds={excludeIds} busy={busy} onSelect={handleSelect} />
           ) : (
             <SpaceTree
-              spaces={spaces}
+              spaces={visibleSpaces}
               expandedSpaces={expandedSpaces}
               expandedDocs={expandedDocs}
               spaceDocsMap={spaceDocsMap}
@@ -152,6 +175,24 @@ export function DocumentPickerDialog({
               onToggleDoc={toggleDoc}
               onSelect={handleSelect}
             />
+          )}
+          {hasFocus && (
+            <button
+              type="button"
+              onClick={() => setShowOthers((v) => !v)}
+              className="flex w-full items-center gap-1.5 border-t px-3 py-2 text-left text-xs text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+            >
+              {showOthers ? (
+                "이 프로젝트 문서만 보기"
+              ) : (
+                <>
+                  다른 스페이스 문서도 보기
+                  {isSearching && hiddenResultCount > 0 && (
+                    <span className="ml-auto tabular-nums">{hiddenResultCount}건 더 있음</span>
+                  )}
+                </>
+              )}
+            </button>
           )}
         </div>
 
