@@ -122,55 +122,57 @@
     --perspective-dot-color: rgba(50, 70, 140, 0.32);  /* 원근 투시 점 격자 — 진하게 */
   }
 
-  /* DARK — Deep Forest */
+  /* DARK — Deep Forest
+     2026-09-15: 전반적으로 한 단계 밝혔다. 사이드바 명도 4%·배경 9% 에서는 면 구분이 안 되고,
+     보조 글씨(50%)가 배경 대비 4.3:1 로 흐렸다. 지금 보조 글씨/배경 대비 약 6.7:1. */
   .dark {
-    --background:          222 20%  9%;   /* #111827 — 살짝 밝은 차콜 */
-    --foreground:          220 15% 84%;   /* #c8ceda */
+    --background:          222 14% 12%;   /* #1a1d23 */
+    --foreground:          220 16% 90%;   /* #e1e4ea */
 
-    --card:                222 18% 12%;   /* #151d2e */
-    --card-foreground:     220 15% 82%;
+    --card:                222 13% 17%;   /* #262931 */
+    --card-foreground:     220 16% 88%;
 
-    --popover:             222 18% 10%;
-    --popover-foreground:  220 15% 82%;
+    --popover:             222 13% 16%;
+    --popover-foreground:  220 16% 88%;
 
     /* Phase 2.3 — 라이트와 같은 hue(221)로 통일. 골드(48)는 워크스페이스 brand_color로 격하 예정 */
-    --primary:             221 70% 68%;
+    --primary:             221 75% 70%;
     --primary-foreground:  220 28%  8%;
 
-    --secondary:           222 16% 16%;   /* #1a2336 */
-    --secondary-foreground: 220 15% 84%;
+    --secondary:           222 12% 21%;   /* #2f333c */
+    --secondary-foreground: 220 16% 90%;
 
-    --muted:               222 16% 16%;
-    --muted-foreground:    220 10% 50%;   /* #747d91 */
+    --muted:               222 12% 21%;
+    --muted-foreground:    220 10% 66%;   /* #a0a5b1 */
 
-    --accent:              222 16% 16%;
-    --accent-foreground:   220 15% 82%;
+    --accent:              222 12% 23%;
+    --accent-foreground:   220 16% 90%;
 
-    --destructive:          18 82% 52%;
+    --destructive:          18 82% 56%;
     --destructive-foreground: 0 0% 100%;
 
     /* border — Phase 1.2: 채도 낮춰 중립 슬레이트로. */
-    --border:              220  6% 24%;
-    --input:               222 16% 15%;  /* input 배경용 */
+    --border:              220  8% 30%;
+    --input:               222 12% 19%;  /* input 배경용 */
     /* ring — Phase 2.3: 다크 --primary(블루)와 같은 hue(221), 다른 채도/명도 */
     --ring:                221 75% 72%;
 
-    /* 사이드바 */
-    --sidebar-background:  222 24%  4%;   /* #060910 */
-    --sidebar-foreground:  220 15% 82%;
-    --sidebar-primary:     221 70% 68%;   /* Phase 2.3: 블루 통일 */
+    /* 사이드바 — 본문보다 한 단계 어둡게만. 전처럼 거의 검정이면 메뉴 글자가 떠 보인다 */
+    --sidebar-background:  222 15% 10%;   /* #16181d */
+    --sidebar-foreground:  220 16% 88%;
+    --sidebar-primary:     221 75% 70%;   /* Phase 2.3: 블루 통일 */
     --sidebar-primary-foreground: 220 28% 8%;
-    --sidebar-accent:      222 20% 12%;
-    --sidebar-accent-foreground: 220 15% 82%;
-    --sidebar-border:      220  6% 22%;
+    --sidebar-accent:      222 13% 17%;
+    --sidebar-accent-foreground: 220 16% 90%;
+    --sidebar-border:      220  8% 26%;
     --sidebar-ring:        221 75% 72%;
 
     /* ── 패널 변수 — Phase 2.3: 블루 톤으로 통일 ── */
-    --glass-bg:            rgb(12, 18, 34);
-    --glass-sidebar-bg:    rgb(6, 9, 18);
-    --glass-border:        rgba(120, 150, 230, 0.20);
-    --glass-shadow:        0 8px 40px rgba(0, 0, 0, 0.60), 0 2px 12px rgba(0,0,0,0.40), inset 0 1px 0 rgba(120, 150, 230, 0.05);
-    --glass-sidebar-shadow: 0 0 0 1px rgba(120, 150, 230, 0.08), 2px 0 32px rgba(0,0,0,0.50);
+    --glass-bg:            hsl(222 15% 16%);
+    --glass-sidebar-bg:    hsl(222 16% 11%);
+    --glass-border:        rgba(150, 170, 220, 0.22);
+    --glass-shadow:        0 8px 40px rgba(0, 0, 0, 0.45), 0 2px 12px rgba(0,0,0,0.30), inset 0 1px 0 rgba(150, 170, 220, 0.06);
+    --glass-sidebar-shadow: 0 0 0 1px rgba(150, 170, 220, 0.10), 2px 0 32px rgba(0,0,0,0.35);
 
     /* ── 배경 패턴 변수 — Phase 2.3: 블루 톤 ── */
     --perspective-dot-color: rgba(140, 170, 230, 0.20);
