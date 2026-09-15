@@ -9,6 +9,7 @@ import { api } from "@/lib/axios";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
 import { useAuthStore } from "@/stores/authStore";
 import { apiErrorMessage } from "@/lib/api-error";
+import { getRefreshToken } from "@/lib/token-storage";
 import { Button } from "@/components/ui/button";
 import type { Workspace, WorkspaceJoinRequest } from "@/types";
 
@@ -38,7 +39,7 @@ export function WorkspaceSelectPage() {
     beginLogout();
     qc.cancelQueries();
     try {
-      const refresh = localStorage.getItem("refresh_token");
+      const refresh = getRefreshToken();
       if (refresh) await api.post("/auth/logout/", { refresh });
     } catch {
       /* 서버 폐기 실패해도 로컬 상태는 비움 */

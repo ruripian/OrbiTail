@@ -2,16 +2,18 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation } from "@tanstack/react-query";
-import { useNavigate, Link, useSearchParams } from "react-router-dom";
+import { useNavigate, Link, Navigate, useSearchParams } from "react-router-dom";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Eye, EyeOff } from "lucide-react";
 import { authApi } from "@/api/auth";
 import { useAuthStore } from "@/stores/authStore";
+import { getRemember } from "@/lib/token-storage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { AuthCard, AuthCardHeader } from "@/components/auth/AuthCard";
 import { OrbiTailOrbit } from "@/components/auth/OrbiTailOrbit";
 
@@ -25,8 +27,11 @@ type FormValues = z.infer<typeof schema>;
 export function LoginPage() {
   const navigate = useNavigate();
   const { setAuth } = useAuthStore();
+  const accessToken = useAuthStore((s) => s.accessToken);
   const { t } = useTranslation();
   const [showPassword, setShowPassword] = useState(false);
+  /* 직전에 고른 값으로 시작 — 기본값은 유지(true) */
+  const [remember, setRemember] = useState(() => getRemember());
   const [searchParams] = useSearchParams();
   const redirectTo = searchParams.get("redirect");
   const notice = searchParams.get("notice"); // verify-email | approval-pending
@@ -38,7 +43,7 @@ export function LoginPage() {
   const mutation = useMutation({
     mutationFn: authApi.login,
     onSuccess: (data) => {
-      setAuth(data.user, data.access, data.refresh);
+      setAuth(data.user, data.access, data.refresh, remember);
       // 초대 등에서 redirect 파라미터가 있으면 해당 경로로 이동
       navigate(redirectTo || "/");
     },
@@ -46,6 +51,15 @@ export function LoginPage() {
       toast.error(t("auth.login.error"));
     },
   });
+
+  /* 이미 세션이 있으면 폼을 건너뛰고 바로 들어간다 — /auth/login 을 북마크해 둔 경우
+     로그인 상태인데도 매번 로그인 화면을 보게 되는 것을 막는다.
+     토큰 만료 여부는 여기서 따지지 않는다. access 가 만료됐으면 첫 API 401 에서 axios 가
+     refresh 로 살리고, refresh 마저 죽었으면 clearAuth 후 이 페이지로 되돌아와 폼이 뜬다.
+     단 가입 직후 안내(notice)가 붙어 온 경우는 그 안내를 보여줘야 하므로 예외. */
+  if (accessToken && !notice) {
+    return <Navigate to={redirectTo || "/"} replace />;
+  }
 
   return (
     <>
@@ -124,11 +138,25 @@ export function LoginPage() {
             )}
           </div>
 
+          {/* Checkbox 자체가 label 이라 텍스트를 안에 넣으면 label 이 중첩된다 — 옆에 두고 클릭만 연결 */}
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Checkbox
+              checked={remember}
+              onChange={setRemember}
+              size="sm"
+              tabIndex={3}
+              aria-label={t("auth.login.rememberMe")}
+            />
+            <span className="cursor-pointer select-none" onClick={() => setRemember(!remember)}>
+              {t("auth.login.rememberMe")}
+            </span>
+          </div>
+
           {mutation.isError && (
             <p className="text-xs text-destructive">{t("auth.login.error")}</p>
           )}
 
-          <Button type="submit" tabIndex={3} className="w-full font-semibold tracking-widest" disabled={mutation.isPending}>
+          <Button type="submit" tabIndex={4} className="w-full font-semibold tracking-widest" disabled={mutation.isPending}>
             {mutation.isPending ? t("auth.login.submitting") : t("auth.login.submit")}
           </Button>
         </form>

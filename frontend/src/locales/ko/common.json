@@ -17,6 +17,7 @@
       "passwordPlaceholder": "••••••••",
       "submit": "로그인",
       "submitting": "로그인 중...",
+      "rememberMe": "로그인 상태 유지",
       "error": "이메일 또는 비밀번호가 올바르지 않습니다",
       "noAccount": "계정이 없으신가요?",
       "signUpLink": "회원가입",

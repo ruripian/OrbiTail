@@ -16,13 +16,14 @@
  *   넓게 invalidate 해도 네트워크 부담이 크지 않음.
  */
 
-import { useEffect, useRef, useCallback, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useRecentChangesStore } from "@/stores/recentChangesStore";
 import { usePresenceStore, type PresenceUser } from "@/stores/presenceStore";
 import { useIssueDialogStore } from "@/stores/issueDialogStore";
+import { getAccessToken } from "@/lib/token-storage";
 
 /* PASS10 — 토스트 노출 대상. 사용자가 종 아이콘을 안 봐도 즉시 인지해야 하는 타입. */
 const HIGH_PRIORITY_NOTIFICATION_TYPES = new Set(["mentioned", "issue_assigned"]);
@@ -56,7 +57,6 @@ export function useWebSocket(workspaceSlug: string | undefined): WsStatus {
   const navigate = useNavigate();
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const getAccessToken = useCallback(() => localStorage.getItem("access_token"), []);
   const [status, setStatus] = useState<WsStatus>("disconnected");
 
   useEffect(() => {
@@ -224,7 +224,7 @@ export function useWebSocket(workspaceSlug: string | undefined): WsStatus {
       // 워크스페이스 전환 시 presence 초기화 — 다음 연결의 update 가 다시 채워준다
       usePresenceStore.getState().clear();
     };
-  }, [workspaceSlug, qc, getAccessToken, navigate]);
+  }, [workspaceSlug, qc, navigate]);
 
   return status;
 }

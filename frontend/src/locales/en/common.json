@@ -17,6 +17,7 @@
       "passwordPlaceholder": "••••••••",
       "submit": "Sign in",
       "submitting": "Signing in...",
+      "rememberMe": "Keep me signed in",
       "error": "Invalid email or password",
       "noAccount": "Don't have an account?",
       "signUpLink": "Sign up",

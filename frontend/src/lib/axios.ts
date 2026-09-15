@@ -1,5 +1,6 @@
 import axios from "axios";
 import { useAuthStore } from "@/stores/authStore";
+import { getAccessToken, getRefreshToken } from "@/lib/token-storage";
 
 /* baseURL은 항상 상대 경로 "/api" — 같은 도메인에서 SPA + API를 서빙하므로 절대 URL 불필요.
    개발 환경: vite proxy (/api → backend:8000)
@@ -10,7 +11,7 @@ export const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem("access_token");
+  const token = getAccessToken();
   if (token) config.headers.Authorization = `Bearer ${token}`;
   // FormData 를 전송할 때는 Content-Type 을 명시적으로 제거해 브라우저가
   // multipart/form-data; boundary=... 를 자동으로 채우도록 둠.
@@ -50,7 +51,7 @@ api.interceptors.response.use(
   (res) => res,
   async (error) => {
     const original = error.config;
-    const refresh = localStorage.getItem("refresh_token");
+    const refresh = getRefreshToken();
     const status = error.response?.status;
     const { isLoggingOut } = useAuthStore.getState();
 

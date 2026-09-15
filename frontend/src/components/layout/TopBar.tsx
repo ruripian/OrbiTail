@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { CommandSearchDialog } from "@/components/search/CommandSearchDialog";
 import { EmptyState } from "@/components/ui/empty-state";
+import { getRefreshToken } from "@/lib/token-storage";
 import type { Notification, NotificationType } from "@/types";
 
 export function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
@@ -104,7 +105,7 @@ export function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
     beginLogout();
     qc.cancelQueries();
     try {
-      const refresh = localStorage.getItem("refresh_token");
+      const refresh = getRefreshToken();
       if (refresh) await api.post("/auth/logout/", { refresh });
     } catch {
       // 실패해도 로컬 상태는 정리

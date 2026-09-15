@@ -1,6 +1,7 @@
 import axios from "axios";
 
 import { api } from "@/lib/axios";
+import { getAccessToken } from "@/lib/token-storage";
 import type { User } from "@/types";
 
 export interface DemoStatusResponse {
@@ -39,7 +40,7 @@ export const demoApi = {
    *  여기서는 401 이 "세션 없음" 이라는 정상적인 답이라 그 처리가 방해가 된다.
    */
   checkSession: async (): Promise<DemoSessionCheck> => {
-    const token = localStorage.getItem("access_token");
+    const token = getAccessToken();
     if (!token) return { valid: false };
     try {
       const { data } = await axios.get<DemoSessionCheck>("/api/demo/session/check/", {
