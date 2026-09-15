@@ -40,6 +40,11 @@ app.conf.beat_schedule = {
         "task": "apps.demo.tasks.purge_expired_sandboxes",
         "schedule": crontab(minute=0),
     },
+    # 휴지통 30일 경과 프로젝트 영구 삭제 — 매일 새벽 4시 50분
+    "permanently-delete-trashed-projects": {
+        "task": "apps.projects.tasks.permanently_delete_trashed_projects",
+        "schedule": crontab(hour=4, minute=50),
+    },
     # 30일 지난 웹훅 발송 기록 삭제 — 매일 새벽 5시
     "prune-webhook-deliveries": {
         "task": "apps.api.tasks.prune_webhook_deliveries",

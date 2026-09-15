@@ -100,6 +100,22 @@ class ProjectSerializer(serializers.ModelSerializer):
         pm = ProjectMember.objects.filter(project=obj, member=request.user).first()
         return pm.role if pm else None
 
+    def validate_identifier(self, value):
+        """같은 워크스페이스에서 식별자 중복 금지 — 휴지통 프로젝트 포함(아직 식별자를 쥐고 있다).
+        검사 없이 저장하면 unique_together 에 걸려 500 이 났다."""
+        workspace = self.instance.workspace if self.instance is not None else self.context.get("workspace")
+        if workspace is None or not value:
+            return value
+        qs = Project.all_objects.filter(workspace=workspace, identifier__iexact=value)
+        if self.instance is not None:
+            qs = qs.exclude(pk=self.instance.pk)
+        existing = qs.first()
+        if existing is not None:
+            if existing.deleted_at is not None:
+                raise serializers.ValidationError("휴지통에 있는 프로젝트가 이 식별자를 쓰고 있습니다. 영구 삭제하거나 다른 식별자를 쓰세요.")
+            raise serializers.ValidationError("이미 사용 중인 식별자입니다.")
+        return value
+
     def validate_lead(self, value):
         """lead로 지정하려는 유저가 해당 워크스페이스 멤버인지 검증.
 

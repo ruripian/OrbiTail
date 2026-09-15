@@ -3,6 +3,19 @@ from django.db import models
 from django.conf import settings
 
 
+class AliveProjectManager(models.Manager):
+    """삭제(휴지통)되지 않은 프로젝트만. `Project.objects` 가 이것이다.
+
+    휴지통 프로젝트가 목록·권한 판정·검색에 섞이지 않게 기본 조회에서 뺀다. 휴지통 화면·복구·
+    영구 삭제·식별자 중복 검사처럼 삭제된 것까지 봐야 하는 곳만 `Project.all_objects` 를 쓴다.
+    관계로 따라가는 접근(issue.project)은 base manager 라 삭제된 프로젝트도 그대로 읽힌다.
+    다른 모델에서 project__ 로 거슬러 거는 조회는 이 조회기를 거치지 않으므로 따로 거른다.
+    """
+
+    def get_queryset(self):
+        return super().get_queryset().filter(deleted_at__isnull=True)
+
+
 class Project(models.Model):
     class Network(models.IntegerChoices):
         PUBLIC = 0, "Public"
@@ -69,6 +82,16 @@ class Project(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    # 휴지통 — 이 시각으로부터 TRASH_RETENTION_DAYS 가 지나면 영구 삭제된다
+    deleted_at = models.DateTimeField(null=True, blank=True)
+    deleted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
+    )
+
+    objects = AliveProjectManager()
+    all_objects = models.Manager()
+
+    TRASH_RETENTION_DAYS = 30
 
     class Meta:
         db_table = "projects"

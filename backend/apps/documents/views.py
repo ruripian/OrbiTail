@@ -79,6 +79,9 @@ def _space_role(user, space):
     - shared   : 스페이스 등급. 공개(is_private=False) 면 워크스페이스 멤버 전원이 최소 EDITOR
                  (기존 동작 유지 — 공개 스페이스는 누구나 편집할 수 있었다)
     """
+    # 휴지통 프로젝트의 문서는 복구하기 전까지 아무도 못 연다(워크스페이스 관리자 포함)
+    if space.space_type == "project" and space.project_id and space.project.deleted_at is not None:
+        return None
     if _is_workspace_admin(user, space.workspace):
         return DocumentSpaceMember.Role.ADMIN
 
@@ -164,7 +167,10 @@ def _get_accessible_spaces(user, workspace_slug):
     """유저가 접근 가능한 스페이스 queryset — 프로젝트 멤버 OR space.members 추가 인원 포함.
     비공개 공용 스페이스는 멤버에게만, 공개 공용은 워크스페이스 멤버 모두.
     워크스페이스 관리자/슈퍼유저는 비공개 스페이스도 모두 노출."""
-    base = DocumentSpace.objects.filter(workspace__slug=workspace_slug)
+    # 휴지통 프로젝트에 딸린 스페이스는 뺀다 — 목록·검색·관계망이 모두 이 함수를 거친다
+    base = DocumentSpace.objects.filter(workspace__slug=workspace_slug).exclude(
+        space_type="project", project__deleted_at__isnull=False,
+    )
     is_admin = (
         user.is_superuser
         or WorkspaceMember.objects.filter(

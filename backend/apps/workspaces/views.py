@@ -1199,6 +1199,7 @@ class TeamCalendarIssuesView(generics.ListAPIView):
             Issue.objects
             .filter(
                 workspace=team.workspace,
+                project__deleted_at__isnull=True,
                 deleted_at__isnull=True,
                 archived_at__isnull=True,
             )

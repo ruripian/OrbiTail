@@ -62,7 +62,8 @@ def _get_effective_perms(user, project_id):
     멤버가 아니면 None, 멤버이면 {"can_edit":..., "can_archive":..., ...} dict."""
     from apps.projects.models import ProjectMember
     try:
-        pm = ProjectMember.objects.get(project_id=project_id, member=user)
+        # 휴지통 프로젝트에는 아무도 쓰지 못한다
+        pm = ProjectMember.objects.get(project_id=project_id, member=user, project__deleted_at__isnull=True)
         return pm.effective_perms
     except ProjectMember.DoesNotExist:
         return None
@@ -95,7 +96,7 @@ def _issue_read_q(user, prefix=""):
     또는 같은 팀에 공유된 단발성 이슈. prefix 는 다른 모델에서 이슈를 따라갈 때(예: "issue__")."""
     from apps.projects.models import Project
     p = prefix
-    return (
+    return Q(**{f"{p}project__deleted_at__isnull": True}) & (
         Q(**{f"{p}project__members__member": user})
         | (Q(**{f"{p}project__network": Project.Network.PUBLIC})
            & Q(**{f"{p}project__workspace__members__member": user}))
@@ -219,6 +220,7 @@ class IssueListCreateView(generics.ListCreateAPIView):
         include_children = self.request.query_params.get("include_sub_issues") == "true"
         base_filter = {
             "project_id": self.kwargs["project_pk"],
+            "project__deleted_at__isnull": True,
             "deleted_at__isnull": True,
             "archived_at__isnull": True,
         }
@@ -378,6 +380,7 @@ class WorkspaceRecentIssuesView(generics.ListAPIView):
             Issue.objects.filter(
                 workspace__slug=self.kwargs["workspace_slug"],
                 assignees=self.request.user,
+                project__deleted_at__isnull=True,
                 deleted_at__isnull=True,
                 archived_at__isnull=True,
             )
@@ -402,6 +405,7 @@ class WorkspaceIssueSearchView(generics.ListAPIView):
         qs = (
             Issue.objects.filter(
                 workspace__slug=self.kwargs["workspace_slug"],
+                project__deleted_at__isnull=True,
                 deleted_at__isnull=True,
                 archived_at__isnull=True,
             )
@@ -1151,6 +1155,7 @@ class WorkspaceMyIssuesView(generics.ListAPIView):
             Issue.objects.filter(
                 workspace__slug=self.kwargs["workspace_slug"],
                 assignees=self.request.user,
+                project__deleted_at__isnull=True,
                 deleted_at__isnull=True,
                 archived_at__isnull=True,
             )

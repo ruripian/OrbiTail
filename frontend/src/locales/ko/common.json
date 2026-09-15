@@ -464,10 +464,10 @@
         "archiveConfirmMessage": "보관된 프로젝트는 사이드바에서 숨겨지지만 데이터는 유지됩니다.",
         "archived": "프로젝트가 보관되었습니다",
         "deleteTitle": "프로젝트 삭제",
-        "deleteDescription": "프로젝트와 모든 데이터가 영구적으로 삭제됩니다.",
+        "deleteDescription": "프로젝트를 휴지통으로 옮깁니다. 30일이 지나면 모든 데이터가 영구 삭제됩니다.",
         "deleteButton": "삭제",
-        "deleteConfirmMessage": "확인을 위해 프로젝트 이름 '{{name}}'을 입력해주세요.",
-        "deleted": "프로젝트가 삭제되었습니다"
+        "deleteConfirmMessage": "휴지통으로 옮깁니다. 30일 안에는 워크스페이스 설정 › 보관함에서 복구할 수 있고, 지나면 이슈·문서까지 영구 삭제됩니다. 확인을 위해 프로젝트 이름 '{{name}}'을 입력해주세요.",
+        "deleted": "프로젝트를 휴지통으로 옮겼습니다"
       },
       "members": {
         "title": "멤버",
@@ -518,7 +518,19 @@
   },
   "archivedProjects": {
     "subtitle": "보관된 프로젝트는 사이드바에서 숨겨지지만 데이터는 유지됩니다",
-    "empty": "보관된 프로젝트가 없습니다"
+    "empty": "보관된 프로젝트가 없습니다",
+    "trashTitle": "휴지통",
+    "trashSubtitle": "삭제한 프로젝트는 30일 동안 여기 머뭅니다. 지나면 이슈·문서까지 자동으로 영구 삭제됩니다.",
+    "trashEmpty": "휴지통이 비어 있습니다",
+    "restore": "복구",
+    "restored": "프로젝트를 복구했습니다",
+    "purge": "영구 삭제",
+    "purgeTitle": "'{{name}}' 프로젝트를 영구 삭제할까요?",
+    "purgeDescription": "이슈·댓글·첨부·문서 스페이스까지 모두 지워지고 되돌릴 수 없습니다.",
+    "purged": "프로젝트를 영구 삭제했습니다",
+    "daysLeft": "{{days}}일 뒤 영구 삭제",
+    "deletedBy": "{{name}} 님이 삭제",
+    "failed": "처리하지 못했습니다"
   },
   "discover": {
     "title": "프로젝트 탐색",

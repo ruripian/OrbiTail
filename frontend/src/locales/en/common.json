@@ -464,10 +464,10 @@
         "archiveConfirmMessage": "Archived projects are hidden from the sidebar but data is preserved.",
         "archived": "Project archived",
         "deleteTitle": "Delete Project",
-        "deleteDescription": "Permanently delete this project and all its data.",
+        "deleteDescription": "Moves the project to the trash. All data is permanently deleted after 30 days.",
         "deleteButton": "Delete",
-        "deleteConfirmMessage": "Type the project name '{{name}}' to confirm.",
-        "deleted": "Project deleted"
+        "deleteConfirmMessage": "Moves the project to the trash. You can restore it from Workspace settings › Archive within 30 days; after that its issues and documents are permanently deleted. Type the project name '{{name}}' to confirm.",
+        "deleted": "Project moved to the trash"
       },
       "members": {
         "title": "Members",
@@ -518,7 +518,19 @@
   },
   "archivedProjects": {
     "subtitle": "Archived projects are hidden from the sidebar but data is preserved",
-    "empty": "No archived projects"
+    "empty": "No archived projects",
+    "trashTitle": "Trash",
+    "trashSubtitle": "Deleted projects stay here for 30 days, then are permanently deleted along with their issues and documents.",
+    "trashEmpty": "Trash is empty",
+    "restore": "Restore",
+    "restored": "Project restored",
+    "purge": "Delete permanently",
+    "purgeTitle": "Permanently delete '{{name}}'?",
+    "purgeDescription": "Issues, comments, attachments and the document space are all deleted. This can't be undone.",
+    "purged": "Project permanently deleted",
+    "daysLeft": "Deleted permanently in {{days}} days",
+    "deletedBy": "Deleted by {{name}}",
+    "failed": "Something went wrong"
   },
   "discover": {
     "title": "Discover Projects",

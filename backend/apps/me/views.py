@@ -41,7 +41,7 @@ def _resolve_workspace(request):
 
 def _user_member_project_ids(user):
     """사용자가 멤버인 프로젝트 id queryset — SECRET 누수 차단의 기본 단위."""
-    return ProjectMember.objects.filter(member=user).values_list("project_id", flat=True)
+    return ProjectMember.objects.filter(member=user, project__deleted_at__isnull=True).values_list("project_id", flat=True)
 
 
 class PersonalEventListCreateView(generics.ListCreateAPIView):
@@ -109,6 +109,7 @@ class MeIssuesView(generics.ListCreateAPIView):
             Issue.objects
             .filter(
                 assignees=self.request.user,
+                project__deleted_at__isnull=True,
                 deleted_at__isnull=True,
                 archived_at__isnull=True,
             )
@@ -283,6 +284,7 @@ class MeSummaryView(APIView):
             Issue.objects
             .filter(
                 assignees=user,
+                project__deleted_at__isnull=True,
                 deleted_at__isnull=True,
                 archived_at__isnull=True,
             )
@@ -360,6 +362,7 @@ class MeNodeGraphView(APIView):
             Issue.objects
             .filter(
                 assignees=user,
+                project__deleted_at__isnull=True,
                 deleted_at__isnull=True,
                 archived_at__isnull=True,
             )

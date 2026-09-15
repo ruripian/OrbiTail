@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from django.db.models import Q
 from django.utils import timezone
 from rest_framework import generics, permissions, status
@@ -22,7 +24,7 @@ def _project_readable_q(user):
     # 공개 프로젝트는 **같은 워크스페이스 멤버**에게만 공개다. 이 조건이 없으면 다른 워크스페이스
     # 사용자도 주소의 slug 만 바꿔 공개 프로젝트와 그 하위 자원을 읽는다.
     base = Q(members__member=user) | (Q(network=Project.Network.PUBLIC) & Q(workspace__members__member=user))
-    return base & (Q(kind=Project.Kind.NORMAL) | Q(owner=user))
+    return base & (Q(kind=Project.Kind.NORMAL) | Q(owner=user)) & Q(deleted_at__isnull=True)
 
 
 def _project_readable_via_project_q(user):
@@ -30,7 +32,8 @@ def _project_readable_via_project_q(user):
     base = Q(project__members__member=user) | (
         Q(project__network=Project.Network.PUBLIC) & Q(project__workspace__members__member=user)
     )
-    return base & (Q(project__kind=Project.Kind.NORMAL) | Q(project__owner=user))
+    # 휴지통 프로젝트의 하위 자원은 보이지 않는다 — 이 Q 는 Project 기본 조회기를 거치지 않는다
+    return base & (Q(project__kind=Project.Kind.NORMAL) | Q(project__owner=user)) & Q(project__deleted_at__isnull=True)
 
 
 def _workspace_role(user, workspace_slug):
@@ -47,6 +50,7 @@ def _require_project_perm(user, workspace_slug, project_pk, perm_key):
     from rest_framework.exceptions import NotFound, PermissionDenied
     pm = ProjectMember.objects.filter(
         project_id=project_pk, project__workspace__slug=workspace_slug, member=user,
+        project__deleted_at__isnull=True,
     ).first()
     if pm is None:
         if not Project.objects.filter(pk=project_pk, workspace__slug=workspace_slug).filter(
@@ -129,10 +133,74 @@ class ProjectDetailView(generics.RetrieveUpdateDestroyAPIView):
         return super().update(request, *args, **kwargs)
 
     def destroy(self, request, *args, **kwargs):
-        """삭제는 프로젝트 관리자만 — 모든 이슈·문서가 함께 사라진다."""
+        """삭제는 프로젝트 관리자만 — 바로 지우지 않고 휴지통으로 옮긴다.
+
+        전에는 곧바로 영구 삭제라 이슈·문서 스페이스까지 되돌릴 수 없이 사라졌는데, 화면은 그 사실을
+        말하지 않았다. 휴지통에서 TRASH_RETENTION_DAYS 동안 복구할 수 있고, 지나면 자동으로 지운다."""
         obj = self.get_object()
         _require_project_perm(request.user, self.kwargs["workspace_slug"], obj.pk, "admin")
-        return super().destroy(request, *args, **kwargs)
+        obj.deleted_at = timezone.now()
+        obj.deleted_by = request.user
+        obj.save(update_fields=["deleted_at", "deleted_by"])
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+def _can_manage_trashed_project(user, project):
+    """휴지통 프로젝트를 복구·영구 삭제할 수 있는가 — 그 프로젝트의 관리자이거나 워크스페이스 관리자."""
+    if ProjectMember.objects.filter(project=project, member=user, role=ProjectMember.Role.ADMIN).exists():
+        return True
+    return WorkspaceMember.objects.filter(
+        workspace_id=project.workspace_id, member=user, role__gte=WorkspaceMember.Role.ADMIN,
+    ).exists()
+
+
+class ProjectTrashListView(APIView):
+    """휴지통 프로젝트 — 요청자가 복구할 수 있는 것만."""
+
+    def get(self, request, workspace_slug):
+        if _workspace_role(request.user, workspace_slug) is None:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        projects = (
+            Project.all_objects.filter(workspace__slug=workspace_slug, deleted_at__isnull=False)
+            .select_related("workspace", "deleted_by")
+            .order_by("-deleted_at")
+        )
+        visible = [p for p in projects if _can_manage_trashed_project(request.user, p)]
+        data = []
+        for p in visible:
+            row = ProjectSerializer(p, context={"request": request}).data
+            row["deleted_at"] = p.deleted_at
+            row["deleted_by"] = p.deleted_by.display_name if p.deleted_by else None
+            row["purge_at"] = p.deleted_at + timedelta(days=Project.TRASH_RETENTION_DAYS)
+            data.append(row)
+        return Response(data)
+
+
+class ProjectTrashDetailView(APIView):
+    """POST: 복구 / DELETE: 영구 삭제(이슈·문서 스페이스 포함, 되돌릴 수 없음)."""
+
+    def _get(self, request, workspace_slug, pk):
+        from rest_framework.exceptions import NotFound, PermissionDenied
+        project = Project.all_objects.filter(
+            pk=pk, workspace__slug=workspace_slug, deleted_at__isnull=False,
+        ).first()
+        if project is None or _workspace_role(request.user, workspace_slug) is None:
+            raise NotFound()
+        if not _can_manage_trashed_project(request.user, project):
+            raise PermissionDenied("프로젝트 관리자나 워크스페이스 관리자만 할 수 있습니다.")
+        return project
+
+    def post(self, request, workspace_slug, pk):
+        project = self._get(request, workspace_slug, pk)
+        project.deleted_at = None
+        project.deleted_by = None
+        project.save(update_fields=["deleted_at", "deleted_by"])
+        return Response(ProjectSerializer(project, context={"request": request}).data)
+
+    def delete(self, request, workspace_slug, pk):
+        project = self._get(request, workspace_slug, pk)
+        project.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class ProjectIdentifierCheckView(APIView):
@@ -148,7 +216,8 @@ class ProjectIdentifierCheckView(APIView):
         if not identifier:
             return Response({"available": False, "reason": "empty"})
 
-        qs = Project.objects.filter(
+        # 휴지통 프로젝트도 식별자를 쥐고 있다 — 빼고 보면 "사용 가능" 이라 해 놓고 저장에서 DB 오류가 난다
+        qs = Project.all_objects.filter(
             workspace__slug=workspace_slug,
             identifier=identifier,
         )

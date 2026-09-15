@@ -1,6 +1,13 @@
 import { api } from "@/lib/axios";
 import type { Project, ProjectMember, Category, Sprint, State, ProjectEvent, SavedFilter, PaginatedResponse } from "@/types";
 
+export interface TrashedProject extends Project {
+  deleted_at: string;
+  deleted_by: string | null;
+  /** 이 시각이 지나면 자동으로 영구 삭제된다 */
+  purge_at: string;
+}
+
 export const projectsApi = {
   list: (workspaceSlug: string, params?: Record<string, string>) =>
     api.get<PaginatedResponse<Project>>(`/workspaces/${workspaceSlug}/projects/`, { params }).then((r) => r.data.results),
@@ -23,6 +30,17 @@ export const projectsApi = {
 
   delete: (workspaceSlug: string, projectId: string) =>
     api.delete(`/workspaces/${workspaceSlug}/projects/${projectId}/`),
+
+  /** 휴지통 — 삭제한 프로젝트는 여기서 보관 기간 동안 복구할 수 있다 */
+  trash: {
+    list: (workspaceSlug: string) =>
+      api.get<TrashedProject[]>(`/workspaces/${workspaceSlug}/projects/trash/`).then((r) => r.data),
+    restore: (workspaceSlug: string, projectId: string) =>
+      api.post<Project>(`/workspaces/${workspaceSlug}/projects/trash/${projectId}/`).then((r) => r.data),
+    /** 영구 삭제 — 이슈·문서 스페이스까지 지워지고 되돌릴 수 없다 */
+    purge: (workspaceSlug: string, projectId: string) =>
+      api.delete(`/workspaces/${workspaceSlug}/projects/trash/${projectId}/`),
+  },
 
   archive: (workspaceSlug: string, projectId: string) =>
     api.post<Project>(`/workspaces/${workspaceSlug}/projects/${projectId}/archive/`).then((r) => r.data),

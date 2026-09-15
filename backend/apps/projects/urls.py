@@ -4,6 +4,8 @@ from .views import (
     ProjectDetailView,
     ProjectIdentifierCheckView,
     ProjectArchiveView,
+    ProjectTrashListView,
+    ProjectTrashDetailView,
     ProjectDiscoverView,
     ProjectJoinView,
     ProjectLeaveView,
@@ -25,6 +27,17 @@ from .views import (
 )
 
 urlpatterns = [
+    # 프로젝트 휴지통 — 목록 / 복구(POST) / 영구 삭제(DELETE)
+    path(
+        "workspaces/<slug:workspace_slug>/projects/trash/",
+        ProjectTrashListView.as_view(),
+        name="project-trash",
+    ),
+    path(
+        "workspaces/<slug:workspace_slug>/projects/trash/<uuid:pk>/",
+        ProjectTrashDetailView.as_view(),
+        name="project-trash-detail",
+    ),
     # 프로젝트 CRUD
     path(
         "workspaces/<slug:workspace_slug>/projects/",
