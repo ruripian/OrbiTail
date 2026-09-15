@@ -1,0 +1,476 @@
+"""공개 API v1 엔드포인트.
+
+권한은 새로 정의하지 않고 화면이 쓰는 규칙을 그대로 부른다 — 토큰 요청은 발급자 본인으로
+처리되므로, 규칙이 두 벌이 되면 "화면에선 안 보이는데 API 로는 보이는" 틈이 생긴다.
+"""
+import re
+
+from django.utils import timezone
+from django.utils.dateparse import parse_datetime
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import OpenApiParameter, extend_schema, inline_serializer
+from rest_framework import serializers, status
+from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
+from rest_framework.response import Response
+
+from apps.accounts.models import User
+from apps.documents.models import Document
+from apps.documents.views import _get_accessible_spaces
+from apps.issues.models import Issue, IssueActivity, IssueComment, Label
+from apps.issues.views import IssueArchiveView, _issue_field_snapshot, _log_activities
+from apps.projects.models import Category, Project, ProjectMember, Sprint, State
+from apps.projects.views import _project_readable_q
+from apps.workspaces.models import WorkspaceMember
+
+from . import serializers as s
+from .base import PublicApiView
+
+UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.IGNORECASE)
+IDENTIFIER_RE = re.compile(r"^([A-Za-z0-9]{1,12})-(\d+)$")
+
+
+# ══════════════════════════════════════════════════════════════════
+#  토큰 확인
+# ══════════════════════════════════════════════════════════════════
+
+class MeView(PublicApiView):
+    @extend_schema(
+        tags=["token"],
+        summary="토큰 확인 — 누구로, 어느 워크스페이스에, 어떤 권한으로 붙었는지",
+        responses=inline_serializer("Me", {
+            "user": s.UserBriefSerializer(),
+            "workspace": inline_serializer("MeWorkspace", {
+                "id": serializers.UUIDField(), "slug": serializers.CharField(), "name": serializers.CharField(),
+            }),
+            "token": inline_serializer("MeToken", {
+                "name": serializers.CharField(), "scope": serializers.CharField(),
+                "expires_at": serializers.DateTimeField(allow_null=True),
+            }),
+        }),
+    )
+    def get(self, request):
+        token = request.auth
+        return Response({
+            "user": {"id": str(request.user.id), "email": request.user.email,
+                     "display_name": request.user.display_name},
+            "workspace": {"id": str(self.workspace.id), "slug": self.workspace.slug,
+                          "name": self.workspace.name},
+            "token": {"name": token.name, "scope": token.scope, "expires_at": token.expires_at},
+        })
+
+
+# ══════════════════════════════════════════════════════════════════
+#  프로젝트
+# ══════════════════════════════════════════════════════════════════
+
+class ProjectMixin:
+    def readable_projects(self):
+        return (
+            Project.objects.filter(workspace=self.workspace, kind=Project.Kind.NORMAL)
+            .filter(_project_readable_q(self.request.user))
+            .distinct()
+            .select_related("workspace")
+        )
+
+    def get_project(self, project_id):
+        if not UUID_RE.match(str(project_id)):
+            raise NotFound("프로젝트를 찾을 수 없습니다.")
+        project = self.readable_projects().filter(pk=project_id).first()
+        if project is None:
+            raise NotFound("프로젝트를 찾을 수 없습니다.")
+        return project
+
+
+class ProjectListView(ProjectMixin, PublicApiView):
+    @extend_schema(
+        tags=["projects"], summary="프로젝트 목록",
+        parameters=[OpenApiParameter("include_archived", bool, description="보관된 프로젝트도 포함")],
+        responses=s.ProjectSerializer(many=True),
+    )
+    def get(self, request):
+        qs = self.readable_projects().order_by("name")
+        if request.query_params.get("include_archived") != "true":
+            qs = qs.filter(archived_at__isnull=True)
+        return self.paginate(qs, s.ProjectSerializer)
+
+
+class ProjectDetailView(ProjectMixin, PublicApiView):
+    @extend_schema(tags=["projects"], summary="프로젝트", responses=s.ProjectSerializer)
+    def get(self, request, project_id):
+        return Response(s.ProjectSerializer(self.get_project(project_id), context={"request": request}).data)
+
+
+def _sub_resource_view(model, serializer_class, summary, ordering, extra_filter=None):
+    """프로젝트에 딸린 목록(상태·라벨·스프린트·카테고리)은 모양이 같다."""
+
+    class View(ProjectMixin, PublicApiView):
+        @extend_schema(tags=["projects"], summary=summary, responses=serializer_class(many=True))
+        def get(self, request, project_id):
+            project = self.get_project(project_id)
+            qs = model.objects.filter(project=project, **(extra_filter or {})).order_by(*ordering)
+            return Response(serializer_class(qs, many=True).data)
+
+    View.__name__ = f"Project{model.__name__}ListView"
+    return View
+
+
+ProjectStateListView = _sub_resource_view(State, s.StateSerializer, "프로젝트의 상태 목록", ["sequence"])
+ProjectLabelListView = _sub_resource_view(Label, s.LabelSerializer, "프로젝트의 라벨 목록", ["name"])
+ProjectSprintListView = _sub_resource_view(Sprint, s.SprintSerializer, "프로젝트의 스프린트 목록", ["-start_date"])
+ProjectCategoryListView = _sub_resource_view(Category, s.CategorySerializer, "프로젝트의 카테고리 목록", ["sort_order", "name"])
+
+
+class ProjectMemberListView(ProjectMixin, PublicApiView):
+    @extend_schema(tags=["projects"], summary="프로젝트 멤버", responses=s.ProjectMemberSerializer(many=True))
+    def get(self, request, project_id):
+        project = self.get_project(project_id)
+        qs = ProjectMember.objects.filter(project=project).select_related("member").order_by("member__display_name")
+        return Response(s.ProjectMemberSerializer(qs, many=True).data)
+
+
+# ══════════════════════════════════════════════════════════════════
+#  이슈
+# ══════════════════════════════════════════════════════════════════
+
+ISSUE_ORDERINGS = {"created_at", "-created_at", "updated_at", "-updated_at", "sequence", "-sequence"}
+
+
+class IssueMixin(ProjectMixin):
+    def readable_issues(self):
+        return (
+            Issue.objects.filter(
+                workspace=self.workspace,
+                deleted_at__isnull=True,
+                project__in=self.readable_projects(),
+            )
+            .select_related("project", "workspace", "state", "sprint", "category", "created_by")
+            .prefetch_related("assignees", "label")
+        )
+
+    def get_issue(self, ref):
+        """id 또는 사람이 읽는 번호(OUR-12) 둘 다 받는다 — 커밋 메시지·채팅에서 오는 건 대개 번호다."""
+        qs = self.readable_issues()
+        if UUID_RE.match(ref):
+            issue = qs.filter(pk=ref).first()
+        else:
+            m = IDENTIFIER_RE.match(ref)
+            issue = (
+                qs.filter(project__identifier__iexact=m.group(1), sequence_id=int(m.group(2))).first()
+                if m else None
+            )
+        if issue is None:
+            raise NotFound("이슈를 찾을 수 없습니다.")
+        return issue
+
+    def require_perm(self, project, perm_key):
+        pm = ProjectMember.objects.filter(project=project, member=self.request.user).first()
+        if pm is None:
+            raise PermissionDenied("프로젝트 멤버만 할 수 있습니다.")
+        if not pm.effective_perms.get(perm_key, False):
+            raise PermissionDenied(f"이 작업에 대한 권한이 없습니다. ({perm_key})")
+
+    def resolve_relations(self, project, data, instance=None):
+        """id 로 받은 관계 값을 실제 객체로. 전부 같은 프로젝트 소속이어야 한다."""
+        resolved = {}
+
+        def one(field, model, message):
+            if field not in data:
+                return
+            value = data[field]
+            if value is None:
+                resolved[field] = None
+                return
+            obj = model.objects.filter(pk=value, project=project).first()
+            if obj is None:
+                raise ValidationError({field: message})
+            resolved[field] = obj
+
+        one("state", State, "이 프로젝트의 상태가 아닙니다.")
+        one("sprint", Sprint, "이 프로젝트의 스프린트가 아닙니다.")
+        one("category", Category, "이 프로젝트의 카테고리가 아닙니다.")
+
+        if "parent" in data:
+            parent_id = data["parent"]
+            if parent_id is None:
+                resolved["parent"] = None
+            else:
+                parent = Issue.objects.filter(pk=parent_id, project=project, deleted_at__isnull=True).first()
+                if parent is None:
+                    raise ValidationError({"parent": "이 프로젝트의 이슈가 아닙니다."})
+                if instance is not None:
+                    # 자기 자신이나 자손 밑으로 넣으면 트리가 고리가 된다
+                    cur, seen = parent, set()
+                    while cur is not None and cur.pk not in seen:
+                        if cur.pk == instance.pk:
+                            raise ValidationError({"parent": "자기 자신이나 하위 이슈 밑으로 옮길 수 없습니다."})
+                        seen.add(cur.pk)
+                        cur = cur.parent
+                resolved["parent"] = parent
+
+        if "labels" in data:
+            ids = set(data["labels"])
+            labels = list(Label.objects.filter(pk__in=ids, project=project))
+            if len(labels) != len(ids):
+                raise ValidationError({"labels": "이 프로젝트의 라벨이 아닌 것이 있습니다."})
+            resolved["labels"] = labels
+
+        if "assignees" in data:
+            ids = set(data["assignees"])
+            users = list(User.objects.filter(
+                pk__in=ids,
+                workspace_memberships__workspace=self.workspace,
+                workspace_memberships__role__gte=WorkspaceMember.Role.MEMBER,
+            ).distinct())
+            if len(users) != len(ids):
+                raise ValidationError({"assignees": "이 워크스페이스의 멤버가 아닌 사용자가 있습니다."})
+            resolved["assignees"] = users
+        return resolved
+
+
+SCALAR_ISSUE_FIELDS = ("title", "description_html", "priority", "start_date", "due_date", "estimate_point")
+
+
+class IssueListView(IssueMixin, PublicApiView):
+    @extend_schema(
+        tags=["issues"], summary="이슈 목록",
+        parameters=[
+            OpenApiParameter("project", OpenApiTypes.UUID),
+            OpenApiParameter("state", OpenApiTypes.UUID),
+            OpenApiParameter("state_group", str, description="backlog | unstarted | started | completed | cancelled"),
+            OpenApiParameter("priority", str),
+            OpenApiParameter("assignee", str, description="사용자 id 또는 me"),
+            OpenApiParameter("label", OpenApiTypes.UUID),
+            OpenApiParameter("sprint", OpenApiTypes.UUID),
+            OpenApiParameter("parent", str, description="이슈 id, 또는 none(최상위 이슈만)"),
+            OpenApiParameter("updated_since", OpenApiTypes.DATETIME, description="이 시각 이후 바뀐 이슈만 — 동기화용"),
+            OpenApiParameter("search", str, description="제목에 포함된 글자"),
+            OpenApiParameter("include_archived", bool),
+            OpenApiParameter("ordering", str, description="-updated_at(기본) | updated_at | created_at | -created_at | sequence | -sequence"),
+            OpenApiParameter("page", int), OpenApiParameter("page_size", int, description="최대 100"),
+        ],
+        responses=s.IssueSerializer(many=True),
+    )
+    def get(self, request):
+        p = request.query_params
+        qs = self.readable_issues()
+        if p.get("include_archived") != "true":
+            qs = qs.filter(archived_at__isnull=True)
+
+        for param, lookup in (("project", "project_id"), ("state", "state_id"), ("label", "label"),
+                              ("sprint", "sprint_id")):
+            if p.get(param):
+                if not UUID_RE.match(p[param]):
+                    raise ValidationError({param: "id 형식이 아닙니다."})
+                qs = qs.filter(**{lookup: p[param]})
+        if p.get("state_group"):
+            qs = qs.filter(state__group=p["state_group"])
+        if p.get("priority"):
+            qs = qs.filter(priority=p["priority"])
+        if p.get("assignee"):
+            if p["assignee"] == "me":
+                qs = qs.filter(assignees=request.user)
+            elif UUID_RE.match(p["assignee"]):
+                qs = qs.filter(assignees=p["assignee"])
+            else:
+                raise ValidationError({"assignee": "사용자 id 또는 me 여야 합니다."})
+        if p.get("parent"):
+            if p["parent"] == "none":
+                qs = qs.filter(parent__isnull=True)
+            elif UUID_RE.match(p["parent"]):
+                qs = qs.filter(parent_id=p["parent"])
+            else:
+                raise ValidationError({"parent": "이슈 id 또는 none 이어야 합니다."})
+        if p.get("updated_since"):
+            since = parse_datetime(p["updated_since"])
+            if since is None:
+                raise ValidationError({"updated_since": "ISO 8601 시각이어야 합니다. 예: 2026-09-15T09:00:00+09:00"})
+            if timezone.is_naive(since):
+                since = timezone.make_aware(since)
+            qs = qs.filter(updated_at__gte=since)
+        if p.get("search"):
+            qs = qs.filter(title__icontains=p["search"])
+
+        ordering = p.get("ordering", "-updated_at")
+        if ordering not in ISSUE_ORDERINGS:
+            raise ValidationError({"ordering": f"다음 중 하나여야 합니다: {', '.join(sorted(ISSUE_ORDERINGS))}"})
+        ordering = ordering.replace("sequence", "sequence_id")
+        # 같은 시각이 겹쳐도 페이지 경계에서 빠지거나 두 번 나오지 않게 id 로 한 번 더 정렬한다
+        qs = qs.distinct().order_by(ordering, "id")
+        return self.paginate(qs, s.IssueSerializer)
+
+    @extend_schema(tags=["issues"], summary="이슈 만들기 (write)", request=s.IssueWriteSerializer,
+                   responses={201: s.IssueSerializer})
+    def post(self, request):
+        ser = s.IssueWriteSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        data = ser.validated_data
+        if not data.get("project"):
+            raise ValidationError({"project": "필수입니다."})
+        if not data.get("title"):
+            raise ValidationError({"title": "필수입니다."})
+
+        project = self.get_project(data["project"])
+        self.require_perm(project, "can_edit")
+        rel = self.resolve_relations(project, data)
+
+        state = rel.get("state") or (
+            State.objects.filter(project=project, group="unstarted").order_by("sequence").first()
+            or State.objects.filter(project=project).order_by("sequence").first()
+        )
+        issue = Issue(
+            project=project, workspace=self.workspace, created_by=request.user, state=state,
+            sprint=rel.get("sprint"), category=rel.get("category"), parent=rel.get("parent"),
+            **{f: data[f] for f in SCALAR_ISSUE_FIELDS if f in data},
+        )
+        issue.save()
+        issue.assignees.set(rel.get("assignees", []))
+        issue.label.set(rel.get("labels", []))
+        IssueActivity.objects.create(issue=issue, actor=request.user, verb="created")
+
+        issue = self.get_issue(str(issue.pk))
+        return Response(s.IssueSerializer(issue, context={"request": request}).data, status=status.HTTP_201_CREATED)
+
+
+class IssueDetailView(IssueMixin, PublicApiView):
+    @extend_schema(tags=["issues"], summary="이슈 — id 또는 번호(OUR-12)", responses=s.IssueSerializer)
+    def get(self, request, ref):
+        return Response(s.IssueSerializer(self.get_issue(ref), context={"request": request}).data)
+
+    @extend_schema(tags=["issues"], summary="이슈 고치기 — 보낸 필드만 바뀐다 (write)",
+                   request=s.IssueWriteSerializer, responses=s.IssueSerializer)
+    def patch(self, request, ref):
+        issue = self.get_issue(ref)
+        self.require_perm(issue.project, "can_edit")
+        ser = s.IssueWriteSerializer(data=request.data, partial=True)
+        ser.is_valid(raise_exception=True)
+        data = ser.validated_data
+        if "project" in data and str(data["project"]) != str(issue.project_id):
+            raise ValidationError({"project": "이슈를 다른 프로젝트로 옮길 수 없습니다."})
+        rel = self.resolve_relations(issue.project, data, instance=issue)
+
+        before = _issue_field_snapshot(issue)
+        old_sprint_id = issue.sprint_id
+        for f in SCALAR_ISSUE_FIELDS:
+            if f in data:
+                setattr(issue, f, data[f])
+        for f in ("state", "sprint", "category", "parent"):
+            if f in rel:
+                setattr(issue, f, rel[f])
+        if rel.get("state") is not None:
+            # 상태를 지정했다는 건 일반 작업으로 다루겠다는 뜻 — 내부 API 와 같은 규칙
+            issue.is_field = False
+        issue.save()
+        if "assignees" in rel:
+            issue.assignees.set(rel["assignees"])
+        if "labels" in rel:
+            issue.label.set(rel["labels"])
+
+        issue = self.get_issue(str(issue.pk))
+        _log_activities(issue, request.user, before, _issue_field_snapshot(issue))
+        if issue.sprint_id != old_sprint_id:
+            # 화면과 같은 규칙: 스프린트를 옮기면 하위 이슈도 따라간다
+            issue.sub_issues.filter(deleted_at__isnull=True).update(sprint=issue.sprint)
+        return Response(s.IssueSerializer(issue, context={"request": request}).data)
+
+    @extend_schema(tags=["issues"], summary="이슈 지우기 — 휴지통으로, 하위 이슈 포함 (write)",
+                   responses={204: None})
+    def delete(self, request, ref):
+        issue = self.get_issue(ref)
+        self.require_perm(issue.project, "can_delete")
+        now = timezone.now()
+        descendant_ids = IssueArchiveView._collect_descendant_ids(issue.id)
+        if descendant_ids:
+            Issue.objects.filter(id__in=descendant_ids, deleted_at__isnull=True).update(deleted_at=now)
+        issue.deleted_at = now
+        issue.save(update_fields=["deleted_at"])
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class IssueCommentListView(IssueMixin, PublicApiView):
+    @extend_schema(tags=["issues"], summary="이슈 댓글 목록", responses=s.CommentSerializer(many=True))
+    def get(self, request, ref):
+        issue = self.get_issue(ref)
+        qs = IssueComment.objects.filter(issue=issue).select_related("actor").order_by("created_at", "id")
+        return self.paginate(qs, s.CommentSerializer)
+
+    @extend_schema(tags=["issues"], summary="댓글 달기 (write)", request=s.CommentWriteSerializer,
+                   responses={201: s.CommentSerializer})
+    def post(self, request, ref):
+        from apps.documents.markdown import markdown_to_html
+
+        issue = self.get_issue(ref)
+        # 읽을 수 있는 이슈(공개 프로젝트 포함)에는 댓글을 달 수 있다 — 화면과 같은 규칙
+        ser = s.CommentWriteSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        parent = None
+        if ser.validated_data.get("parent"):
+            parent = IssueComment.objects.filter(pk=ser.validated_data["parent"], issue=issue).first()
+            if parent is None:
+                raise ValidationError({"parent": "이 이슈의 댓글이 아닙니다."})
+            # 답글은 1단계만 — 답글에 단 답글은 같은 부모 밑으로
+            parent = parent.parent or parent
+        comment = IssueComment.objects.create(
+            issue=issue, actor=request.user, parent=parent,
+            comment_html=markdown_to_html(ser.validated_data["body"]),
+        )
+        return Response(s.CommentSerializer(comment).data, status=status.HTTP_201_CREATED)
+
+
+# ══════════════════════════════════════════════════════════════════
+#  문서
+# ══════════════════════════════════════════════════════════════════
+
+class DocumentMixin:
+    def accessible_spaces(self):
+        return _get_accessible_spaces(self.request.user, self.workspace.slug)
+
+    def get_space(self, space_id):
+        space = self.accessible_spaces().filter(pk=space_id).first() if UUID_RE.match(str(space_id)) else None
+        if space is None:
+            raise NotFound("스페이스를 찾을 수 없습니다.")
+        return space
+
+    def get_document(self, doc_id):
+        doc = None
+        if UUID_RE.match(str(doc_id)):
+            doc = (
+                Document.objects.filter(pk=doc_id, deleted_at__isnull=True, space__in=self.accessible_spaces())
+                .select_related("space", "space__workspace", "created_by")
+                .prefetch_related("labels")
+                .first()
+            )
+        if doc is None:
+            raise NotFound("문서를 찾을 수 없습니다.")
+        return doc
+
+
+class SpaceListView(DocumentMixin, PublicApiView):
+    @extend_schema(tags=["documents"], summary="문서 스페이스 목록", responses=s.SpaceSerializer(many=True))
+    def get(self, request):
+        return Response(s.SpaceSerializer(self.accessible_spaces().order_by("name"), many=True).data)
+
+
+class SpaceDocumentListView(DocumentMixin, PublicApiView):
+    @extend_schema(
+        tags=["documents"], summary="스페이스의 문서 목록 — 폴더 구조는 parent 로",
+        parameters=[OpenApiParameter("updated_since", OpenApiTypes.DATETIME),
+                    OpenApiParameter("page", int), OpenApiParameter("page_size", int)],
+        responses=s.DocumentListSerializer(many=True),
+    )
+    def get(self, request, space_id):
+        space = self.get_space(space_id)
+        qs = Document.objects.filter(space=space, deleted_at__isnull=True)
+        if request.query_params.get("updated_since"):
+            since = parse_datetime(request.query_params["updated_since"])
+            if since is None:
+                raise ValidationError({"updated_since": "ISO 8601 시각이어야 합니다."})
+            if timezone.is_naive(since):
+                since = timezone.make_aware(since)
+            qs = qs.filter(updated_at__gte=since)
+        return self.paginate(qs.order_by("created_at", "id"), s.DocumentListSerializer)
+
+
+class DocumentDetailView(DocumentMixin, PublicApiView):
+    @extend_schema(tags=["documents"], summary="문서 — 본문은 마크다운", responses=s.DocumentSerializer)
+    def get(self, request, doc_id):
+        return Response(s.DocumentSerializer(self.get_document(doc_id), context={"request": request}).data)

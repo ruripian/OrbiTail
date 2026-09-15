@@ -3,17 +3,13 @@ from datetime import timedelta
 from django.conf import settings
 from django.utils import timezone
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.workspaces.models import WorkspaceMember
 
-from .authentication import ApiTokenAuthentication
 from .models import ApiToken
-from .permissions import TokenScopePermission
 from .serializers import ApiTokenCreateSerializer, ApiTokenSerializer
-from .throttling import ApiTokenRateThrottle
 
 # 한 사람이 한 워크스페이스에서 동시에 살아 있게 둘 수 있는 토큰 수.
 # 잊힌 토큰이 쌓이는 것을 막는 상한이지 보안 경계는 아니다.
@@ -105,33 +101,3 @@ class ApiTokenRevokeView(APIView):
             token.revoked_by = request.user
             token.save(update_fields=["revoked_at", "revoked_by"])
         return Response(status=status.HTTP_204_NO_CONTENT)
-
-
-# ══════════════════════════════════════════════════════════════════
-#  공개 API v1 — 통합 토큰으로만 부른다
-# ══════════════════════════════════════════════════════════════════
-
-class PublicApiView(APIView):
-    """v1 뷰의 바탕. 워크스페이스는 URL 이 아니라 토큰에서 온다(`self.workspace`)."""
-
-    authentication_classes = [ApiTokenAuthentication]
-    permission_classes = [IsAuthenticated, TokenScopePermission]
-    throttle_classes = [ApiTokenRateThrottle]
-
-    @property
-    def workspace(self):
-        return self.request.auth.workspace
-
-
-class V1MeView(PublicApiView):
-    """토큰 확인용 — 누구로, 어느 워크스페이스에, 어떤 권한으로 붙었는지."""
-
-    def get(self, request):
-        token = request.auth
-        return Response({
-            "user": {"id": str(request.user.id), "email": request.user.email,
-                     "display_name": request.user.display_name},
-            "workspace": {"id": str(self.workspace.id), "slug": self.workspace.slug,
-                          "name": self.workspace.name},
-            "token": {"name": token.name, "scope": token.scope, "expires_at": token.expires_at},
-        })
