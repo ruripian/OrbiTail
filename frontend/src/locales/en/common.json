@@ -1613,7 +1613,9 @@
     "makeDatabase": "Turn into a table",
     "backToDocument": "Remove table",
     "newDatabase": "New table",
-    "fields": "Fields"
+    "fields": "Fields",
+    "projectIssues": "Project issues",
+    "homeDocument": "Home document"
   },
   "projectFilter": {
     "label": "Projects",

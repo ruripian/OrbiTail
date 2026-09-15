@@ -1613,7 +1613,9 @@
     "makeDatabase": "표로 만들기",
     "backToDocument": "표 해제",
     "newDatabase": "새 표",
-    "fields": "칸"
+    "fields": "칸",
+    "projectIssues": "프로젝트 이슈",
+    "homeDocument": "홈 문서"
   },
   "projectFilter": {
     "label": "프로젝트",

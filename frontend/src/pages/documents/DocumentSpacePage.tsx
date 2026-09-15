@@ -4,7 +4,7 @@
  */
 
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
-import { useParams, useOutletContext, useNavigate, Navigate } from "react-router-dom";
+import { useParams, useOutletContext, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -14,7 +14,7 @@ import {
   List, MoreHorizontal, Maximize2, Minimize2, ALargeSmall,
   History, FolderInput, Download, Printer, FileDown, Trash2, LayoutGrid,
   FolderOpen, FilePlus, Image as ImageIcon, Lock, Paperclip,
-  Link2, Unlink, EyeOff, Table2,
+  Link2, Unlink, EyeOff, Table2, Home, KanbanSquare,
 } from "lucide-react";
 import { documentsApi } from "@/api/documents";
 import { useAuthStore } from "@/stores/authStore";
@@ -91,17 +91,8 @@ export default function DocumentSpacePage() {
     },
   });
 
-  /* 홈 문서가 지정돼 있으면 스페이스 진입 시 그 문서를 연다.
-     replace 로 이동해 뒤로가기가 스페이스 루트 ↔ 홈 문서 사이를 오가지 않게 한다. */
-  if (!docId && currentSpace?.home_document) {
-    return (
-      <Navigate
-        to={`/${workspaceSlug}/documents/space/${spaceId}/${currentSpace.home_document}`}
-        replace
-      />
-    );
-  }
-
+  /* 스페이스에 들어오면 항상 홈을 보여 준다. 전에는 홈 문서가 지정돼 있으면 곧장 그 문서로 넘어가서
+     "스페이스를 눌렀는데 대뜸 문서가 뜬다"는 느낌이 들었다. 홈 문서는 홈 맨 위에 고정해 보여 준다. */
   if (!docId) {
     return (
       <SpaceHome
@@ -111,6 +102,8 @@ export default function DocumentSpacePage() {
         isPrivateProject={
           currentSpace?.space_type === "project" && currentSpace?.project_network === 2
         }
+        homeDocumentId={currentSpace?.home_document ?? null}
+        projectId={projectId ?? null}
         onInvalidate={() => ctx?.invalidate()}
       />
     );
@@ -1035,12 +1028,16 @@ function DocumentEditorView({
 
 /* ── 스페이스 홈 (문서 미선택 상태) ── */
 function SpaceHome({
-  workspaceSlug, spaceId, spaceName, isPrivateProject, onInvalidate,
+  workspaceSlug, spaceId, spaceName, isPrivateProject, homeDocumentId, projectId, onInvalidate,
 }: {
   workspaceSlug: string;
   spaceId: string;
   spaceName: string;
   isPrivateProject?: boolean;
+  /** 설정 › 일반 에서 고른 홈 문서 — 홈 맨 위에 고정 */
+  homeDocumentId: string | null;
+  /** 프로젝트 스페이스면 그 프로젝트 — 이슈로 가는 바로가기 */
+  projectId: string | null;
   onInvalidate: () => void;
 }) {
   const { t } = useTranslation();
@@ -1073,6 +1070,7 @@ function SpaceHome({
     ).slice(0, 8),
   [docs]);
   const rootDocs = useMemo(() => docs.filter((d) => !d.parent), [docs]);
+  const homeDoc = homeDocumentId ? docs.find((d) => d.id === homeDocumentId) : undefined;
 
   const createDoc = async () => {
     const doc = await documentsApi.create(workspaceSlug, spaceId, {
@@ -1126,6 +1124,17 @@ function SpaceHome({
             </p>
           </div>
           <div className="flex items-center gap-2">
+            {/* 프로젝트 스페이스 — 문서와 이슈를 오가는 일이 잦다 */}
+            {projectId && (
+              <Button
+                variant="outline"
+                className="gap-1.5"
+                onClick={() => navigate(`/${workspaceSlug}/projects/${projectId}/issues`)}
+              >
+                <KanbanSquare className="h-4 w-4" />
+                {t("documents.projectIssues", "프로젝트 이슈")}
+              </Button>
+            )}
             {/* 탐색기 — 폴더·문서를 끌어서 정리하는 화면. 스페이스 홈에서 바로 갈 수 있어야 한다. */}
             <Button
               variant="outline"
@@ -1141,6 +1150,27 @@ function SpaceHome({
             </Button>
           </div>
         </div>
+
+        {/* 홈 문서 — 스페이스의 개요. 들어오자마자 여는 대신 여기 고정해 둔다 */}
+        {homeDoc && (
+          <section className="mb-10">
+            <div
+              onClick={() => navigate(`/${workspaceSlug}/documents/space/${spaceId}/${homeDoc.id}`)}
+              className="group flex items-center gap-4 rounded-xl border bg-card px-5 py-4 cursor-pointer hover:border-primary/40 hover:shadow-sm transition-all"
+            >
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <Home className="h-5 w-5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-2xs font-semibold uppercase tracking-widest text-muted-foreground">
+                  {t("documents.homeDocument", "홈 문서")}
+                </p>
+                <p className="text-base font-semibold truncate group-hover:text-primary transition-colors">{homeDoc.title}</p>
+                <p className="text-2xs text-muted-foreground mt-0.5">{formatRelativeTime(homeDoc.updated_at)}</p>
+              </div>
+            </div>
+          </section>
+        )}
 
         {/* 최근 업데이트 */}
         {recent.length > 0 && (

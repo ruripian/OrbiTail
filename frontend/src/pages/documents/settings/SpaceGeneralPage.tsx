@@ -140,12 +140,12 @@ export default function SpaceGeneralPage() {
         </div>
       </section>
 
-      {/* 홈 문서 — 스페이스에 들어왔을 때 먼저 열 개요 페이지 */}
+      {/* 홈 문서 — 스페이스 홈 맨 위에 고정해 보여 줄 개요 페이지 */}
       <section className="rounded-xl border bg-card p-5 space-y-3">
         <div>
           <h2 className="text-sm font-semibold">홈 문서</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            지정하면 스페이스에 들어올 때 이 문서가 먼저 열립니다. 문서를 삭제하면 자동으로 해제됩니다.
+            지정하면 스페이스 홈 맨 위에 고정됩니다. 문서를 삭제하면 자동으로 해제됩니다.
           </p>
         </div>
         <Select
