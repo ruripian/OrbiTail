@@ -25,7 +25,42 @@ export interface SpaceAnalytics {
   top_documents: { id: string; title: string; views: number; viewers: number }[];
 }
 
+/** 워크스페이스 설정 › 문서 스페이스 — 관리자가 보는 공용 스페이스 한 줄(문서 내용 없음) */
+export interface ManagedSpace {
+  id: string;
+  name: string;
+  icon_prop: unknown;
+  is_private: boolean;
+  archived_at: string | null;
+  document_count: number;
+  member_count: number;
+  admins: string[];
+  /** 요청자가 이 스페이스의 멤버인가 — 아니면 문서 화면에서는 보이지 않는다 */
+  i_am_member: boolean;
+  created_at: string;
+}
+
 export const documentsApi = {
+  /* ─── 워크스페이스 관리자 전용 — 비공개 포함 전체 공용 스페이스를 관리한다 ─── */
+  adminSpaces: {
+    list: (workspaceSlug: string) =>
+      api.get<ManagedSpace[]>(`/workspaces/${workspaceSlug}/documents/admin/spaces/`).then((r) => r.data),
+    update: (workspaceSlug: string, spaceId: string, data: { is_private?: boolean; archived?: boolean }) =>
+      api.patch(`/workspaces/${workspaceSlug}/documents/admin/spaces/${spaceId}/`, data).then((r) => r.data),
+    remove: (workspaceSlug: string, spaceId: string) =>
+      api.delete(`/workspaces/${workspaceSlug}/documents/admin/spaces/${spaceId}/`),
+    members: {
+      list: (workspaceSlug: string, spaceId: string) =>
+        api.get<DocumentSpaceMember[]>(`/workspaces/${workspaceSlug}/documents/admin/spaces/${spaceId}/members/`).then((r) => r.data),
+      add: (workspaceSlug: string, spaceId: string, memberId: string, role: DocumentSpaceRole) =>
+        api.post<DocumentSpaceMember>(`/workspaces/${workspaceSlug}/documents/admin/spaces/${spaceId}/members/`, { member: memberId, role }).then((r) => r.data),
+      setRole: (workspaceSlug: string, spaceId: string, memberId: string, role: DocumentSpaceRole) =>
+        api.patch<DocumentSpaceMember>(`/workspaces/${workspaceSlug}/documents/admin/spaces/${spaceId}/members/${memberId}/`, { role }).then((r) => r.data),
+      remove: (workspaceSlug: string, spaceId: string, memberId: string) =>
+        api.delete(`/workspaces/${workspaceSlug}/documents/admin/spaces/${spaceId}/members/${memberId}/`),
+    },
+  },
+
   /* ─── 스페이스 ─── */
   spaces: {
     list: (workspaceSlug: string) =>

@@ -58,7 +58,10 @@ from .serializers import (
 # ── 권한 헬퍼 ──
 
 def _is_workspace_admin(user, workspace):
-    """슈퍼유저 OR 워크스페이스 ADMIN 이상 — 비공개 스페이스도 우회."""
+    """슈퍼유저 OR 워크스페이스 ADMIN 이상.
+
+    문서를 **보는** 권한을 넓히지 않는다(_space_role 참고). 워크스페이스 설정의 스페이스 관리
+    (WorkspaceSpaceAdmin*)와 라벨 관리처럼 "관리" 에만 쓴다."""
     if user.is_superuser:
         return True
     return WorkspaceMember.objects.filter(
@@ -73,18 +76,17 @@ def _space_role(user, space):
     권한 출처가 둘(프로젝트 멤버십 / 스페이스 멤버십)일 수 있어 **넓은 쪽**을 취한다.
     정수 등급이므로 이후 판정은 전부 크기 비교 한 줄로 끝난다.
 
-    - 워크스페이스 ADMIN·슈퍼유저: 항상 ADMIN
     - project  : 프로젝트 멤버는 can_edit 여부로 EDITOR/VIEWER, 스페이스 추가 인원은 자기 등급
     - personal : owner 만 ADMIN
     - shared   : 스페이스 등급. 공개(is_private=False) 면 워크스페이스 멤버 전원이 최소 EDITOR
                  (기존 동작 유지 — 공개 스페이스는 누구나 편집할 수 있었다)
+    - 워크스페이스 ADMIN·슈퍼유저: **들어갈 수 있는 스페이스에서만** ADMIN 으로 올린다.
+      전에는 모든 스페이스에서 ADMIN 이라 멤버가 아닌 비공개 스페이스·남의 개인 스페이스까지 열렸다.
+      비공개 스페이스 관리는 워크스페이스 설정 › 문서 스페이스에서 한다(내용은 보이지 않는다).
     """
     # 휴지통 프로젝트의 문서는 복구하기 전까지 아무도 못 연다(워크스페이스 관리자 포함)
     if space.space_type == "project" and space.project_id and space.project.deleted_at is not None:
         return None
-    if _is_workspace_admin(user, space.workspace):
-        return DocumentSpaceMember.Role.ADMIN
-
     if space.space_type == "personal":
         return DocumentSpaceMember.Role.ADMIN if space.owner_id == user.id else None
 
@@ -106,7 +108,11 @@ def _space_role(user, space):
         if WorkspaceMember.objects.filter(workspace=space.workspace, member=user).exists():
             roles.append(DocumentSpaceMember.Role.EDITOR)
 
-    return max(roles) if roles else None
+    if not roles:
+        return None
+    if _is_workspace_admin(user, space.workspace):
+        return DocumentSpaceMember.Role.ADMIN
+    return max(roles)
 
 
 def _check_space_access(user, space):
@@ -166,24 +172,11 @@ class _DocumentScopedMixin:
 def _get_accessible_spaces(user, workspace_slug):
     """유저가 접근 가능한 스페이스 queryset — 프로젝트 멤버 OR space.members 추가 인원 포함.
     비공개 공용 스페이스는 멤버에게만, 공개 공용은 워크스페이스 멤버 모두.
-    워크스페이스 관리자/슈퍼유저는 비공개 스페이스도 모두 노출."""
+    워크스페이스 관리자·슈퍼유저도 같은 규칙이다 — 멤버가 아닌 비공개 스페이스는 문서 화면에 나오지 않는다."""
     # 휴지통 프로젝트에 딸린 스페이스는 뺀다 — 목록·검색·관계망이 모두 이 함수를 거친다
     base = DocumentSpace.objects.filter(workspace__slug=workspace_slug).exclude(
         space_type="project", project__deleted_at__isnull=False,
     )
-    is_admin = (
-        user.is_superuser
-        or WorkspaceMember.objects.filter(
-            workspace__slug=workspace_slug, member=user,
-            role__gte=WorkspaceMember.Role.ADMIN,
-        ).exists()
-    )
-    if is_admin:
-        # 관리자: 본인 personal 외 모든 스페이스 노출
-        return base.filter(
-            Q(space_type__in=["shared", "project"])
-            | Q(space_type="personal", owner=user)
-        ).distinct().select_related("project", "owner")
     # 워크스페이스 멤버가 아니면 아무것도 — 공개 공용 스페이스 조건만으로는 다른 워크스페이스
     # 사용자에게 스페이스·문서 제목·검색 결과가 보였다(_space_role 은 멤버십을 요구하는데 여기만 달랐다)
     if not WorkspaceMember.objects.filter(workspace__slug=workspace_slug, member=user).exists():
@@ -341,16 +334,22 @@ class SpaceMemberListCreateView(APIView):
     def _get_space(self, workspace_slug, space_pk):
         return get_object_or_404(DocumentSpace, pk=space_pk, workspace__slug=workspace_slug)
 
+    def _can_view(self, user, space):
+        return _check_space_access(user, space)
+
+    def _can_manage(self, user, space):
+        return _check_space_admin(user, space)
+
     def get(self, request, workspace_slug, space_pk):
         space = self._get_space(workspace_slug, space_pk)
-        if not _check_space_access(request.user, space):
+        if not self._can_view(request.user, space):
             return Response({"detail": "접근 권한이 없습니다."}, status=status.HTTP_403_FORBIDDEN)
         qs = DocumentSpaceMember.objects.filter(space=space).select_related("member")
         return Response(DocumentSpaceMemberSerializer(qs, many=True).data)
 
     def post(self, request, workspace_slug, space_pk):
         space = self._get_space(workspace_slug, space_pk)
-        if not _check_space_admin(request.user, space):
+        if not self._can_manage(request.user, space):
             return Response({"detail": "멤버 추가는 관리자만 할 수 있습니다."}, status=status.HTTP_403_FORBIDDEN)
 
         member_id = request.data.get("member")
@@ -374,9 +373,12 @@ class SpaceMemberListCreateView(APIView):
 class SpaceMemberDetailView(APIView):
     """스페이스 멤버 역할 변경 / 제거 — ADMIN 만."""
 
+    def _can_manage(self, user, space):
+        return _check_space_admin(user, space)
+
     def _get_membership(self, request, workspace_slug, space_pk, member_pk):
         space = get_object_or_404(DocumentSpace, pk=space_pk, workspace__slug=workspace_slug)
-        if not _check_space_admin(request.user, space):
+        if not self._can_manage(request.user, space):
             return None, Response(
                 {"detail": "멤버 관리는 관리자만 할 수 있습니다."},
                 status=status.HTTP_403_FORBIDDEN,
@@ -419,6 +421,100 @@ class SpaceMemberDetailView(APIView):
                 )
         membership.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+# ── 워크스페이스 설정 › 문서 스페이스 ──
+#
+# 문서 화면은 워크스페이스 관리자에게도 멤버가 아닌 비공개 스페이스를 보여 주지 않는다. 대신 여기서
+# 모든 공용 스페이스를 **관리**한다 — 이름·공개 여부·멤버·문서 수만, 문서 내용은 없다. 내용을 봐야 하면
+# 자신을 멤버로 추가하는 동작을 거친다(멤버 명단에 남으니 몰래 열람하는 길이 아니다).
+# 개인 스페이스는 여기서도 다루지 않는다(탈퇴자 것은 슈퍼유저 전용 OrphanSpace* 가 맡는다).
+# 프로젝트 스페이스의 공개 범위·멤버는 프로젝트를 따르므로 프로젝트 쪽에서 관리한다.
+
+class _WorkspaceSpaceAdminMixin:
+    def _require_admin(self, request, workspace_slug):
+        from rest_framework.exceptions import NotFound, PermissionDenied
+        from apps.workspaces.models import Workspace
+        ws = Workspace.objects.filter(slug=workspace_slug).first()
+        if ws is None:
+            raise NotFound()
+        if not _is_workspace_admin(request.user, ws):
+            raise PermissionDenied("워크스페이스 관리자만 할 수 있습니다.")
+        return ws
+
+    def _get_managed_space(self, request, workspace_slug, pk):
+        ws = self._require_admin(request, workspace_slug)
+        return get_object_or_404(DocumentSpace, pk=pk, workspace=ws, space_type=DocumentSpace.SpaceType.SHARED)
+
+
+class WorkspaceSpaceAdminListView(_WorkspaceSpaceAdminMixin, APIView):
+    def get(self, request, workspace_slug):
+        ws = self._require_admin(request, workspace_slug)
+        spaces = (
+            DocumentSpace.objects.filter(workspace=ws, space_type=DocumentSpace.SpaceType.SHARED)
+            .annotate(
+                doc_count=Count("documents", filter=Q(documents__deleted_at__isnull=True, documents__is_folder=False),
+                                distinct=True),
+                member_count=Count("space_members", distinct=True),
+            )
+            .order_by("name")
+        )
+        admin_names = {}
+        for m in DocumentSpaceMember.objects.filter(space__in=spaces, role=DocumentSpaceMember.Role.ADMIN).select_related("member"):
+            admin_names.setdefault(m.space_id, []).append(m.member.display_name or m.member.email)
+        mine = set(DocumentSpaceMember.objects.filter(space__in=spaces, member=request.user).values_list("space_id", flat=True))
+        return Response([{
+            "id": str(sp.id),
+            "name": sp.name,
+            "icon_prop": sp.icon_prop,
+            "is_private": sp.is_private,
+            "archived_at": sp.archived_at,
+            "document_count": sp.doc_count,
+            "member_count": sp.member_count,
+            "admins": admin_names.get(sp.id, []),
+            "i_am_member": sp.id in mine,
+            "created_at": sp.created_at,
+        } for sp in spaces])
+
+
+class WorkspaceSpaceAdminDetailView(_WorkspaceSpaceAdminMixin, APIView):
+    """PATCH: 공개 여부·보관 / DELETE: 스페이스 삭제(문서 포함)."""
+
+    def patch(self, request, workspace_slug, pk):
+        space = self._get_managed_space(request, workspace_slug, pk)
+        fields = []
+        if "is_private" in request.data:
+            space.is_private = bool(request.data["is_private"])
+            fields.append("is_private")
+        if "archived" in request.data:
+            space.archived_at = timezone.now() if request.data["archived"] else None
+            fields.append("archived_at")
+        if fields:
+            space.save(update_fields=fields)
+        return Response({"id": str(space.id), "is_private": space.is_private, "archived_at": space.archived_at})
+
+    def delete(self, request, workspace_slug, pk):
+        space = self._get_managed_space(request, workspace_slug, pk)
+        space.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class WorkspaceSpaceAdminMemberListView(_WorkspaceSpaceAdminMixin, SpaceMemberListCreateView):
+    """멤버 명단·추가 — 스페이스 설정의 멤버 API 와 같은 규칙, 판정만 워크스페이스 관리자."""
+
+    def _get_space(self, workspace_slug, space_pk):
+        return get_object_or_404(DocumentSpace, pk=space_pk, workspace__slug=workspace_slug,
+                                 space_type=DocumentSpace.SpaceType.SHARED)
+
+    def _can_view(self, user, space):
+        return _is_workspace_admin(user, space.workspace)
+
+    _can_manage = _can_view
+
+
+class WorkspaceSpaceAdminMemberDetailView(_WorkspaceSpaceAdminMixin, SpaceMemberDetailView):
+    def _can_manage(self, user, space):
+        return space.space_type == DocumentSpace.SpaceType.SHARED and _is_workspace_admin(user, space.workspace)
 
 
 # ── 문서 ──

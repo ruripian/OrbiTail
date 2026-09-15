@@ -142,3 +142,65 @@ class DocumentSecurityTests(TestCase):
         upload = SimpleUploadedFile("vault.zip", buf.getvalue(), content_type="application/zip")
         r = self.as_(self.member).post(f"/api/workspaces/ws/documents/spaces/{self.open.id}/import/", {"file": upload})
         self.assertEqual(r.status_code, 400)
+
+
+class WorkspaceAdminPrivateSpaceTests(TestCase):
+    """비공개 스페이스는 관리자에게도 문서 화면에서 숨기고, 워크스페이스 설정에서만 관리한다."""
+
+    def setUp(self):
+        self.ws = Workspace.objects.create(name="WS", slug="ws")
+        self.owner = _user("owner@x.io")
+        self.admin = _user("admin@x.io")
+        self.superuser = _user("root@x.io")
+        User.objects.filter(pk=self.superuser.pk).update(is_superuser=True, is_staff=True)
+        self.superuser.refresh_from_db()
+        WorkspaceMember.objects.create(workspace=self.ws, member=self.owner, role=15)
+        WorkspaceMember.objects.create(workspace=self.ws, member=self.admin, role=25)
+        WorkspaceMember.objects.create(workspace=self.ws, member=self.superuser, role=15)
+        self.private = DocumentSpace.objects.create(workspace=self.ws, name="비밀", space_type="shared", is_private=True)
+        DocumentSpaceMember.objects.create(space=self.private, member=self.owner, role=DocumentSpaceMember.Role.ADMIN)
+        self.doc = Document.objects.create(space=self.private, title="비밀 문서", content_html="<p>내용</p>")
+        self.personal = DocumentSpace.objects.create(workspace=self.ws, name="남의 개인", space_type="personal",
+                                                     owner=self.owner)
+        self.personal_doc = Document.objects.create(space=self.personal, title="개인 문서")
+
+    def as_(self, user):
+        c = APIClient()
+        c.force_authenticate(user)
+        return c
+
+    def test_admin_and_superuser_do_not_see_private_or_personal_in_documents(self):
+        for user in (self.admin, self.superuser):
+            c = self.as_(user)
+            with self.subTest(user=user.email):
+                names = [s["name"] for s in rows(c.get("/api/workspaces/ws/documents/spaces/").data)]
+                self.assertNotIn("비밀", names)
+                self.assertNotIn("남의 개인", names)
+                self.assertEqual(rows(c.get("/api/workspaces/ws/documents/search/?q=비밀").data), [])
+                self.assertEqual(c.get(f"/api/workspaces/ws/documents/spaces/{self.private.id}/docs/{self.doc.id}/").status_code, 404)
+                self.assertEqual(c.get(f"/api/workspaces/ws/documents/spaces/{self.personal.id}/docs/{self.personal_doc.id}/").status_code, 404)
+
+    def test_workspace_settings_lists_and_manages_without_content(self):
+        c = self.as_(self.admin)
+        listed = c.get("/api/workspaces/ws/documents/admin/spaces/").data
+        row = next(r for r in listed if r["name"] == "비밀")
+        self.assertEqual((row["is_private"], row["document_count"], row["i_am_member"]), (True, 1, False))
+        self.assertNotIn("남의 개인", [r["name"] for r in listed])
+        self.assertNotIn("content_html", str(listed))
+
+        # 자신을 멤버로 추가해야 비로소 연다
+        r = c.post(f"/api/workspaces/ws/documents/admin/spaces/{self.private.id}/members/",
+                   {"member": str(self.admin.id), "role": DocumentSpaceMember.Role.VIEWER}, format="json")
+        self.assertEqual(r.status_code, 201, r.data)
+        self.assertEqual(c.get(f"/api/workspaces/ws/documents/spaces/{self.private.id}/docs/{self.doc.id}/").status_code, 200)
+
+        self.assertEqual(c.patch(f"/api/workspaces/ws/documents/admin/spaces/{self.private.id}/", {"is_private": False},
+                                 format="json").status_code, 200)
+        self.private.refresh_from_db()
+        self.assertFalse(self.private.is_private)
+
+    def test_non_admin_cannot_use_workspace_space_admin(self):
+        c = self.as_(self.owner)
+        self.assertEqual(c.get("/api/workspaces/ws/documents/admin/spaces/").status_code, 403)
+        self.assertEqual(c.delete(f"/api/workspaces/ws/documents/admin/spaces/{self.private.id}/").status_code, 403)
+        self.assertEqual(c.get(f"/api/workspaces/ws/documents/admin/spaces/{self.personal.id}/members/").status_code, 404)

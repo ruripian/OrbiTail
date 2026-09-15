@@ -1,6 +1,12 @@
 from django.urls import path
 from .collab_views import CollabAuthView, CollabDocumentView
 from .views import (
+    WorkspaceSpaceAdminDetailView,
+    WorkspaceSpaceAdminListView,
+    WorkspaceSpaceAdminMemberDetailView,
+    WorkspaceSpaceAdminMemberListView,
+)
+from .views import (
     SpaceListCreateView,
     SpaceDetailView,
     DiscoverableSpacesView,
@@ -50,6 +56,15 @@ from .views import (
 )
 
 urlpatterns = [
+    # 워크스페이스 설정 › 문서 스페이스 — 관리자 전용, 비공개 포함 전체 공용 스페이스(내용 없음)
+    path("workspaces/<slug:workspace_slug>/documents/admin/spaces/", WorkspaceSpaceAdminListView.as_view(),
+         name="workspace-space-admin-list"),
+    path("workspaces/<slug:workspace_slug>/documents/admin/spaces/<uuid:pk>/", WorkspaceSpaceAdminDetailView.as_view(),
+         name="workspace-space-admin-detail"),
+    path("workspaces/<slug:workspace_slug>/documents/admin/spaces/<uuid:space_pk>/members/",
+         WorkspaceSpaceAdminMemberListView.as_view(), name="workspace-space-admin-members"),
+    path("workspaces/<slug:workspace_slug>/documents/admin/spaces/<uuid:space_pk>/members/<uuid:member_pk>/",
+         WorkspaceSpaceAdminMemberDetailView.as_view(), name="workspace-space-admin-member-detail"),
     # 스페이스
     path(
         "workspaces/<slug:workspace_slug>/documents/spaces/",

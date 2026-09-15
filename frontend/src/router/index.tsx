@@ -25,6 +25,7 @@ import { WorkspaceGeneralPage } from "@/pages/settings/WorkspaceGeneralPage";
 import { WorkspaceJoinRequestsPage } from "@/pages/settings/WorkspaceJoinRequestsPage";
 import { WorkspaceApiTokensPage } from "@/pages/settings/WorkspaceApiTokensPage";
 import { WorkspaceWebhooksPage } from "@/pages/settings/WorkspaceWebhooksPage";
+import { WorkspaceSpacesPage } from "@/pages/settings/WorkspaceSpacesPage";
 import { AdminConsoleLayout } from "@/pages/admin/AdminConsoleLayout";
 import { AdminOverviewPage } from "@/pages/admin/AdminOverviewPage";
 import { AdminUsersPage } from "@/pages/admin/AdminUsersPage";
@@ -281,6 +282,7 @@ export const router = createBrowserRouter([
           { path: "archived", element: <ArchivedProjectsPage /> },
           { path: "api-tokens", element: <WorkspaceApiTokensPage /> },
           { path: "webhooks", element: <WorkspaceWebhooksPage /> },
+          { path: "spaces", element: <WorkspaceSpacesPage /> },
         ],
       },
 
