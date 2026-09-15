@@ -170,8 +170,14 @@ class IssueListCreateView(generics.ListCreateAPIView):
         )
 
         # 스프린트 필터가 명시적으로 지정되지 않은 경우,
-        # 완료/취소된 스프린트에 속한 이슈를 기본 목록에서 제외
-        if "sprint" not in self.request.query_params:
+        # 완료/취소된 스프린트에 속한 이슈를 기본 목록에서 제외.
+        # 보드/테이블에 끝난 사이클의 이슈가 계속 남아 있으면 안 되기 때문이다.
+        #
+        # 단 스프린트 계획 화면은 완료된 스프린트와 그 이슈를 그대로 보여줘야 한다.
+        # 그 화면은 sprint 파라미터를 쓸 수 없어(여러 스프린트를 한 번에 그린다)
+        # include_all_sprints 로 이 기본 필터를 명시적으로 끈다.
+        show_all_sprints = self.request.query_params.get("include_all_sprints") == "true"
+        if "sprint" not in self.request.query_params and not show_all_sprints:
             qs = qs.filter(
                 Q(sprint__isnull=True) |
                 Q(sprint__status__in=["draft", "active"])

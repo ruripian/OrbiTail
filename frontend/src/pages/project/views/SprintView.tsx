@@ -16,7 +16,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
   Zap, CheckCircle2, Play, Plus, ChevronRight, ChevronDown, Trash2, Inbox,
-  MoreHorizontal, Pencil, Ban, ArrowLeft, ListPlus,
+  MoreHorizontal, Pencil, Ban, ArrowLeft, ListPlus, CalendarClock, AlertTriangle, BarChart3,
 } from "lucide-react";
 import { projectsApi } from "@/api/projects";
 import { issuesApi } from "@/api/issues";
@@ -41,7 +41,13 @@ import { getStateIcon } from "@/constants/state-icons";
 import { apiErrorMessage } from "@/lib/api-error";
 import { formatDate } from "@/utils/date-format";
 import { cn } from "@/lib/utils";
-import type { Issue, Sprint, State } from "@/types";
+import type { Issue, ProjectEvent, Sprint, State, User } from "@/types";
+import { SprintBurndown } from "@/components/charts/SprintBurndown";
+import {
+  sprintMetrics, weightOf, groupOf, formatMetric,
+  GROUP_ORDER, GROUP_LABEL, GROUP_COLOR,
+  type SprintMetrics,
+} from "./sprint-metrics";
 
 interface Props {
   workspaceSlug: string;
@@ -88,6 +94,9 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [completeTarget, setCompleteTarget] = useState<Sprint | null>(null);
   const [moveTo, setMoveTo] = useState<string>("backlog");
+  /* 작업 / 리포트 — 번다운은 회고용이라 작업 목록에 섞으면 양쪽 다 손해다.
+     담당자 부하는 지금 재배정하게 만드는 정보라 헤더에 경고 한 줄만 남긴다. */
+  const [detailTab, setDetailTab] = useState<"work" | "report">("work");
   const [dropOnSprint, setDropOnSprint] = useState(false);
   const [dropOnBacklog, setDropOnBacklog] = useState(false);
 
@@ -115,7 +124,17 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
   /* 이슈는 한 번에 받아 클라이언트에서 나눈다 — 섹션마다 요청하면 스프린트 수만큼 왕복이 생긴다. */
   const { data: allIssues = [] } = useQuery({
     queryKey: ["issues", workspaceSlug, projectId, "sprint-planning"],
-    queryFn: () => issuesApi.list(workspaceSlug, projectId, { include_sub_issues: "true" }),
+    /* include_all_sprints — 없으면 완료·취소된 스프린트의 이슈가 응답에서 빠져
+       그 스프린트가 항상 "0건" 으로 보인다(이슈를 옮겨 넣어도 변화가 없음). */
+    queryFn: () => issuesApi.list(workspaceSlug, projectId, {
+      include_sub_issues: "true", include_all_sprints: "true",
+    }),
+  });
+
+  /* 담당자별 부하의 "일정 N일" 계산용 — 스프린트 기간과 겹치는 프로젝트 일정 */
+  const { data: projectEvents = [] } = useQuery({
+    queryKey: ["project-events", workspaceSlug, projectId],
+    queryFn: () => projectsApi.events.list(workspaceSlug, projectId),
   });
 
   const invalidate = () => {
@@ -127,9 +146,6 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
   const planIssues = useMemo(() => allIssues.filter((i: Issue) => !i.is_field), [allIssues]);
   const issuesOf = (sprintId: string | null) =>
     planIssues.filter((i: Issue) => (i.sprint ?? null) === sprintId);
-
-  const doneCount = (issues: Issue[]) =>
-    issues.filter((i) => stateMap.get(i.state ?? "")?.group === "completed").length;
 
   const current = sprints.find((s: Sprint) => s.id === openSprintId) ?? null;
   const draftSprints = sprints.filter((s: Sprint) => s.status === "draft");
@@ -246,29 +262,49 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
           e.dataTransfer.effectAllowed = "move";
         }}
         onClick={() => onIssueClick(issue.id)}
-        style={{ paddingLeft: 10 + depth * 18 }}
         className={cn(
-          "flex items-center gap-2 pr-2 py-1.5 rounded-lg hover:bg-accent/40 cursor-pointer",
+          "relative flex min-h-[34px] items-center gap-2 rounded-lg py-1.5 pr-2 hover:bg-accent/40 cursor-pointer",
           canEdit && "active:cursor-grabbing",
         )}
+        style={{ paddingLeft: 10 + depth * 20 }}
       >
+        {/* 들여쓰기 안내선 — 여백만으로는 어느 이슈의 하위인지 눈으로 못 따라간다 */}
+        {depth > 0 && Array.from({ length: depth }, (_, i) => (
+          <span
+            key={i}
+            aria-hidden
+            className="pointer-events-none absolute top-0 bottom-0 w-px bg-border"
+            style={{ left: 16 + i * 20 }}
+          />
+        ))}
         {hasChildren ? (
           <button
             onClick={(e) => { e.stopPropagation(); toggle(issue.id); }}
-            className="shrink-0 text-muted-foreground hover:text-foreground"
+            className="shrink-0 rounded text-muted-foreground hover:bg-accent hover:text-foreground"
             aria-label={isCollapsed ? "하위 이슈 펼치기" : "하위 이슈 접기"}
           >
-            {isCollapsed ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+            {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
           </button>
         ) : (
-          !compact && <span className="w-3.5 shrink-0" />
+          !compact && <span className="w-4 shrink-0" />
         )}
-        <StateIcon className="h-3.5 w-3.5 shrink-0" style={{ color: state?.color ?? "#9ca3af" }} />
-        <PriorityGlyph priority={issue.priority} size={10} />
-        <span className="flex-1 truncate text-sm">{issue.title}</span>
-        {!compact && issue.assignee_details?.slice(0, 2).map((a) => (
-          <AvatarInitials key={a.id} name={a.display_name || a.email} avatar={a.avatar} size="xs" />
-        ))}
+        <StateIcon className="h-4 w-4 shrink-0" style={{ color: state?.color ?? "#9ca3af" }} />
+        <PriorityGlyph priority={issue.priority} size={12} />
+        <span className="min-w-0 flex-1 truncate text-sm">{issue.title}</span>
+        {/* 예상 포인트 — 스프린트 화면의 모든 지표가 이 값으로 계산된다.
+            화면에 안 보이면 왜 34/89 인지 설명할 방법이 없다.
+            칩 대신 고정폭 우측 정렬 — 행마다 다른 위치에 뜨면 훑을 때 걸린다. */}
+        <span className="w-10 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
+          {issue.estimate_point ? formatMetric(issue.estimate_point, "pt") : ""}
+        </span>
+        {/* 담당자 자리는 비어 있어도 유지 — 있고 없고에 따라 포인트 열이 흔들리지 않게 */}
+        {!compact && (
+          <span className="flex w-11 shrink-0 justify-end gap-0.5">
+            {issue.assignee_details?.slice(0, 2).map((a) => (
+              <AvatarInitials key={a.id} name={a.display_name || a.email} avatar={a.avatar} size="xs" />
+            ))}
+          </span>
+        )}
       </div>
     );
   };
@@ -466,25 +502,32 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
 
   if (current) {
     const issues = issuesOf(current.id);
-    const done = doneCount(issues);
     const badge = STATUS_BADGE[current.status];
+    const metrics = sprintMetrics(issues, stateMap);
+    const loads = buildLoads(issues, stateMap, projectEvents, current, metrics.unit);
+    const avgLoad = loads.length ? loads.reduce((n, l) => n + l.value, 0) / loads.length : 0;
+    const overloaded = loads.length > 1 ? loads.filter((l) => l.value > avgLoad * 1.5) : [];
 
     return (
       <PageTransition className="flex flex-col h-full overflow-hidden">
+        {/* 헤더는 두 줄로 끝낸다 — 제목/조작, 그리고 진척 한 줄.
+            설명·범례·경고를 각각 한 단씩 쌓으면 본문 전에 화면 위쪽 절반이 메타데이터가 된다. */}
         <div className="shrink-0 border-b">
-          <div className="flex items-center gap-3 px-4 py-3">
-            <Button variant="ghost" size="sm" className="h-8 text-xs gap-1.5" onClick={() => openSprint(null)}>
+          <div className="flex items-center gap-2 px-4 py-2.5">
+            <Button variant="ghost" size="sm" className="h-8 shrink-0 gap-1.5 px-2 text-xs" onClick={() => openSprint(null)}>
               <ArrowLeft className="h-3.5 w-3.5" />
-              스프린트 목록
+              목록
             </Button>
-            <div className="w-px h-5 bg-border" />
-            <h1 className="text-sm font-semibold truncate">{current.name}</h1>
-            <Badge variant="secondary" className={cn("text-2xs px-1.5 py-0 shrink-0", badge.cls)}>{badge.label}</Badge>
-            <span className="text-2xs text-muted-foreground shrink-0">
-              {fmt(current.start_date)} ~ {fmt(current.end_date)}
-            </span>
+            <h1 className="shrink-0 text-sm font-semibold truncate">{current.name}</h1>
+            <Badge variant="secondary" className={cn("shrink-0 px-1.5 py-0 text-2xs", badge.cls)}>{badge.label}</Badge>
+            {/* 스프린트 목표는 제목 옆에 붙인다 — 한 단을 차지할 만큼 긴 정보가 아니다 */}
+            {current.description && (
+              <span className="hidden min-w-0 truncate text-xs text-muted-foreground lg:inline" title={current.description}>
+                {current.description}
+              </span>
+            )}
 
-            <div className="ml-auto flex items-center gap-2">
+            <div className="ml-auto flex shrink-0 items-center gap-2">
               {canEdit && (
                 <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5" onClick={() => setPickerOpen(true)}>
                   <ListPlus className="h-3.5 w-3.5" />
@@ -510,35 +553,116 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
             </div>
           </div>
 
-          {current.description && (
-            <p className="px-4 pb-2 text-xs text-muted-foreground">{current.description}</p>
-          )}
-
-          {/* 진척 — 완료율 막대 위에 기간 경과 눈금. 둘의 간격이 곧 일정 대비 상태다. */}
+          {/* 진척 한 줄 — 숫자 / 분포 막대(기간 눈금) / 기간·남은 일수.
+              그룹별 건수는 아래 작업 탭의 섹션 헤더가 이미 말하고 있으므로 여기선 뺀다. */}
           {issues.length > 0 && (
-            <div className="px-4 pb-3">
-              <div className="relative h-1.5 rounded-full bg-muted/50 overflow-hidden">
-                <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${Math.round((done / issues.length) * 100)}%` }} />
+            <div className="flex items-center gap-3 px-4 pb-2.5">
+              <span className="shrink-0 text-xs tabular-nums">
+                <span className="font-semibold">{formatMetric(metrics.done, metrics.unit)}</span>
+                <span className="text-muted-foreground"> / {formatMetric(metrics.total, metrics.unit)} · {metrics.percent}%</span>
+              </span>
+              <div className="relative min-w-0 flex-1">
+                <DistributionBar metrics={metrics} height={6} />
                 {current.status === "active" && (
                   <div
-                    className="absolute top-0 bottom-0 w-px bg-foreground/40"
+                    className="absolute top-0 bottom-0 w-px bg-foreground/50"
                     style={{ left: `${timeProgress(current)}%` }}
                     title={`기간 경과 ${timeProgress(current)}%`}
                   />
                 )}
               </div>
-              <div className="flex items-center justify-between mt-1 text-2xs text-muted-foreground">
-                <span>완료 {done} / {issues.length}</span>
+              <span className="shrink-0 text-2xs tabular-nums text-muted-foreground">
+                <span className="hidden sm:inline">{fmt(current.start_date)} ~ {fmt(current.end_date)}</span>
                 {current.status === "active" && (
-                  <span>{daysLeft(current) >= 0 ? `${daysLeft(current)}일 남음` : `${Math.abs(daysLeft(current))}일 지남`}</span>
+                  <span className="sm:before:content-['_·_']">
+                    {daysLeft(current) >= 0 ? `${daysLeft(current)}일 남음` : `${Math.abs(daysLeft(current))}일 지남`}
+                  </span>
                 )}
-              </div>
+              </span>
             </div>
           )}
+
+          {/* 탭 — 기존 이슈 상세와 같은 WAI-ARIA tablist 패턴 */}
+          <div
+            role="tablist"
+            aria-label="스프린트 상세 탭"
+            className="flex gap-0.5 px-3"
+            onKeyDown={(e) => {
+              if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+                setDetailTab((v) => (v === "work" ? "report" : "work"));
+                e.preventDefault();
+              }
+            }}
+          >
+            {([
+              { id: "work" as const, label: "작업", icon: ListPlus },
+              { id: "report" as const, label: "리포트", icon: BarChart3 },
+            ]).map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                role="tab"
+                id={`sprint-tab-${id}`}
+                aria-selected={detailTab === id}
+                aria-controls={`sprint-tabpanel-${id}`}
+                tabIndex={detailTab === id ? 0 : -1}
+                onClick={() => setDetailTab(id)}
+                className={cn(
+                  "-mb-px inline-flex items-center gap-1.5 border-b-2 px-3 py-2 text-xs font-medium transition-colors",
+                  detailTab === id
+                    ? "border-primary text-foreground"
+                    : "border-transparent text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {label}
+                {/* 과부하 경고는 배너 한 단을 잡아먹을 일이 아니라 "리포트에 볼 게 있다" 는 신호다 */}
+                {id === "report" && overloaded.length > 0 && (
+                  <span
+                    className="inline-flex items-center gap-0.5 rounded bg-amber-500/15 px-1 py-px text-2xs font-medium text-amber-700 dark:text-amber-400"
+                    title={`${overloaded.map((l) => l.user.display_name || l.user.email).join(", ")} 의 부하가 평균보다 큽니다`}
+                  >
+                    <AlertTriangle className="h-2.5 w-2.5" />
+                    {overloaded.length}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* 본문 — 좌: 스프린트 이슈 / 우: 백로그 */}
-        <div className="flex flex-1 min-h-0">
+        {/* 리포트 탭 — 번다운·부하는 회고/스탠드업용이라 작업 목록에서 뺐다 */}
+        {detailTab === "report" ? (
+          <div
+            role="tabpanel"
+            id="sprint-tabpanel-report"
+            aria-labelledby="sprint-tab-report"
+            className="flex-1 overflow-y-auto"
+          >
+            <div className="mx-auto max-w-regular space-y-4 p-4">
+              {issues.length === 0 ? (
+                <p className="py-16 text-center text-sm text-muted-foreground">
+                  담긴 이슈가 없어 보여줄 지표가 없습니다.
+                </p>
+              ) : (
+                <>
+                  <SprintBurndown sprint={current} issues={issues} states={states} />
+                  {loads.length > 0 && (
+                    <div className="rounded-xl border p-4">
+                      <LoadPanel loads={loads} unit={metrics.unit} />
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        ) : (
+        /* 작업 탭 — 좌: 스프린트 이슈 / 우: 백로그 */
+        <div
+          role="tabpanel"
+          id="sprint-tabpanel-work"
+          aria-labelledby="sprint-tab-work"
+          className="flex flex-1 min-h-0"
+        >
           <div
             className={cn("flex-1 overflow-y-auto p-3 transition-colors", dropOnSprint && "bg-primary/5")}
             onDragOver={(e) => {
@@ -554,6 +678,7 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
               if (id) assign.mutate({ issueId: id, sprintId: current.id });
             }}
           >
+            <div className="mx-auto max-w-regular">
             {issues.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-center gap-2 py-16">
                 <Zap className="h-8 w-8 text-muted-foreground/30" />
@@ -563,10 +688,46 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
                 </p>
               </div>
             ) : (
-              treeRows(issues).map(({ issue, depth, hasChildren }) => (
-                <IssueRow key={issue.id} issue={issue} depth={depth} hasChildren={hasChildren} />
-              ))
+              <>
+                {/* 상태 그룹으로 묶는다 — 평면 나열은 20건만 넘어도 뭐가 막혔는지 안 보인다.
+                    하위 이슈는 부모 아래 그대로 두고, 그룹은 최상위 이슈 기준으로 나눈다. */}
+                {GROUP_ORDER.map((g) => {
+                  /* 최상위 이슈의 그룹으로 나누고, 그 아래 자손은 부모를 따라간다.
+                     깊이만 보고 거르면 부모가 빠진 자식이 엉뚱한 부모에 붙는다. */
+                  const rows: ReturnType<typeof treeRows> = [];
+                  let inGroup = false;
+                  for (const row of treeRows(issues)) {
+                    if (row.depth === 0) inGroup = groupOf(row.issue, stateMap) === g;
+                    if (inGroup) rows.push(row);
+                  }
+                  const roots = rows.filter(({ depth }) => depth === 0);
+                  if (roots.length === 0) return null;
+                  const sum = roots.reduce((n, { issue }) => n + weightOf(issue, metrics.unit), 0);
+                  return (
+                    <section key={g} className="mb-2">
+                      {/* 색은 라벨 자체가 들고 간다 — 점 + 굵은 제목 + 숫자 두 개는 행보다 무거웠다 */}
+                      <div className="mb-1 mt-3 flex items-center gap-2 px-2.5">
+                        <span
+                          className="text-2xs font-semibold uppercase tracking-widest"
+                          style={{ color: GROUP_COLOR[g] }}
+                        >
+                          {GROUP_LABEL[g]}
+                        </span>
+                        <span className="text-2xs tabular-nums text-muted-foreground">
+                          {roots.length}건 · {formatMetric(sum, metrics.unit)}
+                        </span>
+                        <span className="ml-1 h-px flex-1 bg-border/60" />
+                      </div>
+                      {rows.map(({ issue, depth, hasChildren }) => (
+                        <IssueRow key={issue.id} issue={issue} depth={depth} hasChildren={hasChildren} />
+                      ))}
+                    </section>
+                  );
+                })}
+
+              </>
             )}
+            </div>
           </div>
 
           {/* 백로그 패널 — 여기서 끌어다 왼쪽에 담고, 반대로 놓으면 스프린트에서 뺀다 */}
@@ -588,10 +749,10 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
               if (id) assign.mutate({ issueId: id, sprintId: null });
             }}
           >
-            <div className="flex items-center gap-2 px-3 py-2.5 border-b shrink-0">
+            <div className="flex shrink-0 items-center gap-2 border-b px-3 py-2.5">
               <Inbox className="h-3.5 w-3.5 text-muted-foreground" />
-              <span className="text-xs font-semibold">백로그</span>
-              <span className="text-2xs text-muted-foreground ml-auto">{backlog.length}건</span>
+              <span className="text-2xs font-semibold uppercase tracking-widest text-muted-foreground">백로그</span>
+              <span className="ml-auto text-xs tabular-nums text-muted-foreground">{backlog.length}</span>
             </div>
             <div className="flex-1 overflow-y-auto p-1.5">
               {backlog.length === 0 ? (
@@ -602,6 +763,7 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
             </div>
           </aside>
         </div>
+        )}
 
         {/* 가져오기 — 문서용 이슈 선택 팝업을 그대로 쓴다 */}
         <IssuePickerDialog
@@ -623,16 +785,18 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
 
   /* ── 목록 ── */
 
+  /* 상태로 묶는다 — 지금 돌아가는 스프린트 하나가 지난 열 개보다 중요한데,
+     전부 같은 크기 카드로 깔면 그게 안 보인다. 진행 중만 펼치고 나머지는 한 줄. */
+  const activeSprints = sprints.filter((s: Sprint) => s.status === "active");
+  const pastSprints = sprints.filter(
+    (s: Sprint) => s.status === "completed" || s.status === "cancelled",
+  );
+
   return (
     <PageTransition className="h-full overflow-y-auto">
-      <div className="max-w-regular mx-auto p-4 sm:p-6 space-y-3">
+      <div className="max-w-regular mx-auto p-4 sm:p-6">
         <div className="flex items-center justify-between gap-3">
-          <div>
-            <h1 className="text-base font-semibold">스프린트</h1>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              스프린트를 열어 이슈를 담고, 준비되면 시작합니다.
-            </p>
-          </div>
+          <h1 className="text-base font-semibold">스프린트</h1>
           {canEdit && (
             <Button size="sm" className="gap-1.5" onClick={() => setCreateOpen(true)}>
               <Plus className="h-3.5 w-3.5" />
@@ -642,7 +806,7 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
         </div>
 
         {sprints.length === 0 ? (
-          <div className="rounded-xl border border-dashed p-10 text-center">
+          <div className="mt-3 rounded-xl border border-dashed p-10 text-center">
             <Zap className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
             <p className="text-sm text-muted-foreground">아직 스프린트가 없습니다.</p>
             <p className="text-xs text-muted-foreground/70 mt-1">
@@ -650,61 +814,263 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
             </p>
           </div>
         ) : (
-          <div className="space-y-2">
-            {sprints.map((s: Sprint) => {
-              const list = issuesOf(s.id);
-              const done = doneCount(list);
-              const badge = STATUS_BADGE[s.status];
-              const isActive = s.status === "active";
-              return (
-                <button
-                  key={s.id}
-                  onClick={() => openSprint(s.id)}
-                  className={cn(
-                    "w-full text-left rounded-xl border bg-card px-4 py-3 hover:bg-accent/30 transition-colors",
-                    isActive && "border-primary/40",
-                  )}
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium truncate">{s.name}</span>
-                    <Badge variant="secondary" className={cn("text-2xs px-1.5 py-0 shrink-0", badge.cls)}>{badge.label}</Badge>
-                    <span className="text-2xs text-muted-foreground shrink-0">
-                      {fmt(s.start_date)} ~ {fmt(s.end_date)}
-                    </span>
-                    <span className="text-2xs text-muted-foreground ml-auto shrink-0">
-                      {list.length > 0 ? `${done} / ${list.length}` : "0건"}
-                    </span>
-                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                  </div>
-
-                  {list.length > 0 && (
-                    <div className="relative h-1 rounded-full bg-muted/50 overflow-hidden mt-2">
-                      <div className="h-full rounded-full bg-primary" style={{ width: `${Math.round((done / list.length) * 100)}%` }} />
-                      {isActive && (
-                        <div className="absolute top-0 bottom-0 w-px bg-foreground/40" style={{ left: `${timeProgress(s)}%` }} />
-                      )}
-                    </div>
-                  )}
-                  {isActive && (
-                    <p className="text-2xs text-muted-foreground mt-1">
-                      {daysLeft(s) >= 0 ? `${daysLeft(s)}일 남음` : `${Math.abs(daysLeft(s))}일 지남`}
-                    </p>
-                  )}
-                </button>
-              );
-            })}
-          </div>
+          <>
+            {activeSprints.length > 0 && (
+              <>
+                <SectionLabel>진행 중</SectionLabel>
+                <div className="space-y-2">
+                  {activeSprints.map((s: Sprint) => (
+                    <ActiveSprintCard key={s.id} sprint={s} m={sprintMetrics(issuesOf(s.id), stateMap)} onOpen={() => openSprint(s.id)} />
+                  ))}
+                </div>
+              </>
+            )}
+            {draftSprints.length > 0 && (
+              <>
+                <SectionLabel>예정</SectionLabel>
+                {draftSprints.map((s: Sprint) => (
+                  <SprintRow key={s.id} sprint={s} m={sprintMetrics(issuesOf(s.id), stateMap)} onOpen={() => openSprint(s.id)} />
+                ))}
+              </>
+            )}
+            {pastSprints.length > 0 && (
+              <>
+                <SectionLabel>지난 스프린트</SectionLabel>
+                {pastSprints.map((s: Sprint) => (
+                  <SprintRow key={s.id} sprint={s} m={sprintMetrics(issuesOf(s.id), stateMap)} onOpen={() => openSprint(s.id)} />
+                ))}
+              </>
+            )}
+          </>
         )}
 
         {/* 백로그 — 목록에서도 얼마나 쌓였는지는 보이게 두되, 담는 건 상세에서 한다 */}
-        <div className="rounded-xl border border-dashed bg-muted/20 px-4 py-3 flex items-center gap-2">
-          <Inbox className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-          <span className="text-sm">백로그</span>
-          <span className="text-2xs text-muted-foreground ml-auto">{backlog.length}건 대기</span>
+        <div className="mt-4 flex items-center gap-2 rounded-lg border border-dashed px-3 py-2">
+          <Inbox className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          <span className="flex-1 text-sm text-muted-foreground">백로그</span>
+          <span className="text-xs tabular-nums text-muted-foreground">{backlog.length}건 대기</span>
         </div>
       </div>
 
       <Dialogs />
     </PageTransition>
+  );
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="px-1 pt-3 pb-1 text-2xs font-semibold uppercase tracking-widest text-muted-foreground">
+      {children}
+    </p>
+  );
+}
+
+/** 진행 중 — 이 화면에서 유일하게 펼쳐 보여주는 카드 */
+function ActiveSprintCard({ sprint, m, onOpen }: { sprint: Sprint; m: SprintMetrics; onOpen: () => void }) {
+  const elapsed = timeProgress(sprint);
+  const left = daysLeft(sprint);
+  /* 기간은 60% 지났는데 완료가 30% 면 30포인트 뒤진 것 */
+  const behind = elapsed - m.percent;
+  return (
+    <button
+      onClick={onOpen}
+      className="w-full rounded-xl border border-primary/40 bg-card p-4 text-left transition-colors hover:bg-accent/20"
+    >
+      <div className="flex items-baseline gap-2">
+        <span className="truncate text-base font-semibold">{sprint.name}</span>
+        {sprint.description && (
+          <span className="hidden truncate text-xs text-muted-foreground sm:inline">
+            {sprint.description}
+          </span>
+        )}
+        <span className="ml-auto shrink-0 text-xs tabular-nums">
+          <span className="hidden text-muted-foreground sm:inline">
+            {fmt(sprint.start_date)} ~ {fmt(sprint.end_date)} ·{" "}
+          </span>
+          <span className={cn(left < 0 ? "font-medium text-amber-600" : "text-muted-foreground")}>
+            {left >= 0 ? `${left}일 남음` : `${Math.abs(left)}일 지남`}
+          </span>
+        </span>
+      </div>
+
+      {m.total === 0 ? (
+        <p className="mt-2 text-xs text-muted-foreground">
+          담긴 이슈가 없습니다. 열어서 백로그의 이슈를 담으세요.
+        </p>
+      ) : (
+        <>
+          <div className="mt-2.5 flex items-baseline gap-1.5 tabular-nums">
+            <span className="text-lg font-semibold leading-none">
+              {formatMetric(m.done, m.unit)}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              / {formatMetric(m.total, m.unit)} · {m.percent}%
+            </span>
+          </div>
+          <div className="relative mt-2">
+            <DistributionBar metrics={m} height={8} />
+            <div
+              className="absolute top-0 bottom-0 w-px bg-foreground/50"
+              style={{ left: `${elapsed}%` }}
+              title={`기간 경과 ${elapsed}%`}
+            />
+          </div>
+          {/* 색 점 범례는 이 카드에만 둔다 — 목록 전체에 반복하면 그게 소음이 된다 */}
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-2xs text-muted-foreground">
+            {GROUP_ORDER.filter((g) => m.byGroup[g].count > 0).map((g) => (
+              <span key={g} className="inline-flex items-center gap-1">
+                <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: GROUP_COLOR[g] }} />
+                {GROUP_LABEL[g]} {m.byGroup[g].count}
+              </span>
+            ))}
+            {behind >= 15 && (
+              <span className="ml-auto font-medium text-amber-600">일정보다 {behind}% 뒤짐</span>
+            )}
+          </div>
+        </>
+      )}
+    </button>
+  );
+}
+
+/** 예정·지난 — 이름/기간/양만. 자세한 건 열어서 본다. */
+function SprintRow({ sprint, m, onOpen }: { sprint: Sprint; m: SprintMetrics; onOpen: () => void }) {
+  const isPast = sprint.status === "completed" || sprint.status === "cancelled";
+  return (
+    <button
+      onClick={onOpen}
+      className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors hover:bg-accent/40"
+    >
+      <span className="flex-1 truncate text-sm">{sprint.name}</span>
+      {sprint.status === "cancelled" && (
+        <Badge variant="secondary" className={cn("shrink-0 px-1.5 py-0 text-2xs", STATUS_BADGE.cancelled.cls)}>
+          {STATUS_BADGE.cancelled.label}
+        </Badge>
+      )}
+      <span className="hidden shrink-0 text-xs tabular-nums text-muted-foreground sm:inline">
+        {fmt(sprint.start_date)} ~ {fmt(sprint.end_date)}
+      </span>
+      {/* 예정은 "얼마나 담겼나", 지난 건 "얼마나 끝냈나" 가 궁금하다 */}
+      <span className="w-16 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
+        {isPast ? `${m.percent}%` : m.total === 0 ? "0건" : formatMetric(m.total, m.unit)}
+      </span>
+      <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
+    </button>
+  );
+}
+
+/* ── 상태 분포 막대 — 완료율 하나보다 "어디에 몰려 있는지" 를 보여준다 ── */
+function DistributionBar({
+  metrics, height = 6,
+}: { metrics: ReturnType<typeof sprintMetrics>; height?: number }) {
+  if (metrics.total === 0) return null;
+  return (
+    <div className="flex h-full w-full overflow-hidden rounded-full bg-muted/50" style={{ height }}>
+      {GROUP_ORDER.map((g) => {
+        const v = metrics.byGroup[g].value;
+        if (v <= 0) return null;
+        return (
+          <div
+            key={g}
+            style={{ width: `${(v / metrics.total) * 100}%`, backgroundColor: GROUP_COLOR[g] }}
+            title={`${GROUP_LABEL[g]} ${formatMetric(v, metrics.unit)}`}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+/* ── 담당자별 부하 ──
+ * OrbiTail 의 차별점. 다른 도구는 팀원이 언제 자리에 없는지 몰라 가용량을 손으로 받는데,
+ * 우리는 프로젝트 캘린더를 이미 갖고 있어서 스프린트 기간과 겹치는 일정을 직접 셀 수 있다.
+ * 그래서 "34pt 를 든 사람이 그 기간에 일정 3건으로 막혀 있다" 까지 말할 수 있다. */
+interface Load {
+  user: User;
+  value: number;
+  done: number;
+  busyDays: number;
+}
+
+function buildLoads(
+  issues: Issue[],
+  stateMap: Map<string, State>,
+  events: ProjectEvent[],
+  sprint: Sprint,
+  unit: "pt" | "count",
+): Load[] {
+  const map = new Map<string, Load>();
+  for (const issue of issues) {
+    const w = weightOf(issue, unit);
+    const isDone = groupOf(issue, stateMap) === "completed";
+    for (const a of issue.assignee_details ?? []) {
+      const cur = map.get(a.id) ?? { user: a, value: 0, done: 0, busyDays: 0 };
+      cur.value += w;
+      if (isDone) cur.done += w;
+      map.set(a.id, cur);
+    }
+  }
+
+  /* 스프린트 기간과 겹치는 날짜만 센다. 기간 이벤트는 겹치는 일수만큼. */
+  for (const ev of events) {
+    const from = ev.date > sprint.start_date ? ev.date : sprint.start_date;
+    const to = (ev.end_date ?? ev.date) < sprint.end_date ? (ev.end_date ?? ev.date) : sprint.end_date;
+    if (from > to) continue;
+    const days = Math.floor(
+      (new Date(to).getTime() - new Date(from).getTime()) / 86_400_000,
+    ) + 1;
+    for (const uid of ev.participants ?? []) {
+      const cur = map.get(uid);
+      if (cur) cur.busyDays += days;
+    }
+  }
+
+  return [...map.values()].sort((a, b) => b.value - a.value);
+}
+
+function LoadPanel({ loads, unit }: { loads: Load[]; unit: "pt" | "count" }) {
+  if (loads.length === 0) return null;
+  const max = Math.max(...loads.map((l) => l.value), 1);
+  /* 평균의 1.5배를 넘으면 과부하로 본다 — 절대 기준을 두면 팀마다 안 맞는다 */
+  const avg = loads.reduce((s, l) => s + l.value, 0) / loads.length;
+  const heavy = (v: number) => loads.length > 1 && v > avg * 1.5;
+
+  return (
+    <div className="px-4 pb-3">
+      <p className="mb-1.5 text-2xs font-semibold uppercase tracking-widest text-muted-foreground">
+        담당자별 부하
+      </p>
+      <ul className="space-y-1">
+        {loads.map((l) => (
+          <li key={l.user.id} className="flex items-center gap-2">
+            <AvatarInitials name={l.user.display_name || l.user.email} avatar={l.user.avatar} size="xs" />
+            <span className="w-20 shrink-0 truncate text-2xs">{l.user.display_name || l.user.email}</span>
+            <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-muted/50">
+              <div
+                className={cn("h-full rounded-full", heavy(l.value) ? "bg-amber-500" : "bg-primary/60")}
+                style={{ width: `${(l.value / max) * 100}%` }}
+              />
+              <div
+                className="absolute inset-y-0 left-0 rounded-full bg-emerald-500/70"
+                style={{ width: `${(l.done / max) * 100}%` }}
+                title={`완료 ${formatMetric(l.done, unit)}`}
+              />
+            </div>
+            <span className="w-12 shrink-0 text-right text-2xs tabular-nums text-muted-foreground">
+              {formatMetric(l.value, unit)}
+            </span>
+            {l.busyDays > 0 && (
+              <span
+                className="flex shrink-0 items-center gap-0.5 text-2xs text-amber-600"
+                title={`스프린트 기간 중 일정 ${l.busyDays}일`}
+              >
+                <CalendarClock className="h-3 w-3" />
+                {l.busyDays}일
+              </span>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }

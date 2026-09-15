@@ -1,0 +1,129 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { MemoryRouter } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+
+const mocks = vi.hoisted(() => ({
+  sprints: vi.fn(),
+  states: vi.fn(),
+  events: vi.fn(),
+  issues: vi.fn(),
+}));
+
+vi.mock("react-i18next", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("react-i18next")>()),
+  useTranslation: () => ({
+    t: (k: string) => k,
+    i18n: { language: "ko", changeLanguage: vi.fn() },
+  }),
+}));
+vi.mock("@/api/projects", () => ({
+  projectsApi: {
+    sprints: { list: mocks.sprints, create: vi.fn(), update: vi.fn(), remove: vi.fn() },
+    states: { list: mocks.states },
+    events: { list: mocks.events },
+  },
+}));
+vi.mock("@/api/issues", () => ({ issuesApi: { list: mocks.issues, update: vi.fn() } }));
+vi.mock("@/hooks/useProjectPerms", () => ({
+  useProjectPerms: () => ({ perms: { can_edit: true } }),
+}));
+
+import { SprintView } from "./SprintView";
+
+const STATES = [
+  { id: "s-todo", name: "할 일", group: "unstarted", color: "#F0AD4E" },
+  { id: "s-doing", name: "진행 중", group: "started", color: "#5E6AD2" },
+  { id: "s-done", name: "완료", group: "completed", color: "#26B55E" },
+];
+
+/* 오늘을 기준으로 잡아야 "진행 중" 카드의 남은 일수 계산이 실제 화면과 같아진다 */
+const day = (offset: number) =>
+  new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10);
+
+const SPRINTS = [
+  { id: "sp-active", name: "Sprint 12", status: "active", start_date: day(-7), end_date: day(3), description: "결제 모듈 안정화" },
+  { id: "sp-draft", name: "Sprint 13", status: "draft", start_date: day(4), end_date: day(18), description: "" },
+  { id: "sp-done", name: "Sprint 11", status: "completed", start_date: day(-21), end_date: day(-8), description: "" },
+];
+
+const issue = (id: string, title: string, state: string, sprint: string | null, pt?: number) => ({
+  id, title, state, sprint, estimate_point: pt ?? null,
+  parent: null, is_field: false, priority: "none", assignee_details: [],
+});
+
+const ISSUES = [
+  issue("i1", "토큰 저장소 분리", "s-done", "sp-active", 3),
+  issue("i2", "로그인 유지 체크박스", "s-doing", "sp-active", 5),
+  issue("i3", "세션 만료 처리", "s-todo", "sp-active", 8),
+  issue("i4", "다크모드 토글", "s-todo", null, 2),
+  issue("i5", "CSV 내보내기", "s-todo", "sp-done", 5),
+];
+
+function renderView(entry = "/ws/p/issues?view=sprints") {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(
+    <QueryClientProvider client={client}>
+      <MemoryRouter initialEntries={[entry]}>
+        <SprintView workspaceSlug="ws" projectId="p" onIssueClick={vi.fn()} />
+      </MemoryRouter>
+    </QueryClientProvider>
+  );
+}
+
+describe("SprintView", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.sprints.mockResolvedValue(SPRINTS);
+    mocks.states.mockResolvedValue(STATES);
+    mocks.events.mockResolvedValue([]);
+    mocks.issues.mockResolvedValue(ISSUES);
+  });
+
+  it("목록 — 진행 중/예정/지난 세 구획으로 나눠 보여준다", async () => {
+    renderView();
+    expect(await screen.findByText("진행 중")).toBeInTheDocument();
+    expect(screen.getByText("예정")).toBeInTheDocument();
+    expect(screen.getByText("지난 스프린트")).toBeInTheDocument();
+    for (const name of ["Sprint 12", "Sprint 13", "Sprint 11"]) {
+      expect(screen.getByText(name)).toBeInTheDocument();
+    }
+  });
+
+  it("목록 — 진행 중 카드만 진척(완료/전체·%)을 펼쳐 보여준다", async () => {
+    renderView();
+    /* 완료 3pt / 전체 16pt = 19% */
+    expect(await screen.findByText("3pt")).toBeInTheDocument();
+    expect(screen.getByText("/ 16pt · 19%")).toBeInTheDocument();
+    /* 지난 스프린트는 완료율 한 칸만 */
+    expect(screen.getByText("0%")).toBeInTheDocument();
+  });
+
+  it("목록 — 백로그에 남은 건수를 알려준다", async () => {
+    renderView();
+    expect(await screen.findByText("1건 대기")).toBeInTheDocument();
+  });
+
+  it("스프린트를 누르면 상세로 들어가고 상태 그룹별로 이슈가 묶인다", async () => {
+    renderView();
+    await userEvent.click(await screen.findByText("Sprint 12"));
+
+    /* 헤더 — 제목·목표·진척이 두 줄 안에 */
+    expect(await screen.findByText("결제 모듈 안정화")).toBeInTheDocument();
+    expect(screen.getByText("작업")).toBeInTheDocument();
+
+    /* 작업 탭 — 그룹 헤더와 이슈 행 */
+    expect(screen.getByText("할 일")).toBeInTheDocument();
+    expect(screen.getByText("1건 · 8pt")).toBeInTheDocument(); // 할 일 그룹 합계
+    expect(screen.getByText("로그인 유지 체크박스")).toBeInTheDocument();
+    /* 백로그 패널 — 이 스프린트에 없는 이슈 */
+    expect(screen.getByText("다크모드 토글")).toBeInTheDocument();
+  });
+
+  it("이슈가 없는 스프린트도 상세가 열린다", async () => {
+    mocks.issues.mockResolvedValue([]);
+    renderView("/ws/p/issues?view=sprints&sprint=sp-draft");
+    expect(await screen.findByText("이 스프린트에 담긴 이슈가 없습니다.")).toBeInTheDocument();
+  });
+});

@@ -47,6 +47,9 @@ interface IssueFilters {
   search?: string;
   ordering?: string;
   include_sub_issues?: string; // "true"면 하위 이슈 포함 (타임라인 계층 뷰용)
+  /** "true"면 완료·취소된 스프린트의 이슈도 포함 (스프린트 계획 화면 전용).
+   *  기본 목록은 끝난 사이클의 이슈를 감추므로, 그 화면에서는 명시적으로 켜야 한다. */
+  include_all_sprints?: string;
 }
 
 export const issuesApi = {
