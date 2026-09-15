@@ -38,6 +38,18 @@ class WorkspaceSerializer(serializers.ModelSerializer):
         return workspace
 
 
+class WorkspacePublicSerializer(serializers.ModelSerializer):
+    """로그인 전·가입 전 화면용 — 소유자 정보 등은 싣지 않는다."""
+    member_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Workspace
+        fields = ["id", "name", "slug", "description", "logo", "member_count"]
+
+    def get_member_count(self, obj):
+        return obj.members.count()
+
+
 class WorkspaceInvitationSerializer(serializers.ModelSerializer):
     """초대 목록 조회용 — invited_by 상세 포함"""
     invited_by = UserSerializer(read_only=True)
@@ -46,10 +58,11 @@ class WorkspaceInvitationSerializer(serializers.ModelSerializer):
     class Meta:
         model = WorkspaceInvitation
         fields = [
-            "id", "workspace", "workspace_name", "email", "token",
+            "id", "workspace", "workspace_name", "email",
             "role", "invited_by", "status", "message", "expires_at", "created_at",
         ]
-        read_only_fields = ["id", "token", "invited_by", "status", "expires_at", "created_at"]
+        # token 은 싣지 않는다 — 수락 링크는 초대받은 사람의 메일로만 간다
+        read_only_fields = ["id", "invited_by", "status", "expires_at", "created_at"]
 
 
 class WorkspaceInvitationCreateSerializer(serializers.Serializer):

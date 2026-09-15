@@ -19,14 +19,46 @@ def _project_readable_q(user):
     타인의 Personal 은 멤버십 자체가 없어 자연 차단되지만,
     명시 가드로 향후 멤버 추가 정책 변경 시에도 안전.
     """
-    base = Q(members__member=user) | Q(network=Project.Network.PUBLIC)
+    # 공개 프로젝트는 **같은 워크스페이스 멤버**에게만 공개다. 이 조건이 없으면 다른 워크스페이스
+    # 사용자도 주소의 slug 만 바꿔 공개 프로젝트와 그 하위 자원을 읽는다.
+    base = Q(members__member=user) | (Q(network=Project.Network.PUBLIC) & Q(workspace__members__member=user))
     return base & (Q(kind=Project.Kind.NORMAL) | Q(owner=user))
 
 
 def _project_readable_via_project_q(user):
     """프로젝트 하위 개체(Category, Sprint 등)용 읽기 권한 Q 필터"""
-    base = Q(project__members__member=user) | Q(project__network=Project.Network.PUBLIC)
+    base = Q(project__members__member=user) | (
+        Q(project__network=Project.Network.PUBLIC) & Q(project__workspace__members__member=user)
+    )
     return base & (Q(project__kind=Project.Kind.NORMAL) | Q(project__owner=user))
+
+
+def _workspace_role(user, workspace_slug):
+    """요청자의 워크스페이스 역할. 멤버가 아니면 None."""
+    return WorkspaceMember.objects.filter(workspace__slug=workspace_slug, member=user).values_list(
+        "role", flat=True).first()
+
+
+def _require_project_perm(user, workspace_slug, project_pk, perm_key):
+    """프로젝트 하위 자원(카테고리·스프린트·상태·일정) 쓰기 권한. 없으면 예외.
+
+    읽기 필터(_project_readable_via_project_q)만으로는 쓰기를 막지 못한다 — 공개 프로젝트는
+    멤버가 아니어도 읽히고, 읽기 전용 멤버도 통과한다."""
+    from rest_framework.exceptions import NotFound, PermissionDenied
+    pm = ProjectMember.objects.filter(
+        project_id=project_pk, project__workspace__slug=workspace_slug, member=user,
+    ).first()
+    if pm is None:
+        if not Project.objects.filter(pk=project_pk, workspace__slug=workspace_slug).filter(
+                _project_readable_q(user)).exists():
+            raise NotFound()
+        raise PermissionDenied("프로젝트 멤버만 할 수 있습니다.")
+    if perm_key == "admin":
+        if pm.role < ProjectMember.Role.ADMIN:
+            raise PermissionDenied("프로젝트 관리자만 할 수 있습니다.")
+    elif not pm.effective_perms.get(perm_key, False):
+        raise PermissionDenied(f"이 작업에 대한 권한이 없습니다. ({perm_key})")
+    return pm
 from .serializers import (
     ProjectSerializer,
     ProjectMemberSerializer,
@@ -70,8 +102,12 @@ class ProjectListCreateView(generics.ListCreateAPIView):
         return ctx
 
     def perform_create(self, serializer):
+        from rest_framework.exceptions import PermissionDenied
         # workspace를 URL slug로 조회하여 자동 주입 — 프론트에서 workspace ID를 전송할 필요 없음
         workspace = get_object_or_404(Workspace, slug=self.kwargs["workspace_slug"])
+        role = _workspace_role(self.request.user, workspace.slug)
+        if role is None or role < WorkspaceMember.Role.MEMBER:
+            raise PermissionDenied("이 워크스페이스의 멤버만 프로젝트를 만들 수 있습니다.")
         serializer.save(workspace=workspace, created_by=self.request.user)
 
 
@@ -86,17 +122,16 @@ class ProjectDetailView(generics.RetrieveUpdateDestroyAPIView):
         ).distinct()
 
     def update(self, request, *args, **kwargs):
-        """수정은 프로젝트 멤버만 가능"""
+        """설정 변경은 프로젝트 관리자만 — 멤버 여부만 보면 읽기 전용 멤버가 lead 를 자기로 바꿔
+        관리자로 올라가거나(ProjectSerializer.update 가 lead 를 ADMIN 으로 만든다) 비공개를 공개로 돌린다."""
         obj = self.get_object()
-        if not ProjectMember.objects.filter(project=obj, member=request.user).exists():
-            return Response({"detail": "프로젝트 멤버만 수정할 수 있습니다."}, status=status.HTTP_403_FORBIDDEN)
+        _require_project_perm(request.user, self.kwargs["workspace_slug"], obj.pk, "admin")
         return super().update(request, *args, **kwargs)
 
     def destroy(self, request, *args, **kwargs):
-        """삭제는 프로젝트 멤버만 가능"""
+        """삭제는 프로젝트 관리자만 — 모든 이슈·문서가 함께 사라진다."""
         obj = self.get_object()
-        if not ProjectMember.objects.filter(project=obj, member=request.user).exists():
-            return Response({"detail": "프로젝트 멤버만 삭제할 수 있습니다."}, status=status.HTTP_403_FORBIDDEN)
+        _require_project_perm(request.user, self.kwargs["workspace_slug"], obj.pk, "admin")
         return super().destroy(request, *args, **kwargs)
 
 
@@ -106,6 +141,8 @@ class ProjectIdentifierCheckView(APIView):
        exclude 파라미터로 현재 프로젝트를 제외할 수 있음 (수정 시). """
 
     def get(self, request, workspace_slug):
+        if _workspace_role(request.user, workspace_slug) is None:
+            return Response(status=status.HTTP_404_NOT_FOUND)
         identifier = request.query_params.get("identifier", "").strip().upper()
         exclude_id = request.query_params.get("exclude")
         if not identifier:
@@ -126,12 +163,14 @@ class ProjectArchiveView(APIView):
     """프로젝트 보관(POST) / 보관 해제(DELETE)"""
 
     def _get_project(self, request, workspace_slug, pk):
-        return get_object_or_404(
+        project = get_object_or_404(
             Project,
             pk=pk,
             workspace__slug=workspace_slug,
             members__member=request.user,
         )
+        _require_project_perm(request.user, workspace_slug, pk, "admin")
+        return project
 
     def post(self, request, workspace_slug, pk):
         project = self._get_project(request, workspace_slug, pk)
@@ -159,6 +198,7 @@ class ProjectDiscoverView(generics.ListAPIView):
     def get_queryset(self):
         return Project.objects.filter(
             workspace__slug=self.kwargs["workspace_slug"],
+            workspace__members__member=self.request.user,
             network=Project.Network.PUBLIC,
             archived_at__isnull=True,
         ).exclude(
@@ -181,6 +221,13 @@ class ProjectJoinView(APIView):
             network=Project.Network.PUBLIC,
             archived_at__isnull=True,
         )
+        # 같은 워크스페이스의 정식 멤버만 참여한다 — 게스트나 외부 사용자가 편집 권한을 얻으면 안 된다
+        role = _workspace_role(request.user, workspace_slug)
+        if role is None:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        if role < WorkspaceMember.Role.MEMBER:
+            return Response({"detail": "게스트는 프로젝트에 직접 참여할 수 없습니다."},
+                            status=status.HTTP_403_FORBIDDEN)
         # 이미 멤버인지 확인
         if ProjectMember.objects.filter(project=project, member=request.user).exists():
             return Response({"detail": "이미 참가한 프로젝트입니다."}, status=status.HTTP_400_BAD_REQUEST)
@@ -238,7 +285,8 @@ class ProjectMemberListCreateView(generics.ListCreateAPIView):
         serializer = ProjectMemberCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        project = get_object_or_404(Project, pk=self.kwargs["project_pk"])
+        project = get_object_or_404(Project, pk=self.kwargs["project_pk"],
+                                    workspace__slug=self.kwargs["workspace_slug"])
 
         # 요청자가 프로젝트 Admin인지 확인
         requester_membership = ProjectMember.objects.filter(
@@ -287,8 +335,9 @@ class ProjectMemberDetailView(generics.RetrieveUpdateDestroyAPIView):
     def get_queryset(self):
         return ProjectMember.objects.filter(
             project_id=self.kwargs["project_pk"],
+            project__workspace__slug=self.kwargs["workspace_slug"],
             project__members__member=self.request.user,
-        ).select_related("member", "project")
+        ).distinct().select_related("member", "project")
 
     def _check_admin(self):
         """요청자가 프로젝트 Admin인지 확인"""
@@ -367,10 +416,26 @@ class CategoryListCreateView(generics.ListCreateAPIView):
         ).distinct()
 
     def perform_create(self, serializer):
+        _require_project_perm(self.request.user, self.kwargs["workspace_slug"], self.kwargs["project_pk"], "can_edit")
         serializer.save(project_id=self.kwargs["project_pk"])
 
 
-class CategoryDetailView(generics.RetrieveUpdateDestroyAPIView):
+class _ProjectChildWriteMixin:
+    """카테고리·스프린트·상태·일정 상세 — 읽기는 읽기 필터로, 쓰기는 perm_key 권한으로."""
+    perm_key = "can_edit"
+
+    def perform_update(self, serializer):
+        _require_project_perm(self.request.user, self.kwargs["workspace_slug"], self.kwargs["project_pk"],
+                              self.perm_key)
+        super().perform_update(serializer)
+
+    def perform_destroy(self, instance):
+        _require_project_perm(self.request.user, self.kwargs["workspace_slug"], self.kwargs["project_pk"],
+                              self.perm_key)
+        super().perform_destroy(instance)
+
+
+class CategoryDetailView(_ProjectChildWriteMixin, generics.RetrieveUpdateDestroyAPIView):
     serializer_class = CategorySerializer
 
     def get_queryset(self):
@@ -384,6 +449,7 @@ class CategoryDetailView(generics.RetrieveUpdateDestroyAPIView):
 class CategoryReorderView(generics.GenericAPIView):
     """카테고리 순서 변경 — POST { "order": ["id1", "id2", ...] }"""
     def post(self, request, *args, **kwargs):
+        _require_project_perm(request.user, self.kwargs["workspace_slug"], self.kwargs["project_pk"], "can_edit")
         order = request.data.get("order", [])
         for idx, cat_id in enumerate(order):
             Category.objects.filter(
@@ -405,13 +471,14 @@ class SprintListCreateView(generics.ListCreateAPIView):
         ).distinct()
 
     def perform_create(self, serializer):
+        _require_project_perm(self.request.user, self.kwargs["workspace_slug"], self.kwargs["project_pk"], "can_edit")
         serializer.save(
             project_id=self.kwargs["project_pk"],
             created_by=self.request.user,
         )
 
 
-class SprintDetailView(generics.RetrieveUpdateDestroyAPIView):
+class SprintDetailView(_ProjectChildWriteMixin, generics.RetrieveUpdateDestroyAPIView):
     serializer_class = SprintSerializer
 
     def get_queryset(self):
@@ -430,6 +497,7 @@ class SprintStartView(APIView):
     """
 
     def post(self, request, workspace_slug, project_pk, pk):
+        _require_project_perm(request.user, workspace_slug, project_pk, "can_edit")
         sprint = get_object_or_404(Sprint, pk=pk, project_id=project_pk)
         if sprint.status != Sprint.Status.DRAFT:
             return Response(
@@ -461,6 +529,7 @@ class SprintCompleteView(APIView):
     """
 
     def post(self, request, workspace_slug, project_pk, pk):
+        _require_project_perm(request.user, workspace_slug, project_pk, "can_edit")
         sprint = get_object_or_404(Sprint, pk=pk, project_id=project_pk)
         if sprint.status != Sprint.Status.ACTIVE:
             return Response(
@@ -512,10 +581,11 @@ class StateListCreateView(generics.ListCreateAPIView):
         ).distinct()
 
     def perform_create(self, serializer):
+        _require_project_perm(self.request.user, self.kwargs["workspace_slug"], self.kwargs["project_pk"], "can_edit")
         serializer.save(project_id=self.kwargs["project_pk"])
 
 
-class StateDetailView(generics.RetrieveUpdateDestroyAPIView):
+class StateDetailView(_ProjectChildWriteMixin, generics.RetrieveUpdateDestroyAPIView):
     serializer_class = StateSerializer
 
     def get_queryset(self):
@@ -567,6 +637,8 @@ class ProjectEventListCreateView(generics.ListCreateAPIView):
         return qs
 
     def perform_create(self, serializer):
+        _require_project_perm(self.request.user, self.kwargs["workspace_slug"], self.kwargs["project_pk"],
+                              "can_schedule")
         event = serializer.save(
             project_id=self.kwargs["project_pk"],
             created_by=self.request.user,
@@ -577,9 +649,10 @@ class ProjectEventListCreateView(generics.ListCreateAPIView):
         })
 
 
-class ProjectEventDetailView(generics.RetrieveUpdateDestroyAPIView):
-    """이벤트 상세 / 수정 / 삭제 — 읽기는 PUBLIC 프로젝트도 가능, 수정/삭제는 멤버만."""
+class ProjectEventDetailView(_ProjectChildWriteMixin, generics.RetrieveUpdateDestroyAPIView):
+    """이벤트 상세 / 수정 / 삭제 — 읽기는 PUBLIC 프로젝트도 가능, 수정/삭제는 일정 권한이 있는 멤버만."""
     serializer_class = ProjectEventSerializer
+    perm_key = "can_schedule"
 
     def get_queryset(self):
         return ProjectEvent.objects.filter(
@@ -589,6 +662,8 @@ class ProjectEventDetailView(generics.RetrieveUpdateDestroyAPIView):
         ).distinct().select_related("created_by")
 
     def perform_update(self, serializer):
+        _require_project_perm(self.request.user, self.kwargs["workspace_slug"], self.kwargs["project_pk"],
+                              self.perm_key)
         serializer.save()
         _ws_broadcast_event(self.kwargs["project_pk"], {
             "type": "event.updated",
@@ -596,6 +671,8 @@ class ProjectEventDetailView(generics.RetrieveUpdateDestroyAPIView):
         })
 
     def perform_destroy(self, instance):
+        _require_project_perm(self.request.user, self.kwargs["workspace_slug"], self.kwargs["project_pk"],
+                              self.perm_key)
         project_pk = str(instance.project_id)
         instance.delete()
         _ws_broadcast_event(project_pk, {
@@ -616,6 +693,10 @@ class SavedFilterListCreateView(generics.ListCreateAPIView):
         )
 
     def perform_create(self, serializer):
+        from rest_framework.exceptions import NotFound
+        if not Project.objects.filter(pk=self.kwargs["project_pk"], workspace__slug=self.kwargs["workspace_slug"]).filter(
+                _project_readable_q(self.request.user)).exists():
+            raise NotFound()
         serializer.save(
             project_id=self.kwargs["project_pk"],
             user=self.request.user,

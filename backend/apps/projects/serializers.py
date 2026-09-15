@@ -25,6 +25,19 @@ class ProjectEventSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["id", "project", "created_by", "created_at", "updated_at"]
 
+    def validate_participants(self, value):
+        """참가자는 프로젝트 워크스페이스의 멤버만 — 아무 사용자의 개인 캘린더에 일정을 밀어 넣지 못하게."""
+        view = self.context.get("view")
+        project_pk = view.kwargs.get("project_pk") if view else None
+        if value and project_pk:
+            from apps.workspaces.models import WorkspaceMember
+            workspace_id = Project.objects.filter(pk=project_pk).values_list("workspace_id", flat=True).first()
+            ok = set(WorkspaceMember.objects.filter(workspace_id=workspace_id, member__in=value)
+                     .values_list("member_id", flat=True))
+            if any(u.pk not in ok for u in value):
+                raise serializers.ValidationError("이 워크스페이스의 멤버가 아닌 사용자가 있습니다.")
+        return value
+
     def validate(self, attrs):
         """end_date가 date보다 앞서면 안됨"""
         date = attrs.get("date") or (self.instance and self.instance.date)
@@ -228,6 +241,13 @@ class CategorySerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["id", "created_at", "updated_at"]
 
+    def validate_lead(self, value):
+        project_pk = self.context["view"].kwargs.get("project_pk") if self.context.get("view") else None
+        if value is not None and project_pk and not ProjectMember.objects.filter(
+                project_id=project_pk, member=value).exists():
+            raise serializers.ValidationError("프로젝트 멤버만 리드로 지정할 수 있습니다.")
+        return value
+
     def get_issue_count(self, obj):
         return obj.issues.filter(deleted_at__isnull=True).count()
 
@@ -245,6 +265,14 @@ class SprintSerializer(serializers.ModelSerializer):
             "issue_count", "created_at", "updated_at",
         ]
         read_only_fields = ["id", "created_by", "created_at", "updated_at"]
+
+    def validate_status(self, value):
+        # 진행·완료는 시작/완료 API 로만 — 거기서 "활성은 하나", "미완료 이슈 이관" 규칙을 지킨다
+        if value not in (Sprint.Status.DRAFT, Sprint.Status.CANCELLED):
+            raise serializers.ValidationError("진행·완료 상태는 시작/완료 기능으로만 바꿀 수 있습니다.")
+        if self.instance is not None and self.instance.status in (Sprint.Status.COMPLETED,) and value != self.instance.status:
+            raise serializers.ValidationError("완료된 스프린트의 상태는 바꿀 수 없습니다.")
+        return value
 
     def get_issue_count(self, obj):
         return obj.issues.filter(deleted_at__isnull=True).count()

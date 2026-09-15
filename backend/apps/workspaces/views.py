@@ -77,6 +77,7 @@ def _notify_user_join_decision(join_request, approved: bool):
     )
 from .serializers import (
     WorkspaceSerializer,
+    WorkspacePublicSerializer,
     WorkspaceMemberSerializer,
     WorkspaceInvitationSerializer,
     WorkspaceInvitationCreateSerializer,
@@ -92,12 +93,25 @@ class WorkspaceListCreateView(generics.ListCreateAPIView):
     def get_queryset(self):
         return Workspace.objects.filter(members__member=self.request.user)
 
+    def create(self, request, *args, **kwargs):
+        """워크스페이스 생성은 슈퍼어드민(is_staff 또는 is_superuser) 전용.
+
+        이 검사가 가입 신청 결정 뷰(APIView — create 를 부르지 않는다)에 잘못 붙어 있어,
+        실제로는 누구나 워크스페이스를 만들 수 있었다. 화면(CreateWorkspacePage)도 is_staff 전용이다."""
+        if not (request.user.is_staff or request.user.is_superuser):
+            return Response(
+                {"detail": "워크스페이스 생성은 슈퍼어드민만 할 수 있습니다."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        return super().create(request, *args, **kwargs)
+
 
 class WorkspacePublicListView(generics.ListAPIView):
     """공개 워크스페이스 목록 — 비로그인 회원가입 폼에서 가입할 워크스페이스를 고를 때 사용.
     민감 정보 없이 id/name/slug/member_count 만 노출.
+    (전에는 WorkspaceSerializer 를 써서 소유자의 이메일·권한 플래그가 로그인 없이 나갔다.)
     """
-    serializer_class = WorkspaceSerializer
+    serializer_class = WorkspacePublicSerializer
     permission_classes = [permissions.AllowAny]
     queryset = Workspace.objects.all()
     pagination_class = None  # 셀렉터에서 한 번에 보여줘야 함
@@ -117,6 +131,9 @@ class WorkspaceJoinableListView(generics.ListAPIView):
         if not user.is_email_verified and not user.is_staff:
             return Workspace.objects.none()
         return Workspace.objects.exclude(members__member=user)
+
+    def get_serializer_class(self):
+        return WorkspacePublicSerializer
 
 
 class WorkspaceJoinRequestCreateView(APIView):
@@ -265,15 +282,6 @@ class WorkspaceJoinRequestDecisionView(APIView):
         except Exception:
             pass
         return Response(WorkspaceJoinRequestSerializer(jr).data)
-
-    def create(self, request, *args, **kwargs):
-        """워크스페이스 생성은 슈퍼어드민(is_staff 또는 is_superuser) 전용."""
-        if not (request.user.is_staff or request.user.is_superuser):
-            return Response(
-                {"detail": "워크스페이스 생성은 슈퍼어드민만 할 수 있습니다."},
-                status=status.HTTP_403_FORBIDDEN,
-            )
-        return super().create(request, *args, **kwargs)
 
 
 class WorkspaceDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -446,7 +454,11 @@ class WorkspaceMemberDetailView(APIView):
             )
 
         target_user = target.member
+        workspace = target.workspace
         target.delete()
+        # 워크스페이스에서 나간 사람이 그 안의 비공개 프로젝트·팀·문서 스페이스에 계속 접근하지 못하게
+        # 딸린 멤버십도 함께 지운다(프로젝트·팀 뷰는 워크스페이스 멤버십을 따로 보지 않는 곳이 있다).
+        _remove_workspace_scoped_memberships(workspace, target_user)
 
         # 마지막 워크스페이스 추방 = 계정 hard-delete.
         # 같은 이메일로 재가입을 허용하기 위해 row 를 완전히 제거한다.
@@ -460,11 +472,29 @@ class WorkspaceMemberDetailView(APIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
+def _remove_workspace_scoped_memberships(workspace, user):
+    from apps.documents.models import DocumentSpaceMember
+    from apps.projects.models import Project, ProjectMember
+
+    ProjectMember.objects.filter(project__workspace=workspace, member=user).delete()
+    TeamMember.objects.filter(team__workspace=workspace, member=user).delete()
+    DocumentSpaceMember.objects.filter(space__workspace=workspace, member=user).delete()
+    # 리드로 지정돼 있던 프로젝트는 리드를 비운다 — 남겨 두면 화면에 나간 사람이 리드로 보인다
+    Project.objects.filter(workspace=workspace, lead=user).update(lead=None)
+
+
 class WorkspaceInvitationListCreateView(APIView):
     """워크스페이스 초대 목록 조회 + 발송 (Admin 이상만)"""
 
     def get(self, request, slug):
-        workspace = Workspace.objects.get(slug=slug, members__member=request.user)
+        # 초대 목록에는 수락 토큰이 딸린 초대가 들어 있다 — 발송과 같이 관리자만 본다
+        membership = WorkspaceMember.objects.filter(workspace__slug=slug, member=request.user).select_related(
+            "workspace").first()
+        if membership is None:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        if membership.role < WorkspaceMember.Role.ADMIN:
+            return Response({"detail": "Admin 이상만 초대 목록을 볼 수 있습니다."}, status=status.HTTP_403_FORBIDDEN)
+        workspace = membership.workspace
         invitations = WorkspaceInvitation.objects.filter(workspace=workspace).order_by("-created_at")
         serializer = WorkspaceInvitationSerializer(invitations, many=True)
         return Response(serializer.data)
@@ -490,6 +520,11 @@ class WorkspaceInvitationListCreateView(APIView):
         serializer = WorkspaceInvitationCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
+        # 관리자가 자기 다른 이메일을 OWNER 로 초대해 소유자가 되는 우회를 막는다
+        if data["role"] > membership.role or (
+                data["role"] == WorkspaceMember.Role.OWNER and membership.role != WorkspaceMember.Role.OWNER):
+            return Response({"detail": "자신보다 높은 역할로는 초대할 수 없습니다."},
+                            status=status.HTTP_403_FORBIDDEN)
 
         workspace = membership.workspace
 
@@ -949,6 +984,12 @@ class TeamMemberListCreateView(generics.ListCreateAPIView):
                             status=status.HTTP_403_FORBIDDEN)
         target_user_id = request.data.get("member")
         role = request.data.get("role", TeamMember.Role.MEMBER)
+        try:
+            role = int(role)
+        except (TypeError, ValueError):
+            role = None
+        if role not in TeamMember.Role.values:
+            return Response({"detail": "role 값이 올바르지 않습니다."}, status=status.HTTP_400_BAD_REQUEST)
         if not target_user_id:
             return Response({"detail": "member 필드가 필요합니다."}, status=status.HTTP_400_BAD_REQUEST)
         # 워크스페이스 멤버 subset 검증 — 외부 인원 차단
@@ -997,8 +1038,12 @@ class TeamMemberDetailView(APIView):
                 return Response({"detail": "팀 관리자만 역할을 변경할 수 있습니다."},
                                 status=status.HTTP_403_FORBIDDEN)
             new_role = request.data.get("role")
-            if new_role is None:
-                return Response({"detail": "role 필드가 필요합니다."}, status=status.HTTP_400_BAD_REQUEST)
+            try:
+                new_role = int(new_role)
+            except (TypeError, ValueError):
+                new_role = None
+            if new_role not in TeamMember.Role.values:
+                return Response({"detail": "role 값이 올바르지 않습니다."}, status=status.HTTP_400_BAD_REQUEST)
             # 마지막 admin 강등 차단 — 팀이 admin 없는 상태로 빠지는 것 방지
             if tm.role == TeamMember.Role.ADMIN and int(new_role) < TeamMember.Role.ADMIN:
                 admin_count = TeamMember.objects.filter(team=team, role=TeamMember.Role.ADMIN).count()
@@ -1082,11 +1127,19 @@ def _team_visible_normal_project_ids(user, team):
     team_normal_ids = ProjectMember.objects.filter(
         member_id__in=team_member_ids,
         project__kind=Project.Kind.NORMAL,
+        # 팀원이 다른 워크스페이스에서 속한 프로젝트까지 섞이지 않게
+        project__workspace=team.workspace,
     ).values_list("project_id", flat=True)
 
-    is_team_admin = user.is_superuser or TeamMember.objects.filter(
-        team=team, member=user, role=TeamMember.Role.ADMIN,
-    ).exists()
+    # 비공개 프로젝트를 팀장에게 보이는 정책은 **워크스페이스 관리자인 팀장**에게만 적용한다.
+    # 팀은 아무 멤버나 만들고 아무 멤버나 넣을 수 있어서, 팀장 역할만 보면 누구나 팀을 만들어
+    # 다른 사람을 넣는 것으로 그 사람의 비공개 프로젝트 이슈·일정을 들여다볼 수 있었다.
+    is_team_admin = user.is_superuser or (
+        TeamMember.objects.filter(team=team, member=user, role=TeamMember.Role.ADMIN).exists()
+        and WorkspaceMember.objects.filter(
+            workspace=team.workspace, member=user, role__gte=WorkspaceMember.Role.ADMIN,
+        ).exists()
+    )
     if is_team_admin:
         return Project.objects.filter(id__in=team_normal_ids).values_list("id", flat=True)
 
