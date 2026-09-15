@@ -1612,7 +1612,6 @@
     "exportMarkdown": "마크다운(.md)으로 내보내기",
     "makeDatabase": "표로 만들기",
     "backToDocument": "표 해제",
-    "newDatabase": "새 표",
     "fields": "칸",
     "projectIssues": "프로젝트 이슈",
     "homeDocument": "홈 문서"

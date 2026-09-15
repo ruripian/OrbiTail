@@ -1612,7 +1612,6 @@
     "exportMarkdown": "Export as Markdown (.md)",
     "makeDatabase": "Turn into a table",
     "backToDocument": "Remove table",
-    "newDatabase": "New table",
     "fields": "Fields",
     "projectIssues": "Project issues",
     "homeDocument": "Home document"

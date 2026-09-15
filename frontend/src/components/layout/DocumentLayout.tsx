@@ -398,18 +398,6 @@ export function DocumentLayout() {
               >
                 <FolderPlus className="h-3.5 w-3.5" />
               </Button>
-              {/* 새 표 — 같은 모양의 문서를 모아 정렬·필터할 때. 폴더를 만들고 따로 바꾸지 않아도 되게 한다. */}
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 shrink-0"
-                title={t("documents.newDatabase", "새 표")}
-                onClick={() => createMutation.mutate({
-                  title: t("documents.newDatabase", "새 표"), is_folder: true, db_columns: [],
-                })}
-              >
-                <Table2 className="h-3.5 w-3.5" />
-              </Button>
             </>
           )}
         </div>
@@ -502,9 +490,6 @@ export function DocumentLayout() {
                   }}
                   onRename={(id, title) => updateMutation.mutate({ id, data: { title } })}
                   onUpdate={(id, data) => updateMutation.mutate({ id, data })}
-                  onCreateTable={(parentId) => createMutation.mutate({
-                    title: t("documents.newDatabase", "새 표"), parent: parentId, is_folder: true, db_columns: [],
-                  })}
                   onCreate={(parentId, isFolder) => {
                     if (isFolder) {
                       createMutation.mutate({
@@ -697,7 +682,7 @@ export function DocumentLayout() {
 
 function TreeNode({
   doc, childrenMap, depth, activeId, spaceId, workspaceSlug,
-  onDelete, onRename, onCreate, onCreateTable, onMove, onUpdate, onIconChange: _onIconChange, expandIds,
+  onDelete, onRename, onCreate, onMove, onUpdate, onIconChange: _onIconChange, expandIds,
   onDragStartGlobal, onDragEndGlobal,
 }: {
   doc: DocType;
@@ -710,7 +695,6 @@ function TreeNode({
   onRename: (id: string, title: string) => void;
   onCreate: (parentId: string | null, isFolder: boolean) => void;
   /** 하위에 표(칸을 가진 폴더)를 바로 만든다 */
-  onCreateTable: (parentId: string | null) => void;
   /** 트리에서 바로 고치는 값 — 지금은 폴더의 표 칸(db_columns) 토글에 쓴다 */
   onUpdate: (id: string, data: Partial<DocType>) => void;
   onIconChange?: (id: string, icon: IconProp) => void;
@@ -886,9 +870,6 @@ function TreeNode({
               <DropdownMenuItem onClick={() => onCreate(doc.id, true)}>
                 <FolderPlus className="h-3.5 w-3.5 mr-2" /> {t("documents.newFolder")}
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onCreateTable(doc.id)}>
-                <Table2 className="h-3.5 w-3.5 mr-2" /> {t("documents.newDatabase", "새 표")}
-              </DropdownMenuItem>
               {/* 폴더를 표로 — 같은 모양의 문서를 모아 정렬·필터하고 싶을 때만 켠다.
                   켜면 그 폴더를 누를 때 표가 열린다. */}
               {doc.is_folder && (
@@ -927,7 +908,6 @@ function TreeNode({
           onDelete={onDelete}
           onRename={onRename}
           onCreate={onCreate}
-          onCreateTable={onCreateTable}
           onMove={onMove}
           onUpdate={onUpdate}
           expandIds={expandIds}
