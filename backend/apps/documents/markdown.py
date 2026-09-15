@@ -400,6 +400,18 @@ def parse_frontmatter(text: str) -> tuple[dict, str]:
     return data, text[m.end():]
 
 
+#: 링크·이미지로 만들어도 되는 주소. 그 밖의 스킴(javascript:, data:, vbscript: …)은 링크로 만들지
+#: 않는다 — 이 HTML 은 댓글·공개 문서처럼 그대로 그려지는 곳에도 들어가고, 공개 API 로는 외부
+#: 프로그램이 본문을 넣을 수 있다. 스킴이 없는 주소(상대 경로·#앵커)는 통과시킨다.
+_SAFE_URL_RE = re.compile(r"^(?:https?://|mailto:|/|#|\./|\.\./|(?![a-zA-Z][a-zA-Z0-9+.-]*:))", re.IGNORECASE)
+
+
+def _safe_url(url: str) -> bool:
+    # 브라우저는 스킴 안의 공백·제어문자를 무시하므로(`java\tscript:`) 먼저 걷어내고 판정한다
+    compact = re.sub(r"[\x00-\x20]", "", url)
+    return bool(_SAFE_URL_RE.match(compact))
+
+
 class _Inline:
     """인라인 변환. 코드 조각을 먼저 빼돌려 그 안의 기호가 강조로 해석되지 않게 한다."""
 
@@ -450,12 +462,18 @@ class _Inline:
         # 4) 이미지 → 링크 순서. 링크를 먼저 하면 `![...]` 의 `!` 가 떨어져 나간다
         text = re.sub(
             r"!\[([^\]]*)\]\(([^)]+)\)",
-            lambda m: stash(f'<img src="{_html_escape(m.group(2))}" alt="{_html_escape(m.group(1))}">'),
+            lambda m: stash(
+                f'<img src="{_html_escape(m.group(2))}" alt="{_html_escape(m.group(1))}">'
+                if _safe_url(m.group(2)) else _html_escape(m.group(0))
+            ),
             text,
         )
         text = re.sub(
             r"\[([^\]]+)\]\(([^)]+)\)",
-            lambda m: stash(f'<a href="{_html_escape(m.group(2))}">{self.run(m.group(1))}</a>'),
+            lambda m: stash(
+                f'<a href="{_html_escape(m.group(2))}">{self.run(m.group(1))}</a>'
+                if _safe_url(m.group(2)) else _html_escape(m.group(0))
+            ),
             text,
         )
 
