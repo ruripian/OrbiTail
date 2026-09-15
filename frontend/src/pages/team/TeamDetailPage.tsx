@@ -1,38 +1,30 @@
 /**
- * 팀 상세 페이지 — /<ws>/teams/<teamId>.
+ * 팀 상세(홈) 페이지 — /<ws>/teams/<teamId>.
  *
  * 구성:
- *   - 헤더: 팀 이름/설명/색 + admin 액션 (편집/삭제)
- *   - 멤버 목록 + 멤버 추가/제거/역할 변경
- *   - 캘린더 (B3 단계에서 추가 — 현재는 placeholder)
+ *   - 헤더: 팀 아이콘/이름/설명 + 멤버 스택 + [설정] (admin 만)
+ *   - 캘린더 (전체폭) — 멤버별 표시 토글은 캘린더 자체의 멤버 칩 바가 담당
+ *
+ * 편집·삭제·멤버 관리는 /settings 하위로 옮겼다. 이 화면은 매일 보는 캘린더가 주인공이다.
  */
-import { useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
-import { apiErrorMessage } from "@/lib/api-error";
-import {
-  ArrowLeft, Settings, Trash2, UserPlus, Shield, X as XIcon,
-} from "lucide-react";
+import { useParams, useNavigate, Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import { useQuery } from "@tanstack/react-query";
+import { ArrowLeft, Settings, Shield } from "lucide-react";
 import { teamsApi } from "@/api/teams";
-import { workspacesApi } from "@/api/workspaces";
-import { useAuthStore } from "@/stores/authStore";
 import { TeamCalendarSection } from "./TeamCalendarSection";
+import { TeamAvatar } from "./TeamAvatar";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog";
 import { AvatarInitials } from "@/components/ui/avatar-initials";
-import { UserPicker, membersToUsers } from "@/components/ui/user-picker";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import type { TeamMember } from "@/types";
 
 export function TeamDetailPage() {
   const { workspaceSlug = "", teamId = "" } = useParams<{ workspaceSlug: string; teamId: string }>();
+  const { t } = useTranslation();
   const navigate = useNavigate();
-  const qc = useQueryClient();
-  const currentUser = useAuthStore((s) => s.user);
-  const [editOpen, setEditOpen] = useState(false);
-  const [addMemberOpen, setAddMemberOpen] = useState(false);
 
   const { data: team, isLoading } = useQuery({
     queryKey: ["team", teamId],
@@ -46,90 +38,50 @@ export function TeamDetailPage() {
     enabled: !!team,
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: () => teamsApi.delete(workspaceSlug, teamId),
-    onSuccess: () => {
-      toast.success("팀이 삭제되었습니다.");
-      qc.invalidateQueries({ queryKey: ["teams", workspaceSlug] });
-      navigate(`/${workspaceSlug}/teams`);
-    },
-    onError: (e) => toast.error(apiErrorMessage(e, "삭제 실패")),
-  });
-
-  const removeMemberMutation = useMutation({
-    mutationFn: (memberId: string) => teamsApi.members.remove(workspaceSlug, teamId, memberId),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["team-members", teamId] });
-      qc.invalidateQueries({ queryKey: ["team", teamId] });
-    },
-    onError: (e) => toast.error(apiErrorMessage(e, "멤버 제거 실패")),
-  });
-
-  const updateRoleMutation = useMutation({
-    mutationFn: ({ memberId, role }: { memberId: string; role: number }) =>
-      teamsApi.members.update(workspaceSlug, teamId, memberId, { role }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["team-members", teamId] });
-    },
-    onError: (e) => toast.error(apiErrorMessage(e, "역할 변경 실패")),
-  });
-
   if (isLoading) {
-    return <div className="p-10 text-sm text-muted-foreground text-center">로딩 중...</div>;
+    return <div className="p-10 text-sm text-muted-foreground text-center">{t("team.loading")}</div>;
   }
   if (!team) {
-    return <div className="p-10 text-sm text-muted-foreground text-center">팀을 찾을 수 없거나 접근 권한이 없습니다.</div>;
+    return <div className="p-10 text-sm text-muted-foreground text-center">{t("team.notFound")}</div>;
   }
 
   const isAdmin = team.my_role === 20;
+  const settingsPath = `/${workspaceSlug}/teams/${teamId}/settings/general`;
 
   return (
     <div className="h-full overflow-y-auto bg-background">
-      <div className="px-6 py-6">
-        {/* 헤더 — 가독성 위해 1600px 중앙 유지 */}
-        <div className="max-w-wide mx-auto">
+      {/* 헤더와 캘린더 모두 전체폭 — 폭 제약을 걸면 넓은 화면에서 헤더가 캘린더 카드보다
+          안쪽으로 들어가 좌우 모서리가 어긋난다 */}
+      <div className="px-6 pt-8 pb-6">
         <button
           onClick={() => navigate(`/${workspaceSlug}/teams`)}
           className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground mb-4 transition-colors"
         >
           <ArrowLeft className="h-3.5 w-3.5" />
-          팀 목록
+          {t("team.backToList")}
         </button>
 
-        {/* 헤더 */}
-        <header className="flex items-start gap-4 mb-6">
-          <div
-            className="h-14 w-14 rounded-xl flex items-center justify-center text-xl font-bold shrink-0 bg-primary/10 text-primary"
-            style={team.color ? { backgroundColor: `${team.color}22`, color: team.color } : undefined}
-          >
-            {team.name.charAt(0).toUpperCase()}
-          </div>
+        <header className="flex items-start gap-4 mb-8">
+          <TeamAvatar team={team} box={56} className="rounded-xl" />
           <div className="flex-1 min-w-0">
             <h1 className="text-2xl font-bold">{team.name}</h1>
-            {team.description && <p className="text-sm text-muted-foreground mt-1">{team.description}</p>}
+            {team.description && (
+              <p className="text-sm text-muted-foreground mt-1">{team.description}</p>
+            )}
           </div>
-          {isAdmin && (
-            <div className="flex items-center gap-2 shrink-0">
-              <Button variant="outline" size="sm" onClick={() => setEditOpen(true)} className="gap-1.5">
-                <Settings className="h-3.5 w-3.5" />
-                팀 설정
+          <div className="flex items-center gap-2 shrink-0">
+            <MemberStack workspaceSlug={workspaceSlug} teamId={teamId} members={members} />
+            {isAdmin && (
+              <Button asChild variant="outline" size="sm" className="gap-1.5">
+                <Link to={settingsPath}>
+                  <Settings className="h-3.5 w-3.5" />
+                  {t("team.home.settings")}
+                </Link>
               </Button>
-              <Button
-                variant="outline" size="sm"
-                onClick={() => {
-                  if (window.confirm(`"${team.name}" 팀을 정말 삭제하시겠습니까?`)) deleteMutation.mutate();
-                }}
-                className="text-destructive hover:text-destructive gap-1.5"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-                삭제
-              </Button>
-            </div>
-          )}
+            )}
+          </div>
         </header>
-        </div>
 
-        {/* 팀 캘린더 — 전체폭(헤더/멤버는 1600 중앙, 캘린더만 해상도 따라 화면을 채움) */}
         <section className="mb-6">
           <TeamCalendarSection
             workspaceSlug={workspaceSlug}
@@ -137,210 +89,106 @@ export function TeamDetailPage() {
             teamMembers={members}
           />
         </section>
-
-        {/* 멤버 목록 — 1600px 중앙 유지 */}
-        <div className="max-w-wide mx-auto">
-        <section className="rounded-xl border bg-card overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-3 border-b">
-            <h2 className="text-sm font-semibold">멤버 ({members.length})</h2>
-            {isAdmin && (
-              <Button size="sm" variant="outline" onClick={() => setAddMemberOpen(true)} className="gap-1.5">
-                <UserPlus className="h-3.5 w-3.5" />
-                멤버 추가
-              </Button>
-            )}
-          </div>
-          <ul className="divide-y">
-            {members.map((m) => {
-              const isSelf = m.member.id === currentUser?.id;
-              return (
-                <li key={m.id} className="flex items-center gap-3 px-4 py-3 group">
-                  <AvatarInitials name={m.member.display_name} avatar={m.member.avatar} size="sm" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">
-                      {m.member.display_name}
-                      {isSelf && <span className="ml-2 text-2xs text-muted-foreground">(나)</span>}
-                    </p>
-                    <p className="text-2xs text-muted-foreground truncate">{m.member.email}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {/* 역할 표시/변경 — admin 만 다른 사람 역할 변경 가능 */}
-                    {isAdmin && !isSelf ? (
-                      <select
-                        value={m.role}
-                        onChange={(e) => updateRoleMutation.mutate({ memberId: m.id, role: Number(e.target.value) })}
-                        className="text-2xs bg-background border rounded-md px-1.5 py-1 outline-none focus:border-primary/60"
-                      >
-                        <option value={15}>멤버</option>
-                        <option value={20}>관리자</option>
-                      </select>
-                    ) : (
-                      <span className={cn(
-                        "text-2xs px-2 py-1 rounded-md",
-                        m.role === 20 ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground",
-                      )}>
-                        {m.role === 20 ? (
-                          <span className="inline-flex items-center gap-0.5"><Shield className="h-2.5 w-2.5" /> 관리자</span>
-                        ) : "멤버"}
-                      </span>
-                    )}
-                    {(isAdmin || isSelf) && (
-                      <button
-                        onClick={() => {
-                          const msg = isSelf ? "팀에서 탈퇴하시겠습니까?" : `${m.member.display_name}님을 팀에서 제거하시겠습니까?`;
-                          if (window.confirm(msg)) removeMemberMutation.mutate(m.id);
-                        }}
-                        className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity"
-                        title={isSelf ? "팀 탈퇴" : "팀에서 제거"}
-                      >
-                        <XIcon className="h-3.5 w-3.5" />
-                      </button>
-                    )}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-        </div>
       </div>
-
-      {/* 편집 다이얼로그 */}
-      {editOpen && (
-        <EditTeamDialog
-          team={team}
-          onClose={() => setEditOpen(false)}
-          onSaved={() => {
-            qc.invalidateQueries({ queryKey: ["team", teamId] });
-            qc.invalidateQueries({ queryKey: ["teams", workspaceSlug] });
-            setEditOpen(false);
-          }}
-        />
-      )}
-
-      {/* 멤버 추가 다이얼로그 */}
-      {addMemberOpen && (
-        <AddMemberDialog
-          workspaceSlug={workspaceSlug}
-          teamId={teamId}
-          excludeIds={members.map((m) => m.member.id)}
-          onClose={() => setAddMemberOpen(false)}
-          onAdded={() => {
-            qc.invalidateQueries({ queryKey: ["team-members", teamId] });
-            qc.invalidateQueries({ queryKey: ["team", teamId] });
-            setAddMemberOpen(false);
-          }}
-        />
-      )}
     </div>
   );
 }
 
-/* ────────────── 팀 설정 편집 ────────────── */
-function EditTeamDialog({
-  team, onClose, onSaved,
-}: {
-  team: { id: string; name: string; description: string; color: string };
-  onClose: () => void;
-  onSaved: () => void;
-}) {
-  const { workspaceSlug = "" } = useParams<{ workspaceSlug: string }>();
-  const [name, setName] = useState(team.name);
-  const [description, setDescription] = useState(team.description);
-  const [color, setColor] = useState(team.color);
-
-  const updateMutation = useMutation({
-    mutationFn: () => teamsApi.update(workspaceSlug, team.id, { name: name.trim(), description, color }),
-    onSuccess: () => { toast.success("팀 설정이 저장되었습니다."); onSaved(); },
-    onError: (e) => toast.error(apiErrorMessage(e, "저장 실패")),
-  });
-
-  return (
-    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>팀 설정</DialogTitle>
-        </DialogHeader>
-        <form
-          onSubmit={(e) => { e.preventDefault(); if (name.trim()) updateMutation.mutate(); }}
-          className="space-y-3"
-        >
-          <div>
-            <label className="block text-xs font-medium mb-1 text-muted-foreground">팀 이름 *</label>
-            <input
-              type="text" value={name} onChange={(e) => setName(e.target.value)}
-              maxLength={100} required
-              className="w-full text-sm bg-background border rounded-lg px-3 py-2 outline-none focus:border-primary/60"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium mb-1 text-muted-foreground">설명</label>
-            <textarea
-              value={description} onChange={(e) => setDescription(e.target.value)}
-              rows={2}
-              className="w-full text-sm bg-background border rounded-lg px-3 py-2 outline-none focus:border-primary/60 resize-y"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium mb-1 text-muted-foreground">팀 색</label>
-            <div className="flex items-center gap-2">
-              <input type="color" value={color || "#888888"} onChange={(e) => setColor(e.target.value)}
-                className="h-8 w-12 rounded border cursor-pointer" />
-              <input type="text" value={color} onChange={(e) => setColor(e.target.value)} placeholder="#hex"
-                className="flex-1 text-sm bg-background border rounded-lg px-3 py-2 outline-none focus:border-primary/60" />
-              {color && <button type="button" onClick={() => setColor("")} className="text-2xs text-muted-foreground hover:text-foreground">지우기</button>}
-            </div>
-          </div>
-          <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="outline" onClick={onClose}>취소</Button>
-            <Button type="submit" disabled={!name.trim() || updateMutation.isPending}>
-              {updateMutation.isPending ? "저장 중..." : "저장"}
-            </Button>
-          </div>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-/* ────────────── 멤버 추가 (워크스페이스 멤버 검색) ────────────── */
-function AddMemberDialog({
-  workspaceSlug, teamId, excludeIds, onClose, onAdded,
+/* ────────────── 헤더 멤버 스택 ──────────────
+ * 캘린더가 85vh 라 멤버 목록을 아래에 두면 스크롤해야 보인다. 헤더로 올려 항상 보이게 한다.
+ *
+ * 직책(title)을 보여주는 곳이 여기다 — 설정 › 멤버 밖에서 직책이 보이는 유일한 화면.
+ *   - 아바타 hover: "이름 · 직책" 툴팁 (한 명만 빠르게 확인)
+ *   - 스택 클릭:    팀 명단 팝오버 (여러 명을 훑어볼 때)
+ * 직책은 팀 단위 값이라 이슈 담당자·멘션 같은 팀 밖 화면에는 쓸 수 없다
+ * (같은 사람이 팀마다 다른 직책을 가질 수 있어 어느 것을 보여줄지 정할 수 없다). */
+function MemberStack({
+  workspaceSlug, teamId, members,
 }: {
   workspaceSlug: string;
   teamId: string;
-  excludeIds: string[];
-  onClose: () => void;
-  onAdded: () => void;
+  members: TeamMember[];
 }) {
-  const { data: wsMembers = [] } = useQuery({
-    queryKey: ["workspace-members", workspaceSlug],
-    queryFn: () => workspacesApi.members(workspaceSlug),
-  });
+  const { t } = useTranslation();
+  const SHOWN = 4;
+  const rest = members.length - SHOWN;
 
-  const addMutation = useMutation({
-    mutationFn: (memberId: string) => teamsApi.members.add(workspaceSlug, teamId, { member: memberId }),
-    onSuccess: () => onAdded(),
-    onError: (e) => toast.error(apiErrorMessage(e, "추가 실패")),
-  });
+  if (members.length === 0) return null;
 
   return (
-    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>멤버 추가</DialogTitle>
-        </DialogHeader>
-        {/* 단일 선택 — 고르면 즉시 추가. 이미 팀원은 excludeIds로 후보에서 제외 */}
-        <UserPicker
-          variant="field"
-          mode="single"
-          users={membersToUsers(wsMembers)}
-          excludeIds={excludeIds}
-          value={[]}
-          onChange={(ids) => { if (ids[0]) addMutation.mutate(ids[0]); }}
-          placeholder="이름 또는 이메일 검색"
-        />
-      </DialogContent>
-    </Dialog>
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="flex items-center gap-2 rounded-lg border px-2 py-1.5 hover:bg-accent/40 transition-colors"
+        >
+          <span className="flex -space-x-2">
+            {members.slice(0, SHOWN).map((m) => (
+              <Tooltip
+                key={m.id}
+                content={
+                  m.title ? `${m.member.display_name} · ${m.title}` : m.member.display_name
+                }
+              >
+                <span className="ring-2 ring-background rounded-full">
+                  <AvatarInitials
+                    name={m.member.display_name}
+                    avatar={m.member.avatar}
+                    size="xs"
+                  />
+                </span>
+              </Tooltip>
+            ))}
+            {rest > 0 && (
+              <span className="ring-2 ring-background rounded-full h-5 w-5 flex items-center justify-center bg-muted text-2xs font-medium text-muted-foreground">
+                +{rest}
+              </span>
+            )}
+          </span>
+          <span className="text-2xs text-muted-foreground">
+            {t("team.memberCount", { count: members.length })}
+          </span>
+        </button>
+      </PopoverTrigger>
+
+      <PopoverContent align="end" className="w-64 p-0">
+        <p className="px-3 pt-3 pb-2 text-2xs font-semibold uppercase tracking-widest text-muted-foreground">
+          {t("team.home.membersTitle")}
+        </p>
+        <ul className="max-h-72 overflow-y-auto">
+          {members.map((m) => (
+            <li key={m.id} className="flex items-center gap-2.5 px-3 py-2">
+              <AvatarInitials
+                name={m.member.display_name}
+                avatar={m.member.avatar}
+                size="sm"
+              />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium truncate">{m.member.display_name}</p>
+                <p
+                  className={cn(
+                    "text-2xs truncate",
+                    m.title ? "text-muted-foreground" : "text-muted-foreground/50 italic",
+                  )}
+                >
+                  {m.title || t("team.home.noTitle")}
+                </p>
+              </div>
+              {m.role === 20 && (
+                <Shield className="h-3 w-3 shrink-0 text-primary" aria-label={t("team.role.admin")} />
+              )}
+            </li>
+          ))}
+        </ul>
+        <div className="border-t px-3 py-2">
+          <Link
+            to={`/${workspaceSlug}/teams/${teamId}/settings/members`}
+            className="text-2xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            {t("team.home.manageMembers")} →
+          </Link>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }

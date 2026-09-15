@@ -6,19 +6,23 @@
  */
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { apiErrorMessage } from "@/lib/api-error";
 import { Plus, Users, ArrowRight } from "lucide-react";
 import { teamsApi } from "@/api/teams";
+import { TeamAvatar } from "./TeamAvatar";
 import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { cn } from "@/lib/utils";
+import { Label } from "@/components/ui/label";
+import { ProjectIconPicker, parseIconProp, type IconProp } from "@/components/ui/project-icon-picker";
 
 export function TeamListPage() {
   const { workspaceSlug = "" } = useParams<{ workspaceSlug: string }>();
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
@@ -33,25 +37,23 @@ export function TeamListPage() {
     <div className="h-full overflow-y-auto bg-background">
       <div className="max-w-regular mx-auto px-6 py-10">
         <header className="flex items-center justify-between mb-6">
-          <h1 className="text-3xl font-bold">팀</h1>
+          <h1 className="text-3xl font-bold">{t("team.title")}</h1>
           <Button onClick={() => setCreateOpen(true)} className="gap-2 shrink-0">
             <Plus className="h-4 w-4" />
-            새 팀 만들기
+            {t("team.create")}
           </Button>
         </header>
 
         {isLoading ? (
-          <p className="text-sm text-muted-foreground text-center py-12">로딩 중...</p>
+          <p className="text-sm text-muted-foreground text-center py-12">{t("team.loading")}</p>
         ) : teams.length === 0 ? (
           <div className="rounded-xl border border-dashed bg-card/50 px-6 py-16 text-center">
             <Users className="h-8 w-8 mx-auto mb-3 text-muted-foreground/60" />
-            <p className="text-sm font-medium mb-1">아직 소속된 팀이 없습니다</p>
-            <p className="text-xs text-muted-foreground mb-4">
-              팀을 만들어 멤버들의 일정을 한 화면에서 확인해보세요.
-            </p>
+            <p className="text-sm font-medium mb-1">{t("team.empty.title")}</p>
+            <p className="text-xs text-muted-foreground mb-4">{t("team.empty.description")}</p>
             <Button onClick={() => setCreateOpen(true)} className="gap-2">
               <Plus className="h-4 w-4" />
-              새 팀 만들기
+              {t("team.create")}
             </Button>
           </div>
         ) : (
@@ -63,15 +65,7 @@ export function TeamListPage() {
                   className="group w-full text-left rounded-xl border bg-card hover:bg-accent/40 hover:border-primary/40 transition-colors p-4"
                 >
                   <div className="flex items-start gap-3">
-                    <div
-                      className={cn(
-                        "h-10 w-10 rounded-lg flex items-center justify-center text-sm font-bold shrink-0",
-                        "bg-primary/10 text-primary",
-                      )}
-                      style={team.color ? { backgroundColor: `${team.color}22`, color: team.color } : undefined}
-                    >
-                      {team.name.charAt(0).toUpperCase()}
-                    </div>
+                    <TeamAvatar team={team} box={40} />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2 mb-1">
                         <h3 className="text-sm font-semibold truncate">{team.name}</h3>
@@ -82,9 +76,11 @@ export function TeamListPage() {
                       )}
                       <div className="flex items-center gap-2 text-2xs text-muted-foreground">
                         <Users className="h-3 w-3" />
-                        <span>{team.member_count}명</span>
+                        <span>{t("team.memberCount", { count: team.member_count })}</span>
                         {team.my_role === 20 && (
-                          <span className="ml-1 px-1.5 py-0.5 rounded bg-primary/10 text-primary text-2xs font-semibold">관리자</span>
+                          <span className="ml-1 px-1.5 py-0.5 rounded bg-primary/10 text-primary text-2xs font-semibold">
+                            {t("team.role.admin")}
+                          </span>
                         )}
                       </div>
                     </div>
@@ -118,36 +114,52 @@ function CreateTeamDialog({
   onCreated: (team: { id: string }) => void | Promise<void>;
 }) {
   const { workspaceSlug = "" } = useParams<{ workspaceSlug: string }>();
+  const { t } = useTranslation();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [color, setColor] = useState("");
+  const [icon, setIcon] = useState<IconProp>(() => parseIconProp({ name: "Users", color: "#5E6AD2" }));
 
   const createMutation = useMutation({
-    mutationFn: () => teamsApi.create(workspaceSlug, { name: name.trim(), description, color }),
+    mutationFn: () =>
+      teamsApi.create(workspaceSlug, {
+        name: name.trim(),
+        description,
+        icon_prop: icon as unknown as Record<string, unknown>,
+      }),
     onSuccess: (team) => {
-      setName(""); setDescription(""); setColor("");
+      setName(""); setDescription("");
       onCreated(team);
     },
-    onError: (e) => toast.error(apiErrorMessage(e, "팀 생성에 실패했습니다.")),
+    onError: (e) => toast.error(apiErrorMessage(e, t("team.createDialog.failed"))),
   });
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>새 팀 만들기</DialogTitle>
+          <DialogTitle>{t("team.createDialog.title")}</DialogTitle>
         </DialogHeader>
         <form
           onSubmit={(e) => { e.preventDefault(); if (name.trim()) createMutation.mutate(); }}
-          className="space-y-3"
+          className="space-y-4"
         >
+          <div className="space-y-1.5">
+            <Label>{t("team.form.icon")}</Label>
+            <ProjectIconPicker
+              value={icon as unknown as Record<string, unknown>}
+              onChange={setIcon}
+              size="md"
+            />
+          </div>
           <div>
-            <label className="block text-xs font-medium mb-1 text-muted-foreground">팀 이름 *</label>
+            <label className="block text-xs font-medium mb-1 text-muted-foreground">
+              {t("team.form.name")} *
+            </label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="예: 디자인팀"
+              placeholder={t("team.form.namePlaceholder")}
               maxLength={100}
               required
               autoFocus
@@ -155,42 +167,25 @@ function CreateTeamDialog({
             />
           </div>
           <div>
-            <label className="block text-xs font-medium mb-1 text-muted-foreground">설명 (선택)</label>
+            <label className="block text-xs font-medium mb-1 text-muted-foreground">
+              {t("team.form.descriptionOptional")}
+            </label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="팀의 목적이나 책임 범위"
+              placeholder={t("team.form.descriptionPlaceholder")}
               rows={2}
               className="w-full text-sm bg-background border rounded-lg px-3 py-2 outline-none focus:border-primary/60 resize-y"
             />
           </div>
-          <div>
-            <label className="block text-xs font-medium mb-1 text-muted-foreground">팀 색 (선택)</label>
-            <div className="flex items-center gap-2">
-              <input
-                type="color"
-                value={color || "#888888"}
-                onChange={(e) => setColor(e.target.value)}
-                className="h-8 w-12 rounded border cursor-pointer"
-              />
-              <input
-                type="text"
-                value={color}
-                onChange={(e) => setColor(e.target.value)}
-                placeholder="#hex 또는 비워두기"
-                className="flex-1 text-sm bg-background border rounded-lg px-3 py-2 outline-none focus:border-primary/60"
-              />
-              {color && (
-                <button type="button" onClick={() => setColor("")} className="text-2xs text-muted-foreground hover:text-foreground">
-                  지우기
-                </button>
-              )}
-            </div>
-          </div>
           <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>취소</Button>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              {t("team.form.cancel")}
+            </Button>
             <Button type="submit" disabled={!name.trim() || createMutation.isPending}>
-              {createMutation.isPending ? "생성 중..." : "팀 만들기"}
+              {createMutation.isPending
+                ? t("team.createDialog.submitting")
+                : t("team.createDialog.submit")}
             </Button>
           </div>
         </form>

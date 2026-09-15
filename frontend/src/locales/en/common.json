@@ -682,6 +682,92 @@
       "other": "Other"
     }
   },
+  "team": {
+    "title": "Teams",
+    "create": "New team",
+    "loading": "Loading...",
+    "notFound": "Team not found, or you don't have access.",
+    "backToList": "Teams",
+    "memberCount": "{{count}} members",
+    "you": "(you)",
+    "empty": {
+      "title": "You're not on any team yet",
+      "description": "Create a team to see everyone's schedule on one screen."
+    },
+    "form": {
+      "name": "Team name",
+      "namePlaceholder": "e.g. Design",
+      "description": "Description",
+      "descriptionOptional": "Description (optional)",
+      "descriptionPlaceholder": "What this team is responsible for",
+      "icon": "Icon",
+      "cancel": "Cancel"
+    },
+    "createDialog": {
+      "title": "New team",
+      "submit": "Create team",
+      "submitting": "Creating...",
+      "failed": "Failed to create the team."
+    },
+    "role": {
+      "member": "Member",
+      "admin": "Admin"
+    },
+    "home": {
+      "settings": "Settings",
+      "membersTitle": "Team members",
+      "manageMembers": "Manage members",
+      "noTitle": "No title"
+    },
+    "calendar": {
+      "membersLabel": "Members:",
+      "hideFromCalendar": "Hide from calendar",
+      "showOnCalendar": "Show on calendar",
+      "selfSuffix": "· you",
+      "showAll": "Show all"
+    },
+    "settings": {
+      "sidebarTitle": "Team settings",
+      "tabs": {
+        "general": "General",
+        "members": "Members"
+      },
+      "general": {
+        "sectionTitle": "Team info",
+        "save": "Save",
+        "saving": "Saving...",
+        "saved": "Team settings saved.",
+        "saveFailed": "Failed to save.",
+        "iconHint": "Pick an icon or upload an image.",
+        "dangerTitle": "Delete team",
+        "dangerDescription": "The team and its memberships are deleted. Issues, events and projects are not. This cannot be undone.",
+        "dangerButton": "Delete team",
+        "dangerPlaceholder": "Type the team name to delete",
+        "deleted": "Team deleted.",
+        "deleteFailed": "Failed to delete."
+      },
+      "members": {
+        "title": "Members",
+        "add": "Add member",
+        "addDialogTitle": "Add member",
+        "searchPlaceholder": "Search by name or email",
+        "addFailed": "Failed to add member.",
+        "roleUpdateFailed": "Failed to change role.",
+        "titleLabel": "Title",
+        "titlePlaceholder": "e.g. Frontend",
+        "titleAdd": "Add title",
+        "titleUpdateFailed": "Failed to change title.",
+        "remove": "Remove from team",
+        "leave": "Leave team",
+        "removeConfirm": "Remove {{name}} from this team?",
+        "leaveConfirm": "Leave this team?",
+        "removeFailed": "Failed to remove member.",
+        "permsTitle": "What each role can do",
+        "permsAdmin": "Edit team name and icon, add/remove members, delete the team",
+        "permsMember": "View team info and the team calendar"
+      }
+    }
+  },
   "sidebar": {
     "workspace": "Workspace",
     "home": "Home",

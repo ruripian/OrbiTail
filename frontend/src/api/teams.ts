@@ -35,8 +35,14 @@ export const teamsApi = {
     add: (workspaceSlug: string, teamId: string, data: { member: string; role?: number }) =>
       api.post<TeamMember>(`/workspaces/${workspaceSlug}/teams/${teamId}/members/`, data).then((r) => r.data),
 
-    /** role 변경 (15/20). 마지막 admin 강등 차단은 백엔드. */
-    update: (workspaceSlug: string, teamId: string, memberId: string, data: { role: number }) =>
+    /**
+     * role 변경 (15/20) 또는 title(표시용 직책) 변경. 둘 다 부분 전송.
+     * role 은 team admin 만, title 은 team admin 또는 본인. 마지막 admin 강등 차단은 백엔드.
+     */
+    update: (
+      workspaceSlug: string, teamId: string, memberId: string,
+      data: { role?: number; title?: string },
+    ) =>
       api.patch<TeamMember>(`/workspaces/${workspaceSlug}/teams/${teamId}/members/${memberId}/`, data).then((r) => r.data),
 
     /** 본인 탈퇴 OK + team admin. 마지막 admin 탈퇴 차단은 백엔드. */

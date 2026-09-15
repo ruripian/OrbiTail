@@ -682,6 +682,92 @@
       "other": "기타"
     }
   },
+  "team": {
+    "title": "팀",
+    "create": "새 팀 만들기",
+    "loading": "로딩 중...",
+    "notFound": "팀을 찾을 수 없거나 접근 권한이 없습니다.",
+    "backToList": "팀 목록",
+    "memberCount": "{{count}}명",
+    "you": "(나)",
+    "empty": {
+      "title": "아직 소속된 팀이 없습니다",
+      "description": "팀을 만들어 멤버들의 일정을 한 화면에서 확인해보세요."
+    },
+    "form": {
+      "name": "팀 이름",
+      "namePlaceholder": "예: 디자인팀",
+      "description": "설명",
+      "descriptionOptional": "설명 (선택)",
+      "descriptionPlaceholder": "팀의 목적이나 책임 범위",
+      "icon": "아이콘",
+      "cancel": "취소"
+    },
+    "createDialog": {
+      "title": "새 팀 만들기",
+      "submit": "팀 만들기",
+      "submitting": "생성 중...",
+      "failed": "팀 생성에 실패했습니다."
+    },
+    "role": {
+      "member": "멤버",
+      "admin": "관리자"
+    },
+    "home": {
+      "settings": "설정",
+      "membersTitle": "팀 멤버",
+      "manageMembers": "멤버 관리",
+      "noTitle": "직책 미지정"
+    },
+    "calendar": {
+      "membersLabel": "멤버:",
+      "hideFromCalendar": "캘린더에서 숨기기",
+      "showOnCalendar": "캘린더에 표시",
+      "selfSuffix": "·나",
+      "showAll": "전체 보기"
+    },
+    "settings": {
+      "sidebarTitle": "팀 설정",
+      "tabs": {
+        "general": "일반",
+        "members": "멤버"
+      },
+      "general": {
+        "sectionTitle": "팀 정보",
+        "save": "저장",
+        "saving": "저장 중...",
+        "saved": "팀 설정이 저장되었습니다.",
+        "saveFailed": "저장에 실패했습니다.",
+        "iconHint": "아이콘을 고르거나 이미지를 올릴 수 있습니다.",
+        "dangerTitle": "팀 삭제",
+        "dangerDescription": "팀과 팀 멤버십이 삭제됩니다. 이슈·일정·프로젝트는 삭제되지 않습니다. 되돌릴 수 없습니다.",
+        "dangerButton": "팀 삭제",
+        "dangerPlaceholder": "삭제하려면 팀 이름을 입력하세요",
+        "deleted": "팀이 삭제되었습니다.",
+        "deleteFailed": "삭제에 실패했습니다."
+      },
+      "members": {
+        "title": "멤버",
+        "add": "멤버 추가",
+        "addDialogTitle": "멤버 추가",
+        "searchPlaceholder": "이름 또는 이메일 검색",
+        "addFailed": "멤버 추가에 실패했습니다.",
+        "roleUpdateFailed": "역할 변경에 실패했습니다.",
+        "titleLabel": "직책",
+        "titlePlaceholder": "예: 프론트엔드",
+        "titleAdd": "직책 추가",
+        "titleUpdateFailed": "직책 변경에 실패했습니다.",
+        "remove": "팀에서 제거",
+        "leave": "팀 탈퇴",
+        "removeConfirm": "{{name}}님을 팀에서 제거하시겠습니까?",
+        "leaveConfirm": "팀에서 탈퇴하시겠습니까?",
+        "removeFailed": "멤버 제거에 실패했습니다.",
+        "permsTitle": "권한 안내",
+        "permsAdmin": "팀 이름·아이콘 편집, 멤버 추가/제거, 팀 삭제",
+        "permsMember": "팀 정보와 팀 캘린더 조회"
+      }
+    }
+  },
   "sidebar": {
     "workspace": "워크스페이스",
     "home": "홈",

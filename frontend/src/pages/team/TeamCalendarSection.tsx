@@ -380,7 +380,7 @@ export function TeamCalendarSection({
       {/* ── 멤버 칩 바 (팀 캘린더 고유) ──────────────────── */}
       {teamMembers.length > 0 && (
         <div className="flex items-center gap-1.5 flex-wrap px-4 py-2.5 border-b border-border shrink-0">
-          <span className="text-2xs text-muted-foreground mr-1">멤버:</span>
+          <span className="text-2xs text-muted-foreground mr-1">{t("team.calendar.membersLabel")}</span>
           {teamMembers.map((tm) => {
             const visible = isMemberVisible(tm.member.id);
             const isSelf = tm.member.id === currentUser?.id;
@@ -394,11 +394,11 @@ export function TeamCalendarSection({
                     ? "bg-primary/5 border-primary/40 text-foreground"
                     : "bg-transparent border-border text-muted-foreground/60 opacity-50",
                 )}
-                title={visible ? "캘린더에서 숨기기" : "캘린더에 표시"}
+                title={t(visible ? "team.calendar.hideFromCalendar" : "team.calendar.showOnCalendar")}
               >
                 <AvatarInitials name={tm.member.display_name} avatar={tm.member.avatar} size="xs" />
                 <span className="text-2xs">{tm.member.display_name}</span>
-                {isSelf && <span className="text-2xs text-primary/70 ml-0.5">·나</span>}
+                {isSelf && <span className="text-2xs text-primary/70 ml-0.5">{t("team.calendar.selfSuffix")}</span>}
               </button>
             );
           })}
@@ -407,7 +407,7 @@ export function TeamCalendarSection({
               onClick={() => setSelectedMembers(null)}
               className="text-2xs text-muted-foreground hover:text-primary ml-1"
             >
-              전체 보기
+              {t("team.calendar.showAll")}
             </button>
           )}
         </div>

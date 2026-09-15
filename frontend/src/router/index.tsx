@@ -44,6 +44,9 @@ import { ArchivedProjectsPage } from "@/pages/project/ArchivedProjectsPage";
 import { InviteAcceptPage } from "@/pages/invite/InviteAcceptPage";
 import { TeamListPage } from "@/pages/team/TeamListPage";
 import { TeamDetailPage } from "@/pages/team/TeamDetailPage";
+import { TeamSettingsLayout } from "@/pages/team/settings/TeamSettingsLayout";
+import { TeamGeneralPage } from "@/pages/team/settings/TeamGeneralPage";
+import { TeamMembersPage } from "@/pages/team/settings/TeamMembersPage";
 import { DocumentLayout } from "@/components/layout/DocumentLayout";
 import { RequestSubmitPage } from "@/pages/request/RequestSubmitPage";
 import { ErrorFallback } from "@/components/ErrorFallback";
@@ -220,9 +223,18 @@ export const router = createBrowserRouter([
       { path: "inbox", element: <InboxPage /> },
       { path: "projects/create", element: <CreateProjectPage /> },
       { path: "projects/discover", element: <DiscoverProjectsPage /> },
-      /* 팀 — 본인이 멤버인 팀 목록 + 상세(멤버 관리 + 캘린더) */
+      /* 팀 — 목록 + 홈(캘린더·멤버 요약). 편집/멤버/삭제는 settings 하위 */
       { path: "teams", element: <TeamListPage /> },
       { path: "teams/:teamId", element: <TeamDetailPage /> },
+      {
+        path: "teams/:teamId/settings",
+        element: <TeamSettingsLayout />,
+        children: [
+          { index: true, element: <Navigate to="general" replace /> },
+          { path: "general", element: <TeamGeneralPage /> },
+          { path: "members", element: <TeamMembersPage /> },
+        ],
+      },
       /* 이슈 페이지 — ?view=table|board|calendar|timeline, ?issue=uuid */
       { path: "projects/:projectId/issues", element: <ProjectIssuePage /> },
       /* 기존 /board 경로 호환 — 같은 컴포넌트, view=board로 진입 */

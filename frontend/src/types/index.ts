@@ -421,6 +421,8 @@ export interface TeamMember {
   member: User;
   /** 15(MEMBER) / 20(ADMIN) */
   role: number;
+  /** 표시 전용 직책("프론트엔드", "PM"). 빈 문자열 = 미지정. 권한과 무관. */
+  title: string;
   added_by: User | null;
   created_at: string;
 }

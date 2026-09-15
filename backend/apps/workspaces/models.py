@@ -214,6 +214,9 @@ class TeamMember(models.Model):
       - MEMBER: 팀 일원 (이름/멤버 조회, 본인 정보)
       - ADMIN:  + 팀 이름/색/멤버 편집 권한
     이슈/PE 접근권은 ProjectMember / PE.user 정책이 결정 — 여기 role 과 무관.
+
+    title 은 role 과 무관한 **표시 전용** 직책이다("프론트엔드", "PM").
+    권한 판정에 절대 쓰지 말 것 — 권한은 role 하나로만 결정한다.
     """
 
     class Role(models.IntegerChoices):
@@ -232,6 +235,8 @@ class TeamMember(models.Model):
         related_name="team_memberships",
     )
     role = models.IntegerField(choices=Role.choices, default=Role.MEMBER)
+    # 표시 전용 직책. 빈 문자열 = 미지정.
+    title = models.CharField(max_length=50, blank=True, default="")
     added_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,

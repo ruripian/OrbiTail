@@ -986,20 +986,45 @@ class TeamMemberDetailView(APIView):
         team, tm = self._resolve(kwargs)
         if not team or not tm:
             return Response(status=status.HTTP_404_NOT_FOUND)
-        if not _is_team_admin(request.user, team):
-            return Response({"detail": "팀 관리자만 역할을 변경할 수 있습니다."},
-                            status=status.HTTP_403_FORBIDDEN)
-        new_role = request.data.get("role")
-        if new_role is None:
-            return Response({"detail": "role 필드가 필요합니다."}, status=status.HTTP_400_BAD_REQUEST)
-        # 마지막 admin 강등 차단 — 팀이 admin 없는 상태로 빠지는 것 방지
-        if tm.role == TeamMember.Role.ADMIN and int(new_role) < TeamMember.Role.ADMIN:
-            admin_count = TeamMember.objects.filter(team=team, role=TeamMember.Role.ADMIN).count()
-            if admin_count <= 1:
-                return Response({"detail": "마지막 관리자를 강등할 수 없습니다."},
+
+        is_admin = _is_team_admin(request.user, team)
+        is_self = tm.member_id == request.user.id
+        update_fields = []
+
+        # role — 권한 변경이므로 team admin 전용
+        if "role" in request.data:
+            if not is_admin:
+                return Response({"detail": "팀 관리자만 역할을 변경할 수 있습니다."},
+                                status=status.HTTP_403_FORBIDDEN)
+            new_role = request.data.get("role")
+            if new_role is None:
+                return Response({"detail": "role 필드가 필요합니다."}, status=status.HTTP_400_BAD_REQUEST)
+            # 마지막 admin 강등 차단 — 팀이 admin 없는 상태로 빠지는 것 방지
+            if tm.role == TeamMember.Role.ADMIN and int(new_role) < TeamMember.Role.ADMIN:
+                admin_count = TeamMember.objects.filter(team=team, role=TeamMember.Role.ADMIN).count()
+                if admin_count <= 1:
+                    return Response({"detail": "마지막 관리자를 강등할 수 없습니다."},
+                                    status=status.HTTP_400_BAD_REQUEST)
+            tm.role = int(new_role)
+            update_fields.append("role")
+
+        # title — 표시 전용이라 본인도 수정 가능
+        if "title" in request.data:
+            if not (is_admin or is_self):
+                return Response({"detail": "본인 또는 팀 관리자만 직책을 변경할 수 있습니다."},
+                                status=status.HTTP_403_FORBIDDEN)
+            title = (request.data.get("title") or "").strip()
+            max_len = TeamMember._meta.get_field("title").max_length
+            if len(title) > max_len:
+                return Response({"detail": f"직책은 {max_len}자까지 입력할 수 있습니다."},
                                 status=status.HTTP_400_BAD_REQUEST)
-        tm.role = int(new_role)
-        tm.save(update_fields=["role"])
+            tm.title = title
+            update_fields.append("title")
+
+        if not update_fields:
+            return Response({"detail": "role 또는 title 필드가 필요합니다."},
+                            status=status.HTTP_400_BAD_REQUEST)
+        tm.save(update_fields=update_fields)
         return Response(TeamMemberSerializer(tm).data)
 
     def delete(self, request, **kwargs):
