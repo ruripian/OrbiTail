@@ -23,6 +23,17 @@ done
 
 if [ $RETRY -eq $MAX_RETRIES ]; then
   echo "ERROR: Could not connect to database after $MAX_RETRIES attempts"
+  # 위 검사는 django.setup() 까지 돌리므로 DB 가 아니라 import 실패(패키지 누락 등)
+  # 로도 실패한다. 재시도 중에는 stderr 를 버렸으니, 마지막에 한 번 그대로 보여준다.
+  # (requirements 에 새 패키지가 들어왔는데 이미지를 다시 안 빌드하면 여기서 걸린다.)
+  echo "--- last error ---"
+  python -c "
+import django, os
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings.development')
+django.setup()
+from django.db import connection
+connection.ensure_connection()
+" 2>&1 | tail -15
   exit 1
 fi
 
