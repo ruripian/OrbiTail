@@ -64,4 +64,10 @@ export default tseslint.config(
     files: ["*.config.{ts,js}"],
     rules: { "@typescript-eslint/no-require-imports": "off" },
   },
+  {
+    /* 협업 서버는 Node 프로세스 — console 출력이 곧 운영 로그(docker logs)다 */
+    files: ["collab/**/*.ts"],
+    languageOptions: { globals: globals.node },
+    rules: { "no-console": "off" },
+  },
 );
