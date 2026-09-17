@@ -6,6 +6,7 @@
  * 멤버로 추가한다(멤버 명단에 남는다). 개인·프로젝트 스페이스는 여기서 다루지 않는다.
  */
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Navigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -27,12 +28,13 @@ import {
 import { DOC_SPACE_ROLE, type DocumentSpaceRole } from "@/types";
 
 const ROLE_LABEL: Record<number, string> = {
-  [DOC_SPACE_ROLE.VIEWER]: "뷰어",
-  [DOC_SPACE_ROLE.EDITOR]: "편집자",
-  [DOC_SPACE_ROLE.ADMIN]: "관리자",
+  [DOC_SPACE_ROLE.VIEWER]: "documents.spaceRole.viewer",
+  [DOC_SPACE_ROLE.EDITOR]: "documents.spaceRole.editor",
+  [DOC_SPACE_ROLE.ADMIN]: "documents.spaceRole.admin",
 };
 
 export function WorkspaceSpacesPage() {
+  const { t } = useTranslation();
   const { workspaceSlug = "" } = useParams<{ workspaceSlug: string }>();
   const qc = useQueryClient();
   const user = useAuthStore((s) => s.user);
@@ -61,12 +63,12 @@ export function WorkspaceSpacesPage() {
     mutationFn: ({ id, data }: { id: string; data: { is_private?: boolean; archived?: boolean } }) =>
       documentsApi.adminSpaces.update(workspaceSlug, id, data),
     onSuccess: invalidate,
-    onError: (e) => toast.error(apiErrorMessage(e, "변경하지 못했습니다")),
+    onError: (e) => toast.error(apiErrorMessage(e, t("workspaceSettings.projects.changeFailed"))),
   });
   const remove = useMutation({
     mutationFn: (id: string) => documentsApi.adminSpaces.remove(workspaceSlug, id),
-    onSuccess: () => { invalidate(); setDeleting(null); toast.success("스페이스를 삭제했습니다"); },
-    onError: (e) => toast.error(apiErrorMessage(e, "삭제하지 못했습니다")),
+    onSuccess: () => { invalidate(); setDeleting(null); toast.success(t("workspaceSettings.spaces.deleted")); },
+    onError: (e) => toast.error(apiErrorMessage(e, t("workspaceSettings.teams.deleteFailed"))),
   });
 
   if (!membersLoading && !isAdmin) {
@@ -76,17 +78,16 @@ export function WorkspaceSpacesPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-bold">문서 스페이스</h1>
+        <h1 className="text-xl font-bold">{t("memberDetail.spaces")}</h1>
         <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-          워크스페이스의 모든 공용 스페이스를 관리합니다. 비공개 스페이스는 관리자라도 멤버가 아니면 문서 화면에
-          보이지 않으며, 여기서도 문서 내용은 보이지 않습니다. 내용을 봐야 하면 자신을 멤버로 추가하세요.
+          {t("workspaceSettings.spaces.subtitle")}
         </p>
       </div>
 
       {isLoading || membersLoading ? (
-        <p className="text-sm text-muted-foreground py-8 text-center">불러오는 중...</p>
+        <p className="text-sm text-muted-foreground py-8 text-center">{t("common.loading")}</p>
       ) : spaces.length === 0 ? (
-        <p className="text-sm text-muted-foreground py-8 text-center">공용 스페이스가 없습니다.</p>
+        <p className="text-sm text-muted-foreground py-8 text-center">{t("workspaceSettings.spaces.empty")}</p>
       ) : (
         <div className="space-y-2">
           {spaces.map((sp) => (
@@ -101,35 +102,35 @@ export function WorkspaceSpacesPage() {
                     "text-2xs font-semibold px-1.5 py-0.5 rounded-md border shrink-0",
                     sp.is_private ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30" : "bg-muted/40",
                   )}>
-                    {sp.is_private ? "비공개" : "공개"}
+                    {sp.is_private ? t("workspaceSettings.projects.private") : t("workspaceSettings.projects.public")}
                   </span>
-                  {sp.archived_at && <span className="text-2xs text-muted-foreground">보관됨</span>}
+                  {sp.archived_at && <span className="text-2xs text-muted-foreground">{t("workspaceSettings.projects.archived")}</span>}
                   {sp.is_private && !sp.i_am_member && (
-                    <span className="text-2xs text-muted-foreground">· 나는 멤버 아님</span>
+                    <span className="text-2xs text-muted-foreground">{t("workspaceSettings.projects.notMember")}</span>
                   )}
                 </div>
                 <p className="text-2xs text-muted-foreground mt-0.5">
-                  문서 {sp.document_count} · 멤버 {sp.member_count}
-                  {sp.admins.length > 0 && <> · 관리자 {sp.admins.join(", ")}</>}
+                  {t("workspaceSettings.spaces.counts", { docs: sp.document_count, members: sp.member_count })}
+                  {sp.admins.length > 0 && <> · {t("workspaceSettings.teams.admins", { names: sp.admins.join(", ") })}</>}
                 </p>
               </div>
               <div className="flex items-center gap-1 shrink-0">
                 <button type="button" onClick={() => setManaging(sp)}
                   className="inline-flex items-center gap-1 px-2 py-1.5 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-accent">
-                  <Users className="h-3.5 w-3.5" /> 멤버
+                  <Users className="h-3.5 w-3.5" /> {t("project.settings.members.title")}
                 </button>
                 <button type="button" onClick={() => update.mutate({ id: sp.id, data: { is_private: !sp.is_private } })}
                   className="inline-flex items-center gap-1 px-2 py-1.5 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-accent">
                   {sp.is_private ? <Globe className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />}
-                  {sp.is_private ? "공개로" : "비공개로"}
+                  {sp.is_private ? t("workspaceSettings.spaces.makePublic") : t("workspaceSettings.spaces.makePrivate")}
                 </button>
                 <button type="button" onClick={() => update.mutate({ id: sp.id, data: { archived: !sp.archived_at } })}
                   className="px-2 py-1.5 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-accent">
-                  {sp.archived_at ? "보관 해제" : "보관"}
+                  {sp.archived_at ? t("workspaceSettings.projects.unarchive") : t("workspaceSettings.projects.archive")}
                 </button>
                 <button type="button" onClick={() => setDeleting(sp)}
                   className="px-2 py-1.5 rounded-md text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10">
-                  삭제
+                  {t("common.delete")}
                 </button>
               </div>
             </div>
@@ -149,9 +150,9 @@ export function WorkspaceSpacesPage() {
       <ConfirmDialog
         open={!!deleting}
         onOpenChange={(o) => { if (!o) setDeleting(null); }}
-        title={`'${deleting?.name ?? ""}' 스페이스를 삭제할까요?`}
-        description="스페이스 안의 문서가 모두 함께 지워지고 되돌릴 수 없습니다."
-        confirmLabel="삭제"
+        title={t("workspaceSettings.spaces.deleteConfirmTitle", { name: deleting?.name ?? "" })}
+        description={t("workspaceSettings.spaces.deleteConfirmDesc")}
+        confirmLabel={t("common.delete")}
         variant="destructive"
         loading={remove.isPending}
         onConfirm={() => { if (deleting) remove.mutate(deleting.id); }}
@@ -166,6 +167,7 @@ function SpaceMembersDialog({ workspaceSlug, space, wsMembers, onClose }: {
   wsMembers: Parameters<typeof membersToUsers>[0];
   onClose: () => void;
 }) {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const key = ["admin-space-members", workspaceSlug, space.id];
   const { data: members = [] } = useQuery({
@@ -173,7 +175,7 @@ function SpaceMembersDialog({ workspaceSlug, space, wsMembers, onClose }: {
     queryFn: () => documentsApi.adminSpaces.members.list(workspaceSlug, space.id),
   });
   const refresh = () => qc.invalidateQueries({ queryKey: key });
-  const onError = (e: unknown) => toast.error(apiErrorMessage(e, "처리하지 못했습니다"));
+  const onError = (e: unknown) => toast.error(apiErrorMessage(e, t("workspaceSettings.projects.actionFailed")));
 
   const add = useMutation({
     mutationFn: ({ userId, role }: { userId: string; role: DocumentSpaceRole }) =>
@@ -197,25 +199,25 @@ function SpaceMembersDialog({ workspaceSlug, space, wsMembers, onClose }: {
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent className="sm:max-w-[520px]">
         <DialogHeader>
-          <DialogTitle>{space.name} · 멤버</DialogTitle>
+          <DialogTitle>{space.name} · {t("project.settings.members.title")}</DialogTitle>
         </DialogHeader>
         <div className="space-y-2">
           <UserPicker
             users={candidates}
             value={[]}
             mode="single"
-            placeholder="워크스페이스 멤버를 추가"
+            placeholder={t("workspaceSettings.projects.addMemberPlaceholder")}
             onChange={(ids) => ids[0] && add.mutate({ userId: ids[0], role: DOC_SPACE_ROLE.EDITOR })}
           />
-          <p className="text-2xs text-muted-foreground">추가하면 편집자로 시작합니다.</p>
+          <p className="text-2xs text-muted-foreground">{t("workspaceSettings.spaces.addHint")}</p>
         </div>
         <div className="max-h-80 overflow-y-auto rounded-md border divide-y">
-          {members.length === 0 && <p className="p-4 text-xs text-muted-foreground">멤버 없음</p>}
+          {members.length === 0 && <p className="p-4 text-xs text-muted-foreground">{t("workspaceSettings.projects.noMembers")}</p>}
           {members.map((m) => (
             <div key={m.id} className="flex items-center gap-3 px-3 py-2">
               <AvatarInitials name={m.member_detail.display_name || m.member_detail.email} avatar={m.member_detail.avatar} size="sm" />
               <div className="flex-1 min-w-0">
-                <div className="text-sm truncate">{m.member_detail.display_name || "(이름 없음)"}</div>
+                <div className="text-sm truncate">{m.member_detail.display_name || t("workspaceSettings.projects.noName")}</div>
                 <div className="text-2xs text-muted-foreground truncate">{m.member_detail.email}</div>
               </div>
               <Select value={String(m.role)} onValueChange={(v) => setRole.mutate({ userId: m.member, role: Number(v) as DocumentSpaceRole })}>
@@ -226,14 +228,14 @@ function SpaceMembersDialog({ workspaceSlug, space, wsMembers, onClose }: {
                   ))}
                 </SelectContent>
               </Select>
-              <button onClick={() => remove.mutate(m.member)} className="p-1 text-muted-foreground hover:text-destructive" title="스페이스에서 제거">
+              <button onClick={() => remove.mutate(m.member)} className="p-1 text-muted-foreground hover:text-destructive" title={t("workspaceSettings.spaces.removeFromSpace")}>
                 <X className="h-3.5 w-3.5" />
               </button>
             </div>
           ))}
         </div>
         <div className="flex justify-end">
-          <Button onClick={onClose}>닫기</Button>
+          <Button onClick={onClose}>{t("common.close")}</Button>
         </div>
       </DialogContent>
     </Dialog>

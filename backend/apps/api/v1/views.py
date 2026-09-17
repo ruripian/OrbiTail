@@ -72,10 +72,10 @@ class ProjectMixin:
 
     def get_project(self, project_id):
         if not UUID_RE.match(str(project_id)):
-            raise NotFound("프로젝트를 찾을 수 없습니다.")
+            raise NotFound("Project not found.")
         project = self.readable_projects().filter(pk=project_id).first()
         if project is None:
-            raise NotFound("프로젝트를 찾을 수 없습니다.")
+            raise NotFound("Project not found.")
         return project
 
 
@@ -157,15 +157,15 @@ class IssueMixin(ProjectMixin):
                 if m else None
             )
         if issue is None:
-            raise NotFound("이슈를 찾을 수 없습니다.")
+            raise NotFound("Issue not found.")
         return issue
 
     def require_perm(self, project, perm_key):
         pm = ProjectMember.objects.filter(project=project, member=self.request.user).first()
         if pm is None:
-            raise PermissionDenied("프로젝트 멤버만 할 수 있습니다.")
+            raise PermissionDenied("Only a project member can do this.")
         if not pm.effective_perms.get(perm_key, False):
-            raise PermissionDenied(f"이 작업에 대한 권한이 없습니다. ({perm_key})")
+            raise PermissionDenied(f"You do not have permission for this action. ({perm_key})")
 
     def resolve_relations(self, project, data, instance=None):
         """id 로 받은 관계 값을 실제 객체로. 전부 같은 프로젝트 소속이어야 한다."""
@@ -194,13 +194,13 @@ class IssueMixin(ProjectMixin):
             else:
                 parent = Issue.objects.filter(pk=parent_id, project=project, deleted_at__isnull=True).first()
                 if parent is None:
-                    raise ValidationError({"parent": "이 프로젝트의 이슈가 아닙니다."})
+                    raise ValidationError({"parent": "That issue does not belong to this project."})
                 if instance is not None:
                     # 자기 자신이나 자손 밑으로 넣으면 트리가 고리가 된다
                     cur, seen = parent, set()
                     while cur is not None and cur.pk not in seen:
                         if cur.pk == instance.pk:
-                            raise ValidationError({"parent": "자기 자신이나 하위 이슈 밑으로 옮길 수 없습니다."})
+                            raise ValidationError({"parent": "It cannot be moved under itself or one of its own sub-issues."})
                         seen.add(cur.pk)
                         cur = cur.parent
                 resolved["parent"] = parent
@@ -209,7 +209,7 @@ class IssueMixin(ProjectMixin):
             ids = set(data["labels"])
             labels = list(Label.objects.filter(pk__in=ids, project=project))
             if len(labels) != len(ids):
-                raise ValidationError({"labels": "이 프로젝트의 라벨이 아닌 것이 있습니다."})
+                raise ValidationError({"labels": "Some labels do not belong to this project."})
             resolved["labels"] = labels
 
         if "assignees" in data:
@@ -220,7 +220,7 @@ class IssueMixin(ProjectMixin):
                 workspace_memberships__role__gte=WorkspaceMember.Role.MEMBER,
             ).distinct())
             if len(users) != len(ids):
-                raise ValidationError({"assignees": "이 워크스페이스의 멤버가 아닌 사용자가 있습니다."})
+                raise ValidationError({"assignees": "Some users are not members of this workspace."})
             resolved["assignees"] = users
         return resolved
 
@@ -258,7 +258,7 @@ class IssueListView(IssueMixin, PublicApiView):
                               ("sprint", "sprint_id")):
             if p.get(param):
                 if not UUID_RE.match(p[param]):
-                    raise ValidationError({param: "id 형식이 아닙니다."})
+                    raise ValidationError({param: "Not a valid id."})
                 qs = qs.filter(**{lookup: p[param]})
         if p.get("state_group"):
             qs = qs.filter(state__group=p["state_group"])
@@ -270,18 +270,18 @@ class IssueListView(IssueMixin, PublicApiView):
             elif UUID_RE.match(p["assignee"]):
                 qs = qs.filter(assignees=p["assignee"])
             else:
-                raise ValidationError({"assignee": "사용자 id 또는 me 여야 합니다."})
+                raise ValidationError({"assignee": "Must be a user id or 'me'."})
         if p.get("parent"):
             if p["parent"] == "none":
                 qs = qs.filter(parent__isnull=True)
             elif UUID_RE.match(p["parent"]):
                 qs = qs.filter(parent_id=p["parent"])
             else:
-                raise ValidationError({"parent": "이슈 id 또는 none 이어야 합니다."})
+                raise ValidationError({"parent": "Must be an issue id or 'none'."})
         if p.get("updated_since"):
             since = parse_datetime(p["updated_since"])
             if since is None:
-                raise ValidationError({"updated_since": "ISO 8601 시각이어야 합니다. 예: 2026-09-15T09:00:00+09:00"})
+                raise ValidationError({"updated_since": "Must be an ISO 8601 timestamp, e.g. 2026-09-15T09:00:00+09:00"})
             if timezone.is_naive(since):
                 since = timezone.make_aware(since)
             qs = qs.filter(updated_at__gte=since)
@@ -290,7 +290,7 @@ class IssueListView(IssueMixin, PublicApiView):
 
         ordering = p.get("ordering", "-updated_at")
         if ordering not in ISSUE_ORDERINGS:
-            raise ValidationError({"ordering": f"다음 중 하나여야 합니다: {', '.join(sorted(ISSUE_ORDERINGS))}"})
+            raise ValidationError({"ordering": f"Must be one of: {', '.join(sorted(ISSUE_ORDERINGS))}"})
         ordering = ordering.replace("sequence", "sequence_id")
         # 같은 시각이 겹쳐도 페이지 경계에서 빠지거나 두 번 나오지 않게 id 로 한 번 더 정렬한다
         qs = qs.distinct().order_by(ordering, "id")
@@ -303,9 +303,9 @@ class IssueListView(IssueMixin, PublicApiView):
         ser.is_valid(raise_exception=True)
         data = ser.validated_data
         if not data.get("project"):
-            raise ValidationError({"project": "필수입니다."})
+            raise ValidationError({"project": "This field is required."})
         if not data.get("title"):
-            raise ValidationError({"title": "필수입니다."})
+            raise ValidationError({"title": "This field is required."})
 
         project = self.get_project(data["project"])
         self.require_perm(project, "can_edit")
@@ -343,7 +343,7 @@ class IssueDetailView(IssueMixin, PublicApiView):
         ser.is_valid(raise_exception=True)
         data = ser.validated_data
         if "project" in data and str(data["project"]) != str(issue.project_id):
-            raise ValidationError({"project": "이슈를 다른 프로젝트로 옮길 수 없습니다."})
+            raise ValidationError({"project": "An issue cannot be moved to a different project."})
         rel = self.resolve_relations(issue.project, data, instance=issue)
 
         before = _issue_field_snapshot(issue)
@@ -402,7 +402,7 @@ class IssueCommentListView(IssueMixin, PublicApiView):
         if ser.validated_data.get("parent"):
             parent = IssueComment.objects.filter(pk=ser.validated_data["parent"], issue=issue).first()
             if parent is None:
-                raise ValidationError({"parent": "이 이슈의 댓글이 아닙니다."})
+                raise ValidationError({"parent": "That comment does not belong to this issue."})
             # 답글은 1단계만 — 답글에 단 답글은 같은 부모 밑으로
             parent = parent.parent or parent
         comment = IssueComment.objects.create(
@@ -423,24 +423,24 @@ class DocumentMixin:
     def get_space(self, space_id):
         space = self.accessible_spaces().filter(pk=space_id).first() if UUID_RE.match(str(space_id)) else None
         if space is None:
-            raise NotFound("스페이스를 찾을 수 없습니다.")
+            raise NotFound("Space not found.")
         return space
 
     def require_edit(self, space):
         if not _check_space_edit(self.request.user, space):
-            raise PermissionDenied("이 스페이스의 편집 권한이 없습니다.")
+            raise PermissionDenied("You do not have edit permission for this space.")
 
     def resolve_parent(self, space, parent_id, moving=None):
         if parent_id is None:
             return None
         parent = Document.objects.filter(pk=parent_id, space=space, deleted_at__isnull=True).first()
         if parent is None:
-            raise ValidationError({"parent": "이 스페이스의 문서가 아닙니다."})
+            raise ValidationError({"parent": "That document does not belong to this space."})
         if moving is not None:
             cur, seen = parent, set()
             while cur is not None and cur.pk not in seen:
                 if cur.pk == moving.pk:
-                    raise ValidationError({"parent": "자기 자신이나 하위 문서 밑으로 옮길 수 없습니다."})
+                    raise ValidationError({"parent": "It cannot be moved under itself or one of its own sub-documents."})
                 seen.add(cur.pk)
                 cur = cur.parent
         return parent
@@ -463,7 +463,7 @@ class DocumentMixin:
                 .first()
             )
         if doc is None:
-            raise NotFound("문서를 찾을 수 없습니다.")
+            raise NotFound("Document not found.")
         return doc
 
 
@@ -486,7 +486,7 @@ class SpaceDocumentListView(DocumentMixin, PublicApiView):
         if request.query_params.get("updated_since"):
             since = parse_datetime(request.query_params["updated_since"])
             if since is None:
-                raise ValidationError({"updated_since": "ISO 8601 시각이어야 합니다."})
+                raise ValidationError({"updated_since": "Must be an ISO 8601 timestamp."})
             if timezone.is_naive(since):
                 since = timezone.make_aware(since)
             qs = qs.filter(updated_at__gte=since)
@@ -501,7 +501,7 @@ class SpaceDocumentListView(DocumentMixin, PublicApiView):
         ser.is_valid(raise_exception=True)
         data = ser.validated_data
         if data.get("is_folder") and data.get("content"):
-            raise ValidationError({"content": "폴더에는 본문을 넣을 수 없습니다."})
+            raise ValidationError({"content": "A folder cannot have body content."})
 
         # 새 문서는 아직 아무도 열지 않았으므로 DB 에 바로 쓴다. 처음 여는 순간 협업 서버가 이 HTML 로 시작한다.
         doc = Document.objects.create(
@@ -574,7 +574,7 @@ class _DocumentContentWrite(DocumentMixin, PublicApiView):
         doc = self.get_document(doc_id)
         self.require_edit(doc.space)
         if doc.is_folder:
-            raise ValidationError({"content": "폴더에는 본문이 없습니다."})
+            raise ValidationError({"content": "A folder has no body content."})
         ser = s.DocumentContentSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         try:

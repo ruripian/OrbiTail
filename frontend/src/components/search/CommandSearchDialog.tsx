@@ -278,7 +278,7 @@ export function CommandSearchDialog({ open, onOpenChange, documentMode = false }
             <span>esc {t("search.close")}</span>
             <span className="opacity-60">
               {documentMode
-                ? "title:회의 · tag:정책 · space:기획"
+                ? t("search.docSyntaxHint")
                 : "priority:high · status:backlog · assignee:me"}
             </span>
           </div>

@@ -331,7 +331,7 @@ export function IssueDetailPage({ issueIdOverride, workspaceSlugOverride, projec
               onClose?.();
             }}
             className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground mb-4 transition-colors"
-            title={`${project.name} 프로젝트로 이동`}
+            title={t("issues.detail.goToProject", { name: project.name })}
           >
             <ChevronLeft className="h-3.5 w-3.5" />
             <span className="truncate max-w-[16rem]">{project.name}</span>
@@ -625,13 +625,13 @@ export function IssueDetailPage({ issueIdOverride, workspaceSlugOverride, projec
  */
 /* 그래프 뷰와 동일한 2종만 사용 — 사용자 노출 타입은 "연결(relates_to)", "의존(blocks)".
    기존에 저장된 blocked_by/duplicates/references/shared_label 은 표시만 fallback 으로 처리. */
-const LINK_TYPE_LABEL: Record<string, string> = {
-  relates_to: "연결",
-  blocks: "의존",
-  blocked_by: "블록됨",
-  duplicates: "중복",
-  references: "참조",
-  shared_label: "같은 라벨",
+const LINK_TYPE_LABEL_KEY: Record<string, string> = {
+  relates_to: "issues.linkType.relatesTo",
+  blocks: "issues.linkType.blocks",
+  blocked_by: "issues.linkType.blockedBy",
+  duplicates: "issues.linkType.duplicates",
+  references: "issues.linkType.references",
+  shared_label: "issues.linkType.sharedLabel",
 };
 
 type NodeLinkType = "relates_to" | "blocks";
@@ -736,7 +736,7 @@ function NodeLinksPane({
         const targetLabel = isOutgoing ? nl.target_title : nl.source_title;
         const seq = isOutgoing ? nl.target_sequence_id : nl.source_sequence_id;
         const pid = isOutgoing ? nl.target_project_identifier : nl.source_project_identifier;
-        const typeLabel = LINK_TYPE_LABEL[nl.link_type] ?? nl.link_type;
+        const typeLabel = LINK_TYPE_LABEL_KEY[nl.link_type] ? t(LINK_TYPE_LABEL_KEY[nl.link_type]) : nl.link_type;
         return (
           <div
             key={nl.id}
@@ -801,7 +801,7 @@ function NodeLinksPane({
                     : "border-border text-muted-foreground hover:bg-muted/50"
                 )}
               >
-                {LINK_TYPE_LABEL[k]}
+                {t(LINK_TYPE_LABEL_KEY[k])}
               </button>
             ))}
           </div>

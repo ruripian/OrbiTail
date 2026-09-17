@@ -148,9 +148,9 @@ def _get_checked_document(request, kwargs, *, edit=False, doc_key="doc_pk", incl
         filters["deleted_at__isnull"] = True
     doc = Document.objects.select_related("space", "space__workspace", "space__project").filter(**filters).first()
     if doc is None or not _check_space_access(request.user, doc.space):
-        raise NotFound("문서를 찾을 수 없습니다.")
+        raise NotFound("Document not found.")
     if edit and not _check_space_edit(request.user, doc.space):
-        raise PermissionDenied("편집 권한이 없습니다.")
+        raise PermissionDenied("You do not have edit permission.")
     return doc
 
 
@@ -458,7 +458,7 @@ class _WorkspaceSpaceAdminMixin:
         if ws is None:
             raise NotFound()
         if not _is_workspace_admin(request.user, ws):
-            raise PermissionDenied("워크스페이스 관리자만 할 수 있습니다.")
+            raise PermissionDenied("Only a workspace administrator can do this.")
         return ws
 
     def _get_managed_space(self, request, workspace_slug, pk):
@@ -581,7 +581,7 @@ class DocumentListCreateView(generics.ListCreateAPIView):
         space = get_object_or_404(DocumentSpace, pk=self.kwargs["space_pk"], workspace__slug=self.kwargs["workspace_slug"])
         if not _check_space_edit(self.request.user, space):
             from rest_framework.exceptions import PermissionDenied
-            raise PermissionDenied("편집 권한이 없습니다.")
+            raise PermissionDenied("You do not have edit permission.")
         serializer.save(space=space, created_by=self.request.user)
 
 
@@ -631,7 +631,7 @@ class DocumentDetailView(generics.RetrieveUpdateDestroyAPIView):
     def update(self, request, *args, **kwargs):
         doc = self.get_object()
         if not _check_space_edit(request.user, doc.space):
-            return Response({"detail": "편집 권한이 없습니다."}, status=status.HTTP_403_FORBIDDEN)
+            return Response({"detail": "You do not have edit permission."}, status=status.HTTP_403_FORBIDDEN)
         # 표의 칸은 폴더에만 의미가 있다. 문서에 붙이면 아무도 읽지 않는 값이 되어 혼란만 남는다.
         if "db_columns" in request.data and request.data.get("db_columns") is not None and not doc.is_folder:
             return Response({"detail": "표의 칸은 폴더에만 지정할 수 있습니다."},
@@ -651,7 +651,7 @@ class DocumentDetailView(generics.RetrieveUpdateDestroyAPIView):
         """소프트 삭제 — 하위 문서 포함"""
         if not _check_space_edit(self.request.user, instance.space):
             from rest_framework.exceptions import PermissionDenied
-            raise PermissionDenied("편집 권한이 없습니다.")
+            raise PermissionDenied("You do not have edit permission.")
         now = timezone.now()
         actor = self.request.user if self.request.user.is_authenticated else None
         instance.deleted_at = now
@@ -684,7 +684,7 @@ class DocumentTrashView(APIView):
     def get(self, request, workspace_slug, space_pk):
         space = self._get_space(request, workspace_slug, space_pk)
         if not _check_space_edit(request.user, space):
-            return Response({"detail": "편집 권한이 없습니다."}, status=status.HTTP_403_FORBIDDEN)
+            return Response({"detail": "You do not have edit permission."}, status=status.HTTP_403_FORBIDDEN)
         qs = (
             Document.objects.filter(space=space, deleted_at__isnull=False)
             .select_related("created_by", "deleted_by")
@@ -698,7 +698,7 @@ class DocumentTrashView(APIView):
         부모가 아직 삭제 상태면 트리에서 길을 잃으므로 루트로 올린다."""
         space = self._get_space(request, workspace_slug, space_pk)
         if not _check_space_edit(request.user, space):
-            return Response({"detail": "편집 권한이 없습니다."}, status=status.HTTP_403_FORBIDDEN)
+            return Response({"detail": "You do not have edit permission."}, status=status.HTTP_403_FORBIDDEN)
         ids = request.data.get("ids") or []
         docs = Document.objects.filter(space=space, id__in=ids, deleted_at__isnull=False)
         restored = 0
@@ -738,7 +738,7 @@ class DocumentBulkMoveView(APIView):
     def post(self, request, workspace_slug, space_pk):
         space = get_object_or_404(DocumentSpace, pk=space_pk, workspace__slug=workspace_slug)
         if not _check_space_edit(request.user, space):
-            return Response({"detail": "편집 권한이 없습니다."}, status=status.HTTP_403_FORBIDDEN)
+            return Response({"detail": "You do not have edit permission."}, status=status.HTTP_403_FORBIDDEN)
 
         ids = request.data.get("ids") or []
         parent_id = request.data.get("parent")  # None 이면 최상위
@@ -807,7 +807,7 @@ class TrashedDocumentDetailView(APIView):
     def get(self, request, workspace_slug, space_pk, pk):
         space = get_object_or_404(DocumentSpace, pk=space_pk, workspace__slug=workspace_slug)
         if not _check_space_edit(request.user, space):
-            return Response({"detail": "편집 권한이 없습니다."}, status=status.HTTP_403_FORBIDDEN)
+            return Response({"detail": "You do not have edit permission."}, status=status.HTTP_403_FORBIDDEN)
         doc = get_object_or_404(
             Document.objects.select_related("created_by", "deleted_by"),
             pk=pk, space=space, deleted_at__isnull=False,
@@ -873,7 +873,7 @@ class DocumentIssueLinkListCreateView(_DocumentScopedMixin, generics.ListCreateA
         # 같은 워크스페이스의, 요청자가 읽을 수 있는 이슈만 — 응답에 이슈 제목·상태가 실린다
         if issue.workspace_id != doc.space.workspace_id or not Issue.objects.filter(pk=issue.pk).filter(
                 _issue_read_q(self.request.user)).exists():
-            raise ValidationError({"issue": "연결할 이슈를 찾을 수 없습니다."})
+            raise ValidationError({"issue": "The issue to link was not found."})
         serializer.save(document=doc)
 
 
@@ -1179,7 +1179,7 @@ class SpaceImportView(APIView):
 
         space = get_object_or_404(DocumentSpace, pk=space_pk, workspace__slug=workspace_slug)
         if not _check_space_edit(request.user, space):
-            return Response({"detail": "편집 권한이 없습니다."}, status=status.HTTP_403_FORBIDDEN)
+            return Response({"detail": "You do not have edit permission."}, status=status.HTTP_403_FORBIDDEN)
 
         upload = request.FILES.get("file")
         if not upload:
@@ -1777,7 +1777,7 @@ class CommentThreadListCreateView(_DocumentScopedMixin, generics.ListCreateAPIVi
         initial = serializer.validated_data.pop("initial_content", "").strip()
         if not initial:
             from rest_framework.exceptions import ValidationError
-            raise ValidationError({"initial_content": "첫 댓글 내용이 필요합니다."})
+            raise ValidationError({"initial_content": "The first comment needs content."})
         _get_checked_document(self.request, self.kwargs)
         thread = serializer.save(
             document_id=self.kwargs["doc_pk"],
@@ -1809,10 +1809,10 @@ class CommentThreadDetailView(_DocumentScopedMixin, generics.RetrieveDestroyAPIV
         if instance.created_by_id is None:
             if not _check_space_edit(self.request.user, instance.document.space):
                 from rest_framework.exceptions import PermissionDenied
-                raise PermissionDenied("편집 권한이 필요합니다.")
+                raise PermissionDenied("Edit permission is required.")
         elif instance.created_by_id != self.request.user.id:
             from rest_framework.exceptions import PermissionDenied
-            raise PermissionDenied("자신이 생성한 스레드만 삭제할 수 있습니다.")
+            raise PermissionDenied("You can only delete threads you created.")
         tid = str(instance.id)
         doc_id = str(instance.document_id)
         instance.delete()
@@ -1836,7 +1836,7 @@ class CommentThreadReplyView(_DocumentScopedMixin, generics.CreateAPIView):
         )
         if thread.resolved:
             from rest_framework.exceptions import ValidationError
-            raise ValidationError("해결된 스레드에는 답글을 달 수 없습니다. 먼저 재개해주세요.")
+            raise ValidationError("You cannot reply to a resolved thread. Reopen it first.")
         serializer.save(
             document_id=self.kwargs["doc_pk"],
             thread=thread,
@@ -1886,7 +1886,7 @@ class DocumentAttachmentListCreateView(_DocumentScopedMixin, generics.ListCreate
         uploaded_file = self.request.FILES.get("file")
         if not uploaded_file:
             from rest_framework.exceptions import ValidationError
-            raise ValidationError({"file": "파일이 필요합니다."})
+            raise ValidationError({"file": "A file is required."})
         serializer.save(
             document=doc,
             uploaded_by=self.request.user,
@@ -2036,12 +2036,12 @@ class DocumentTemplateListCreateView(generics.ListCreateAPIView):
             # 내장 템플릿은 슈퍼유저만
             if not self.request.user.is_superuser:
                 from rest_framework.exceptions import PermissionDenied
-                raise PermissionDenied("내장 템플릿은 관리자만 생성할 수 있습니다.")
+                raise PermissionDenied("Only an administrator can create a built-in template.")
             serializer.save(scope=DocumentTemplate.Scope.BUILT_IN, workspace=None, owner=None, created_by=self.request.user)
         elif requested_scope == DocumentTemplate.Scope.WORKSPACE:
             if not self._is_admin(ws):
                 from rest_framework.exceptions import PermissionDenied
-                raise PermissionDenied("워크스페이스 공유 템플릿은 관리자/오너만 생성할 수 있습니다.")
+                raise PermissionDenied("Only an administrator or owner can create a workspace-shared template.")
             serializer.save(scope=DocumentTemplate.Scope.WORKSPACE, workspace=ws, owner=None, created_by=self.request.user)
         elif requested_scope == DocumentTemplate.Scope.SPACE:
             space = get_object_or_404(
@@ -2049,7 +2049,7 @@ class DocumentTemplateListCreateView(generics.ListCreateAPIView):
             )
             if not _check_space_edit(self.request.user, space):
                 from rest_framework.exceptions import PermissionDenied
-                raise PermissionDenied("이 스페이스에 템플릿을 만들 권한이 없습니다.")
+                raise PermissionDenied("You do not have permission to create a template in this space.")
             serializer.save(
                 scope=DocumentTemplate.Scope.SPACE, workspace=ws, owner=None,
                 space=space, created_by=self.request.user,
@@ -2091,18 +2091,18 @@ class DocumentTemplateDetailView(generics.RetrieveDestroyAPIView):
         user = self.request.user
         if instance.scope == DocumentTemplate.Scope.BUILT_IN:
             if not user.is_superuser:
-                raise PermissionDenied("내장 템플릿은 관리자만 삭제할 수 있습니다.")
+                raise PermissionDenied("Only an administrator can delete a built-in template.")
         elif instance.scope == DocumentTemplate.Scope.WORKSPACE:
             is_admin = WorkspaceMember.objects.filter(
                 workspace=instance.workspace, member=user,
                 role__in=[WorkspaceMember.Role.OWNER, WorkspaceMember.Role.ADMIN],
             ).exists()
             if not is_admin:
-                raise PermissionDenied("워크스페이스 템플릿 삭제 권한이 없습니다.")
+                raise PermissionDenied("You do not have permission to delete workspace templates.")
         elif instance.scope == DocumentTemplate.Scope.SPACE:
             if not instance.space or not _check_space_edit(user, instance.space):
-                raise PermissionDenied("이 스페이스의 템플릿을 삭제할 권한이 없습니다.")
+                raise PermissionDenied("You do not have permission to delete templates in this space.")
         else:
             if instance.owner_id != user.id:
-                raise PermissionDenied("본인 소유 템플릿만 삭제할 수 있습니다.")
+                raise PermissionDenied("You can only delete templates you own.")
         instance.delete()

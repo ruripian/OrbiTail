@@ -6,6 +6,7 @@
  * (활동 기록에 남는다). 휴지통의 복구·영구 삭제는 보관함 화면이 맡는다.
  */
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Link, Navigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -25,9 +26,15 @@ import {
 } from "@/components/ui/select";
 import { useWorkspaceAdmin } from "./useWorkspaceAdmin";
 
-export const PROJECT_ROLE_LABEL: Record<number, string> = { 10: "뷰어", 15: "멤버", 20: "관리자" };
+/* 역할 번호 → i18n 키. 문구가 아니라 키를 담아 화면에서 t() 로 푼다. */
+export const PROJECT_ROLE_KEY: Record<number, string> = {
+  10: "project.settings.members.role.viewer",
+  15: "project.settings.members.role.member",
+  20: "project.settings.members.role.admin",
+};
 
 export function WorkspaceProjectsManagePage() {
+  const { t } = useTranslation();
   const { workspaceSlug = "" } = useParams<{ workspaceSlug: string }>();
   const qc = useQueryClient();
   const { isAdmin, isLoading: membersLoading, wsMembers } = useWorkspaceAdmin(workspaceSlug);
@@ -50,12 +57,12 @@ export function WorkspaceProjectsManagePage() {
     mutationFn: ({ id, data }: { id: string; data: { lead?: string | null; archived?: boolean } }) =>
       manageApi.projects.update(workspaceSlug, id, data),
     onSuccess: invalidate,
-    onError: (e) => toast.error(apiErrorMessage(e, "변경하지 못했습니다")),
+    onError: (e) => toast.error(apiErrorMessage(e, t("workspaceSettings.projects.changeFailed"))),
   });
   const trash = useMutation({
     mutationFn: (id: string) => manageApi.projects.trash(workspaceSlug, id),
-    onSuccess: () => { invalidate(); setTrashing(null); toast.success("휴지통으로 옮겼습니다"); },
-    onError: (e) => toast.error(apiErrorMessage(e, "옮기지 못했습니다")),
+    onSuccess: () => { invalidate(); setTrashing(null); toast.success(t("workspaceSettings.projects.trashed")); },
+    onError: (e) => toast.error(apiErrorMessage(e, t("workspaceSettings.projects.trashFailed"))),
   });
 
   if (!membersLoading && !isAdmin) {
@@ -70,22 +77,21 @@ export function WorkspaceProjectsManagePage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-bold">프로젝트</h1>
+        <h1 className="text-xl font-bold">{t("workspaceSettings.projects.title")}</h1>
         <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-          워크스페이스의 모든 프로젝트를 관리합니다. 비공개 프로젝트는 관리자라도 멤버가 아니면 프로젝트 화면에
-          보이지 않으며, 여기서도 이슈 내용은 보이지 않습니다. 내용을 봐야 하면 자신을 멤버로 추가하세요 — 활동 기록에 남습니다.
+          {t("workspaceSettings.projects.subtitle")}
         </p>
       </div>
 
       <div className="relative max-w-xs">
         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
-        <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="이름·식별자 검색" className="h-9 pl-8" />
+        <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t("workspaceSettings.projects.searchPlaceholder")} className="h-9 pl-8" />
       </div>
 
       {isLoading || membersLoading ? (
-        <p className="text-sm text-muted-foreground py-8 text-center">불러오는 중...</p>
+        <p className="text-sm text-muted-foreground py-8 text-center">{t("common.loading")}</p>
       ) : alive.length === 0 ? (
-        <p className="text-sm text-muted-foreground py-8 text-center">프로젝트가 없습니다.</p>
+        <p className="text-sm text-muted-foreground py-8 text-center">{t("workspaceSettings.projects.empty")}</p>
       ) : (
         <div className="space-y-2">
           {alive.map((p) => (
@@ -101,29 +107,29 @@ export function WorkspaceProjectsManagePage() {
                     "text-2xs font-semibold px-1.5 py-0.5 rounded-md border shrink-0",
                     p.visibility === "private" ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30" : "bg-muted/40",
                   )}>
-                    {p.visibility === "private" ? "비공개" : "공개"}
+                    {p.visibility === "private" ? t("workspaceSettings.projects.private") : t("workspaceSettings.projects.public")}
                   </span>
-                  {p.archived_at && <span className="text-2xs text-muted-foreground">보관됨</span>}
+                  {p.archived_at && <span className="text-2xs text-muted-foreground">{t("workspaceSettings.projects.archived")}</span>}
                   {p.visibility === "private" && !p.i_am_member && (
-                    <span className="text-2xs text-muted-foreground">· 나는 멤버 아님</span>
+                    <span className="text-2xs text-muted-foreground">{t("workspaceSettings.projects.notMember")}</span>
                   )}
                 </div>
                 <p className="text-2xs text-muted-foreground mt-0.5">
-                  이슈 {p.issue_count} · 멤버 {p.member_count} · 리드 {p.lead ? (p.lead.display_name || p.lead.email) : "없음"}
+                  {t("workspaceSettings.projects.counts", { issues: p.issue_count, members: p.member_count, lead: p.lead ? (p.lead.display_name || p.lead.email) : t("workspaceSettings.projects.noLead") })}
                 </p>
               </div>
               <div className="flex items-center gap-1 shrink-0">
                 <button type="button" onClick={() => setManaging(p)}
                   className="inline-flex items-center gap-1 px-2 py-1.5 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-accent">
-                  <Users className="h-3.5 w-3.5" /> 멤버·리드
+                  <Users className="h-3.5 w-3.5" /> {t("workspaceSettings.projects.membersAndLead")}
                 </button>
                 <button type="button" onClick={() => update.mutate({ id: p.id, data: { archived: !p.archived_at } })}
                   className="px-2 py-1.5 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-accent">
-                  {p.archived_at ? "보관 해제" : "보관"}
+                  {p.archived_at ? t("workspaceSettings.projects.unarchive") : t("workspaceSettings.projects.archive")}
                 </button>
                 <button type="button" onClick={() => setTrashing(p)}
                   className="px-2 py-1.5 rounded-md text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10">
-                  삭제
+                  {t("common.delete")}
                 </button>
               </div>
             </div>
@@ -133,8 +139,8 @@ export function WorkspaceProjectsManagePage() {
 
       {trashedCount > 0 && (
         <p className="text-xs text-muted-foreground">
-          휴지통에 프로젝트 {trashedCount}개가 있습니다 ·{" "}
-          <Link to={`/${workspaceSlug}/workspace-settings/archived`} className="underline hover:text-foreground">보관함에서 복구·영구 삭제</Link>
+          {t("workspaceSettings.projects.trashNotice", { count: trashedCount })} ·{" "}
+          <Link to={`/${workspaceSlug}/workspace-settings/archived`} className="underline hover:text-foreground">{t("workspaceSettings.projects.trashLink")}</Link>
         </p>
       )}
 
@@ -151,9 +157,9 @@ export function WorkspaceProjectsManagePage() {
       <ConfirmDialog
         open={!!trashing}
         onOpenChange={(o) => { if (!o) setTrashing(null); }}
-        title={`'${trashing?.name ?? ""}' 프로젝트를 휴지통으로 옮길까요?`}
-        description="30일 동안 보관함의 휴지통에서 복구할 수 있고, 지나면 이슈·문서와 함께 영구 삭제됩니다."
-        confirmLabel="휴지통으로"
+        title={t("workspaceSettings.projects.trashConfirmTitle", { name: trashing?.name ?? "" })}
+        description={t("workspaceSettings.projects.trashConfirmDesc")}
+        confirmLabel={t("workspaceSettings.projects.trashConfirmLabel")}
         variant="destructive"
         loading={trash.isPending}
         onConfirm={() => { if (trashing) trash.mutate(trashing.id); }}
@@ -169,6 +175,7 @@ function ProjectMembersDialog({ workspaceSlug, project, wsMembers, onLeadChange,
   onLeadChange: (lead: string | null) => void;
   onClose: () => void;
 }) {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const key = ["manage-project-members", workspaceSlug, project.id];
   const { data: members = [] } = useQuery({
@@ -179,7 +186,7 @@ function ProjectMembersDialog({ workspaceSlug, project, wsMembers, onLeadChange,
     qc.invalidateQueries({ queryKey: key });
     qc.invalidateQueries({ queryKey: ["manage-projects", workspaceSlug] });
   };
-  const onError = (e: unknown) => toast.error(apiErrorMessage(e, "처리하지 못했습니다"));
+  const onError = (e: unknown) => toast.error(apiErrorMessage(e, t("workspaceSettings.projects.actionFailed")));
 
   const add = useMutation({
     mutationFn: (userId: string) => manageApi.projects.members.add(workspaceSlug, project.id, userId, 15),
@@ -202,20 +209,20 @@ function ProjectMembersDialog({ workspaceSlug, project, wsMembers, onLeadChange,
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent className="sm:max-w-[520px]">
         <DialogHeader>
-          <DialogTitle>{project.name} · 멤버</DialogTitle>
+          <DialogTitle>{project.name} · {t("project.settings.members.title")}</DialogTitle>
         </DialogHeader>
         <div className="space-y-2">
           <UserPicker
             users={candidates}
             value={[]}
             mode="single"
-            placeholder="워크스페이스 멤버를 추가"
+            placeholder={t("workspaceSettings.projects.addMemberPlaceholder")}
             onChange={(ids) => ids[0] && add.mutate(ids[0])}
           />
-          <p className="text-2xs text-muted-foreground">추가하면 멤버로 시작합니다. 리드는 관리자 역할을 함께 받습니다.</p>
+          <p className="text-2xs text-muted-foreground">{t("workspaceSettings.projects.addMemberHint")}</p>
         </div>
         <div className="max-h-80 overflow-y-auto rounded-md border divide-y">
-          {members.length === 0 && <p className="p-4 text-xs text-muted-foreground">멤버 없음</p>}
+          {members.length === 0 && <p className="p-4 text-xs text-muted-foreground">{t("workspaceSettings.projects.noMembers")}</p>}
           {members.map((m) => {
             const isLead = project.lead?.id === m.user.id;
             return (
@@ -223,24 +230,24 @@ function ProjectMembersDialog({ workspaceSlug, project, wsMembers, onLeadChange,
                 <AvatarInitials name={m.user.display_name || m.user.email} avatar={m.user.avatar} size="sm" />
                 <div className="flex-1 min-w-0">
                   <div className="text-sm truncate">
-                    {m.user.display_name || "(이름 없음)"}
-                    {isLead && <span className="ml-1.5 text-2xs font-semibold text-primary">리드</span>}
+                    {m.user.display_name || t("workspaceSettings.projects.noName")}
+                    {isLead && <span className="ml-1.5 text-2xs font-semibold text-primary">{t("workspaceSettings.projects.lead")}</span>}
                   </div>
                   <div className="text-2xs text-muted-foreground truncate">{m.user.email}</div>
                 </div>
                 <button type="button" onClick={() => onLeadChange(isLead ? null : m.user.id)}
                   className="px-1.5 py-1 rounded-md text-2xs text-muted-foreground hover:text-foreground hover:bg-accent">
-                  {isLead ? "리드 해제" : "리드로"}
+                  {isLead ? t("workspaceSettings.projects.unsetLead") : t("workspaceSettings.projects.setLead")}
                 </button>
                 <Select value={String(m.role)} onValueChange={(v) => setRole.mutate({ userId: m.user.id, role: Number(v) })}>
                   <SelectTrigger className="h-8 w-24 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {Object.entries(PROJECT_ROLE_LABEL).map(([value, label]) => (
-                      <SelectItem key={value} value={value}>{label}</SelectItem>
+                    {Object.entries(PROJECT_ROLE_KEY).map(([value, key]) => (
+                      <SelectItem key={value} value={value}>{t(key)}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                <button onClick={() => remove.mutate(m.user.id)} className="p-1 text-muted-foreground hover:text-destructive" title="프로젝트에서 제거">
+                <button onClick={() => remove.mutate(m.user.id)} className="p-1 text-muted-foreground hover:text-destructive" title={t("workspaceSettings.projects.removeFromProject")}>
                   <X className="h-3.5 w-3.5" />
                 </button>
               </div>
@@ -248,7 +255,7 @@ function ProjectMembersDialog({ workspaceSlug, project, wsMembers, onLeadChange,
           })}
         </div>
         <div className="flex justify-end">
-          <Button onClick={onClose}>닫기</Button>
+          <Button onClick={onClose}>{t("common.close")}</Button>
         </div>
       </DialogContent>
     </Dialog>

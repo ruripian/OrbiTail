@@ -6,7 +6,7 @@ from .models import ApiToken
 class TokenScopePermission(BasePermission):
     """read 토큰은 읽기만, write 토큰은 읽기·쓰기."""
 
-    message = "이 토큰에는 쓰기 권한이 없습니다."
+    message = "This token does not have write permission."
 
     def has_permission(self, request, view):
         token = request.auth

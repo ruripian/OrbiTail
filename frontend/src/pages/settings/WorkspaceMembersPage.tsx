@@ -317,7 +317,7 @@ export function WorkspaceMembersPage() {
                 <div className="flex items-center gap-1.5">
                   <p className="text-sm font-medium truncate">
                     <button type="button" onClick={() => setDetailUserId(wm.member.id)}
-                      className="hover:underline text-left" title="소속·맡은 일 보기">
+                      className="hover:underline text-left" title={t("settings.workspaceMembers.viewDetails")}>
                       {wm.member.display_name}
                     </button>
                     {isMe && (

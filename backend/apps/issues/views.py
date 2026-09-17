@@ -122,7 +122,7 @@ def _get_readable_issue(request, kwargs, issue_key="issue_pk"):
         .first()
     )
     if issue is None:
-        raise NotFound("이슈를 찾을 수 없습니다.")
+        raise NotFound("Issue not found.")
     return issue
 
 
@@ -139,7 +139,7 @@ def _get_readable_project(request, workspace_slug, project_pk):
         .first()
     )
     if project is None:
-        raise NotFound("프로젝트를 찾을 수 없습니다.")
+        raise NotFound("Project not found.")
     return project
 
 
@@ -668,7 +668,7 @@ class IssueMoveView(APIView):
             pk=target_id, workspace_id=issue.workspace_id, kind=Project.Kind.NORMAL,
         ).first() if target_id else None
         if target is None:
-            return Response({"target_project": ["옮길 프로젝트를 찾을 수 없습니다."]}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"target_project": ["옮길 Project not found."]}, status=status.HTTP_400_BAD_REQUEST)
         if target.pk == issue.project_id:
             return Response({"target_project": ["이미 이 프로젝트의 이슈입니다."]}, status=status.HTTP_400_BAD_REQUEST)
         _require_perm(request.user, target.pk, "can_edit")
@@ -815,11 +815,11 @@ class IssueNodeLinkListCreateView(generics.ListCreateAPIView):
         from rest_framework.exceptions import ValidationError
         source, target = serializer.validated_data["source"], serializer.validated_data["target"]
         if str(source.project_id) != str(self.kwargs["project_pk"]):
-            raise ValidationError({"source": "주소의 프로젝트 이슈가 아닙니다."})
+            raise ValidationError({"source": "That issue does not belong to the project in the URL."})
         readable = Issue.objects.filter(pk__in=[source.pk, target.pk], deleted_at__isnull=True).filter(
             _issue_read_q(self.request.user)).values("pk").distinct().count()
         if readable != 2:
-            raise ValidationError({"target": "연결할 이슈를 찾을 수 없습니다."})
+            raise ValidationError({"target": "연결할 Issue not found."})
         serializer.save(created_by=self.request.user)
 
 
@@ -1335,7 +1335,7 @@ class IssueBulkUpdateView(APIView):
         )
 
         if issues.count() != len(issue_ids):
-            return Response({"detail": "일부 이슈를 찾을 수 없습니다."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": "일부 Issue not found."}, status=status.HTTP_400_BAD_REQUEST)
 
         if not isinstance(updates, dict) or not isinstance(issue_ids, list):
             return Response({"detail": "형식이 잘못되었습니다."}, status=status.HTTP_400_BAD_REQUEST)
@@ -1765,7 +1765,7 @@ class IssueRequestApproveView(APIView):
         try:
             project = Project.objects.select_related("workspace").get(pk=project_pk)
         except Project.DoesNotExist:
-            return Response({"detail": "프로젝트를 찾을 수 없습니다."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": "Project not found."}, status=status.HTTP_404_NOT_FOUND)
 
         if not _can_review_request(request.user, project):
             return Response(
@@ -1843,7 +1843,7 @@ class IssueRequestRejectView(APIView):
         try:
             project = Project.objects.get(pk=project_pk)
         except Project.DoesNotExist:
-            return Response({"detail": "프로젝트를 찾을 수 없습니다."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": "Project not found."}, status=status.HTTP_404_NOT_FOUND)
 
         if not _can_review_request(request.user, project):
             return Response({"detail": "요청 거절 권한이 없습니다."}, status=status.HTTP_403_FORBIDDEN)

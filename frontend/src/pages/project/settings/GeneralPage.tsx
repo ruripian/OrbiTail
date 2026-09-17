@@ -472,16 +472,6 @@ const FEATURE_DEFS: { key: ProjectFeatureKey; labelKey: string; descKey: string 
   { key: "request",   labelKey: "project.settings.features.request.label",   descKey: "project.settings.features.request.desc" },
 ];
 
-const DEFAULT_LABELS: Record<ProjectFeatureKey, [string, string]> = {
-  board:     ["보드 뷰",       "칸반 스타일로 상태별 카드 배치"],
-  calendar:  ["캘린더 뷰",     "기간/이벤트 월/주 단위 표시"],
-  timeline:  ["타임라인 뷰",   "이슈를 간트 차트로 보기"],
-  graph:     ["그래프 뷰",     "이슈 연결 관계망 시각화"],
-  sprints:   ["스프린트",      "스프린트 생성·운영 (번다운 포함)"],
-  analytics: ["통계",          "상태·우선순위·담당자별 차트"],
-  request:   ["요청",          "버그/기능 요청 접수 페이지"],
-};
-
 function FeatureToggleList({
   features,
   onToggle,
@@ -496,7 +486,6 @@ function FeatureToggleList({
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
       {FEATURE_DEFS.map(({ key, labelKey, descKey }) => {
         const isOn = features[key] !== false;
-        const [defaultLabel, defaultDesc] = DEFAULT_LABELS[key];
         return (
           <label
             key={key}
@@ -513,8 +502,8 @@ function FeatureToggleList({
               className="h-4 w-4 accent-primary cursor-pointer shrink-0"
             />
             <div className="flex-1 min-w-0">
-              <div className="text-sm font-medium">{t(labelKey, defaultLabel)}</div>
-              <div className="text-2xs text-muted-foreground mt-0.5">{t(descKey, defaultDesc)}</div>
+              <div className="text-sm font-medium">{t(labelKey)}</div>
+              <div className="text-2xs text-muted-foreground mt-0.5">{t(descKey)}</div>
             </div>
           </label>
         );

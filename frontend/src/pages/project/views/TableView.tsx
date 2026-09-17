@@ -2167,7 +2167,7 @@ function FilterDropdown({
               className="w-full flex items-center gap-1.5 px-2 py-1 text-2xs text-muted-foreground hover:text-destructive hover:bg-destructive/5 rounded-md transition-colors"
             >
               <X className="h-3 w-3" />
-              <span>선택 해제 ({count})</span>
+              <span>{t("issues.table.clearSelection", { count })}</span>
             </button>
           </>
         )}

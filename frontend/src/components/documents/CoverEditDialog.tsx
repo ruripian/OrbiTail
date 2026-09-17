@@ -8,6 +8,7 @@
  * offsetX/Y는 컨테이너 크기에 독립적인 "이미지 좌표(%)" — 다이얼로그/표시 컨테이너 너비가 달라도 같은 의미.
  */
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -44,6 +45,7 @@ export function CoverEditDialog({
   initialOffsetX = 50, initialOffsetY = 50, initialZoom = 1.0, initialHeight = 208,
   onSave, onRemove,
 }: Props) {
+  const { t } = useTranslation();
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(currentUrl ?? null);
   const [offsetX, setOffsetX] = useState(initialOffsetX);
@@ -70,14 +72,14 @@ export function CoverEditDialog({
   }, [file]);
 
   const onPickFile = (f: File) => {
-    if (f.size > MAX_FILE_SIZE) { toast.error("이미지는 10MB 이하만 가능합니다."); return; }
-    if (!f.type.startsWith("image/")) { toast.error("이미지 파일만 가능합니다."); return; }
+    if (f.size > MAX_FILE_SIZE) { toast.error(t("documents.cover.tooLarge")); return; }
+    if (!f.type.startsWith("image/")) { toast.error(t("documents.cover.notImage")); return; }
     setFile(f);
     setOffsetX(50); setOffsetY(50); setZoom(1.0);
   };
 
   const handleSave = async () => {
-    if (!previewUrl) { toast.error("이미지를 선택하세요."); return; }
+    if (!previewUrl) { toast.error(t("documents.cover.selectImage")); return; }
     setSaving(true);
     try {
       await onSave({
@@ -89,7 +91,7 @@ export function CoverEditDialog({
       });
       onOpenChange(false);
     } catch {
-      toast.error("저장 실패");
+      toast.error(t("documents.cover.saveFailed"));
     } finally {
       setSaving(false);
     }
@@ -97,7 +99,7 @@ export function CoverEditDialog({
 
   const handleRemove = async () => {
     if (!onRemove) return;
-    if (!window.confirm("커버 이미지를 제거할까요?")) return;
+    if (!window.confirm(t("documents.cover.removeConfirm"))) return;
     setSaving(true);
     try { await onRemove(); onOpenChange(false); }
     finally { setSaving(false); }
@@ -109,7 +111,7 @@ export function CoverEditDialog({
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold flex items-center gap-2">
             <ImageIcon className="h-4 w-4" />
-            커버 이미지
+            {t("documents.cover.title")}
           </h2>
         </div>
 
@@ -128,14 +130,14 @@ export function CoverEditDialog({
               className="rounded-lg"
             >
               <div className="absolute top-2 left-2 px-2 py-0.5 rounded bg-black/50 text-white text-2xs pointer-events-none">
-                드래그해서 위치 조정
+                {t("documents.cover.dragHint")}
               </div>
             </CoverView>
 
             {/* 확대 */}
             <div className="space-y-1">
               <div className="flex items-center justify-between">
-                <Label className="text-xs">확대</Label>
+                <Label className="text-xs">{t("documents.cover.zoom")}</Label>
                 <span className="text-2xs tabular-nums text-muted-foreground">{Math.round(zoom * 100)}%</span>
               </div>
               <input type="range" min={1.0} max={3.0} step={0.05} value={zoom}
@@ -145,7 +147,7 @@ export function CoverEditDialog({
             {/* 높이 — 표시 영역의 높이만 결정. 원본 이미지/이동 가능 영역과 무관. */}
             <div className="space-y-1">
               <div className="flex items-center justify-between">
-                <Label className="text-xs">높이</Label>
+                <Label className="text-xs">{t("documents.cover.height")}</Label>
                 <span className="text-2xs tabular-nums text-muted-foreground">{height}px</span>
               </div>
               <input type="range" min={HEIGHT_MIN} max={HEIGHT_MAX} step={4} value={height}
@@ -162,14 +164,14 @@ export function CoverEditDialog({
               <Button variant="ghost" size="sm" onClick={handleRemove} disabled={saving}
                 className="text-destructive hover:text-destructive hover:bg-destructive/10">
                 <Trash2 className="h-3.5 w-3.5 mr-1.5" />
-                제거
+                {t("common.remove")}
               </Button>
             )}
           </div>
           <div className="flex gap-2">
-            <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)} disabled={saving}>취소</Button>
+            <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)} disabled={saving}>{t("common.cancel")}</Button>
             <Button size="sm" onClick={handleSave} disabled={saving || !previewUrl}>
-              {saving ? "저장 중..." : "저장"}
+              {saving ? t("documents.cover.saving") : t("documents.cover.save")}
             </Button>
           </div>
         </div>
@@ -179,6 +181,7 @@ export function CoverEditDialog({
 }
 
 function FilePicker({ onFile, compact = false }: { onFile: (f: File) => void; compact?: boolean }) {
+  const { t } = useTranslation();
   const inputId = "cover-file-" + Math.random().toString(36).slice(2, 8);
   return (
     <label
@@ -191,7 +194,7 @@ function FilePicker({ onFile, compact = false }: { onFile: (f: File) => void; co
     >
       <Upload className={compact ? "h-3.5 w-3.5" : "h-6 w-6 text-muted-foreground"} />
       <span className={compact ? "" : "text-sm text-muted-foreground"}>
-        {compact ? "다른 파일 선택" : "이미지를 드래그하거나 클릭해 선택 (최대 10MB)"}
+        {compact ? t("documents.cover.pickOther") : t("documents.cover.pickHint")}
       </span>
       <input
         id={inputId}

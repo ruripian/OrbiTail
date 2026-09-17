@@ -26,7 +26,7 @@ def _sandbox_of_workspace(workspace):
 
 def _too_many(kind: str, limit: int):
     return ValidationError({
-        "detail": f"데모에서는 {kind}를 {limit}개까지만 만들 수 있습니다."
+        "detail": f"The demo allows at most {limit} {kind}."
     })
 
 
@@ -39,7 +39,7 @@ def cap_workspaces(sender, instance, **kwargs):
     if sandbox is None:
         return
     if sandbox.workspaces.count() >= settings.DEMO_MAX_WORKSPACES_PER_SANDBOX:
-        raise _too_many("워크스페이스", settings.DEMO_MAX_WORKSPACES_PER_SANDBOX)
+        raise _too_many("workspaces", settings.DEMO_MAX_WORKSPACES_PER_SANDBOX)
 
 
 def cap_issues(sender, instance, **kwargs):
@@ -51,7 +51,7 @@ def cap_issues(sender, instance, **kwargs):
     from apps.issues.models import Issue
 
     if Issue.objects.filter(workspace__demo_sandboxes=sandbox).count() >= settings.DEMO_MAX_ISSUES_PER_SANDBOX:
-        raise _too_many("이슈", settings.DEMO_MAX_ISSUES_PER_SANDBOX)
+        raise _too_many("issues", settings.DEMO_MAX_ISSUES_PER_SANDBOX)
 
 
 def cap_documents(sender, instance, **kwargs):
@@ -63,7 +63,7 @@ def cap_documents(sender, instance, **kwargs):
     from apps.documents.models import Document
 
     if Document.objects.filter(space__workspace__demo_sandboxes=sandbox).count() >= settings.DEMO_MAX_DOCUMENTS_PER_SANDBOX:
-        raise _too_many("문서", settings.DEMO_MAX_DOCUMENTS_PER_SANDBOX)
+        raise _too_many("documents", settings.DEMO_MAX_DOCUMENTS_PER_SANDBOX)
 
 
 # --- 귀속 ---------------------------------------------------------------

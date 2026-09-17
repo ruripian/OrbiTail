@@ -176,7 +176,7 @@ export function PreferencesPage() {
             <SelectContent>
               {FONT_SANS_LABELS.map((o) => (
                 <SelectItem key={o.value} value={o.value}>
-                  <span style={{ fontFamily: FONT_SANS[o.value] }}>{o.label}</span>
+                  <span style={{ fontFamily: FONT_SANS[o.value] }}>{t(o.labelKey)}</span>
                 </SelectItem>
               ))}
             </SelectContent>
@@ -195,7 +195,7 @@ export function PreferencesPage() {
             <SelectContent>
               {FONT_MONO_LABELS.map((o) => (
                 <SelectItem key={o.value} value={o.value}>
-                  {o.label}
+                  {t(o.labelKey)}
                 </SelectItem>
               ))}
             </SelectContent>

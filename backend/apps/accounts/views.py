@@ -505,9 +505,9 @@ class VerifyEmailView(APIView):
 
         auto_requested = _maybe_auto_request_join(user)
         if auto_requested:
-            detail = "이메일 인증이 완료되었습니다. 워크스페이스 관리자 승인을 기다려 주세요."
+            detail = "Your email has been verified. Please wait for a workspace administrator to approve you."
         else:
-            detail = "이메일 인증이 완료되었습니다. 로그인 후 워크스페이스에 가입 신청해 주세요."
+            detail = "Your email has been verified. Sign in and request to join a workspace."
         return Response({
             "detail": detail,
             "auto_requested_workspace": auto_requested,

@@ -17,6 +17,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -53,6 +54,7 @@ export function sendWsMessage(payload: unknown): boolean {
 }
 
 export function useWebSocket(workspaceSlug: string | undefined): WsStatus {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const navigate = useNavigate();
   const wsRef = useRef<WebSocket | null>(null);
@@ -172,11 +174,11 @@ export function useWebSocket(workspaceSlug: string | undefined): WsStatus {
           if (ntype && HIGH_PRIORITY_NOTIFICATION_TYPES.has(ntype)) {
             const issueId = typeof event.issue_id === "string" ? event.issue_id : null;
             const projectId = typeof event.project_id === "string" ? event.project_id : null;
-            const message = typeof event.message === "string" ? event.message : "새 알림";
+            const message = typeof event.message === "string" ? event.message : t("notifications.newOne");
             toast(message, {
               duration: 6000,
               action: issueId && projectId ? {
-                label: "보기",
+                label: t("notifications.view"),
                 onClick: () => useIssueDialogStore.getState().openIssue(workspaceSlug!, projectId, issueId),
               } : undefined,
             });

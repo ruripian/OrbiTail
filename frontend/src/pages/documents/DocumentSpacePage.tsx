@@ -464,7 +464,7 @@ function DocumentEditorView({
           <div className="flex items-center gap-1 mr-2">
             <div
               className="relative flex shrink-0 rounded-full overflow-hidden"
-              title={`${collab.me.name} (나)`}
+              title={`${collab.me.name} ${t("team.you")}`}
               style={{ boxShadow: `inset 0 0 0 2px ${collab.me.color}` }}
             >
               <AvatarInitials name={collab.me.name} avatar={collab.me.avatar} size="sm" />
@@ -497,10 +497,10 @@ function DocumentEditorView({
             isBookmarked && "text-amber-500 hover:text-amber-500",
           )}
           onClick={() => bookmarkMut.mutate()}
-          title={isBookmarked ? "즐겨찾기 해제" : "즐겨찾기에 추가"}
+          title={isBookmarked ? t("documents.layout.unbookmark") : t("documents.layout.bookmark")}
         >
           <Star className={cn("h-3.5 w-3.5", isBookmarked && "fill-current")} />
-          {isBookmarked ? "즐겨찾기됨" : "즐겨찾기"}
+          {isBookmarked ? t("documents.space.bookmarked") : t("documents.layout.bookmarks")}
         </Button>
 
         {/* 공유 — 공개 링크 다이얼로그 */}
@@ -569,7 +569,7 @@ function DocumentEditorView({
 
         {/* 너비 토글 — 본인 세션만 영향. 단 작성자가 토글하면 그 값이 문서의 추천 너비로 자동 저장된다. */}
         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setFullWidth(!fullWidth)}
-          title={fullWidth ? "좁게 보기" : "넓게 보기"}>
+          title={fullWidth ? t("documents.space.narrow") : t("documents.space.wide")}>
           {fullWidth ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
         </Button>
 
@@ -590,36 +590,36 @@ function DocumentEditorView({
             <DropdownMenuSub>
               <DropdownMenuSubTrigger>
                 <ALargeSmall className="h-3.5 w-3.5 mr-2" />
-                글자 크기 · 서체
+                {t("documents.space.textAndFont")}
               </DropdownMenuSubTrigger>
               <DropdownMenuSubContent className="w-64 p-2">
                 <div className="px-1 py-1 space-y-2.5">
                   <div className="flex items-center justify-between">
-                    <span className="text-2xs font-semibold text-foreground">내 화면에만 적용</span>
+                    <span className="text-2xs font-semibold text-foreground">{t("documents.space.onlyMyScreen")}</span>
                     <button
                       onClick={docPrefs.reset}
                       disabled={!docPrefs.isCustom}
                       className="text-3xs text-muted-foreground hover:text-foreground disabled:opacity-40 disabled:hover:text-muted-foreground"
                     >
-                      기본값
+                      {t("workspaceSettings.general.useDefault")}
                     </button>
                   </div>
 
                   <div>
-                    <span className="text-3xs text-muted-foreground">서체</span>
+                    <span className="text-3xs text-muted-foreground">{t("documents.space.font")}</span>
                     <select
                       value={docPrefs.font}
                       onChange={(e) => docPrefs.setFont(e.target.value as DocFontKey)}
                       className="mt-0.5 w-full h-7 rounded-md border bg-background px-1.5 text-2xs"
                     >
                       {DOC_FONT_LABELS.map((f) => (
-                        <option key={f.value} value={f.value}>{f.label}</option>
+                        <option key={f.value} value={f.value}>{t(f.labelKey)}</option>
                       ))}
                     </select>
                   </div>
 
                   {(["body", "h3", "h2", "h1"] as const).map((k) => {
-                    const labels = { body: "본문", h3: "헤더 3", h2: "헤더 2", h1: "헤더 1" } as const;
+                    const labels = { body: t("documents.space.body"), h3: t("documents.space.h3"), h2: t("documents.space.h2"), h1: t("documents.space.h1") } as const;
                     const [lo, hi] = DOC_FS_RANGE[k];
                     return (
                       <div key={k}>
@@ -673,7 +673,7 @@ function DocumentEditorView({
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => setSaveTemplateOpen(true)}>
               <FileText className="h-3.5 w-3.5 mr-2" />
-              템플릿으로 저장
+              {t("documents.templates.saveAs")}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handlePrint}>
@@ -736,7 +736,7 @@ function DocumentEditorView({
                         onClick={() => setCoverDialogOpen(true)}
                         className="h-7 px-2 rounded-md bg-background/80 backdrop-blur text-xs font-medium hover:bg-background transition-colors"
                       >
-                        커버 편집
+                        {t("documents.space.editCover")}
                       </button>
                     </div>
                   )}
@@ -752,7 +752,7 @@ function DocumentEditorView({
                   data-print-hide
                 >
                   <ImageIcon className="h-3.5 w-3.5" />
-                  커버 추가
+                  {t("documents.space.addCover")}
                 </button>
               )}
 
@@ -838,7 +838,7 @@ function DocumentEditorView({
               onFileUpload={async (file) => {
                 const maxMb = Number(import.meta.env.VITE_MAX_UPLOAD_SIZE_MB) || 10;
                 if (file.size > maxMb * 1024 * 1024) {
-                  toast.error(`파일 크기가 ${maxMb}MB를 초과해서 업로드에 실패했습니다.`);
+                  toast.error(t("documents.space.tooLarge", { max: maxMb }));
                   throw new Error("file too large");
                 }
                 try {
@@ -847,9 +847,9 @@ function DocumentEditorView({
                 } catch (e) {
                   const status = apiErrorStatus(e);
                   if (status === 413) {
-                    toast.error(`파일 크기가 ${maxMb}MB를 초과해서 업로드에 실패했습니다.`);
+                    toast.error(t("documents.space.tooLarge", { max: maxMb }));
                   } else {
-                    toast.error("파일 업로드에 실패했습니다.");
+                    toast.error(t("documents.space.uploadFailed"));
                   }
                   throw e;
                 }
@@ -1092,7 +1092,7 @@ function SpaceHome({
           e.stopPropagation();
           toggleBookmark.mutate({ id: docId, currently: isOn });
         }}
-        title={isOn ? "즐겨찾기 해제" : "즐겨찾기에 추가"}
+        title={isOn ? t("documents.layout.unbookmark") : t("documents.layout.bookmark")}
         className={cn(
           "shrink-0 h-7 w-7 rounded-md flex items-center justify-center transition-all",
           isOn
@@ -1116,7 +1116,7 @@ function SpaceHome({
             <h1 className="text-3xl font-bold flex items-center gap-2">
               {spaceName || t("documents.title")}
               {isPrivateProject && (
-                <Lock className="h-5 w-5 text-muted-foreground/60" aria-label="비공개 프로젝트" />
+                <Lock className="h-5 w-5 text-muted-foreground/60" aria-label={t("documents.layout.privateProject")} />
               )}
             </h1>
             <p className="text-sm text-muted-foreground mt-1">
@@ -1355,7 +1355,7 @@ function BacklinksPanel({ workspaceSlug, spaceId, docId }: { workspaceSlug: stri
         {hidden > 0 && (
           <p className="flex items-center gap-1 text-2xs text-muted-foreground mt-1.5">
             <EyeOff className="h-3 w-3 shrink-0" />
-            {t("documents.backlinksHidden", { n: hidden, defaultValue: "볼 수 없는 스페이스의 문서 {{n}}건" })}
+            {t("documents.backlinksHidden", { n: hidden })}
           </p>
         )}
       </div>
@@ -1632,6 +1632,7 @@ function LinkedIssuesSection({ workspaceSlug, spaceId, docId, editable, projectI
   /** 문서가 project 스페이스에 속하면 해당 프로젝트 id. personal/shared 면 null. */
   projectId: string | null;
 }) {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const [pickerOpen, setPickerOpen] = useState(false);
 
@@ -1657,7 +1658,7 @@ function LinkedIssuesSection({ workspaceSlug, spaceId, docId, editable, projectI
     <div className="mt-6 px-4 sm:px-6">
       <div className="flex items-center justify-between mb-2">
         <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          연결된 이슈 {links.length > 0 && <span className="ml-1 text-muted-foreground/60">({links.length})</span>}
+          {t("documents.space.linkedIssues")} {links.length > 0 && <span className="ml-1 text-muted-foreground/60">({links.length})</span>}
         </h3>
         {editable && (
           <button
@@ -1665,12 +1666,12 @@ function LinkedIssuesSection({ workspaceSlug, spaceId, docId, editable, projectI
             className="flex items-center gap-1 text-2xs text-primary hover:underline"
           >
             <Plus className="h-3 w-3" />
-            이슈 연결
+            {t("documents.space.linkIssue")}
           </button>
         )}
       </div>
       {links.length === 0 ? (
-        <p className="text-2xs text-muted-foreground/60">연결된 이슈가 없습니다.</p>
+        <p className="text-2xs text-muted-foreground/60">{t("documents.space.noLinkedIssues")}</p>
       ) : (
         /* 카드형 read-only 미러 — 이슈 식별자/제목 + 댓글수/첨부수/최근 댓글 시각.
            클릭 시 전역 이슈 다이얼로그(useIssueDialogStore.openIssue) 로 위임. */
@@ -1717,7 +1718,7 @@ function LinkedIssuesSection({ workspaceSlug, spaceId, docId, editable, projectI
                   <button
                     onClick={() => unlinkMut.mutate(link.issue)}
                     className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive text-2xs transition-opacity px-1"
-                    title="연결 해제"
+                    title={t("issues.detail.nodes.remove")}
                   >
                     ✕
                   </button>

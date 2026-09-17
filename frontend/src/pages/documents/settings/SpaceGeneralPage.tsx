@@ -5,6 +5,7 @@
  * 프로젝트 스페이스는 프로젝트가 원본이라 대부분 읽기 전용으로 둔다.
  */
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -25,6 +26,7 @@ import type { DocumentSpace } from "@/types";
 const NO_HOME = "__none__";
 
 export default function SpaceGeneralPage() {
+  const { t } = useTranslation();
   const { space, workspaceSlug, spaceId, isAdmin } = useSpaceSettings();
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -51,19 +53,19 @@ export default function SpaceGeneralPage() {
     mutationFn: (data: Partial<DocumentSpace>) => documentsApi.spaces.update(workspaceSlug, spaceId, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["document-spaces", workspaceSlug] });
-      toast.success("저장됨");
+      toast.success(t("documents.spaceGeneral.saved"));
     },
-    onError: (e) => toast.error(apiErrorMessage(e, "저장 실패")),
+    onError: (e) => toast.error(apiErrorMessage(e, t("documents.cover.saveFailed"))),
   });
 
   const remove = useMutation({
     mutationFn: () => documentsApi.spaces.delete(workspaceSlug, spaceId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["document-spaces", workspaceSlug] });
-      toast.success("스페이스 삭제됨");
+      toast.success(t("workspaceSettings.spaces.deleted"));
       navigate(`/${workspaceSlug}/documents`);
     },
-    onError: (e) => toast.error(apiErrorMessage(e, "삭제 실패")),
+    onError: (e) => toast.error(apiErrorMessage(e, t("sprints.deleteFailed"))),
   });
 
   const archived = !!space.archived_at;
@@ -71,15 +73,15 @@ export default function SpaceGeneralPage() {
   return (
     <div className="max-w-regular space-y-6">
       <div>
-        <h1 className="text-lg font-semibold">일반</h1>
+        <h1 className="text-lg font-semibold">{t("documents.spaceSettings.general")}</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          스페이스 이름과 표시 방식, 공개 범위를 관리합니다.
+          {t("documents.spaceGeneral.subtitle")}
         </p>
       </div>
 
       {!isAdmin && (
         <p className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-600 dark:text-amber-400">
-          읽기 전용입니다 — 스페이스 관리자만 설정을 변경할 수 있습니다.
+          {t("documents.spaceGeneral.readOnly")}
         </p>
       )}
 
@@ -87,7 +89,7 @@ export default function SpaceGeneralPage() {
         {/* 아이콘은 트리거가 정사각(48px)이라 입력창(36px)과 한 줄에 두면 높이가 어긋난다 —
             프로젝트 설정과 같이 독립 필드로 둔다 */}
         <div className="space-y-1.5">
-          <Label className="text-xs">아이콘</Label>
+          <Label className="text-xs">{t("documents.spaceGeneral.icon")}</Label>
           <div className="flex items-center gap-3">
             <ProjectIconPicker
               value={space.icon_prop}
@@ -95,21 +97,21 @@ export default function SpaceGeneralPage() {
               onChange={(next) => isAdmin && update.mutate({ icon_prop: next as unknown as Record<string, unknown> })}
             />
             <p className="text-xs text-muted-foreground">
-              클릭해서 아이콘·색을 바꾸거나 이미지를 올립니다. 선택하면 바로 저장됩니다.
+              {t("documents.spaceGeneral.iconHint")}
             </p>
           </div>
         </div>
 
         <div className="flex items-start gap-4">
           <div className="flex-1 space-y-1.5">
-            <Label className="text-xs">이름</Label>
+            <Label className="text-xs">{t("documents.templates.name")}</Label>
             <Input value={name} onChange={(e) => setName(e.target.value)} disabled={isProject || !isAdmin} />
             {isProject && (
-              <p className="text-2xs text-muted-foreground">프로젝트 스페이스 이름은 프로젝트와 동기화됩니다.</p>
+              <p className="text-2xs text-muted-foreground">{t("documents.spaceGeneral.nameSynced")}</p>
             )}
           </div>
           <div className="w-40 space-y-1.5">
-            <Label className="text-xs">식별자</Label>
+            <Label className="text-xs">{t("documents.spaceGeneral.identifier")}</Label>
             <Input
               value={identifier}
               onChange={(e) => setIdentifier(e.target.value.toUpperCase())}
@@ -120,7 +122,7 @@ export default function SpaceGeneralPage() {
         </div>
 
         <div className="space-y-1.5">
-          <Label className="text-xs">설명</Label>
+          <Label className="text-xs">{t("sprints.description")}</Label>
           <textarea
             className="w-full min-h-[72px] rounded-md border bg-background px-3 py-2 text-sm outline-none focus:border-primary disabled:opacity-60"
             value={description}
@@ -135,7 +137,7 @@ export default function SpaceGeneralPage() {
             disabled={!isAdmin || update.isPending}
             onClick={() => update.mutate({ name: name.trim(), identifier: identifier.trim(), description: description.trim() })}
           >
-            {update.isPending ? "저장 중..." : "저장"}
+            {update.isPending ? t("documents.templates.saving") : t("documents.templates.save")}
           </Button>
         </div>
       </section>
@@ -143,9 +145,9 @@ export default function SpaceGeneralPage() {
       {/* 홈 문서 — 스페이스 홈 맨 위에 고정해 보여 줄 개요 페이지 */}
       <section className="rounded-xl border bg-card p-5 space-y-3">
         <div>
-          <h2 className="text-sm font-semibold">홈 문서</h2>
+          <h2 className="text-sm font-semibold">{t("documents.spaceGeneral.homeDoc")}</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            지정하면 스페이스 홈 맨 위에 고정됩니다. 문서를 삭제하면 자동으로 해제됩니다.
+            {t("documents.spaceGeneral.homeDocHint")}
           </p>
         </div>
         <Select
@@ -154,10 +156,10 @@ export default function SpaceGeneralPage() {
           onValueChange={(v) => update.mutate({ home_document: v === NO_HOME ? null : v })}
         >
           <SelectTrigger className="h-9 max-w-sm text-sm">
-            <SelectValue placeholder="선택 안 함" />
+            <SelectValue placeholder={t("documents.spaceGeneral.none")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={NO_HOME}>선택 안 함</SelectItem>
+            <SelectItem value={NO_HOME}>{t("documents.spaceGeneral.none")}</SelectItem>
             {docs.filter((d) => !d.is_folder).map((d) => (
               <SelectItem key={d.id} value={d.id}>{d.title}</SelectItem>
             ))}
@@ -168,12 +170,12 @@ export default function SpaceGeneralPage() {
       {/* 공개 범위 — 공용 스페이스에서만 의미가 있다.
           프로젝트 스페이스는 프로젝트 network 를, 개인 스페이스는 owner 를 따른다. */}
       <section className="rounded-xl border bg-card p-5 space-y-3">
-        <h2 className="text-sm font-semibold">공개 범위</h2>
+        <h2 className="text-sm font-semibold">{t("request.visibility")}</h2>
         {isShared ? (
           <div className="space-y-2">
             {[
-              { value: false, icon: Globe, title: "공개", desc: "워크스페이스 멤버 누구나 찾아 들어와 편집할 수 있습니다." },
-              { value: true, icon: Lock, title: "비공개", desc: "멤버로 추가된 사람만 접근할 수 있습니다." },
+              { value: false, icon: Globe, title: t("workspaceSettings.projects.public"), desc: t("documents.spaceGeneral.publicDesc") },
+              { value: true, icon: Lock, title: t("workspaceSettings.projects.private"), desc: t("documents.spaceGeneral.privateDesc") },
             ].map(({ value, icon: Icon, title, desc }) => (
               <button
                 key={title}
@@ -194,8 +196,8 @@ export default function SpaceGeneralPage() {
         ) : (
           <p className="text-xs text-muted-foreground">
             {isProject
-              ? "프로젝트 스페이스는 연결된 프로젝트의 공개 설정을 따릅니다."
-              : "개인 스페이스는 본인만 접근할 수 있습니다."}
+              ? t("documents.spaceGeneral.followsProject")
+              : t("documents.spaceGeneral.personalOnly")}
           </p>
         )}
       </section>
@@ -203,13 +205,13 @@ export default function SpaceGeneralPage() {
       {/* 보관 / 삭제 */}
       {!isProject && (
         <section className="rounded-xl border border-destructive/30 bg-destructive/5 p-5 space-y-4">
-          <h2 className="text-sm font-semibold text-destructive">보관 및 삭제</h2>
+          <h2 className="text-sm font-semibold text-destructive">{t("documents.spaceGeneral.dangerZone")}</h2>
 
           <div className="flex items-center justify-between gap-4">
             <div>
-              <p className="text-sm font-medium">{archived ? "보관됨" : "스페이스 보관"}</p>
+              <p className="text-sm font-medium">{archived ? t("workspaceSettings.projects.archived") : t("documents.spaceGeneral.archiveSpace")}</p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                보관하면 목록에서 감춰지지만 문서는 그대로 남습니다. 언제든 되돌릴 수 있습니다.
+                {t("documents.spaceGeneral.archiveHint")}
               </p>
             </div>
             <Button
@@ -217,15 +219,15 @@ export default function SpaceGeneralPage() {
               onClick={() => update.mutate({ archived_at: archived ? null : new Date().toISOString() })}
             >
               {archived ? <ArchiveRestore className="h-3.5 w-3.5 mr-1.5" /> : <Archive className="h-3.5 w-3.5 mr-1.5" />}
-              {archived ? "보관 해제" : "보관"}
+              {archived ? t("workspaceSettings.projects.unarchive") : t("workspaceSettings.projects.archive")}
             </Button>
           </div>
 
           <div className="flex items-center justify-between gap-4 border-t border-destructive/20 pt-4">
             <div>
-              <p className="text-sm font-medium">스페이스 삭제</p>
+              <p className="text-sm font-medium">{t("documents.spaceGeneral.deleteSpace")}</p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                안의 모든 문서가 함께 삭제됩니다. 되돌릴 수 없습니다.
+                {t("documents.spaceGeneral.deleteHint")}
               </p>
             </div>
             <Button
@@ -233,11 +235,11 @@ export default function SpaceGeneralPage() {
               className="text-destructive hover:text-destructive hover:bg-destructive/10"
               disabled={!isAdmin || remove.isPending}
               onClick={() => {
-                if (window.confirm(`"${space.name}" 스페이스와 안의 모든 문서를 영구 삭제할까요?`)) remove.mutate();
+                if (window.confirm(t("documents.spaceGeneral.deleteConfirm", { name: space.name }))) remove.mutate();
               }}
             >
               <Trash2 className="h-3.5 w-3.5 mr-1.5" />
-              삭제
+              {t("common.delete")}
             </Button>
           </div>
         </section>

@@ -123,7 +123,7 @@ export function WorkspaceSettingsLayout() {
               }
             >
               <FolderKanban className="h-4 w-4 shrink-0" />
-              프로젝트
+              {t("workspaceSettings.projects.title")}
             </NavLink>
 
             {/* 문서 스페이스 — 비공개 포함 전체 공용 스페이스 관리. 문서 화면에서는 관리자에게도 숨긴다 */}
@@ -139,7 +139,7 @@ export function WorkspaceSettingsLayout() {
               }
             >
               <FolderLock className="h-4 w-4 shrink-0" />
-              문서 스페이스
+              {t("memberDetail.spaces")}
             </NavLink>
 
             {/* 팀 — 전체 팀 목록과 삭제 */}
@@ -155,7 +155,7 @@ export function WorkspaceSettingsLayout() {
               }
             >
               <Users className="h-4 w-4 shrink-0" />
-              팀
+              {t("sidebar.teams")}
             </NavLink>
 
             {/* 웹훅 — 워크스페이스의 일을 밖으로 내보내는 설정이라 관리자 전용 */}
@@ -187,7 +187,7 @@ export function WorkspaceSettingsLayout() {
               }
             >
               <History className="h-4 w-4 shrink-0" />
-              활동 기록
+              {t("workspaceSettings.activity.title")}
             </NavLink>
 
             {/* 사용량 — 규모·첨부 용량·주인 없는 개인 스페이스 */}
@@ -203,7 +203,7 @@ export function WorkspaceSettingsLayout() {
               }
             >
               <HardDrive className="h-4 w-4 shrink-0" />
-              사용량
+              {t("workspaceSettings.usage.title")}
             </NavLink>
           </>
         )}

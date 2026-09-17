@@ -13,12 +13,13 @@ export const GROUP_ORDER: StateGroup[] = [
   "backlog", "unstarted", "started", "completed", "cancelled",
 ];
 
-export const GROUP_LABEL: Record<StateGroup, string> = {
-  backlog: "백로그",
-  unstarted: "할 일",
-  started: "진행 중",
-  completed: "완료",
-  cancelled: "취소",
+/* 문구가 아니라 i18n 키 — 이 모듈은 컴포넌트가 아니라 훅을 못 쓴다. */
+export const GROUP_LABEL_KEY: Record<StateGroup, string> = {
+  backlog: "issues.stateGroup.backlog",
+  unstarted: "issues.stateGroup.unstarted",
+  started: "issues.stateGroup.started",
+  completed: "issues.stateGroup.completed",
+  cancelled: "issues.stateGroup.cancelled",
 };
 
 /** 분포 막대 색 — 상태 색은 프로젝트마다 달라서 그룹 단위 고정색을 쓴다 */
@@ -64,5 +65,6 @@ export function sprintMetrics(issues: Issue[], stateMap: Map<string, State>): Sp
   };
 }
 
-/** "3건" */
-export const formatCount = (value: number) => `${value}건`;
+/** "3 issues" — 호출부에서 t 를 넘긴다. */
+export const formatCount = (value: number, t: (k: string, o?: Record<string, unknown>) => string) =>
+  t("issues.countIssues", { count: value });

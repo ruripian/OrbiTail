@@ -524,8 +524,10 @@ export const ImageGallerySchema = Node.create({
 });
 
 /* ── 이슈 뷰 임베드 ── */
+/* 이 라벨은 화면 문구가 아니라 renderHTML 이 문서 HTML 에 굽는 대체 텍스트다.
+   저장되는 내용이므로 사용자 언어에 따라 달라지면 안 된다 — 영어로 고정한다. */
 const EMBED_VIEW_LABELS: Record<string, string> = {
-  board: "보드", table: "테이블", calendar: "캘린더",
+  board: "board", table: "table", calendar: "calendar",
 };
 
 export const IssueViewEmbedSchema = Node.create({
@@ -549,7 +551,7 @@ export const IssueViewEmbedSchema = Node.create({
       "data-project-id": node.attrs.projectId,
       "data-view-mode": node.attrs.viewMode,
       "data-filters": JSON.stringify(node.attrs.filters || {}),
-    }), `[이슈 ${EMBED_VIEW_LABELS[node.attrs.viewMode as string] ?? "뷰"} 임베드]`];
+    }), `[embedded issue ${EMBED_VIEW_LABELS[node.attrs.viewMode as string] ?? "view"}]`];
   },
 });
 

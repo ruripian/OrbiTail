@@ -10,6 +10,7 @@
  * 멘션 노드의 라벨은 display_name 그대로 사용.
  */
 import { forwardRef, useEffect, useImperativeHandle, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { AvatarInitials } from "@/components/ui/avatar-initials";
 import { cn } from "@/lib/utils";
 
@@ -32,6 +33,7 @@ export interface MentionListHandle {
 }
 
 export const MentionList = forwardRef<MentionListHandle, Props>(({ items, command }, ref) => {
+  const { t } = useTranslation();
   const [selected, setSelected] = useState(0);
 
   /* 결과가 바뀌면 첫 항목으로 리셋 — query 가 좁혀질 때 selection 이 out-of-range 되는 것 방지 */
@@ -64,7 +66,7 @@ export const MentionList = forwardRef<MentionListHandle, Props>(({ items, comman
   return (
     <div className="rounded-lg border bg-popover shadow-lg p-1 min-w-[220px] max-h-[260px] overflow-y-auto">
       {items.length === 0 ? (
-        <div className="px-3 py-2 text-xs text-muted-foreground">결과 없음</div>
+        <div className="px-3 py-2 text-xs text-muted-foreground">{t("editor.noResults")}</div>
       ) : (
         items.map((item, idx) => (
           <button

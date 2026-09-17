@@ -3,6 +3,7 @@
  * 개인 스페이스는 내용을 보지 않고 목록만 — 영구 삭제는 슈퍼유저 콘솔이 맡는다.
  */
 import { Link, Navigate, useParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 
 import { manageApi } from "@/api/manage";
@@ -18,9 +19,9 @@ export function formatBytes(bytes: number) {
 }
 
 const ORPHAN_REASON: Record<string, string> = {
-  owner_missing: "주인 계정 없음",
-  owner_inactive: "탈퇴·비활성 계정",
-  owner_left: "워크스페이스를 떠남",
+  owner_missing: "workspaceSettings.usage.reason.ownerMissing",
+  owner_inactive: "workspaceSettings.usage.reason.ownerInactive",
+  owner_left: "workspaceSettings.usage.reason.ownerLeft",
 };
 
 function Stat({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
@@ -34,6 +35,7 @@ function Stat({ label, value, sub }: { label: string; value: string | number; su
 }
 
 export function WorkspaceUsagePage() {
+  const { t } = useTranslation();
   const { workspaceSlug = "" } = useParams<{ workspaceSlug: string }>();
   const { isAdmin, isLoading: membersLoading } = useWorkspaceAdmin(workspaceSlug);
   const { data, isLoading } = useQuery({
@@ -49,46 +51,46 @@ export function WorkspaceUsagePage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-bold">사용량</h1>
-        <p className="text-xs text-muted-foreground mt-1">워크스페이스의 규모와 첨부 파일 용량, 정리할 항목입니다.</p>
+        <h1 className="text-xl font-bold">{t("workspaceSettings.usage.title")}</h1>
+        <p className="text-xs text-muted-foreground mt-1">{t("workspaceSettings.usage.subtitle")}</p>
       </div>
 
       {isLoading || membersLoading || !data ? (
-        <p className="text-sm text-muted-foreground py-8 text-center">불러오는 중...</p>
+        <p className="text-sm text-muted-foreground py-8 text-center">{t("common.loading")}</p>
       ) : (
         <>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-            <Stat label="멤버" value={data.members} />
-            <Stat label="팀" value={data.teams} />
-            <Stat label="프로젝트" value={data.projects} sub={`보관 ${data.projects_archived} · 휴지통 ${data.projects_trashed}`} />
-            <Stat label="이슈" value={data.issues} sub={`휴지통 ${data.issues_trashed}`} />
-            <Stat label="공용 스페이스" value={data.spaces} />
-            <Stat label="문서" value={data.documents} sub={`휴지통 ${data.documents_trashed}`} />
+            <Stat label={t("workspaceSettings.usage.members")} value={data.members} />
+            <Stat label={t("sidebar.teams")} value={data.teams} />
+            <Stat label={t("workspaceSettings.projects.title")} value={data.projects} sub={t("workspaceSettings.usage.projectSub", { archived: data.projects_archived, trashed: data.projects_trashed })} />
+            <Stat label={t("workspaceSettings.usage.issues")} value={data.issues} sub={t("workspaceSettings.usage.trashedSub", { count: data.issues_trashed })} />
+            <Stat label={t("workspaceSettings.usage.sharedSpaces")} value={data.spaces} />
+            <Stat label={t("workspaceSettings.usage.documents")} value={data.documents} sub={t("workspaceSettings.usage.trashedSub", { count: data.documents_trashed })} />
           </div>
 
           <section className="space-y-2">
-            <h2 className="text-sm font-semibold">첨부 파일</h2>
+            <h2 className="text-sm font-semibold">{t("workspaceSettings.usage.attachments")}</h2>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              <Stat label="합계"
+              <Stat label={t("workspaceSettings.usage.total")}
                 value={formatBytes(data.storage.issue_attachments.bytes + data.storage.document_attachments.bytes)}
-                sub={`${data.storage.issue_attachments.count + data.storage.document_attachments.count}개`} />
-              <Stat label="이슈 첨부" value={formatBytes(data.storage.issue_attachments.bytes)} sub={`${data.storage.issue_attachments.count}개`} />
-              <Stat label="문서 첨부" value={formatBytes(data.storage.document_attachments.bytes)} sub={`${data.storage.document_attachments.count}개`} />
+                sub={t("workspaceSettings.usage.fileCount", { count: data.storage.issue_attachments.count + data.storage.document_attachments.count })} />
+              <Stat label={t("admin.overview.storageIssues")} value={formatBytes(data.storage.issue_attachments.bytes)} sub={t("workspaceSettings.usage.fileCount", { count: data.storage.issue_attachments.count })} />
+              <Stat label={t("admin.overview.storageDocuments")} value={formatBytes(data.storage.document_attachments.bytes)} sub={t("workspaceSettings.usage.fileCount", { count: data.storage.document_attachments.count })} />
             </div>
           </section>
 
           <section className="space-y-2">
-            <h2 className="text-sm font-semibold">주인 없는 개인 스페이스</h2>
+            <h2 className="text-sm font-semibold">{t("workspaceSettings.usage.orphanTitle")}</h2>
             <p className="text-2xs text-muted-foreground">
-              탈퇴했거나 워크스페이스를 떠난 사람의 개인 스페이스입니다. 개인 공간이라 내용은 보이지 않습니다.
+              {t("workspaceSettings.usage.orphanDesc")}
               {data.can_delete_orphans ? (
-                <> 영구 삭제는 <Link to={`/admin/workspaces/${workspaceSlug}/spaces`} className="underline hover:text-foreground">관리자 콘솔</Link>에서 할 수 있습니다.</>
+                <> {t("workspaceSettings.usage.purgeVia")} <Link to={`/admin/workspaces/${workspaceSlug}/spaces`} className="underline hover:text-foreground">{t("workspaceSettings.usage.adminConsole")}</Link>.</>
               ) : (
-                <> 영구 삭제는 시스템 관리자에게 요청하세요.</>
+                <> {t("workspaceSettings.usage.askAdmin")}</>
               )}
             </p>
             {data.orphan_personal_spaces.length === 0 ? (
-              <p className="text-xs text-muted-foreground rounded-lg border bg-background p-3">정리할 스페이스가 없습니다.</p>
+              <p className="text-xs text-muted-foreground rounded-lg border bg-background p-3">{t("workspaceSettings.usage.orphanEmpty")}</p>
             ) : (
               <div className="rounded-lg border divide-y bg-background">
                 {data.orphan_personal_spaces.map((s) => (
@@ -96,7 +98,7 @@ export function WorkspaceUsagePage() {
                     <span className="font-medium truncate">{s.name}</span>
                     <span className="text-2xs text-muted-foreground">{s.owner_email ?? "—"}</span>
                     <span className="ml-auto text-2xs text-muted-foreground">
-                      {ORPHAN_REASON[s.reason] ?? s.reason} · 문서 {s.document_count}
+                      {ORPHAN_REASON[s.reason] ? t(ORPHAN_REASON[s.reason]) : s.reason} · {t("workspaceSettings.usage.docCount", { count: s.document_count })}
                     </span>
                   </div>
                 ))}

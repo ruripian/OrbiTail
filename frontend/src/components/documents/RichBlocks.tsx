@@ -4,6 +4,7 @@
  * 둘 다 atom 노드 (NodeViewProps로 attrs 관리). content_html에 직렬화돼 영구 저장.
  */
 import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react";
+import { useTranslation } from "react-i18next";
 import { useRef, useState } from "react";
 import { Link2, Loader2, ExternalLink, X, Plus, Image as ImageIcon, GripVertical, Columns2, Columns3, Columns4 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -18,6 +19,7 @@ import { safeUrl } from "@/lib/safe-url";
 interface BookmarkAttrs { url: string; title?: string; description?: string; image?: string; }
 
 export function BookmarkCardView({ node, updateAttributes }: NodeViewProps) {
+  const { t } = useTranslation();
   const a = node.attrs as BookmarkAttrs;
   const [editing, setEditing] = useState(!a.url);
   const [draft, setDraft] = useState(a.url);
@@ -45,7 +47,7 @@ export function BookmarkCardView({ node, updateAttributes }: NodeViewProps) {
       <NodeViewWrapper as="div" className="my-3 rounded-lg border border-dashed bg-muted/20 p-4" contentEditable={false}>
         <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
           <Link2 className="h-3.5 w-3.5" />
-          북마크 URL
+          {t("documents.blocks.bookmarkUrl")}
         </div>
         <div className="flex gap-2">
           <input
@@ -61,7 +63,7 @@ export function BookmarkCardView({ node, updateAttributes }: NodeViewProps) {
             disabled={!draft.trim()}
             className="h-8 px-3 text-xs rounded-md bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50"
           >
-            추가
+            {t("documents.blocks.add")}
           </button>
         </div>
       </NodeViewWrapper>
@@ -95,7 +97,7 @@ export function BookmarkCardView({ node, updateAttributes }: NodeViewProps) {
           onClick={(e) => { e.preventDefault(); setEditing(true); setDraft(a.url); }}
           className="text-2xs text-muted-foreground hover:text-foreground px-2"
         >
-          편집
+          {t("documents.blocks.edit")}
         </button>
       </a>
     </NodeViewWrapper>
@@ -115,6 +117,7 @@ interface GalleryItem { url: string; alt?: string; }
 interface GalleryAttrs { items: GalleryItem[]; columns: 2 | 3 | 4; }
 
 export function ImageGalleryView({ node, updateAttributes, editor }: NodeViewProps) {
+  const { t } = useTranslation();
   const a = node.attrs as GalleryAttrs;
   const items = a.items ?? [];
   const cols = a.columns ?? 3;
@@ -166,7 +169,7 @@ export function ImageGalleryView({ node, updateAttributes, editor }: NodeViewPro
       {editable && (
         <div className="flex items-center gap-1.5 px-3 py-2 border-b bg-muted/20">
           <ImageIcon className="h-3.5 w-3.5 text-muted-foreground" />
-          <span className="text-xs font-medium">이미지 갤러리</span>
+          <span className="text-xs font-medium">{t("documents.blocks.gallery")}</span>
           <span className="text-2xs text-muted-foreground">({items.length})</span>
           <div className="flex-1" />
           <div className="flex items-center rounded-md border bg-background p-0.5">
@@ -178,7 +181,7 @@ export function ImageGalleryView({ node, updateAttributes, editor }: NodeViewPro
                   "h-6 w-7 flex items-center justify-center rounded transition-colors",
                   cols === c ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground",
                 )}
-                title={`${c}열`}
+                title={t("documents.blocks.columns", { count: c })}
               >
                 {c === 2 ? <Columns2 className="h-3 w-3" /> : c === 3 ? <Columns3 className="h-3 w-3" /> : <Columns4 className="h-3 w-3" />}
               </button>
@@ -190,7 +193,7 @@ export function ImageGalleryView({ node, updateAttributes, editor }: NodeViewPro
             className="flex items-center gap-1 h-7 px-2 text-2xs rounded-md bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50"
           >
             {uploading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
-            이미지 추가
+            {t("documents.blocks.addImage")}
           </button>
           <input
             ref={inputRef} type="file" accept="image/*" multiple className="hidden"
@@ -205,7 +208,7 @@ export function ImageGalleryView({ node, updateAttributes, editor }: NodeViewPro
           onDragOver={(e) => { if (editable) { e.preventDefault(); } }}
           onDrop={(e) => { if (editable) { e.preventDefault(); handleFiles(e.dataTransfer.files); } }}
         >
-          {editable ? "이미지를 드래그하거나 위 + 버튼으로 추가" : "이미지 없음"}
+          {editable ? t("documents.blocks.galleryHint") : t("documents.blocks.galleryEmpty")}
         </div>
       ) : (
         <div className={cn("grid gap-2 p-2", gridCols)}>
@@ -215,11 +218,11 @@ export function ImageGalleryView({ node, updateAttributes, editor }: NodeViewPro
               {editable && (
                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100">
                   <button onClick={() => moveAt(i, -1)} disabled={i === 0}
-                    className="h-6 w-6 rounded bg-background/90 text-foreground text-xs disabled:opacity-30" title="앞으로">←</button>
+                    className="h-6 w-6 rounded bg-background/90 text-foreground text-xs disabled:opacity-30" title={t("documents.blocks.moveForward")}>←</button>
                   <button onClick={() => moveAt(i, 1)} disabled={i === items.length - 1}
-                    className="h-6 w-6 rounded bg-background/90 text-foreground text-xs disabled:opacity-30" title="뒤로">→</button>
+                    className="h-6 w-6 rounded bg-background/90 text-foreground text-xs disabled:opacity-30" title={t("documents.blocks.moveBack")}>→</button>
                   <button onClick={() => removeAt(i)}
-                    className="h-6 w-6 rounded bg-background/90 text-destructive flex items-center justify-center" title="제거">
+                    className="h-6 w-6 rounded bg-background/90 text-destructive flex items-center justify-center" title={t("common.remove")}>
                     <X className="h-3 w-3" />
                   </button>
                 </div>

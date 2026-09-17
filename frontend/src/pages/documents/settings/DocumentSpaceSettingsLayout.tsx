@@ -5,6 +5,7 @@
  * 탭마다 같은 쿼리를 반복하지 않기 위함.
  */
 import { NavLink, Outlet, useParams, useNavigate, useOutletContext } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Settings, Users, FolderOpen, Link2, Loader2 } from "lucide-react";
 import { documentsApi } from "@/api/documents";
@@ -13,10 +14,10 @@ import { cn } from "@/lib/utils";
 import { DOC_SPACE_ROLE, type DocumentSpace, type DocumentSpaceRole } from "@/types";
 
 const TABS = [
-  { to: "general",     label: "일반",   icon: Settings },
-  { to: "members",     label: "멤버",   icon: Users },
-  { to: "content",     label: "콘텐츠", icon: FolderOpen },
-  { to: "integration", label: "연동",   icon: Link2 },
+  { to: "general",     labelKey: "documents.spaceSettings.general",     icon: Settings },
+  { to: "members",     labelKey: "documents.spaceSettings.members",     icon: Users },
+  { to: "content",     labelKey: "documents.spaceSettings.content",     icon: FolderOpen },
+  { to: "integration", labelKey: "documents.spaceSettings.integration", icon: Link2 },
 ];
 
 export interface SpaceSettingsContext {
@@ -33,6 +34,7 @@ export function useSpaceSettings() {
 }
 
 export default function DocumentSpaceSettingsLayout() {
+  const { t } = useTranslation();
   const { workspaceSlug, spaceId } = useParams<{ workspaceSlug: string; spaceId: string }>();
   const navigate = useNavigate();
   const userId = useAuthStore((s) => s.user?.id);
@@ -78,12 +80,12 @@ export default function DocumentSpaceSettingsLayout() {
           className="flex items-center gap-2 px-2 py-1.5 mb-2 text-xs text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="h-3.5 w-3.5" />
-          스페이스로
+          {t("documents.spaceSettings.backToSpace")}
         </button>
         <p className="px-2 mb-3 text-2xs font-semibold uppercase tracking-widest text-muted-foreground">
           {space.name}
         </p>
-        {TABS.map(({ to, label, icon: Icon }) => (
+        {TABS.map(({ to, labelKey, icon: Icon }) => (
           <NavLink
             key={to}
             to={`${base}/${to}`}
@@ -97,7 +99,7 @@ export default function DocumentSpaceSettingsLayout() {
             }
           >
             <Icon className="h-4 w-4 shrink-0" />
-            {label}
+            {t(labelKey)}
           </NavLink>
         ))}
       </aside>

@@ -109,20 +109,20 @@ export default function DocumentExplorerPage() {
             value={labelFilter}
             onChange={setLabelFilter}
             allowCreate={false}
-            triggerLabel={labelFilter.length > 0 ? `라벨 ${labelFilter.length}` : "라벨"}
+            triggerLabel={labelFilter.length > 0 ? t("documents.explorerBar.labelCount", { count: labelFilter.length }) : t("documents.labelPicker.trigger")}
           />
           {labelFilter.length > 0 && (
             <button
               onClick={() => setLabelFilter([])}
               className="text-2xs text-muted-foreground hover:text-destructive"
             >
-              해제
+              {t("documents.explorerBar.clearFilter")}
             </button>
           )}
         </div>
 
         {clipboard.length > 0 && (
-          <span className="text-2xs text-muted-foreground">잘라낸 항목 {clipboard.length}개</span>
+          <span className="text-2xs text-muted-foreground">{t("documents.explorerBar.cutCount", { count: clipboard.length })}</span>
         )}
 
         {/* 분할 — 두 폴더를 나란히 열어 서로 끌어다 옮긴다 */}
@@ -130,11 +130,11 @@ export default function DocumentExplorerPage() {
           variant={split ? "secondary" : "ghost"}
           size="sm"
           className="h-8 text-xs gap-1.5"
-          title={split ? "분할 해제" : "화면 분할"}
+          title={split ? t("documents.explorerBar.unsplit") : t("documents.explorerBar.split")}
           onClick={() => { setSplit((v) => !v); setActivePanel(0); }}
         >
           {split ? <Square className="h-3.5 w-3.5" /> : <Columns2 className="h-3.5 w-3.5" />}
-          {split ? "단일" : "분할"}
+          {split ? t("documents.explorerBar.single") : t("documents.explorerBar.splitShort")}
         </Button>
       </div>
 

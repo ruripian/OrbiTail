@@ -549,13 +549,13 @@ function MentionView({ node }: NodeViewProps) {
       {kind === "issue" && (mentionCommentCount > 0 || mentionAttachmentCount > 0) && (
         <span className="inline-flex items-center gap-1 ml-1 text-[0.625rem] text-muted-foreground/80">
           {mentionCommentCount > 0 && (
-            <span className="inline-flex items-center gap-0.5" title={`댓글 ${mentionCommentCount}`}>
+            <span className="inline-flex items-center gap-0.5" title={t("documents.editor.commentCount", { count: mentionCommentCount })}>
               <MessageSquare className="h-2.5 w-2.5" />
               {mentionCommentCount}
             </span>
           )}
           {mentionAttachmentCount > 0 && (
-            <span className="inline-flex items-center gap-0.5" title={`첨부 ${mentionAttachmentCount}`}>
+            <span className="inline-flex items-center gap-0.5" title={t("documents.editor.attachmentCount", { count: mentionAttachmentCount })}>
               <Paperclip className="h-2.5 w-2.5" />
               {mentionAttachmentCount}
             </span>
@@ -602,19 +602,19 @@ function MentionView({ node }: NodeViewProps) {
           <span className="doc-mention-card-meta">
             {details.assignee_details?.length > 0 && (
               <span className="doc-mention-card-row">
-                <span className="doc-mention-card-k">담당자</span>
+                <span className="doc-mention-card-k">{t("documents.issueEmbed.assignee")}</span>
                 <span>{details.assignee_details.map((a) => a.display_name).join(", ")}</span>
               </span>
             )}
             {(details.start_date || details.due_date) && (
               <span className="doc-mention-card-row">
-                <span className="doc-mention-card-k">기간</span>
+                <span className="doc-mention-card-k">{t("documents.editor.period")}</span>
                 <span>{details.start_date || "?"} → {details.due_date || "?"}</span>
               </span>
             )}
             {details.state_detail?.name && (
               <span className="doc-mention-card-row">
-                <span className="doc-mention-card-k">상태</span>
+                <span className="doc-mention-card-k">{t("documents.issueEmbed.state")}</span>
                 <span style={{ color: details.state_detail.color }}>● {details.state_detail.name}</span>
               </span>
             )}
@@ -627,12 +627,12 @@ function MentionView({ node }: NodeViewProps) {
                 onClick={(e) => { e.stopPropagation(); setSubExpanded(!subExpanded); }}
               >
                 {subExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                <span>하위 이슈 {details.sub_issues_count}개</span>
+                <span>{t("documents.editor.subIssues", { count: details.sub_issues_count })}</span>
               </button>
               {subExpanded && (
                 <span className="doc-mention-card-sub-list">
                   {subIssues.length === 0 ? (
-                    <span className="doc-mention-card-sub-empty">불러오는 중...</span>
+                    <span className="doc-mention-card-sub-empty">{t("common.loading")}</span>
                   ) : subIssues.map((s) => (
                     <a key={s.id}
                       href={`/${ctx?.workspaceSlug}/projects/${ctx?.projectId}/issues?issue=${s.id}`}
@@ -661,6 +661,7 @@ function MentionView({ node }: NodeViewProps) {
 
 /* ── 이슈 카드 (block) — 이슈 정보를 테이블처럼 영구 임베드 ── */
 function IssueCardView({ node }: NodeViewProps) {
+  const { t } = useTranslation();
   const ctx = useContext(DocEditorContext);
   const id: string = node.attrs.id ?? "";
   const fallbackIdentifier: string = node.attrs.identifier ?? "";
@@ -701,7 +702,7 @@ function IssueCardView({ node }: NodeViewProps) {
       <div className="doc-issue-card-head">
         <span className="doc-issue-card-id">{identifier || "…"}</span>
         <a href={href} className="doc-issue-card-title" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => handleIssueLinkClick(e, id)}>
-          {title || "이슈"}
+          {title || t("documents.db.typeIssue")}
         </a>
         {data?.state_detail && (
           <span className="doc-issue-card-state" style={{ color: data.state_detail.color, borderColor: `${data.state_detail.color}55` }}>
@@ -713,7 +714,7 @@ function IssueCardView({ node }: NodeViewProps) {
         <div className="doc-issue-card-meta">
           {data.assignee_details?.length > 0 && (
             <div className="doc-issue-card-row">
-              <span className="doc-issue-card-k">담당자</span>
+              <span className="doc-issue-card-k">{t("documents.issueEmbed.assignee")}</span>
               <span className="doc-issue-card-assignees">
                 {data.assignee_details.map((a) => (
                   <span key={a.id} className="doc-issue-card-assignee">
@@ -726,13 +727,13 @@ function IssueCardView({ node }: NodeViewProps) {
           )}
           {(data.start_date || data.due_date) && (
             <div className="doc-issue-card-row">
-              <span className="doc-issue-card-k">기간</span>
+              <span className="doc-issue-card-k">{t("documents.editor.period")}</span>
               <span>{data.start_date || "?"} → {data.due_date || "?"}</span>
             </div>
           )}
           {data.priority && (
             <div className="doc-issue-card-row">
-              <span className="doc-issue-card-k">우선순위</span>
+              <span className="doc-issue-card-k">{t("documents.issueEmbed.priority")}</span>
               <span>{data.priority}</span>
             </div>
           )}
@@ -745,12 +746,12 @@ function IssueCardView({ node }: NodeViewProps) {
             onClick={() => setSubOpen(!subOpen)}
           >
             {subOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-            <span>하위 이슈 {data?.sub_issues_count}개</span>
+            <span>{t("documents.editor.subIssues", { count: data?.sub_issues_count })}</span>
           </button>
           {subOpen && (
             <div className="doc-issue-card-sub-list">
               {subs.length === 0 ? (
-                <div className="doc-issue-card-sub-empty">불러오는 중...</div>
+                <div className="doc-issue-card-sub-empty">{t("common.loading")}</div>
               ) : subs.map((s) => (
                 <a key={s.id}
                   href={`/${ctx?.workspaceSlug}/projects/${ctx?.projectId}/issues?issue=${s.id}`}
@@ -777,6 +778,7 @@ function IssueCardView({ node }: NodeViewProps) {
 mermaid.initialize({ startOnLoad: false, theme: "default", securityLevel: "strict" });
 
 function MermaidView({ node, updateAttributes, editor }: NodeViewProps) {
+  const { t } = useTranslation();
   const code: string = node.attrs.code ?? "";
   const [editing, setEditing] = useState(!code);
   const [draft, setDraft] = useState(code);
@@ -808,7 +810,7 @@ function MermaidView({ node, updateAttributes, editor }: NodeViewProps) {
               else { setDraft(code); setEditing(true); }
             }}
           >
-            {editing ? "렌더" : "편집"}
+            {editing ? t("documents.editor.render") : t("documents.blocks.edit")}
           </button>
         )}
       </div>
@@ -892,6 +894,7 @@ function StatusView({ node, updateAttributes, editor }: NodeViewProps) {
 
 /* ── Subpages (현재 문서의 하위 문서 자동 리스트) ── */
 function SubpagesView() {
+  const { t } = useTranslation();
   const ctx = useContext(DocEditorContext);
   const [children, setChildren] = useState<any[]>([]);
   useEffect(() => {
@@ -905,9 +908,9 @@ function SubpagesView() {
 
   return (
     <NodeViewWrapper as="div" className="doc-subpages" contentEditable={false}>
-      <div className="doc-subpages-label">하위 문서</div>
+      <div className="doc-subpages-label">{t("documents.editor.subDocs")}</div>
       {children.length === 0 ? (
-        <p className="doc-subpages-empty">하위 문서 없음</p>
+        <p className="doc-subpages-empty">{t("documents.editor.noSubDocs")}</p>
       ) : (
         <div className="doc-subpages-grid">
           {children.map((child) => (
@@ -977,45 +980,45 @@ interface Props {
 
 /* ── 슬래시 명령어 ── */
 interface SlashCmd {
-  title: string;
+  titleKey: string;
   icon: React.ElementType;
   cmd: (editor: Editor) => void;
-  category: "기본" | "리스트" | "블록" | "삽입" | "이슈";
-  description?: string;
-  keywords?: string;  // 검색 매칭 (별칭/영문)
+  category: "basic" | "list" | "block" | "insert" | "issue";
+  descKey?: string;
+  keywordsKey?: string;  // 검색 매칭 — 로케일마다 별칭이 다르다
 }
 const CMDS: SlashCmd[] = [
-  { title: "Heading 1", icon: Heading1, category: "기본", description: "큰 제목", keywords: "h1 헤더 제목", cmd: (e) => e.chain().focus().toggleHeading({ level: 1 }).run() },
-  { title: "Heading 2", icon: Heading2, category: "기본", description: "중간 제목", keywords: "h2 헤더 제목", cmd: (e) => e.chain().focus().toggleHeading({ level: 2 }).run() },
-  { title: "Heading 3", icon: Heading3, category: "기본", description: "작은 제목", keywords: "h3 헤더 제목", cmd: (e) => e.chain().focus().toggleHeading({ level: 3 }).run() },
-  { title: "Bullet List", icon: List, category: "리스트", description: "글머리 기호 목록", keywords: "bullet 목록 점", cmd: (e) => e.chain().focus().toggleBulletList().run() },
-  { title: "Numbered List", icon: ListOrdered, category: "리스트", description: "번호 매기기 목록", keywords: "numbered 번호 목록", cmd: (e) => e.chain().focus().toggleOrderedList().run() },
-  { title: "Task List", icon: ListChecks, category: "리스트", description: "체크 가능한 할 일", keywords: "task todo 할일 체크", cmd: (e) => e.chain().focus().toggleTaskList().run() },
-  { title: "Quote", icon: Quote, category: "블록", description: "인용문", keywords: "quote 인용", cmd: (e) => e.chain().focus().toggleBlockquote().run() },
-  { title: "Code Block", icon: CodeSquare, category: "블록", description: "코드 블록 (구문 강조)", keywords: "code 코드", cmd: (e) => e.chain().focus().toggleCodeBlock().run() },
-  { title: "Table", icon: TableIcon, category: "블록", description: "표 삽입 (3×3)", keywords: "table 표", cmd: (e) => e.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run() },
-  { title: "Callout", icon: Info, category: "블록", description: "강조 박스", keywords: "callout 강조", cmd: (e) => e.chain().focus().setCallout("info").run() },
-  { title: "Toggle", icon: SquareChevronDown, category: "블록", description: "접기/펼치기", keywords: "toggle 접기", cmd: (e) => e.chain().focus().setToggle().run() },
-  { title: "Divider", icon: Minus, category: "블록", description: "가로 구분선", keywords: "divider hr 구분선", cmd: (e) => e.chain().focus().setHorizontalRule().run() },
-  { title: "Status", icon: Tag, category: "블록", description: "상태 태그", keywords: "status 상태 태그", cmd: (e) => e.chain().focus().insertContent({ type: "status", attrs: { label: "Status", color: "gray" } }).run() },
-  { title: "Subpages", icon: FolderTree, category: "블록", description: "하위 문서 목록", keywords: "subpages 하위문서", cmd: (e) => e.chain().focus().insertContent({ type: "subpages" }).run() },
-  { title: "Date", icon: Calendar, category: "삽입", description: "오늘 날짜", keywords: "date 날짜", cmd: (e) => {
+  { titleKey: "editor.slash.h1.title", icon: Heading1, category: "basic", descKey: "editor.slash.h1.desc", keywordsKey: "editor.slash.h1.kw", cmd: (e) => e.chain().focus().toggleHeading({ level: 1 }).run() },
+  { titleKey: "editor.slash.h2.title", icon: Heading2, category: "basic", descKey: "editor.slash.h2.desc", keywordsKey: "editor.slash.h2.kw", cmd: (e) => e.chain().focus().toggleHeading({ level: 2 }).run() },
+  { titleKey: "editor.slash.h3.title", icon: Heading3, category: "basic", descKey: "editor.slash.h3.desc", keywordsKey: "editor.slash.h3.kw", cmd: (e) => e.chain().focus().toggleHeading({ level: 3 }).run() },
+  { titleKey: "editor.slash.bulletList.title", icon: List, category: "list", descKey: "editor.slash.bulletList.desc", keywordsKey: "editor.slash.bulletList.kw", cmd: (e) => e.chain().focus().toggleBulletList().run() },
+  { titleKey: "editor.slash.numberedList.title", icon: ListOrdered, category: "list", descKey: "editor.slash.numberedList.desc", keywordsKey: "editor.slash.numberedList.kw", cmd: (e) => e.chain().focus().toggleOrderedList().run() },
+  { titleKey: "editor.slash.taskList.title", icon: ListChecks, category: "list", descKey: "editor.slash.taskList.desc", keywordsKey: "editor.slash.taskList.kw", cmd: (e) => e.chain().focus().toggleTaskList().run() },
+  { titleKey: "editor.slash.quote.title", icon: Quote, category: "block", descKey: "editor.slash.quote.desc", keywordsKey: "editor.slash.quote.kw", cmd: (e) => e.chain().focus().toggleBlockquote().run() },
+  { titleKey: "editor.slash.codeBlock.title", icon: CodeSquare, category: "block", descKey: "editor.slash.codeBlock.desc", keywordsKey: "editor.slash.codeBlock.kw", cmd: (e) => e.chain().focus().toggleCodeBlock().run() },
+  { titleKey: "editor.slash.table.title", icon: TableIcon, category: "block", descKey: "editor.slash.table.desc", keywordsKey: "editor.slash.table.kw", cmd: (e) => e.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run() },
+  { titleKey: "editor.slash.callout.title", icon: Info, category: "block", descKey: "editor.slash.callout.desc", keywordsKey: "editor.slash.callout.kw", cmd: (e) => e.chain().focus().setCallout("info").run() },
+  { titleKey: "editor.slash.toggle.title", icon: SquareChevronDown, category: "block", descKey: "editor.slash.toggle.desc", keywordsKey: "editor.slash.toggle.kw", cmd: (e) => e.chain().focus().setToggle().run() },
+  { titleKey: "editor.slash.divider.title", icon: Minus, category: "block", descKey: "editor.slash.divider.desc", keywordsKey: "editor.slash.divider.kw", cmd: (e) => e.chain().focus().setHorizontalRule().run() },
+  { titleKey: "editor.slash.status.title", icon: Tag, category: "block", descKey: "editor.slash.status.desc", keywordsKey: "editor.slash.status.kw", cmd: (e) => e.chain().focus().insertContent({ type: "status", attrs: { label: "Status", color: "gray" } }).run() },
+  { titleKey: "editor.slash.subpages.title", icon: FolderTree, category: "block", descKey: "editor.slash.subpages.desc", keywordsKey: "editor.slash.subpages.kw", cmd: (e) => e.chain().focus().insertContent({ type: "subpages" }).run() },
+  { titleKey: "editor.slash.date.title", icon: Calendar, category: "insert", descKey: "editor.slash.date.desc", keywordsKey: "editor.slash.date.kw", cmd: (e) => {
       const d = new Date();
       const locale = (typeof navigator !== "undefined" && navigator.language) || "en-US";
       const txt = d.toLocaleDateString(locale, { year: "numeric", month: "short", day: "numeric" });
       e.chain().focus().insertContent(txt + " ").run();
     }
   },
-  { title: "Emoji", icon: Smile, category: "삽입", description: "이모지 선택", keywords: "emoji 이모지", cmd: (e) => e.chain().focus().insertContent(":").run() },
-  { title: "Mention user", icon: AtSign, category: "삽입", description: "@사용자 멘션", keywords: "mention 멘션 사용자 user", cmd: (e) => e.chain().focus().insertContent("@").run() },
-  { title: "Reference doc", icon: FileText, category: "삽입", description: "#문서 참조", keywords: "doc 문서 참조 reference", cmd: (e) => e.chain().focus().insertContent("#").run() },
-  { title: "Reference issue", icon: Hash, category: "삽입", description: "$이슈 참조", keywords: "issue 이슈 참조 reference", cmd: (e) => e.chain().focus().insertContent("$").run() },
-  { title: "북마크", icon: Link2, category: "삽입", description: "URL을 카드로 표시", keywords: "bookmark link 링크 url", cmd: (e) => e.chain().focus().insertContent({ type: "bookmarkCard", attrs: { url: "" } }).run() },
-  { title: "이미지 갤러리", icon: ImagePlus, category: "블록", description: "여러 이미지를 그리드로", keywords: "gallery image 갤러리 이미지", cmd: (e) => e.chain().focus().insertContent({ type: "imageGallery", attrs: { items: [], columns: 3 } }).run() },
+  { titleKey: "editor.slash.emoji.title", icon: Smile, category: "insert", descKey: "editor.slash.emoji.desc", keywordsKey: "editor.slash.emoji.kw", cmd: (e) => e.chain().focus().insertContent(":").run() },
+  { titleKey: "editor.slash.mentionUser.title", icon: AtSign, category: "insert", descKey: "editor.slash.mentionUser.desc", keywordsKey: "editor.slash.mentionUser.kw", cmd: (e) => e.chain().focus().insertContent("@").run() },
+  { titleKey: "editor.slash.refDoc.title", icon: FileText, category: "insert", descKey: "editor.slash.refDoc.desc", keywordsKey: "editor.slash.refDoc.kw", cmd: (e) => e.chain().focus().insertContent("#").run() },
+  { titleKey: "editor.slash.refIssue.title", icon: Hash, category: "insert", descKey: "editor.slash.refIssue.desc", keywordsKey: "editor.slash.refIssue.kw", cmd: (e) => e.chain().focus().insertContent("$").run() },
+  { titleKey: "editor.slash.bookmark.title", icon: Link2, category: "insert", descKey: "editor.slash.bookmark.desc", keywordsKey: "editor.slash.bookmark.kw", cmd: (e) => e.chain().focus().insertContent({ type: "bookmarkCard", attrs: { url: "" } }).run() },
+  { titleKey: "editor.slash.gallery.title", icon: ImagePlus, category: "block", descKey: "editor.slash.gallery.desc", keywordsKey: "editor.slash.gallery.kw", cmd: (e) => e.chain().focus().insertContent({ type: "imageGallery", attrs: { items: [], columns: 3 } }).run() },
   /* 이슈 뷰 임베드 */
-  { title: "이슈 보드",    icon: Kanban, category: "이슈", description: "칸반 보드 임베드", keywords: "board kanban 보드", cmd: (e) => e.chain().focus().insertContent({ type: "issueViewEmbed", attrs: { projectId: "", viewMode: "board",    filters: {}, height: 480 } }).run() },
-  { title: "이슈 표",      icon: TableIcon, category: "이슈", description: "이슈 표 임베드", keywords: "table 표", cmd: (e) => e.chain().focus().insertContent({ type: "issueViewEmbed", attrs: { projectId: "", viewMode: "table",    filters: {}, height: 480 } }).run() },
-  { title: "이슈 캘린더",  icon: CalendarOutline, category: "이슈", description: "이슈 캘린더 임베드", keywords: "calendar 캘린더", cmd: (e) => e.chain().focus().insertContent({ type: "issueViewEmbed", attrs: { projectId: "", viewMode: "calendar", filters: {}, height: 560 } }).run() },
+  { titleKey: "editor.slash.issueBoard.title",    icon: Kanban, category: "issue", descKey: "editor.slash.issueBoard.desc", keywordsKey: "editor.slash.issueBoard.kw", cmd: (e) => e.chain().focus().insertContent({ type: "issueViewEmbed", attrs: { projectId: "", viewMode: "board",    filters: {}, height: 480 } }).run() },
+  { titleKey: "editor.slash.issueTable.title",      icon: TableIcon, category: "issue", descKey: "editor.slash.issueTable.desc", keywordsKey: "editor.slash.issueTable.kw", cmd: (e) => e.chain().focus().insertContent({ type: "issueViewEmbed", attrs: { projectId: "", viewMode: "table",    filters: {}, height: 480 } }).run() },
+  { titleKey: "editor.slash.issueCalendar.title",  icon: CalendarOutline, category: "issue", descKey: "editor.slash.issueCalendar.desc", keywordsKey: "editor.slash.issueCalendar.kw", cmd: (e) => e.chain().focus().insertContent({ type: "issueViewEmbed", attrs: { projectId: "", viewMode: "calendar", filters: {}, height: 560 } }).run() },
 ];
 
 /* ── 이모지 사전 ── */
@@ -1259,7 +1262,7 @@ export function DocumentEditor({ content, onChange, onBlur, placeholder: _placeh
   const filtered = CMDS.filter((c) => {
     if (!slashFilter) return true;
     const f = slashFilter.toLowerCase();
-    return c.title.toLowerCase().includes(f) || (c.keywords ?? "").toLowerCase().includes(f);
+    return t(c.titleKey).toLowerCase().includes(f) || (c.keywordsKey ? t(c.keywordsKey).toLowerCase() : "").includes(f);
   });
   const emojiFiltered = EMOJIS.filter((em) => !emojiFilter || em.name.toLowerCase().includes(emojiFilter));
 
@@ -1377,10 +1380,10 @@ export function DocumentEditor({ content, onChange, onBlur, placeholder: _placeh
           const matchedLabels = labels
             .filter((l) => !q || l.name.toLowerCase().includes(q))
             .slice(0, 6)
-            .map((l) => ({ kind: "label" as MentionKind, id: l.id, label: l.name, sublabel: "태그" }));
+            .map((l) => ({ kind: "label" as MentionKind, id: l.id, label: l.name, sublabel: t("documents.editor.tag") }));
           const items: MentionItem[] = [...matchedLabels];
           if (withLabels && raw0 && !labels.some((l) => l.name.trim().toLowerCase() === q)) {
-            items.push({ kind: "label", id: "__create__", label: raw0, isCreate: true, sublabel: "태그" });
+            items.push({ kind: "label", id: "__create__", label: raw0, isCreate: true, sublabel: t("documents.editor.tag") });
           }
           items.push(...docs.slice(0, 10).map((d) => ({
             kind: "doc" as MentionKind, id: d.id, label: d.title, space: d.space,
@@ -1612,12 +1615,12 @@ export function DocumentEditor({ content, onChange, onBlur, placeholder: _placeh
           documentsApi.list(workspaceSlug!, docMatch[2], { all: "true" }).then((docs) => {
             const doc = docs.find((d) => d.id === docId);
             editor.chain().focus().insertContent([
-              { type: "mention", attrs: { kind: "doc", id: docId, label: doc?.title ?? "문서", identifier: "" } },
+              { type: "mention", attrs: { kind: "doc", id: docId, label: doc?.title ?? t("documents.db.typeDoc"), identifier: "" } },
               { type: "text", text: " " },
             ]).run();
           }).catch(() => {
             editor.chain().focus().insertContent([
-              { type: "mention", attrs: { kind: "doc", id: docId, label: "문서", identifier: "" } },
+              { type: "mention", attrs: { kind: "doc", id: docId, label: t("documents.db.typeDoc"), identifier: "" } },
               { type: "text", text: " " },
             ]).run();
           });
@@ -1634,12 +1637,12 @@ export function DocumentEditor({ content, onChange, onBlur, placeholder: _placeh
             const identifier = iss.identifier || (iss.project_identifier ? `${iss.project_identifier}-${iss.sequence_id}` : "");
             editor.chain().focus().insertContent({
               type: "issueCard",
-              attrs: { id: issueId, identifier, label: iss.title ?? "이슈" },
+              attrs: { id: issueId, identifier, label: iss.title ?? t("documents.db.typeIssue") },
             }).run();
           }).catch(() => {
             editor.chain().focus().insertContent({
               type: "issueCard",
-              attrs: { id: issueId, identifier: "", label: "이슈" },
+              attrs: { id: issueId, identifier: "", label: t("documents.db.typeIssue") },
             }).run();
           });
         });
@@ -1754,7 +1757,7 @@ export function DocumentEditor({ content, onChange, onBlur, placeholder: _placeh
                 if (showHeaders && c.category !== lastCat) {
                   out.push(
                     <div key={`h-${c.category}`} className="px-2 pt-2 pb-0.5 text-3xs font-semibold uppercase tracking-wider text-muted-foreground/70">
-                      {c.category}
+                      {t(`editor.slash.cat.${c.category}`)}
                     </div>,
                   );
                   lastCat = c.category;
@@ -1762,7 +1765,7 @@ export function DocumentEditor({ content, onChange, onBlur, placeholder: _placeh
                 const Icon = c.icon;
                 out.push(
                   <button
-                    key={c.title}
+                    key={c.titleKey}
                     data-slash-item={i}
                     className={cn(
                       "flex items-start gap-2.5 w-full px-3 py-2 rounded-lg text-left transition-colors",
@@ -1773,9 +1776,9 @@ export function DocumentEditor({ content, onChange, onBlur, placeholder: _placeh
                   >
                     <Icon className="h-4 w-4 shrink-0 mt-0.5 text-muted-foreground" />
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm">{c.title}</div>
-                      {c.description && (
-                        <div className="text-2xs text-muted-foreground truncate">{c.description}</div>
+                      <div className="text-sm">{t(c.titleKey)}</div>
+                      {c.descKey && (
+                        <div className="text-2xs text-muted-foreground truncate">{t(c.descKey)}</div>
                       )}
                     </div>
                   </button>,
@@ -1801,8 +1804,8 @@ export function DocumentEditor({ content, onChange, onBlur, placeholder: _placeh
             {mentionResults.length === 0 ? (
               <div className="px-3 py-4 text-xs text-muted-foreground text-center">
                 {mentionKind === "issue" && !projectId
-                  ? "프로젝트 스페이스에서만 가능"
-                  : (mentionQuery ? "검색 결과 없음" : "이름/제목 입력...")}
+                  ? t("documents.editor.projectSpaceOnly")
+                  : (mentionQuery ? t("issues.detail.nodes.searchEmpty") : t("documents.editor.typeName"))}
               </div>
             ) : (() => {
               /* 접힌 부모의 자손을 숨김 */
@@ -1913,6 +1916,7 @@ function EditorBubbleMenu({
   onApplyLink: (url: string) => void;
   onStartComment?: (selectedText: string) => Promise<string | null>;
 }) {
+  const { t } = useTranslation();
   const [colorPickerOpen, setColorPickerOpen] = useState<"text" | "highlight" | null>(null);
   const [linkInput, setLinkInput] = useState("");
 
@@ -2000,7 +2004,7 @@ function EditorBubbleMenu({
         {onStartComment && (
           <BMBtn
             active={editor.isActive("comment")}
-            title="댓글 달기"
+            title={t("documents.editor.addComment")}
             onClick={async () => {
               const { from, to } = editor.state.selection;
               if (from === to) return;
@@ -2042,7 +2046,7 @@ function EditorBubbleMenu({
             )}
             <button type="button" onClick={() => onApplyLink(linkInput)}
               className="text-xs px-2 py-1 rounded-md bg-primary text-primary-foreground hover:bg-primary/90">
-              적용
+              {t("documents.shareLink.apply")}
             </button>
           </div>
         )}
@@ -2141,6 +2145,7 @@ function IconRowDelete() {
 }
 
 function TableBubbleMenu({ editor }: { editor: Editor }) {
+  const { t } = useTranslation();
   return (
     <BubbleMenu
       editor={editor}
@@ -2153,46 +2158,46 @@ function TableBubbleMenu({ editor }: { editor: Editor }) {
       <div className="flex items-center gap-0.5 rounded-xl border bg-popover shadow-xl px-1 py-1"
         onMouseDown={(e) => e.preventDefault()}>
         {/* 열 조작 — arrow-to-line 으로 "이쪽 방향에 삽입" 명시 */}
-        <BMBtn onClick={() => editor.chain().focus().addColumnBefore().run()} title="왼쪽에 열 추가">
+        <BMBtn onClick={() => editor.chain().focus().addColumnBefore().run()} title={t("documents.editor.colBefore")}>
           <ArrowLeftToLine className="h-3.5 w-3.5" />
         </BMBtn>
-        <BMBtn onClick={() => editor.chain().focus().addColumnAfter().run()} title="오른쪽에 열 추가">
+        <BMBtn onClick={() => editor.chain().focus().addColumnAfter().run()} title={t("documents.editor.colAfter")}>
           <ArrowRightToLine className="h-3.5 w-3.5" />
         </BMBtn>
-        <BMBtn onClick={() => editor.chain().focus().deleteColumn().run()} title="열 삭제">
+        <BMBtn onClick={() => editor.chain().focus().deleteColumn().run()} title={t("documents.editor.delCol")}>
           <IconColDelete />
         </BMBtn>
         <BMSep />
         {/* 행 조작 */}
-        <BMBtn onClick={() => editor.chain().focus().addRowBefore().run()} title="위에 행 추가">
+        <BMBtn onClick={() => editor.chain().focus().addRowBefore().run()} title={t("documents.editor.rowBefore")}>
           <ArrowUpToLine className="h-3.5 w-3.5" />
         </BMBtn>
-        <BMBtn onClick={() => editor.chain().focus().addRowAfter().run()} title="아래에 행 추가">
+        <BMBtn onClick={() => editor.chain().focus().addRowAfter().run()} title={t("documents.editor.rowAfter")}>
           <ArrowDownToLine className="h-3.5 w-3.5" />
         </BMBtn>
-        <BMBtn onClick={() => editor.chain().focus().deleteRow().run()} title="행 삭제">
+        <BMBtn onClick={() => editor.chain().focus().deleteRow().run()} title={t("documents.editor.delRow")}>
           <IconRowDelete />
         </BMBtn>
         <BMSep />
         {/* 헤더 — PanelTop/PanelLeft 로 "윗 행/왼쪽 열 하이라이트" 비주얼 */}
-        <BMBtn onClick={() => editor.chain().focus().toggleHeaderRow().run()} title="헤더 행 토글">
+        <BMBtn onClick={() => editor.chain().focus().toggleHeaderRow().run()} title={t("documents.editor.toggleHeaderRow")}>
           <PanelTop className="h-3.5 w-3.5" />
         </BMBtn>
-        <BMBtn onClick={() => editor.chain().focus().toggleHeaderColumn().run()} title="헤더 열 토글">
+        <BMBtn onClick={() => editor.chain().focus().toggleHeaderColumn().run()} title={t("documents.editor.toggleHeaderCol")}>
           <PanelLeft className="h-3.5 w-3.5" />
         </BMBtn>
         <BMSep />
-        <BMBtn onClick={() => editor.chain().focus().mergeCells().run()} title="셀 병합">
+        <BMBtn onClick={() => editor.chain().focus().mergeCells().run()} title={t("documents.editor.mergeCells")}>
           <Merge className="h-3.5 w-3.5" />
         </BMBtn>
-        <BMBtn onClick={() => editor.chain().focus().splitCell().run()} title="셀 분할">
+        <BMBtn onClick={() => editor.chain().focus().splitCell().run()} title={t("documents.editor.splitCell")}>
           <Split className="h-3.5 w-3.5" />
         </BMBtn>
         <BMSep />
         <button type="button"
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => editor.chain().focus().deleteTable().run()}
-          title="표 삭제"
+          title={t("documents.editor.delTable")}
           className="h-7 w-7 flex items-center justify-center rounded-md text-destructive hover:bg-destructive/15 transition-colors">
           <Trash2 className="h-3.5 w-3.5" />
         </button>

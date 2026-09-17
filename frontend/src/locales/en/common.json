@@ -21,7 +21,11 @@
       "error": "Invalid email or password",
       "noAccount": "Don't have an account?",
       "signUpLink": "Sign up",
-      "forgotPassword": "Forgot password?"
+      "forgotPassword": "Forgot password?",
+      "approvalNoticeBody": "Your sign-up is complete. You can sign in once an administrator approves it.",
+      "approvalNoticeTitle": "Administrator approval required",
+      "verifyEmailNoticeBody": "We sent a verification link to your email address. Please check your inbox before signing in.",
+      "verifyEmailNoticeTitle": "Email verification required"
     },
     "register": {
       "subtitle": "Create a new account",
@@ -54,7 +58,21 @@
       "lastNamePlaceholder": "Enter last name",
       "firstName": "First Name",
       "firstNamePlaceholder": "Enter first name",
-      "displayName": "Display Name"
+      "displayName": "Display Name",
+      "autoRedirecting": "Redirecting to the sign-in page...",
+      "backToLogin": "Back to sign in",
+      "bigNoticeBody": "The order is: verify email, then administrator approval, then workspace access.",
+      "bigNoticeTitle": "⚠ After signing up, a workspace administrator must approve your account",
+      "verifyEmailBody1": "We sent a verification email to {{email}}.",
+      "verifyEmailBody2": "Open the email, click the verification link, then wait for a workspace administrator to approve you.",
+      "verifyEmailHintTitle": "Next steps",
+      "verifyEmailStep1": "Look for the OrbiTail verification email in your inbox",
+      "verifyEmailStep2": "Click the verification link",
+      "verifyEmailStep3": "Wait for a workspace administrator to approve your sign-up",
+      "verifyEmailTitle": "Your sign-up request was received",
+      "workspace": "Workspace to join",
+      "workspaceHint": "If you pick one, a join request is sent to that workspace's administrator as soon as you sign up.",
+      "workspacePlaceholder": "Select a workspace (optional)"
     },
     "forgotPassword": {
       "subtitle": "Enter your registered email address",
@@ -83,7 +101,8 @@
       "toLogin": "Go to Login",
       "errorTitle": "Verification Failed",
       "defaultError": "Email verification failed.",
-      "invalidAccess": "Invalid access."
+      "invalidAccess": "Invalid access.",
+      "successAutoRequested": "Your workspace join request was submitted automatically. Please wait for a workspace administrator to approve it."
     }
   },
   "issues": {
@@ -173,7 +192,10 @@
         "cycle": "Sprint",
         "createdAt": "Created",
         "updatedAt": "Updated"
-      }
+      },
+      "resetSort": "Reset sorting",
+      "resetSortHint": "Back to manual order",
+      "clearSelection": "Clear selection ({{count}})"
     },
     "bulk": {
       "selected": "{{count}} selected",
@@ -226,7 +248,8 @@
         "links": "Links",
         "attachments": "Attachments",
         "comments": "Comments",
-        "activity": "Activity"
+        "activity": "Activity",
+        "nodes": "Related issues"
       },
       "meta": {
         "title": "Title",
@@ -241,7 +264,10 @@
         "createdBy": "Created by",
         "createdAt": "Created",
         "updatedAt": "Last updated",
-        "info": "Info"
+        "info": "Info",
+        "notSharedWithTeam": "Visible only to me",
+        "sharedWithTeam": "Shown on the team calendar",
+        "teamShare": "Team sharing"
       },
       "subIssues": {
         "empty": "No sub-issues",
@@ -301,7 +327,9 @@
         "linkDeleteFailed": "Failed to delete link.",
         "subIssueCreateFailed": "Failed to create sub-issue.",
         "attachmentUploadFailed": "Failed to upload file.",
-        "attachmentDeleteFailed": "Failed to delete attachment."
+        "attachmentDeleteFailed": "Failed to delete attachment.",
+        "nodeLinkCreateFailed": "Failed to link the related issue",
+        "updated": "Updated {{field}}"
       },
       "attachments": {
         "empty": "No attachments",
@@ -312,7 +340,21 @@
         "dropHere": "Drop files here"
       },
       "attachDoc": "Attach document",
-      "unlinkDoc": "Unlink"
+      "unlinkDoc": "Unlink",
+      "description": "Description",
+      "nodes": {
+        "empty": "No issues linked yet. You can link issues from other projects or trees freely.",
+        "linked": "Linked",
+        "otherProjects": "Other projects",
+        "remove": "Unlink",
+        "searchEmpty": "No results",
+        "searchHint": "Type at least 2 characters to search other projects",
+        "searchPlaceholder": "Search by issue title (2+ characters)",
+        "self": "Itself",
+        "thisProject": "This project"
+      },
+      "showMoreLinks": "+ {{count}} more",
+      "goToProject": "Go to the {{name}} project"
     },
     "field": {
       "label": "Field",
@@ -330,6 +372,26 @@
       "submit": "Move",
       "moved": "Moved to {{identifier}}",
       "failed": "Couldn't move the issue"
+    },
+    "categoryInheritsFromParent": "Sub-issues inherit the module of their parent issue",
+    "attachments": {
+      "fromComment": "Uploaded from a comment"
+    },
+    "stateGroup": {
+      "backlog": "Backlog",
+      "unstarted": "To do",
+      "started": "In progress",
+      "completed": "Done",
+      "cancelled": "Cancelled"
+    },
+    "countIssues": "{{count}} issues",
+    "linkType": {
+      "relatesTo": "Related",
+      "blocks": "Depends on",
+      "blockedBy": "Blocked by",
+      "duplicates": "Duplicate",
+      "references": "References",
+      "sharedLabel": "Same label"
     }
   },
   "setup": {
@@ -481,7 +543,16 @@
         "deleteDescription": "Moves the project to the trash. All data is permanently deleted after 30 days.",
         "deleteButton": "Delete",
         "deleteConfirmMessage": "Moves the project to the trash. You can restore it from Workspace settings › Archive within 30 days; after that its issues and documents are permanently deleted. Type the project name '{{name}}' to confirm.",
-        "deleted": "Project moved to the trash"
+        "deleted": "Project moved to the trash",
+        "autoSaved": "Changes are saved automatically.",
+        "featuresTitle": "Features in use",
+        "icon": "Project icon",
+        "reviewPolicy": {
+          "admin": "Administrators only",
+          "all": "Any member"
+        },
+        "reviewPolicyTitle": "Who can approve requests",
+        "unarchived": "Restored from the archive"
       },
       "members": {
         "title": "Members",
@@ -511,7 +582,8 @@
         "permDelete": "Trash",
         "permPurge": "Purge",
         "permSchedule": "Edit Schedule",
-        "permEmpty": "No non-admin members."
+        "permEmpty": "No non-admin members.",
+        "toggleAllHint": "Toggle all"
       },
       "autoArchive": {
         "title": "Auto Archive",
@@ -527,6 +599,42 @@
         "saving": "Saving...",
         "saved": "Auto archive settings saved",
         "saveFailed": "Failed to save"
+      },
+      "automation": {
+        "subtitle": "Policy — auto-archiving and external integrations"
+      },
+      "workflow": {
+        "subtitle": "Tools for classifying issues — states and labels"
+      },
+      "features": {
+        "board": {
+          "label": "Board view",
+          "desc": "Kanban-style cards grouped by state"
+        },
+        "calendar": {
+          "label": "Calendar view",
+          "desc": "Shows ranges and events by month or week"
+        },
+        "timeline": {
+          "label": "Timeline view",
+          "desc": "See issues as a Gantt chart"
+        },
+        "graph": {
+          "label": "Graph view",
+          "desc": "Visualizes how issues are linked"
+        },
+        "sprints": {
+          "label": "Sprints",
+          "desc": "Create and run sprints, burndown included"
+        },
+        "analytics": {
+          "label": "Analytics",
+          "desc": "Charts by state, priority and assignee"
+        },
+        "request": {
+          "label": "Requests",
+          "desc": "A page for taking in bug and feature requests"
+        }
       }
     }
   },
@@ -684,7 +792,19 @@
       "all": "All",
       "me": "My schedule",
       "user": "By user"
-    }
+    },
+    "daySuffix": "",
+    "drawer": {
+      "dragHint": "Drag onto the calendar",
+      "empty": "No issues to show",
+      "meOnly": "My issues only",
+      "noPerm": "You do not have permission to change this schedule",
+      "statesFilter": "State",
+      "title": "Issues",
+      "toggle": "Issue panel"
+    },
+    "monthSuffix": "",
+    "moreCount": "more"
   },
   "events": {
     "add": "Event",
@@ -713,7 +833,9 @@
       "descriptionPlaceholder": "Notes or details",
       "participants": "Participants",
       "global": "Project-wide event",
-      "globalHint": "Shown only on project and team calendars, not on members' personal calendars"
+      "globalHint": "Shown only on project and team calendars, not on members' personal calendars",
+      "shareWithTeam": "Share with team",
+      "shareWithTeamHint": "When on, this appears on the team calendar of members in the same team"
     },
     "type": {
       "meeting": "Meeting",
@@ -846,7 +968,14 @@
     "unfavorite": "Remove from favorites",
     "allFavorited": "All projects are in favorites",
     "privateProjects": "Private",
-    "logout": "Logout"
+    "logout": "Logout",
+    "collapseProject": "Collapse",
+    "expandProject": "Expand",
+    "goHome": "Go home",
+    "sendRequest": "Requests",
+    "teams": "Teams",
+    "workspaceMenu": "Workspace menu",
+    "workspaceSettings": "Workspace settings"
   },
   "topbar": {
     "search": "Search issues...",
@@ -891,7 +1020,8 @@
       "created": "Created",
       "completed": "Completed",
       "noAssignees": "No issues assigned yet"
-    }
+    },
+    "filterByState": "State"
   },
   "workspaceSelect": {
     "loading": "Loading...",
@@ -904,7 +1034,13 @@
     "deleteConfirm": "To permanently delete this workspace, type its name \"{{name}}\":",
     "deleteMismatch": "Name mismatch — deletion cancelled.",
     "deleteSuccess": "Workspace deleted.",
-    "deleteFailed": "Failed to delete workspace."
+    "deleteFailed": "Failed to delete workspace.",
+    "cancelRequest": "Cancel request",
+    "pendingHint": "Waiting for an administrator to approve",
+    "pendingTitle": "Awaiting approval",
+    "pickToJoin": "Pick a workspace to join",
+    "requestFailed": "Failed to send the join request.",
+    "requested": "Join request sent. Please wait for an administrator to approve it."
   },
   "settings": {
     "layout": {
@@ -921,7 +1057,11 @@
       "sponsorGithub": "GitHub Sponsors",
       "sponsorKofi": "Ko-fi",
       "workspaceApiTokens": "API tokens",
-      "workspaceWebhooks": "Webhooks"
+      "workspaceWebhooks": "Webhooks",
+      "workspaceAdmin": "Workspace administration",
+      "workspaceArchived": "Archive",
+      "workspaceGeneral": "General",
+      "workspaceJoinRequests": "Join requests"
     },
     "workspaceMembers": {
       "title": "Workspace Members",
@@ -959,7 +1099,8 @@
       "revokeSuccess": "Invitation revoked.",
       "revokeFailed": "Failed to revoke invitation.",
       "confirmRevoke": "Revoke invitation sent to {{email}}?",
-      "membersTitle": "Members"
+      "membersTitle": "Members",
+      "viewDetails": "View memberships and assignments"
     },
     "profile": {
       "title": "Profile",
@@ -981,7 +1122,26 @@
       "emailRequestAgain": "Request again",
       "emailNew": "New email address",
       "emailSending": "Sending...",
-      "emailSendVerification": "Send verification email"
+      "emailSendVerification": "Send verification email",
+      "avatarChange": "Change profile photo",
+      "avatarHint": "PNG/JPG, up to 5MB",
+      "avatarHover": "Click the photo to change it, or use the button at the bottom right to remove it",
+      "avatarInvalidType": "Only image files can be uploaded.",
+      "avatarLabel": "Profile photo",
+      "avatarRemove": "Remove",
+      "avatarRemoveFailed": "Failed to remove the profile photo.",
+      "avatarRemoved": "Profile photo removed.",
+      "avatarTooLarge": "Only images of 5MB or less can be uploaded.",
+      "avatarUpdateFailed": "Failed to change the profile photo.",
+      "avatarUpdated": "Profile photo changed.",
+      "avatarUploading": "Uploading...",
+      "crop": {
+        "apply": "Apply",
+        "resetRotation": "Reset rotation",
+        "rotation": "Rotation",
+        "title": "Edit profile photo",
+        "zoom": "Zoom"
+      }
     },
     "preferences": {
       "title": "Preferences",
@@ -1146,6 +1306,24 @@
         "success": "Delivered",
         "failed": "Failed"
       }
+    },
+    "workspaceJoinRequests": {
+      "approve": "Approve",
+      "approved": "Join request approved.",
+      "decidedOn": "Decided on",
+      "emptyAll": "No join requests yet.",
+      "emptyPending": "No pending join requests.",
+      "reject": "Reject",
+      "rejected": "Join request rejected.",
+      "requestedOn": "Requested on",
+      "statusApproved": "Approved",
+      "statusCanceled": "Canceled",
+      "statusPending": "Pending",
+      "statusRejected": "Rejected",
+      "subtitle": "Approve or reject users who requested to join this workspace.",
+      "tabAll": "All",
+      "tabPending": "Pending",
+      "title": "Join requests"
     }
   },
   "emailVerify": {
@@ -1185,7 +1363,8 @@
       "restore": "Restore",
       "restored": "Issue restored from archive",
       "archivedDate": "Archived",
-      "readOnlyNotice": "This issue is archived and read-only. Restore to edit."
+      "readOnlyNotice": "This issue is archived and read-only. Restore to edit.",
+      "delete": "Delete"
     },
     "trash": {
       "empty": "No deleted issues",
@@ -1197,7 +1376,11 @@
       "daysLeft": "{{count}}d left",
       "purge": "Delete permanently",
       "purged": "Issue permanently deleted",
-      "purgeConfirm": "This action cannot be undone. Permanently delete this issue?"
+      "purgeConfirm": "This action cannot be undone. Permanently delete this issue?",
+      "tabs": {
+        "attachments": "Attachments",
+        "issues": "Issues"
+      }
     },
     "categoryFilter": {
       "all": "All Issues",
@@ -1263,7 +1446,145 @@
     "quote": "Quote",
     "link": "Link",
     "undo": "Undo",
-    "redo": "Redo"
+    "redo": "Redo",
+    "alignCenter": "Align center",
+    "alignLeft": "Align left",
+    "alignRight": "Align right",
+    "highlight": "Highlight",
+    "image": "Image",
+    "underline": "Underline",
+    "noResults": "No results",
+    "imageTooLarge": "The image is larger than 5MB. Please use a smaller file.",
+    "imageUploadFailed": "Image upload failed",
+    "slash": {
+      "h1": {
+        "title": "Heading 1",
+        "desc": "Large heading",
+        "kw": "h1 heading title"
+      },
+      "h2": {
+        "title": "Heading 2",
+        "desc": "Medium heading",
+        "kw": "h2 heading title"
+      },
+      "h3": {
+        "title": "Heading 3",
+        "desc": "Small heading",
+        "kw": "h3 heading title"
+      },
+      "bulletList": {
+        "title": "Bullet List",
+        "desc": "Bulleted list",
+        "kw": "bullet list dot"
+      },
+      "numberedList": {
+        "title": "Numbered List",
+        "desc": "Numbered list",
+        "kw": "numbered ordered list"
+      },
+      "taskList": {
+        "title": "Task List",
+        "desc": "Checkable to-dos",
+        "kw": "task todo checkbox"
+      },
+      "quote": {
+        "title": "Quote",
+        "desc": "Block quote",
+        "kw": "quote blockquote"
+      },
+      "codeBlock": {
+        "title": "Code Block",
+        "desc": "Code block with syntax highlighting",
+        "kw": "code block syntax"
+      },
+      "table": {
+        "title": "Table",
+        "desc": "Insert a 3×3 table",
+        "kw": "table grid"
+      },
+      "callout": {
+        "title": "Callout",
+        "desc": "Highlighted box",
+        "kw": "callout note highlight"
+      },
+      "toggle": {
+        "title": "Toggle",
+        "desc": "Collapsible section",
+        "kw": "toggle collapse fold"
+      },
+      "divider": {
+        "title": "Divider",
+        "desc": "Horizontal rule",
+        "kw": "divider hr separator"
+      },
+      "status": {
+        "title": "Status",
+        "desc": "Status tag",
+        "kw": "status tag badge"
+      },
+      "subpages": {
+        "title": "Subpages",
+        "desc": "List of sub-documents",
+        "kw": "subpages children"
+      },
+      "date": {
+        "title": "Date",
+        "desc": "Today's date",
+        "kw": "date today"
+      },
+      "emoji": {
+        "title": "Emoji",
+        "desc": "Pick an emoji",
+        "kw": "emoji icon"
+      },
+      "mentionUser": {
+        "title": "Mention user",
+        "desc": "@mention a person",
+        "kw": "mention user person"
+      },
+      "refDoc": {
+        "title": "Reference doc",
+        "desc": "#reference a document",
+        "kw": "doc document reference"
+      },
+      "refIssue": {
+        "title": "Reference issue",
+        "desc": "$reference an issue",
+        "kw": "issue reference"
+      },
+      "bookmark": {
+        "title": "Bookmark",
+        "desc": "Show a URL as a card",
+        "kw": "bookmark link url"
+      },
+      "gallery": {
+        "title": "Image gallery",
+        "desc": "Several images in a grid",
+        "kw": "gallery image grid"
+      },
+      "issueBoard": {
+        "title": "Issue board",
+        "desc": "Embed a kanban board",
+        "kw": "board kanban"
+      },
+      "issueTable": {
+        "title": "Issue table",
+        "desc": "Embed an issue table",
+        "kw": "issue table"
+      },
+      "issueCalendar": {
+        "title": "Issue calendar",
+        "desc": "Embed an issue calendar",
+        "kw": "issue calendar"
+      },
+      "cat": {
+        "basic": "Basic",
+        "list": "Lists",
+        "block": "Blocks",
+        "insert": "Insert",
+        "issue": "Issues"
+      }
+    }
   },
   "search": {
     "placeholder": "Search issues... (by title)",
@@ -1273,7 +1594,8 @@
     "searching": "Searching...",
     "navigate": "Navigate",
     "open": "Open",
-    "close": "Close"
+    "close": "Close",
+    "docSyntaxHint": "title:meeting · tag:policy · space:planning"
   },
   "datePicker": {
     "placeholder": "Select date",
@@ -1311,7 +1633,18 @@
       "general": "General",
       "creative": "Creative",
       "content": "Content"
-    }
+    },
+    "customImage": "Custom",
+    "notImage": "Only image files can be uploaded.",
+    "removeImage": "Revert to the default icon",
+    "replace": "Replace image",
+    "tabDefault": "Default",
+    "tabImage": "Custom",
+    "tooLarge": "Only images of 5MB or less can be uploaded.",
+    "uploadFailed": "Failed to upload the icon.",
+    "uploadHint": "Choose an image (PNG/JPG, 5MB or less)",
+    "uploaded": "Icon uploaded.",
+    "uploading": "Uploading..."
   },
   "invite": {
     "title": "Workspace Invitation",
@@ -1356,7 +1689,9 @@
       "comment_added": "New Comment",
       "comment_replied": "Comment Reply",
       "mentioned": "Mentioned"
-    }
+    },
+    "newOne": "New notification",
+    "view": "View"
   },
   "users": {
     "statusApproved": "Approved",
@@ -1382,7 +1717,12 @@
       "users": "User management",
       "workspaces": "Workspace management",
       "superusers": "Super admins",
-      "audit": "Audit log"
+      "audit": "Audit log",
+      "backToApp": "Back to workspace",
+      "content": "Browse attachments",
+      "overview": "Overview",
+      "scopeAll": "Entire system",
+      "systemAdmin": "System administration"
     },
     "users": {
       "title": "User management",
@@ -1429,7 +1769,8 @@
       "transferTitle": "Transfer owner — {{name}}",
       "transferDesc": "Current owner: {{current}} — the existing owner will be demoted to Admin.",
       "newOwnerLabel": "New owner",
-      "transferSuccess": "Ownership transferred."
+      "transferSuccess": "Ownership transferred.",
+      "spacesBtn": "Clean up spaces"
     },
     "superusers": {
       "title": "Super admins",
@@ -1459,7 +1800,93 @@
         "workspace_create": "Create workspace",
         "workspace_delete": "Delete workspace",
         "workspace_owner": "Transfer owner"
-      }
+      },
+      "columnAction": "Action",
+      "columnActor": "Actor",
+      "columnMetadata": "Details",
+      "columnTarget": "Target",
+      "columnTime": "Time",
+      "filterFrom": "From",
+      "filterTargetType": "Target type",
+      "filterTo": "To",
+      "searchPlaceholder": "Search actor or target",
+      "targetUser": "User",
+      "targetWorkspace": "Workspace"
+    },
+    "content": {
+      "badgeComment": "Comment",
+      "badgePersonal": "Personal",
+      "columnDocument": "Document",
+      "columnFile": "File name",
+      "columnIssue": "Issue",
+      "columnSize": "Size",
+      "columnUploaded": "Uploaded",
+      "columnUploader": "Uploader",
+      "columnWorkspace": "Workspace",
+      "desc": "Find and clean up attachments across all workspaces.",
+      "download": "Download",
+      "empty": "No attachments",
+      "emptyDesc": "Try a different search term or filter.",
+      "filterFrom": "From",
+      "filterKind": "Type",
+      "filterOrigin": "Upload source",
+      "filterTo": "To",
+      "filterWorkspace": "Workspace",
+      "openParent": "Open source",
+      "originComment": "Comment",
+      "originDirect": "Attachments tab",
+      "searchPlaceholder": "Search file name or title",
+      "tabDocument": "Document attachments",
+      "tabIssue": "Issue attachments",
+      "title": "Content explorer",
+      "mimeImage": "Image",
+      "mimeVideo": "Video",
+      "mimePdf": "PDF"
+    },
+    "group": {
+      "content": "Content",
+      "org": "Organization",
+      "people": "People",
+      "records": "Records",
+      "status": "Status"
+    },
+    "overview": {
+      "deletedUsers": "Deleted accounts",
+      "desc": "Current state of the entire system.",
+      "queueClear": "Nothing to review.",
+      "queuePending": "Awaiting approval",
+      "queuePendingHint": "Users who have verified their email",
+      "queueSuspended": "Suspended accounts",
+      "queueSuspendedHint": "Sign-in is blocked",
+      "queueUnverified": "Email unverified",
+      "queueUnverifiedHint": "Cannot be approved before verification",
+      "sectionQueue": "Needs attention",
+      "sectionScale": "Scale",
+      "sectionSignups": "Recent sign-ups",
+      "sectionStorage": "Storage",
+      "signup30d": "Last 30 days",
+      "signup7d": "Last 7 days",
+      "statDocuments": "Documents",
+      "statIssuesSub": "{{count}} issues",
+      "statProjects": "Projects",
+      "statUsers": "Users",
+      "statUsersSub": "{{count}} superusers",
+      "statWorkspaces": "Workspaces",
+      "storageDocuments": "Document attachments",
+      "storageIssues": "Issue attachments",
+      "storageTotal": "{{count}} attachments",
+      "title": "System overview"
+    },
+    "orphanSpaces": {
+      "deleted": "Space deleted.",
+      "deleteConfirm": "Permanently delete the space \"{{name}}\"?\nEvery document and attachment inside goes with it.",
+      "backToList": "Workspace list",
+      "title": "Personal spaces of deleted users",
+      "subtitle": "Personal spaces of deleted or deactivated users in the <b>{{slug}}</b> workspace. The contents cannot be viewed — only deleted permanently.",
+      "empty": "No leftover spaces to clean up.",
+      "docCount": "Documents",
+      "createdOn": "Created",
+      "deletedOn": "Deleted ({{date}})"
     }
   },
   "common": {
@@ -1479,7 +1906,18 @@
     "cancel": "Cancel",
     "confirm": "Confirm",
     "close": "Close (Esc)",
-    "clickToEdit": "Click to edit"
+    "clickToEdit": "Click to edit",
+    "create": "Create",
+    "creating": "Creating...",
+    "error": "Something went wrong.",
+    "loading": "Loading…",
+    "search": "Search",
+    "unknown": "Untitled",
+    "resizePanel": "Resize panel",
+    "collapse": "Collapse",
+    "undone": "Undone: {{label}}",
+    "nothingToUndo": "Nothing to undo",
+    "undo": "Undo"
   },
   "time": {
     "justNow": "just now",
@@ -1498,7 +1936,9 @@
     "deleted": "Label deleted.",
     "deleteFailed": "Failed to delete.",
     "created": "Label added.",
-    "createFailed": "Failed to add."
+    "createFailed": "Failed to add.",
+    "add": "Add label",
+    "namePlaceholder": "Label name (Enter)"
   },
   "states": {
     "title": "State Management",
@@ -1614,7 +2054,408 @@
     "backToDocument": "Remove table",
     "fields": "Fields",
     "projectIssues": "Project issues",
-    "homeDocument": "Home document"
+    "homeDocument": "Home document",
+    "cyclicNestError": "Cannot move into itself or one of its own children",
+    "docCountTotal": "Documents",
+    "dropToRoot": "Drop here to move to the top level",
+    "home": "Home",
+    "recentlyUpdated": "Recently updated",
+    "rootPages": "Top-level documents",
+    "spaceDescription": "Description (optional)",
+    "spaceDescriptionPlaceholder": "Briefly describe what this space is for",
+    "spaceIdentifier": "Identifier (optional)",
+    "spaceIdentifierHint": "Uppercase letters and digits, up to 12 characters. Used in document URLs and references.",
+    "spaceNamePlaceholder": "e.g. Engineering docs",
+    "commentsPanel": {
+      "createFailed": "Failed to create the comment",
+      "tabOpen": "Open",
+      "tabResolved": "Resolved",
+      "newTitle": "New comment",
+      "newPlaceholder": "Write a comment... (Cmd+Enter to send, Esc to cancel)",
+      "emptyOpen": "No open comment threads",
+      "emptyResolved": "No resolved comments",
+      "deleteConfirm": "Delete this comment thread?",
+      "replyPlaceholder": "Reply...",
+      "reopen": "Reopen",
+      "markResolved": "Mark as resolved",
+      "resolve": "Resolve",
+      "deleteThread": "Delete thread"
+    },
+    "cover": {
+      "tooLarge": "Images must be 10MB or smaller.",
+      "notImage": "Only image files are allowed.",
+      "selectImage": "Choose an image.",
+      "saveFailed": "Failed to save",
+      "removeConfirm": "Remove the cover image?",
+      "title": "Cover image",
+      "dragHint": "Drag to reposition",
+      "zoom": "Zoom",
+      "height": "Height",
+      "save": "Save",
+      "saving": "Saving...",
+      "pickOther": "Choose a different file",
+      "pickHint": "Drag an image here or click to choose (10MB max)"
+    },
+    "shareLink": {
+      "enabled": "Public link enabled",
+      "enableFailed": "Could not enable the public link — check your edit permission",
+      "disabled": "Public link disabled",
+      "copied": "Link copied",
+      "title": "Public share link",
+      "urlLabel": "Share URL",
+      "copy": "Copy",
+      "openNewTab": "Open in a new tab",
+      "notice": "Anyone with this link can read the document without signing in. They cannot edit it.",
+      "expiryLabel": "Expiry date (optional)",
+      "apply": "Apply",
+      "expiresAt": "Expires: {{at}}",
+      "noExpiry": "No expiry",
+      "disable": "Stop sharing",
+      "notShared": "This document is not public right now.",
+      "enabling": "Enabling...",
+      "enable": "Create public link"
+    },
+    "labelPicker": {
+      "removeLabel": "Remove {{name}}",
+      "trigger": "Labels",
+      "searchPlaceholder": "Search labels",
+      "empty": "No labels yet.",
+      "create": "Create \"{{name}}\""
+    },
+    "issuePicker": {
+      "searchPlaceholder": "Search, or pick from the tree below...",
+      "alreadyLinked": "(linked)",
+      "noProjects": "You are not a member of any project",
+      "emptyOrLoading": "No issues, or still loading"
+    },
+    "docPicker": {
+      "createFailed": "Failed to create the document",
+      "searchOrCreate": "Search, or type a name for a new document",
+      "searchPlaceholder": "Search, or pick from the tree below...",
+      "thisProjectOnly": "Show only this project's documents",
+      "includeOtherSpaces": "Include documents from other spaces",
+      "hiddenCount": "{{count}} more",
+      "createAsNew": "Create as a new document",
+      "space": "Space",
+      "createHint": "If you cannot find the document, type a name to create a new one.",
+      "alreadyLinkedLong": "Already linked",
+      "alreadyLinked": "(linked)",
+      "noSpaces": "No spaces you can access",
+      "emptyOrLoading": "Loading, or empty"
+    },
+    "issueEmbed": {
+      "titleBoard": "Issue board",
+      "titleTable": "Issue table",
+      "titleCalendar": "Issue calendar",
+      "priorityAll": "All priorities",
+      "pickProject": "Select a project",
+      "noProjects": "No projects you can access",
+      "filter": "Filter",
+      "state": "State",
+      "stateAll": "All states",
+      "priority": "Priority",
+      "assignee": "Assignee",
+      "assigneeAll": "All assignees",
+      "clearAll": "Clear all",
+      "loadingProject": "Loading project information...",
+      "selectProjectAbove": "Select a project above",
+      "all": "All"
+    },
+    "templates": {
+      "newDoc": "Create a new document",
+      "tabAll": "All",
+      "tabMine": "My templates",
+      "blank": "Blank document",
+      "blankHint": "Start from scratch",
+      "emptyMine": "No saved templates yet. You can save one from an existing document's settings menu.",
+      "empty": "No templates",
+      "deleteConfirm": "Delete the template \"{{name}}\"?",
+      "delete": "Delete template",
+      "scopeBuiltIn": "Built-in",
+      "scopeWorkspace": "Shared",
+      "scopeSpace": "Space",
+      "scopeUser": "Mine",
+      "saveAs": "Save as template",
+      "name": "Name",
+      "namePlaceholder": "e.g. Weekly retrospective",
+      "desc": "Description (optional)",
+      "scope": "Scope",
+      "scopeUserHint": "Only I can use it",
+      "thisSpace": "This space",
+      "thisSpaceHint": "Only in this space",
+      "workspaceShared": "Shared with the workspace",
+      "workspaceSharedHint": "Any member can use it",
+      "adminOnly": "Only administrators can create this",
+      "saving": "Saving...",
+      "save": "Save"
+    },
+    "spaceRole": {
+      "viewer": "Viewer",
+      "editor": "Editor",
+      "admin": "Admin",
+      "viewerDesc": "Read only",
+      "editorDesc": "Can edit documents",
+      "adminDesc": "Settings, members, deletion"
+    },
+    "graphHintA": "Click to open · Alt+click for",
+    "graphHintB": "neighbours only · scroll to zoom · drag empty space to pan",
+    "db": {
+      "pick": "Pick",
+      "clear": "Clear",
+      "choose": "Choose",
+      "noOptions": "No options yet — add them in the folder's column settings",
+      "typeText": "Text",
+      "typeNumber": "Number",
+      "typeDate": "Date",
+      "typeSelect": "Select",
+      "typeMultiSelect": "Multi-select",
+      "typeCheckbox": "Checkbox",
+      "typeIssue": "Issue",
+      "typeDoc": "Document",
+      "typeCreated": "Created",
+      "typeUpdated": "Updated",
+      "table": "Table",
+      "clearFilters": "Clear {{count}} filters",
+      "newDoc": "New document",
+      "setupTitle": "Define columns to turn this into a table",
+      "setupHint": "Create the columns that every document in this table will share.",
+      "createColumn": "Create a column",
+      "noMatch": "No documents match",
+      "noDocs": "No documents yet",
+      "sortAsc": "Sort ascending",
+      "sortDesc": "Sort descending",
+      "sortClear": "Clear sorting",
+      "filter": "Filter",
+      "showAll": "Show all",
+      "rename": "Rename",
+      "editOptions": "Edit options",
+      "deleteColumn": "Delete column",
+      "duplicateColumn": "A column with that name already exists",
+      "addColumn": "Add a column",
+      "columnName": "Column name",
+      "addOption": "Add an option ⏎"
+    },
+    "explorerBar": {
+      "labelCount": "{{count}} labels",
+      "clearFilter": "Clear",
+      "cutCount": "{{count}} items cut",
+      "unsplit": "Remove split",
+      "split": "Split the view",
+      "single": "Single",
+      "splitShort": "Split"
+    },
+    "spaceSettings": {
+      "general": "General",
+      "members": "Members",
+      "content": "Content",
+      "integration": "Integrations",
+      "backToSpace": "Back to the space"
+    },
+    "blocks": {
+      "bookmarkUrl": "Bookmark URL",
+      "add": "Add",
+      "edit": "Edit",
+      "gallery": "Image gallery",
+      "columns": "{{count}} columns",
+      "addImage": "Add image",
+      "galleryHint": "Drag images here, or use the + button above",
+      "galleryEmpty": "No images",
+      "moveForward": "Move forward",
+      "moveBack": "Move back"
+    },
+    "integration": {
+      "subtitle": "Shows how this space connects to projects and issues.",
+      "linkedProject": "Linked project",
+      "syncNote": "Name, icon and archive state stay in sync with the project.",
+      "openProject": "Open the project",
+      "standalone": "This is a standalone space. Creating a project automatically gives it its own space.",
+      "docIssueLinks": "Document ↔ issue links",
+      "linkCounts": "{{links}} issues are linked across {{docs}} documents. Links are added and removed from the document view.",
+      "empty": "No documents are linked to issues yet."
+    },
+    "layout": {
+      "privateProject": "Private project",
+      "bookmarks": "Bookmarks",
+      "spaceMenu": "Space menu",
+      "unbookmark": "Remove bookmark",
+      "bookmark": "Add bookmark",
+      "spaceSettings": "Space settings",
+      "movedCount": "Moved {{count}} items",
+      "movedTo": "Moved {{count}} items to \"{{title}}\""
+    },
+    "spaceMembers": {
+      "added": "Member added",
+      "addFailed": "Could not add",
+      "roleChanged": "Role changed",
+      "removed": "Member removed",
+      "removeFailed": "Could not remove",
+      "personalOnly": "A personal space is only used by its owner.",
+      "projectNote": "Project members keep their project permissions here. Add anyone who only needs this space below.",
+      "note": "Manage who can reach this space, and with what role.",
+      "addTitle": "Add a member",
+      "searchPlaceholder": "Search workspace members",
+      "addHint": "New people start as editors. You can change the role below.",
+      "projectMember": "Project member",
+      "projectPerms": "Project permissions apply",
+      "goToProjectMembers": "Go to project member management"
+    },
+    "spaceGeneral": {
+      "saved": "Saved",
+      "subtitle": "Manage the space's name, how it appears, and who can see it.",
+      "readOnly": "Read only — only a space administrator can change these settings.",
+      "icon": "Icon",
+      "iconHint": "Click to change the icon or colour, or upload an image. Your choice saves immediately.",
+      "nameSynced": "A project space takes its name from the project.",
+      "identifier": "Identifier",
+      "homeDoc": "Home document",
+      "homeDocHint": "Pinned to the top of the space home. Deleting the document clears this automatically.",
+      "none": "None",
+      "publicDesc": "Any workspace member can find it and edit it.",
+      "privateDesc": "Only people added as members can reach it.",
+      "followsProject": "A project space follows the visibility of the project it belongs to.",
+      "personalOnly": "A personal space is reachable only by its owner.",
+      "dangerZone": "Archive and deletion",
+      "archiveSpace": "Archive the space",
+      "archiveHint": "Archiving hides it from lists but keeps every document. You can undo it at any time.",
+      "deleteSpace": "Delete the space",
+      "deleteHint": "Every document inside goes with it. This cannot be undone.",
+      "deleteConfirm": "Permanently delete the space \"{{name}}\" and every document in it?"
+    },
+    "explorerPanel": {
+      "deletedCount": "Deleted {{count}} items",
+      "renameFailed": "Could not rename",
+      "folder": "folder",
+      "topLevel": "the top level",
+      "moveFailed": "Could not move",
+      "cutCount": "Cut {{count}} items",
+      "deleteConfirm": "Delete {{count}} items?",
+      "open": "Open",
+      "showChildren": "Show sub-documents ({{count}})",
+      "newInside": "Create a document inside",
+      "cut": "Cut",
+      "paste": "Paste",
+      "showChildrenTitle": "Show {{count}} sub-documents"
+    },
+    "trashPage": {
+      "restoredCount": "Restored {{count}} items",
+      "restoreFailed": "Could not restore",
+      "purged": "Deleted permanently",
+      "someDocs": "{{count}} documents",
+      "wholeTrash": "the whole trash",
+      "purgeConfirm": "Permanently delete {{what}}? This cannot be undone.",
+      "count": "{{count}} items",
+      "selectedCount": "{{count}} selected",
+      "restoreSelected": "Restore selected",
+      "deleteSelected": "Delete selected",
+      "empty": "Empty it",
+      "emptyTitle": "The trash is empty",
+      "emptyDesc": "Deleted documents collect here. You can bring them back any time before they are deleted permanently.",
+      "selectAll": "Select all",
+      "deletedBy": "Deleted by",
+      "deletedOn": "Deleted",
+      "actions": "Actions",
+      "selectOne": "Select {{title}}",
+      "restore": "Restore",
+      "purge": "Delete permanently",
+      "preview": "Preview",
+      "deletedByAt": "Deleted by {{name}} on {{date}}",
+      "unknown": "Unknown",
+      "folderNote": "This is a folder. Restoring it brings back the documents inside.",
+      "noContent": "This document has no content."
+    },
+    "homePage": {
+      "privateDesc": "Only the participants below can reach it",
+      "publicDesc": "The whole workspace, and listed under Discover",
+      "participants": "Participants",
+      "addParticipant": "Add a participant",
+      "privateNote": "Private space — only the participants you add can see it.",
+      "publicNote": "Public space — every workspace member can reach it. Adding people here puts them straight in, without Discover.",
+      "tabSpaces": "All spaces",
+      "tabDiscover": "Discover",
+      "tabMine": "Created by me",
+      "tabRecent": "Recent",
+      "emptyMine": "You have not written any documents yet.",
+      "emptyRecent": "No recent documents.",
+      "emptyBookmarks": "No bookmarked documents. Use the star icon on a document page to add one.",
+      "noDiscover": "There are no public spaces to join.",
+      "noDiscoverHint": "New public spaces show up here.",
+      "docCount": "{{count}} documents",
+      "join": "Join"
+    },
+    "space": {
+      "bookmarked": "Bookmarked",
+      "narrow": "Narrow view",
+      "wide": "Wide view",
+      "textAndFont": "Text size and font",
+      "onlyMyScreen": "Applies only to your screen",
+      "font": "Font",
+      "body": "Body",
+      "h3": "Heading 3",
+      "h2": "Heading 2",
+      "h1": "Heading 1",
+      "editCover": "Edit cover",
+      "addCover": "Add cover",
+      "uploadFailed": "The file upload failed.",
+      "tooLarge": "The upload failed because the file is larger than {{max}}MB.",
+      "linkedIssues": "Linked issues",
+      "linkIssue": "Link an issue",
+      "noLinkedIssues": "No issues linked."
+    },
+    "content": {
+      "labelUpdateFailed": "Could not update the label",
+      "labelDeleted": "Label deleted",
+      "labelDeleteFailed": "Could not delete the label",
+      "exportFailed": "Export failed",
+      "importSkipped": "skipped {{count}} ({{examples}}…)",
+      "imported": "Imported {{docs}} documents and {{folders}} folders",
+      "importFailed": "Import failed",
+      "subtitle": "Manage labels and templates, see what is being read, or export the whole space.",
+      "labelsNote": "Labels are shared across the workspace. Changing a name or colour affects every document carrying that label.",
+      "labelsEmpty": "No labels yet. Attach one from a document and it shows up here.",
+      "changeColor": "Change colour",
+      "labelDeleteConfirm": "Delete the label \"{{name}}\"? The documents stay; only the label is removed.",
+      "deleteLabel": "Delete label",
+      "mostViewed": "Most-read documents",
+      "viewStats": "Last 30 days · {{views}} views · {{viewers}} readers",
+      "noViews": "No reads in the last 30 days.",
+      "rowStats": "{{views}} views · {{viewers}} readers",
+      "exportTitle": "Export the space",
+      "exportNote": "Download every document as a zip, folder structure intact. The Markdown export carries front matter (YAML) and <c>[[links]]</c>, so it drops straight into an Obsidian vault. Attached images are kept as links only.",
+      "preparing": "Preparing...",
+      "markdown": "Markdown",
+      "importTitle": "Import Markdown",
+      "importNote": "Bring a single <c>.md</c> file, or a zipped vault as <c>.zip</c>, into this space. Folder structure, front matter, tags and <m>[[links]]</m> come with it. Non-Markdown files such as images are skipped.",
+      "importing": "Importing...",
+      "pickFile": "Choose a file",
+      "templates": "Templates",
+      "templatesNote": "Forms you can pick when creating a document. Add one with \"Save as template\" from a document.",
+      "templatesEmpty": "No templates yet.",
+      "spaceOnly": "This space only"
+    },
+    "editor": {
+      "commentCount": "{{count}} comments",
+      "attachmentCount": "{{count}} attachments",
+      "period": "Dates",
+      "subIssues": "{{count}} sub-issues",
+      "render": "Render",
+      "subDocs": "Sub-documents",
+      "noSubDocs": "No sub-documents",
+      "tag": "Tag",
+      "projectSpaceOnly": "Only available in a project space",
+      "typeName": "Type a name or title...",
+      "addComment": "Add a comment",
+      "colBefore": "Add a column to the left",
+      "colAfter": "Add a column to the right",
+      "delCol": "Delete column",
+      "rowBefore": "Add a row above",
+      "rowAfter": "Add a row below",
+      "delRow": "Delete row",
+      "toggleHeaderRow": "Toggle header row",
+      "toggleHeaderCol": "Toggle header column",
+      "mergeCells": "Merge cells",
+      "splitCell": "Split cell",
+      "delTable": "Delete table"
+    }
   },
   "projectFilter": {
     "label": "Projects",
@@ -1682,7 +2523,39 @@
     "labelSize": "Label size",
     "labelSizeHint": "0 hides labels.",
     "empty": "No issues in this project yet.",
-    "stats": "{{nodes}} nodes · {{edges}} links"
+    "stats": "{{nodes}} nodes · {{edges}} links",
+    "linkRelates": "Related",
+    "linkRelatesShort": "Related",
+    "linkRelatesDesc": "An equal, undirected relationship — for example two bugs touching the same API. Drawn as a double line.",
+    "linkBlocks": "Depends on",
+    "linkBlocksShort": "blocker → blocked",
+    "linkBlocksDesc": "B cannot start until A is done. The node you click first is the blocker, the second is the blocked one. Drawn as an orange arrow.",
+    "counts": "{{nodes}} nodes · {{edges}} links",
+    "connectHint": "Click two nodes to link the issues",
+    "relayoutHint": "Release pins and lay out to fit the screen",
+    "guideHint": "Graph guide and shortcuts",
+    "pickSecond": "Click a second node to create the link (Esc to cancel)",
+    "pickFirst": "Click the first node to link",
+    "guide": "Graph guide",
+    "nodes": "Nodes",
+    "nodeThisProject": "An issue in this project",
+    "nodeOtherProject": "An issue in another project, reached by a link",
+    "nodeLabelColor": "A coloured border is the label colour",
+    "linkTypes": "Link types",
+    "parentChild": "Parent → child (purple arrow)",
+    "parentChildDesc": "The sub-issue relationship. It appears automatically; remove it from the issue tree.",
+    "controls": "Controls",
+    "ctrlOrbit": "In orbit mode, dragging a centre node moves all of its children with it",
+    "disconnectNote": "Click a line to remove it. Parent-child and label edges are excluded. Esc cancels.",
+    "showAllCount": "Show all · {{count}}",
+    "topLevel": "Top level",
+    "depthN": "└ {{depth}} levels down",
+    "countSuffix": "{{count}}",
+    "layersNote": "Only the chosen level is highlighted. Click again to clear.",
+    "animationNote": "Turn it off for a static view — it settles once and stops.",
+    "force": "Force",
+    "orbit": "Orbit",
+    "relayout": "Re-layout"
   },
   "empty": {
     "table": {
@@ -1728,7 +2601,12 @@
       "hint": "Your assigned issues (start/due dates), project events, and personal events on one calendar. Click an empty cell to add a personal event for that day.",
       "today": "Today",
       "newEvent": "New event",
-      "more": " more"
+      "more": " more",
+      "newIssue": "New issue",
+      "toast": {
+        "eventUpdateFailed": "You do not have permission to edit this event",
+        "updateFailed": "Failed to update the schedule"
+      }
     },
     "graph": {
       "hint": "Your assigned issues grouped by workspace → project. Click a chip to open the issue dialog.",
@@ -1767,6 +2645,16 @@
         "updateFailed": "Failed to update event.",
         "deleteFailed": "Failed to delete event."
       }
+    },
+    "personalIssue": {
+      "createFailed": "Failed to create the issue",
+      "created": "One-off issue created",
+      "fields": {
+        "descPlaceholder": "Notes (optional)",
+        "title": "Title",
+        "titlePlaceholder": "What needs to be done?"
+      },
+      "title": "One-off issue"
     }
   },
   "inbox": {
@@ -1787,7 +2675,9 @@
       "today": "Today",
       "week": "This week",
       "earlier": "Earlier"
-    }
+    },
+    "read": "Read",
+    "unread": "Unread"
   },
   "demo": {
     "subtitle": "A demo to look around",
@@ -1802,5 +2692,394 @@
     "startFailed": "Could not start the demo. Please try again in a moment.",
     "badgeLabel": "Demo",
     "badgeRemaining": "{{hours}}h {{minutes}}m left"
+  },
+  "appUpdate": {
+    "refresh": "Refresh",
+    "title": "A new version has been deployed"
+  },
+  "graph": {
+    "animation": "Animation mode",
+    "empty": "This project has no issues yet.",
+    "labelSize": "Label size",
+    "orbitSpeed": "Orbit speed",
+    "showIds": "Show issue IDs",
+    "view": "View"
+  },
+  "request": {
+    "bug": {
+      "actual": "Actual behavior",
+      "details": "Steps to reproduce, environment, severity (optional)",
+      "environment": "Environment",
+      "expected": "Expected behavior",
+      "severity": "Severity",
+      "severityUnset": "Unset",
+      "steps": "Steps to reproduce",
+      "tab": "Bug report",
+      "tabHint": "Something behaves incorrectly or errors out"
+    },
+    "create": "Create request",
+    "description": "Description",
+    "descriptionPlaceholder": "Write the details, or drag and drop / paste an image",
+    "emptyHistory": "Nothing here",
+    "emptyPending": "No pending requests",
+    "feature": {
+      "tab": "Feature request",
+      "tabHint": "It would be great to have this"
+    },
+    "filter": {
+      "all": "All",
+      "approved": "Approved",
+      "bug": "Bug",
+      "feature": "Feature",
+      "mine": "Submitted by me",
+      "rejected": "Rejected"
+    },
+    "private": "Private",
+    "privateHint": "Visible only to the submitter and administrators",
+    "public": "Public",
+    "publicHint": "Visible to any member",
+    "queueHeadline": "Requests",
+    "queueSubtitle": "Take in bug and feature requests and decide whether to bring them into the project.",
+    "section": {
+      "submit": "Create request"
+    },
+    "subject": "Title",
+    "submit": "Send request",
+    "submitFailed": "Failed to submit the request",
+    "submitted": "Your request was submitted",
+    "submitting": "Submitting...",
+    "tab": {
+      "history": "Resolved",
+      "pending": "Pending"
+    },
+    "title": "Requests",
+    "titlePlaceholder": "Title",
+    "visibility": "Visibility",
+    "filterLabel": "Filter",
+    "deleted": "Request deleted",
+    "issueNo": "issue #{{id}}",
+    "noDescription": "No description",
+    "rejectReason": "Reason for rejection",
+    "submitter": "Submitted by",
+    "submittedAt": "Submitted",
+    "decidedBy": "Decided by",
+    "decidedAt": "Decided",
+    "publicLong": "Public (any member)",
+    "privateLong": "Private (submitter and administrators)",
+    "deleteConfirm": "Delete this request?",
+    "reject": "Reject",
+    "approvedToIssue": "Request approved and turned into an issue",
+    "approveFailed": "Could not approve it",
+    "approveTitle": "Approve request → create issue",
+    "defaultStateHint": "Left unset, it is created in the project's default state.",
+    "category": "Category",
+    "approving": "Approving...",
+    "approveAndCreate": "Approve and create issue",
+    "rejected": "Request rejected",
+    "rejectTitle": "Reject request",
+    "rejectBody": "Rejecting the request \"<b>{{title}}</b>\".",
+    "reason": "Reason (optional)",
+    "reasonPlaceholder": "Writing down why lets the submitter see the reason",
+    "imageHint": "Images: drag and drop, paste, or use the image button in the toolbar (5MB max)",
+    "reasonPrefix": "Reason"
+  },
+  "workspaceSettings": {
+    "general": {
+      "brandColor": "Brand color",
+      "brandColorDesc": "Used for the workspace avatar and accents. Leave empty to use the default color.",
+      "changeSlug": "Change",
+      "description": "Description",
+      "descriptionPlaceholder": "What this workspace is for, or who the team is",
+      "logo": "Logo",
+      "logoFailed": "Failed to upload the logo",
+      "logoUpdated": "Logo changed",
+      "name": "Name",
+      "namePlaceholder": "Workspace name",
+      "priorityColors": "Priority colors",
+      "priorityColorsDesc": "Customize the colors of the five issue priority levels for this workspace",
+      "remove": "Remove",
+      "resetDefaults": "Reset to defaults",
+      "slug": "Address (slug)",
+      "slugChanged": "Address changed",
+      "slugFailed": "Failed to change the address",
+      "slugHint": "Part of the URL — changing it breaks every existing link",
+      "slugWarn": {
+        "confirm": "Change it",
+        "l1": "All bookmarks and shared links break",
+        "l2": "URLs registered in external systems (CI, webhooks) must be updated by hand",
+        "l3": "The old address stops working immediately",
+        "line1": "Changing the address affects all of the following:",
+        "newSlug": "New address (lowercase letters, digits and hyphens only)",
+        "title": "Change address — proceed carefully"
+      },
+      "subtitle": "Basic workspace information — changes save automatically",
+      "title": "General settings",
+      "updateFailed": "Failed to save the change",
+      "upload": "Upload",
+      "useDefault": "Default",
+      "brandColorPlaceholder": "#5e6ad2, or leave empty"
+    },
+    "projects": {
+      "changeFailed": "Could not save the change",
+      "trashed": "Moved to the trash",
+      "trashFailed": "Could not move it",
+      "title": "Projects",
+      "subtitle": "Manage every project in the workspace. A private project stays hidden from the project screen unless you are a member, and its issues are not shown here either. To see the contents, add yourself as a member — that is recorded in the activity log.",
+      "searchPlaceholder": "Search by name or identifier",
+      "empty": "No projects.",
+      "private": "Private",
+      "public": "Public",
+      "archived": "Archived",
+      "notMember": "· you are not a member",
+      "counts": "{{issues}} issues · {{members}} members · lead {{lead}}",
+      "noLead": "none",
+      "membersAndLead": "Members and lead",
+      "unarchive": "Unarchive",
+      "archive": "Archive",
+      "trashNotice": "{{count}} projects are in the trash",
+      "trashLink": "restore or delete permanently in the archive",
+      "trashConfirmTitle": "Move the project '{{name}}' to the trash?",
+      "trashConfirmDesc": "You can restore it from the archive's trash for 30 days. After that it is deleted permanently, along with its issues and documents.",
+      "trashConfirmLabel": "Move to trash",
+      "actionFailed": "Could not complete the action",
+      "addMemberPlaceholder": "Add a workspace member",
+      "addMemberHint": "New people start as members. The lead also gets the administrator role.",
+      "noMembers": "No members",
+      "noName": "(no name)",
+      "lead": "Lead",
+      "unsetLead": "Unset lead",
+      "setLead": "Make lead",
+      "removeFromProject": "Remove from the project"
+    },
+    "activity": {
+      "action": {
+        "project": {
+          "trashed": "moved a project to the trash",
+          "restored": "restored a project",
+          "purged": "permanently deleted a project",
+          "archived": "archived a project",
+          "unarchived": "unarchived a project",
+          "lead_changed": "changed a project lead",
+          "member_added": "added a project member",
+          "member_removed": "removed a project member",
+          "member_role": "changed a project member's role"
+        },
+        "space": {
+          "visibility": "changed a space's visibility",
+          "archived": "archived a space",
+          "unarchived": "unarchived a space",
+          "deleted": "deleted a space",
+          "member_added": "added a space member",
+          "member_removed": "removed a space member",
+          "member_role": "changed a space member's role",
+          "personal_deleted": "deleted a personal space"
+        },
+        "member": {
+          "role": "changed a workspace role",
+          "removed": "removed someone from the workspace"
+        },
+        "invitation": {
+          "sent": "sent an invitation",
+          "revoked": "revoked an invitation"
+        },
+        "join": {
+          "approved": "approved a join request",
+          "rejected": "rejected a join request"
+        },
+        "team": {
+          "deleted": "deleted a team"
+        },
+        "api_token": {
+          "created": "created an API token",
+          "revoked": "revoked an API token"
+        },
+        "webhook": {
+          "created": "created a webhook",
+          "updated": "updated a webhook",
+          "deleted": "deleted a webhook"
+        }
+      },
+      "cat": {
+        "all": "All",
+        "project": "Projects",
+        "space": "Document spaces",
+        "member": "Members",
+        "invitation": "Invitations",
+        "join": "Join requests",
+        "team": "Teams",
+        "apiToken": "API tokens",
+        "webhook": "Webhooks"
+      },
+      "leadTo": "lead → {{name}}",
+      "leadNone": "none",
+      "toPrivate": "made private",
+      "toPublic": "made public",
+      "changedFields": "changed: {{fields}}",
+      "viaSettings": "from workspace settings",
+      "title": "Activity log",
+      "subtitle": "A record of workspace administration actions. When an administrator adds themselves to a private project or space, that is flagged separately.",
+      "empty": "No activity yet.",
+      "selfAddedPrivate": "added themselves to a private item",
+      "prev": "Previous",
+      "next": "Next",
+      "pageNo": "Page {{page}}"
+    },
+    "teams": {
+      "deleted": "Team deleted",
+      "deleteFailed": "Could not delete it",
+      "subtitle": "Every team in the workspace. Team administrators manage membership from each team's own screen.",
+      "empty": "No teams.",
+      "memberCount": "{{count}} members",
+      "admins": "admins {{names}}",
+      "createdOn": "created {{date}}",
+      "deleteConfirmTitle": "Delete the team '{{name}}'?",
+      "deleteConfirmDesc": "The team and its membership are removed. Members' projects and issues are untouched."
+    },
+    "usage": {
+      "reason": {
+        "ownerMissing": "Owner account missing",
+        "ownerInactive": "Deleted or inactive account",
+        "ownerLeft": "Left the workspace"
+      },
+      "title": "Usage",
+      "subtitle": "The size of this workspace, how much attachments take up, and what can be cleaned up.",
+      "members": "Members",
+      "issues": "Issues",
+      "sharedSpaces": "Shared spaces",
+      "documents": "Documents",
+      "projectSub": "{{archived}} archived · {{trashed}} in trash",
+      "trashedSub": "{{count}} in trash",
+      "attachments": "Attachments",
+      "total": "Total",
+      "fileCount": "{{count}} files",
+      "orphanTitle": "Personal spaces with no owner",
+      "orphanDesc": "Personal spaces belonging to people who deleted their account or left the workspace. The contents stay hidden because the space is personal.",
+      "purgeVia": "Permanent deletion is done in the",
+      "adminConsole": "admin console",
+      "askAdmin": "Ask a system administrator to delete these permanently.",
+      "orphanEmpty": "Nothing to clean up.",
+      "docCount": "{{count}} documents"
+    },
+    "spaces": {
+      "deleted": "Space deleted",
+      "subtitle": "Manage every shared space in the workspace. A private space stays hidden from the document view unless you are a member, and its contents are not shown here either. To see them, add yourself as a member.",
+      "empty": "No shared spaces.",
+      "counts": "{{docs}} documents · {{members}} members",
+      "makePublic": "Make public",
+      "makePrivate": "Make private",
+      "deleteConfirmTitle": "Delete the space '{{name}}'?",
+      "deleteConfirmDesc": "Every document inside goes with it, and this cannot be undone.",
+      "addHint": "New people start as editors.",
+      "removeFromSpace": "Remove from the space"
+    }
+  },
+  "memberDetail": {
+    "none": "None",
+    "title": "Member details",
+    "suspended": "Suspended",
+    "inactive": "Inactive",
+    "joinedOn": "Joined {{date}}",
+    "lastLogin": "Last sign-in {{date}}",
+    "noRecord": "no record",
+    "openIssues": "Open issues assigned",
+    "activeTokens": "Active API tokens",
+    "yes": "Yes",
+    "no": "No",
+    "personalSpace": "Personal space",
+    "trash": "Trash",
+    "spaces": "Document spaces"
+  },
+  "presence": {
+    "anonymous": "Anonymous",
+    "online": "{{count}} people online",
+    "more": "+{{count}} more"
+  },
+  "errorFallback": {
+    "title": "Something went wrong",
+    "details": "Details (for developers)",
+    "back": "Go back",
+    "home": "Go home"
+  },
+  "publicDoc": {
+    "unavailableTitle": "This share link is not available",
+    "unavailableBody": "The link may have expired, sharing may have been turned off, or the document may not exist.",
+    "footer": "Read-only public link · last edited {{date}}"
+  },
+  "fonts": {
+    "pretendard": "Pretendard (default)",
+    "pretendardPlain": "Pretendard",
+    "system": "System",
+    "noto": "Noto Sans KR",
+    "nanumGothic": "Nanum Gothic",
+    "nanumMyeongjo": "Nanum Myeongjo",
+    "jetbrains": "JetBrains Mono (default)",
+    "d2coding": "D2Coding",
+    "appDefault": "App default"
+  },
+  "sprints": {
+    "status": {
+      "active": "In progress",
+      "draft": "Planned",
+      "completed": "Done",
+      "cancelled": "Cancelled"
+    },
+    "assignFailed": "Could not assign",
+    "createFailed": "Could not create",
+    "updated": "Sprint updated",
+    "updateFailed": "Could not save the change",
+    "cancelled": "Sprint cancelled",
+    "cancelFailed": "Could not cancel",
+    "deleted": "Sprint deleted",
+    "deleteFailed": "Could not delete",
+    "started": "Sprint started",
+    "startFailed": "Could not start",
+    "completedMoved": "Sprint complete — moved {{count}} unfinished issues to the {{target}}",
+    "toBacklog": "backlog",
+    "toNextSprint": "next sprint",
+    "completedPlain": "Sprint completed",
+    "completeFailed": "Could not complete",
+    "expandSubIssues": "Expand sub-issues",
+    "collapseSubIssues": "Collapse sub-issues",
+    "manage": "Manage sprint",
+    "edit": "Edit",
+    "cancelConfirm": "Cancel the sprint \"{{name}}\"? The issues in it stay where they are.",
+    "deleteConfirm": "Delete the sprint \"{{name}}\"? The issues in it go back to the backlog.",
+    "description": "Description",
+    "goalPlaceholder": "The goal for this sprint",
+    "editTitle": "Edit sprint",
+    "completeTitle": "Complete sprint",
+    "completeBody": "<b>{{count}} issues</b> are still unfinished. Where should they go?",
+    "toBacklogOpt": "To the backlog",
+    "toBacklogDesc": "Removes them from the sprint",
+    "toPlannedDesc": "Move to a planned sprint",
+    "completing": "Completing...",
+    "complete": "Complete",
+    "list": "List",
+    "importIssues": "Import issues",
+    "start": "Start",
+    "timeElapsed": "{{percent}}% of the time has passed",
+    "daysLeft": "{{count}} days left",
+    "daysOver": "{{count}} days over",
+    "detailTabs": "Sprint detail tabs",
+    "tabWork": "Work",
+    "tabReport": "Report",
+    "overloaded": "{{names}} carry more than the average load",
+    "noMetrics": "No issues in this sprint, so there are no metrics to show.",
+    "emptySprint": "This sprint has no issues.",
+    "emptySprintHint": "Drag them in from the backlog on the right, or use Import issues.",
+    "backlog": "Backlog",
+    "backlogEmpty": "The backlog is empty.",
+    "addedIssue": "Added \"{{title}}\"",
+    "title": "Sprints",
+    "none": "No sprints yet.",
+    "noneHint": "Create a sprint, put backlog issues in it, and start.",
+    "past": "Past sprints",
+    "backlogWaiting": "{{count}} waiting",
+    "cardEmpty": "No issues yet. Open it and add some from the backlog.",
+    "behind": "{{percent}}% behind schedule",
+    "loadByAssignee": "Load by assignee",
+    "doneCount": "{{count}} done",
+    "busyDays": "{{count}} days booked during the sprint",
+    "days": "{{count}} days"
   }
 }

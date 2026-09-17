@@ -56,12 +56,12 @@ def _require_project_perm(user, workspace_slug, project_pk, perm_key):
         if not Project.objects.filter(pk=project_pk, workspace__slug=workspace_slug).filter(
                 _project_readable_q(user)).exists():
             raise NotFound()
-        raise PermissionDenied("프로젝트 멤버만 할 수 있습니다.")
+        raise PermissionDenied("Only a project member can do this.")
     if perm_key == "admin":
         if pm.role < ProjectMember.Role.ADMIN:
-            raise PermissionDenied("프로젝트 관리자만 할 수 있습니다.")
+            raise PermissionDenied("Only a project administrator can do this.")
     elif not pm.effective_perms.get(perm_key, False):
-        raise PermissionDenied(f"이 작업에 대한 권한이 없습니다. ({perm_key})")
+        raise PermissionDenied(f"You do not have permission for this action. ({perm_key})")
     return pm
 from .serializers import (
     ProjectSerializer,
@@ -111,7 +111,7 @@ class ProjectListCreateView(generics.ListCreateAPIView):
         workspace = get_object_or_404(Workspace, slug=self.kwargs["workspace_slug"])
         role = _workspace_role(self.request.user, workspace.slug)
         if role is None or role < WorkspaceMember.Role.MEMBER:
-            raise PermissionDenied("이 워크스페이스의 멤버만 프로젝트를 만들 수 있습니다.")
+            raise PermissionDenied("Only a member of this workspace can create a project.")
         serializer.save(workspace=workspace, created_by=self.request.user)
 
 
@@ -194,7 +194,7 @@ class ProjectTrashDetailView(APIView):
         if project is None or _workspace_role(request.user, workspace_slug) is None:
             raise NotFound()
         if not _can_manage_trashed_project(request.user, project):
-            raise PermissionDenied("프로젝트 관리자나 워크스페이스 관리자만 할 수 있습니다.")
+            raise PermissionDenied("Only a project or workspace administrator can do this.")
         return project
 
     def post(self, request, workspace_slug, pk):

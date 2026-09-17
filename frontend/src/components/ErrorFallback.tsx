@@ -1,4 +1,5 @@
 import { useRouteError, isRouteErrorResponse, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 
@@ -14,6 +15,7 @@ import { Button } from "@/components/ui/button";
  * 사용자에게 무엇이 잘못됐는지 보여주고 로그인/홈으로 복귀 동선을 제공하는 게 낫다.
  */
 export function ErrorFallback() {
+  const { t } = useTranslation();
   const error = useRouteError();
   const navigate = useNavigate();
 
@@ -30,7 +32,7 @@ export function ErrorFallback() {
       <div className="w-full max-w-lg space-y-4 rounded-lg border bg-card p-6 shadow-sm">
         <div className="space-y-1">
           <p className="text-xs font-semibold uppercase tracking-wider text-destructive">
-            오류가 발생했습니다
+            {t("errorFallback.title")}
           </p>
           <h1 className="text-lg font-bold">{title}</h1>
         </div>
@@ -44,7 +46,7 @@ export function ErrorFallback() {
         {detail && (
           <details className="text-xs text-muted-foreground">
             <summary className="cursor-pointer select-none hover:text-foreground">
-              상세 정보(개발자용)
+              {t("errorFallback.details")}
             </summary>
             <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap rounded-md bg-muted px-3 py-2 text-[11px]">
               {detail}
@@ -58,7 +60,7 @@ export function ErrorFallback() {
             onClick={() => navigate(-1)}
             className="sm:w-auto"
           >
-            이전으로
+            {t("errorFallback.back")}
           </Button>
           <Button
             onClick={() => {
@@ -66,7 +68,7 @@ export function ErrorFallback() {
               window.location.href = "/";
             }}
           >
-            홈으로
+            {t("errorFallback.home")}
           </Button>
         </div>
       </div>

@@ -66,8 +66,7 @@ export default function DocumentGraphPage() {
         <span className="text-sm font-semibold">{t("documents.graph", "관계망")}</span>
         {data && (
           <span className="text-xs text-muted-foreground">
-            {t("documents.graphCount", { n: data.nodes.length, e: data.edges.length,
-              defaultValue: "문서 {{n}} · 연결 {{e}}" })}
+            {t("documents.graphCount", { n: data.nodes.length, e: data.edges.length })}
           </span>
         )}
         <div className="flex-1" />
@@ -85,8 +84,7 @@ export default function DocumentGraphPage() {
       {/* 상한에 걸려 잘린 사실을 조용히 넘기지 않는다 */}
       {data && data.truncated > 0 && (
         <p className="px-4 py-1.5 text-2xs text-amber-600 dark:text-amber-400 border-b shrink-0">
-          {t("documents.graphTruncated", { n: data.truncated,
-            defaultValue: "문서가 많아 최근 500건만 그렸습니다. {{n}}건이 빠졌습니다." })}
+          {t("documents.graphTruncated", { n: data.truncated })}
         </p>
       )}
 
@@ -125,6 +123,7 @@ function GraphCanvas({
   onOpen: (n: Sim) => void;
   onFocus: (n: Sim) => void;
 }) {
+  const { t } = useTranslation();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const nodesRef = useRef<Sim[]>([]);
@@ -335,7 +334,7 @@ function GraphCanvas({
     >
       <canvas ref={canvasRef} className={cn("block", drag.current.panning ? "cursor-grabbing" : "cursor-default")} />
       <p className="absolute bottom-2 left-3 text-2xs text-muted-foreground pointer-events-none">
-        클릭 = 열기 · Alt+클릭 = <Focus className="inline h-3 w-3" /> 주변만 보기 · 휠 = 확대 · 빈 곳 끌기 = 이동
+        {t("documents.graphHintA")} <Focus className="inline h-3 w-3" /> {t("documents.graphHintB")}
       </p>
     </div>
   );

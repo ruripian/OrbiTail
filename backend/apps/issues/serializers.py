@@ -69,16 +69,16 @@ class IssueSerializer(serializers.ModelSerializer):
         """
         instance = self.instance
         if instance is not None and "project" in attrs and attrs["project"].pk != instance.project_id:
-            raise serializers.ValidationError({"project": "이슈를 다른 프로젝트로 옮길 수 없습니다."})
+            raise serializers.ValidationError({"project": "An issue cannot be moved to a different project."})
         project = attrs.get("project") or (instance.project if instance is not None else None)
         if project is None:
             return attrs
         for field in ("state", "sprint", "category", "parent"):
             value = attrs.get(field)
             if value is not None and value.project_id != project.pk:
-                raise serializers.ValidationError({field: "이 프로젝트의 값이 아닙니다."})
+                raise serializers.ValidationError({field: "That value does not belong to this project."})
         if any(lb.project_id != project.pk for lb in attrs.get("label", [])):
-            raise serializers.ValidationError({"label": "이 프로젝트의 라벨이 아닌 것이 있습니다."})
+            raise serializers.ValidationError({"label": "Some labels do not belong to this project."})
         assignees = attrs.get("assignees")
         if assignees:
             from apps.workspaces.models import WorkspaceMember
@@ -86,7 +86,7 @@ class IssueSerializer(serializers.ModelSerializer):
                 workspace_id=project.workspace_id, member__in=assignees,
             ).values_list("member_id", flat=True))
             if any(u.pk not in member_ids for u in assignees):
-                raise serializers.ValidationError({"assignees": "이 워크스페이스의 멤버가 아닌 사용자가 있습니다."})
+                raise serializers.ValidationError({"assignees": "Some users are not members of this workspace."})
         return attrs
 
     def get_sub_issues_count(self, obj):
@@ -113,7 +113,7 @@ class IssueSerializer(serializers.ModelSerializer):
         if instance is None:
             return value  # 신규 생성: 자기 자신이 될 수 없으므로 검증 불필요
         if value.pk == instance.pk:
-            raise serializers.ValidationError("이슈를 자기 자신의 하위로 만들 수 없습니다.")
+            raise serializers.ValidationError("An issue cannot be made a child of itself.")
         # 자손 체크: parent 후보의 조상 체인을 거슬러 올라가 instance가 나오면 순환
         seen = set()
         cur = value
@@ -122,7 +122,7 @@ class IssueSerializer(serializers.ModelSerializer):
                 break  # 기존 데이터에 이미 순환이 있으면 무한루프 방지
             seen.add(cur.pk)
             if cur.pk == instance.pk:
-                raise serializers.ValidationError("이슈를 자신의 자손 아래로 옮길 수 없습니다.")
+                raise serializers.ValidationError("An issue cannot be moved under one of its own descendants.")
             cur = cur.parent
         return value
 
@@ -183,7 +183,7 @@ class IssueCommentSerializer(serializers.ModelSerializer):
         # 같은 이슈 안의 댓글이어야 함
         issue_id = self.context.get("issue_id")
         if issue_id and str(value.issue_id) != str(issue_id):
-            raise serializers.ValidationError("parent 댓글이 같은 이슈에 속하지 않습니다.")
+            raise serializers.ValidationError("The parent comment does not belong to the same issue.")
         # parent 자체가 답글이면 그 부모를 사용 (1단계 평탄화)
         if value.parent_id is not None:
             return value.parent
@@ -236,7 +236,7 @@ class IssueNodeLinkSerializer(serializers.ModelSerializer):
         source = attrs.get("source")
         target = attrs.get("target")
         if source == target:
-            raise serializers.ValidationError("자기 자신과는 연결할 수 없습니다.")
+            raise serializers.ValidationError("An issue cannot be linked to itself.")
         # 한 쌍은 하나의 연결만 — 방향/타입 무관 중복 차단
         from django.db.models import Q
         qs = IssueNodeLink.objects.filter(
@@ -245,7 +245,7 @@ class IssueNodeLinkSerializer(serializers.ModelSerializer):
         if self.instance:
             qs = qs.exclude(pk=self.instance.pk)
         if qs.exists():
-            raise serializers.ValidationError("이미 연결된 이슈 쌍입니다. 기존 연결을 해제 후 다시 시도하세요.")
+            raise serializers.ValidationError("These issues are already linked. Remove the existing link and try again.")
         return attrs
 
 

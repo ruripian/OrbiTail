@@ -36,7 +36,7 @@ class ApiTokenCreateSerializer(serializers.Serializer):
     def validate_name(self, value):
         value = value.strip()
         if not value:
-            raise serializers.ValidationError("이름을 입력하세요.")
+            raise serializers.ValidationError("Enter a name.")
         return value
 
 
@@ -71,7 +71,7 @@ class WebhookWriteSerializer(serializers.Serializer):
     def validate_name(self, value):
         value = value.strip()
         if not value:
-            raise serializers.ValidationError("이름을 입력하세요.")
+            raise serializers.ValidationError("Enter a name.")
         return value
 
     def validate_url(self, value):
@@ -87,7 +87,7 @@ class WebhookWriteSerializer(serializers.Serializer):
         allowed = set(Webhook.Event.values)
         unknown = [e for e in value if e not in allowed]
         if unknown:
-            raise serializers.ValidationError(f"알 수 없는 이벤트: {', '.join(unknown)}")
+            raise serializers.ValidationError(f"Unknown event: {', '.join(unknown)}")
         return sorted(set(value))
 
 

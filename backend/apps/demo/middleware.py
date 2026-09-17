@@ -37,12 +37,12 @@ class DemoGuardMiddleware:
     def _blocked_reason(request):
         path = request.path
         if path.startswith(BLOCKED_PREFIXES):
-            return "데모에서는 관리자 기능을 사용할 수 없습니다."
+            return "Administrator features are not available in the demo."
         if request.method not in SAFE_METHODS and path.startswith(ANNOUNCEMENT_PREFIX) \
                 and not path.rstrip("/").endswith("mark-seen"):
-            return "데모에서는 공지를 바꿀 수 없습니다."
+            return "Announcements cannot be changed in the demo."
         if request.method not in SAFE_METHODS:
             content_type = (request.META.get("CONTENT_TYPE") or "").lower()
             if content_type.startswith(UPLOAD_CONTENT_TYPE) and request.FILES:
-                return "데모에서는 파일 업로드를 사용할 수 없습니다."
+                return "File uploads are not available in the demo."
         return None

@@ -44,12 +44,12 @@ type GraphNode = ApiNode & { is_project_super?: boolean };
 type GraphEdge = NodeGraphResponse["edges"][number];
 
 type LinkTypeValue = "relates_to" | "blocks";
-const LINK_TYPES: { value: LinkTypeValue; label: string; short: string; desc: string; icon: React.ComponentType<{ className?: string }> }[] = [
-  { value: "relates_to", label: "연결", short: "연결",
-    desc: "서로 관련 있는 대등한 관계. 방향성 없음. 예: 같은 API 를 건드리는 버그 둘. — 그래프에서 이중선으로 표시.",
+const LINK_TYPES: { value: LinkTypeValue; labelKey: string; shortKey: string; descKey: string; icon: React.ComponentType<{ className?: string }> }[] = [
+  { value: "relates_to", labelKey: "graphView.linkRelates", shortKey: "graphView.linkRelatesShort",
+    descKey: "graphView.linkRelatesDesc",
     icon: Link2 },
-  { value: "blocks",     label: "의존", short: "선행 → 후행",
-    desc: "A가 끝나야 B 진행 가능. 첫 번째로 클릭한 노드가 '선행(막는 쪽)', 두 번째가 '후행(막히는 쪽)'. — 그래프에서 주황 화살표로 표시.",
+  { value: "blocks",     labelKey: "graphView.linkBlocks", shortKey: "graphView.linkBlocksShort",
+    descKey: "graphView.linkBlocksDesc",
     icon: ArrowRight },
 ];
 
@@ -955,7 +955,7 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick, 
     <div className="relative flex flex-col h-full overflow-hidden">
       <div className="flex items-center gap-3 px-5 h-10 border-b border-border shrink-0">
         <span className="text-xs text-muted-foreground">
-          {totalNodes}개 노드 · {edges.length}개 연결
+          {t("graphView.counts", { nodes: totalNodes, edges: edges.length })}
         </span>
         <div className="flex-1" />
 
@@ -975,13 +975,13 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick, 
             onClick={() => setLayoutMode("force")}
             className={`px-2.5 py-1 transition-colors ${layoutMode === "force" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted/40"}`}
           >
-            포스
+            {t("graphView.force")}
           </button>
           <button
             onClick={() => setLayoutMode("orbit")}
             className={`px-2.5 py-1 border-l border-border transition-colors ${layoutMode === "orbit" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted/40"}`}
           >
-            궤도
+            {t("graphView.orbit")}
           </button>
         </div>
         {/* 연결/해제 — me 모드(읽기 전용)에선 숨김 */}
@@ -992,20 +992,20 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick, 
               size="sm"
               onClick={() => { setEditMode(isConnect ? null : "connect"); setPendingSource(null); }}
               className="gap-1"
-              title="두 노드 클릭으로 이슈 연결"
+              title={t("graphView.connectHint")}
             >
               {isConnect ? <X className="h-3.5 w-3.5" /> : <Link2 className="h-3.5 w-3.5" />}
-              {isConnect ? "연결 취소" : "연결"}
+              {isConnect ? t("graphView.connectCancel") : t("graphView.connect")}
             </Button>
             <Button
               variant={isDisconnect ? "destructive" : "ghost"}
               size="sm"
               onClick={() => { setEditMode(isDisconnect ? null : "disconnect"); setPendingSource(null); }}
               className="gap-1"
-              title="기존 연결선 클릭으로 해제"
+              title={t("graphView.disconnectHint")}
             >
               {isDisconnect ? <X className="h-3.5 w-3.5" /> : <Unlink2 className="h-3.5 w-3.5" />}
-              {isDisconnect ? "해제 취소" : "해제"}
+              {isDisconnect ? t("graphView.disconnectCancel") : t("graphView.disconnect")}
             </Button>
           </>
         )}
@@ -1014,10 +1014,10 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick, 
           size="sm"
           onClick={() => togglePanel("layer")}
           className="gap-1"
-          title="계층(부모-자식 깊이)별 보기"
+          title={t("graphView.layersTitle")}
         >
           <Layers className="h-3.5 w-3.5" />
-          계층
+          {t("graphView.layers")}
         </Button>
         <Button variant="ghost" size="sm" onClick={() => togglePanel("settings")} className="gap-1">
           <Sliders className="h-3.5 w-3.5" />
@@ -1031,16 +1031,16 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick, 
             for (const n of nodesRef.current.values()) { n.fx = null; n.fy = null; }
             setHasFit(false);
           }}
-          title="고정 해제 + 화면에 맞춰 재정렬"
+          title={t("graphView.relayoutHint")}
         >
-          재정렬
+          {t("graphView.relayout")}
         </Button>
         <Button
           variant="ghost"
           size="sm"
           onClick={() => togglePanel("help")}
           className="w-7 h-7 p-0 rounded-full"
-          title="그래프 설명 & 단축키"
+          title={t("graphView.guideHint")}
         >
           ?
         </Button>
@@ -1050,8 +1050,8 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick, 
         <div className="absolute top-12 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-1.5 rounded-xl bg-popover border border-amber-500/70 text-foreground text-xs px-3 py-2 shadow-xl">
           <div className="font-medium">
             {pendingSource
-              ? "두 번째 노드 클릭 → 연결 생성 (Esc: 취소)"
-              : "연결할 첫 번째 노드를 클릭하세요"}
+              ? t("graphView.pickSecond")
+              : t("graphView.pickFirst")}
           </div>
           <div className="flex items-center gap-1 flex-wrap justify-center">
             {LINK_TYPES.map((lt) => {
@@ -1062,7 +1062,7 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick, 
                   key={lt.value}
                   type="button"
                   onClick={() => setLinkType(lt.value)}
-                  title={lt.desc}
+                  title={t(lt.descKey)}
                   className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs transition-colors ${
                     active
                       ? "bg-amber-500 border-amber-500 text-white font-medium"
@@ -1070,7 +1070,7 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick, 
                   }`}
                 >
                   <Icon className="h-3.5 w-3.5" />
-                  {lt.label}
+                  {t(lt.labelKey)}
                 </button>
               );
             })}
@@ -1082,30 +1082,30 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick, 
       {openPanel === "help" && (
         <div className="absolute top-12 right-5 z-30 w-80 rounded-lg border bg-popover shadow-xl p-4 space-y-3 text-xs">
           <div className="flex items-center justify-between">
-            <div className="font-semibold">그래프 가이드</div>
+            <div className="font-semibold">{t("graphView.guide")}</div>
             <button onClick={() => setOpenPanel(null)} className="text-muted-foreground hover:text-foreground">
               <X className="h-3.5 w-3.5" />
             </button>
           </div>
           <div>
-            <div className="text-muted-foreground font-semibold mb-1.5">노드</div>
+            <div className="text-muted-foreground font-semibold mb-1.5">{t("graphView.nodes")}</div>
             <ul className="space-y-1 pl-1">
               <li className="flex items-center gap-2">
                 <span className="inline-block w-3 h-3 rounded-full bg-blue-500 border-2 border-white" />
-                <span>이 프로젝트의 이슈</span>
+                <span>{t("graphView.nodeThisProject")}</span>
               </li>
               <li className="flex items-center gap-2">
                 <span className="inline-block w-3 h-3 rounded-full bg-slate-500 border-2 border-amber-400 border-dashed" />
-                <span>외부 프로젝트의 이슈 (링크로 연결됨)</span>
+                <span>{t("graphView.nodeOtherProject")}</span>
               </li>
               <li className="flex items-center gap-2">
                 <span className="inline-block w-3 h-3 rounded-full bg-blue-500 ring-2 ring-pink-400" />
-                <span>색 테두리 = 라벨 색</span>
+                <span>{t("graphView.nodeLabelColor")}</span>
               </li>
             </ul>
           </div>
           <div>
-            <div className="text-muted-foreground font-semibold mb-1.5">연결 타입</div>
+            <div className="text-muted-foreground font-semibold mb-1.5">{t("graphView.linkTypes")}</div>
             <ul className="space-y-2">
               {LINK_TYPES.map((lt) => {
                 const Icon = lt.icon;
@@ -1113,8 +1113,8 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick, 
                   <li key={lt.value} className="flex items-start gap-2">
                     <Icon className="h-3.5 w-3.5 mt-0.5 shrink-0 text-primary" />
                     <div>
-                      <div className="font-medium">{lt.label}</div>
-                      <div className="text-muted-foreground">{lt.desc}</div>
+                      <div className="font-medium">{t(lt.labelKey)}</div>
+                      <div className="text-muted-foreground">{t(lt.descKey)}</div>
                     </div>
                   </li>
                 );
@@ -1122,18 +1122,18 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick, 
               <li className="flex items-start gap-2 pt-1 border-t border-border">
                 <div className="w-3 h-0 border-t-2 border-[#8b5cf6] mt-1.5 shrink-0" />
                 <div>
-                  <div className="font-medium">부모 → 자식 (보라 화살표)</div>
-                  <div className="text-muted-foreground">하위 이슈 관계. 그래프에서 자동으로 표시되며 삭제는 이슈 트리에서.</div>
+                  <div className="font-medium">{t("graphView.parentChild")}</div>
+                  <div className="text-muted-foreground">{t("graphView.parentChildDesc")}</div>
                 </div>
               </li>
             </ul>
           </div>
           <div>
-            <div className="text-muted-foreground font-semibold mb-1">조작</div>
+            <div className="text-muted-foreground font-semibold mb-1">{t("graphView.controls")}</div>
             <ul className="space-y-0.5 text-muted-foreground">
-              <li>· 드래그: 노드 고정 · 더블클릭: 고정 해제</li>
-              <li>· 휠: 줌 · 빈 곳 드래그: 팬</li>
-              <li>· 궤도 모드에서 중심 노드 드래그 = 자식 전체가 따라 이동</li>
+              <li>· {t("graphView.ctrlDrag")}</li>
+              <li>· {t("graphView.ctrlWheel")}</li>
+              <li>· {t("graphView.ctrlOrbit")}</li>
             </ul>
           </div>
         </div>
@@ -1142,14 +1142,14 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick, 
       {/* 해제 모드 힌트 — 100% 불투명 */}
       {isDisconnect && (
         <div className="absolute top-12 left-1/2 -translate-x-1/2 z-20 rounded-full bg-destructive text-destructive-foreground text-xs px-3 py-1.5 shadow-lg font-medium">
-          연결선을 클릭하면 해제됩니다 (부모-자식 / 라벨 엣지 제외, Esc: 취소)
+          {t("graphView.disconnectNote")}
         </div>
       )}
 
       {/* 계층(depth) 패널 */}
       {openPanel === "layer" && (
         <div className="absolute top-12 left-5 z-20 w-56 rounded-lg border bg-popover shadow-lg p-3 space-y-2 text-xs">
-          <div className="font-semibold text-muted-foreground">계층(depth)별 보기</div>
+          <div className="font-semibold text-muted-foreground">{t("graphView.layersTitle")}</div>
           <div className="space-y-1">
             <button
               onClick={() => setFocusedDepth(null)}
@@ -1157,7 +1157,7 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick, 
                 focusedDepth === null ? "bg-primary/10 text-primary font-medium" : "hover:bg-muted/50"
               }`}
             >
-              전체 보기 · {data?.nodes.length ?? 0}개
+              {t("graphView.showAllCount", { count: data?.nodes.length ?? 0 })}
             </button>
             {depthCounts.map(([d, c]) => (
               <button
@@ -1167,11 +1167,11 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick, 
                   focusedDepth === d ? "bg-primary/10 text-primary font-medium" : "hover:bg-muted/50"
                 }`}
               >
-                {d === 0 ? "최상위" : `└ 하위 ${d}단계`} · {c}개
+                {d === 0 ? t("graphView.topLevel") : t("graphView.depthN", { depth: d })} · {t("graphView.countSuffix", { count: c })}
               </button>
             ))}
           </div>
-          <p className="text-2xs text-muted-foreground">선택한 계층만 강조됩니다. 다시 누르면 해제.</p>
+          <p className="text-2xs text-muted-foreground">{t("graphView.layersNote")}</p>
         </div>
       )}
 
@@ -1182,7 +1182,7 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick, 
             <span>{t("graph.animation", "애니메이션 모드")}</span>
             <input type="checkbox" checked={animating} onChange={(e) => { setAnimating(e.target.checked); setSimKick((k) => k + 1); }} className="h-4 w-4 accent-primary" />
           </label>
-          <p className="text-2xs text-muted-foreground -mt-2">끄면 정적 뷰 모드 — 한 번 자리잡고 멈춥니다.</p>
+          <p className="text-2xs text-muted-foreground -mt-2">{t("graphView.animationNote")}</p>
           <label className="flex items-center justify-between gap-2">
             <span>{t("graph.showIds", "이슈 ID 표시")}</span>
             <input type="checkbox" checked={showIds} onChange={(e) => setShowIds(e.target.checked)} className="h-4 w-4 accent-primary" />
@@ -1201,13 +1201,13 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick, 
               onChange={(e) => setLabelSize(Number(e.target.value))}
               className="w-full accent-primary"
             />
-            <p className="text-2xs text-muted-foreground mt-1">0 으로 두면 라벨이 숨겨집니다.</p>
+            <p className="text-2xs text-muted-foreground mt-1">{t("graphView.labelSizeHint")}</p>
           </div>
 
           {/* 구분선 + 모드별 섹션 */}
           <div className="pt-1">
             <div className="flex items-center gap-2 text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
-              <span className="shrink-0">포스</span>
+              <span className="shrink-0">{t("graphView.force")}</span>
               <div className="flex-1 border-t border-border" />
             </div>
             <div className="mt-2">
@@ -1230,7 +1230,7 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick, 
 
           <div className="pt-1">
             <div className="flex items-center gap-2 text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
-              <span className="shrink-0">궤도</span>
+              <span className="shrink-0">{t("graphView.orbit")}</span>
               <div className="flex-1 border-t border-border" />
             </div>
             <div className="mt-2">
@@ -1247,7 +1247,7 @@ export function GraphView({ workspaceSlug, projectId, categoryId, onIssueClick, 
                 onChange={(e) => setOrbitSpeed(Number(e.target.value))}
                 className="w-full accent-primary"
               />
-              <p className="text-2xs text-muted-foreground mt-1">0% 는 정지, 100% 기본, 200% 까지 가속.</p>
+              <p className="text-2xs text-muted-foreground mt-1">{t("graphView.orbitSpeedHint")}</p>
             </div>
           </div>
         </div>

@@ -39,7 +39,7 @@ class WorkspaceManageView(APIView):
             workspace=workspace, member=request.user, role__gte=WorkspaceMember.Role.ADMIN,
         ).exists()
         if not is_admin:
-            raise PermissionDenied("워크스페이스 관리자만 볼 수 있습니다.")
+            raise PermissionDenied("Only a workspace administrator can view this.")
         self.workspace = workspace
 
 

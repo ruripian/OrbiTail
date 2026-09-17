@@ -4,6 +4,7 @@
  */
 
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FileText, FolderOpen, Sparkles, Users, User as UserIcon, Trash2 } from "lucide-react";
 import { documentsApi } from "@/api/documents";
@@ -24,7 +25,12 @@ interface Props {
 
 type Tab = "all" | "built_in" | "workspace" | "user";
 
+/* 백엔드 시드가 넣는 내장 템플릿의 이름. UI 문구가 아니라 저장된 데이터라
+   번역하지 않는다 — 바꾸면 아래 중복 제거 필터가 걸리지 않는다. */
+const BLANK_TEMPLATE_NAME = "빈 페이지"; // i18n-ignore
+
 export function TemplatePickerDialog({ open, onOpenChange, workspaceSlug, onPick }: Props) {
+  const { t } = useTranslation();
   const [tab, setTab] = useState<Tab>("all");
   const currentUser = useAuthStore((s) => s.user);
   const qc = useQueryClient();
@@ -54,20 +60,20 @@ export function TemplatePickerDialog({ open, onOpenChange, workspaceSlug, onPick
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl w-[calc(100vw-2rem)] max-h-[80vh] overflow-hidden flex flex-col">
         <DialogHeader>
-          <DialogTitle>새 문서 만들기</DialogTitle>
+          <DialogTitle>{t("documents.templates.newDoc")}</DialogTitle>
         </DialogHeader>
 
         {/* 탭 */}
         <div className="flex items-center gap-1 border-b -mt-2 pb-2">
-          <TabBtn active={tab === "all"} onClick={() => setTab("all")}>전체</TabBtn>
+          <TabBtn active={tab === "all"} onClick={() => setTab("all")}>{t("documents.templates.tabAll")}</TabBtn>
           <TabBtn active={tab === "built_in"} onClick={() => setTab("built_in")}>
-            <Sparkles className="h-3 w-3 mr-1 inline" />기본
+            <Sparkles className="h-3 w-3 mr-1 inline" />{t("documents.templates.scopeBuiltIn")}
           </TabBtn>
           <TabBtn active={tab === "workspace"} onClick={() => setTab("workspace")}>
-            <Users className="h-3 w-3 mr-1 inline" />공유
+            <Users className="h-3 w-3 mr-1 inline" />{t("documents.templates.scopeWorkspace")}
           </TabBtn>
           <TabBtn active={tab === "user"} onClick={() => setTab("user")}>
-            <UserIcon className="h-3 w-3 mr-1 inline" />내 템플릿
+            <UserIcon className="h-3 w-3 mr-1 inline" />{t("documents.templates.tabMine")}
           </TabBtn>
         </div>
 
@@ -83,22 +89,22 @@ export function TemplatePickerDialog({ open, onOpenChange, workspaceSlug, onPick
                 📄
               </div>
               <div className="min-w-0 flex-1">
-                <p className="font-medium text-sm">빈 문서</p>
-                <p className="text-xs text-muted-foreground mt-0.5">처음부터 직접 작성</p>
+                <p className="font-medium text-sm">{t("documents.templates.blank")}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{t("documents.templates.blankHint")}</p>
               </div>
             </button>
           )}
 
           {q.isLoading ? (
-            <p className="col-span-full p-6 text-sm text-muted-foreground text-center">로딩 중...</p>
+            <p className="col-span-full p-6 text-sm text-muted-foreground text-center">{t("common.loading")}</p>
           ) : filtered.length === 0 ? (
             <p className="col-span-full p-6 text-sm text-muted-foreground text-center">
-              {tab === "user" ? "아직 저장된 템플릿이 없습니다. 기존 문서 설정 메뉴에서 '템플릿으로 저장' 가능." : "템플릿 없음"}
+              {tab === "user" ? t("documents.templates.emptyMine") : t("documents.templates.empty")}
             </p>
           ) : (
             filtered
               // 빈 문서는 시드에 built_in으로 들어있는데 위에서 별도 처리 — 중복 방지
-              .filter((t) => !(t.scope === "built_in" && t.name === "빈 페이지"))
+              .filter((tpl) => !(tpl.scope === "built_in" && tpl.name === BLANK_TEMPLATE_NAME))
               .map((tpl) => {
                 const icon = (tpl.icon_prop as { emoji?: string } | null)?.emoji ?? "📄";
                 return (
@@ -123,10 +129,10 @@ export function TemplatePickerDialog({ open, onOpenChange, workspaceSlug, onPick
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          if (confirm(`"${tpl.name}" 템플릿을 삭제하시겠습니까?`)) deleteMutation.mutate(tpl.id);
+                          if (confirm(t("documents.templates.deleteConfirm", { name: tpl.name }))) deleteMutation.mutate(tpl.id);
                         }}
                         className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 h-6 w-6 rounded-md hover:bg-destructive/10 hover:text-destructive flex items-center justify-center transition-opacity"
-                        title="템플릿 삭제"
+                        title={t("documents.templates.delete")}
                       >
                         <Trash2 className="h-3 w-3" />
                       </button>
@@ -138,7 +144,7 @@ export function TemplatePickerDialog({ open, onOpenChange, workspaceSlug, onPick
         </div>
 
         <div className="flex justify-end gap-2 pt-2 border-t">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>취소</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>{t("common.cancel")}</Button>
         </div>
       </DialogContent>
     </Dialog>
@@ -161,17 +167,18 @@ function TabBtn({ active, onClick, children }: { active: boolean; onClick: () =>
 }
 
 function ScopeBadge({ scope }: { scope: DocumentTemplate["scope"] }) {
+  const { t } = useTranslation();
   const cfg = {
-    built_in: { label: "기본", cls: "bg-primary/10 text-primary", Icon: Sparkles },
-    workspace: { label: "공유", cls: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400", Icon: Users },
-    space: { label: "스페이스", cls: "bg-amber-500/10 text-amber-600 dark:text-amber-400", Icon: FolderOpen },
-    user: { label: "내 것", cls: "bg-muted text-muted-foreground", Icon: UserIcon },
+    built_in: { labelKey: "documents.templates.scopeBuiltIn", cls: "bg-primary/10 text-primary", Icon: Sparkles },
+    workspace: { labelKey: "documents.templates.scopeWorkspace", cls: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400", Icon: Users },
+    space: { labelKey: "documents.templates.scopeSpace", cls: "bg-amber-500/10 text-amber-600 dark:text-amber-400", Icon: FolderOpen },
+    user: { labelKey: "documents.templates.scopeUser", cls: "bg-muted text-muted-foreground", Icon: UserIcon },
   }[scope];
   const Icon = cfg.Icon;
   return (
     <span className={cn("inline-flex items-center gap-0.5 text-2xs px-1.5 py-0.5 rounded-full font-medium", cfg.cls)}>
       <Icon className="h-2.5 w-2.5" />
-      {cfg.label}
+      {t(cfg.labelKey)}
     </span>
   );
 }
@@ -189,6 +196,7 @@ export function SaveAsTemplateDialog({
   defaultName?: string;
   isWorkspaceAdmin?: boolean;
 }) {
+  const { t } = useTranslation();
   const [name, setName] = useState(defaultName);
   const [description, setDescription] = useState("");
   const [scope, setScope] = useState<"user" | "workspace" | "space">("user");
@@ -210,21 +218,21 @@ export function SaveAsTemplateDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>템플릿으로 저장</DialogTitle>
+          <DialogTitle>{t("documents.templates.saveAs")}</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
           <div>
-            <label className="block text-xs font-medium mb-1 text-muted-foreground">이름</label>
+            <label className="block text-xs font-medium mb-1 text-muted-foreground">{t("documents.templates.name")}</label>
             <input
               autoFocus
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="예: 주간 회고"
+              placeholder={t("documents.templates.namePlaceholder")}
               className="w-full text-sm bg-background border rounded-lg px-3 py-2 outline-none focus:border-primary/60"
             />
           </div>
           <div>
-            <label className="block text-xs font-medium mb-1 text-muted-foreground">설명 (선택)</label>
+            <label className="block text-xs font-medium mb-1 text-muted-foreground">{t("documents.templates.desc")}</label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
@@ -233,34 +241,34 @@ export function SaveAsTemplateDialog({
             />
           </div>
           <div>
-            <label className="block text-xs font-medium mb-1 text-muted-foreground">범위</label>
+            <label className="block text-xs font-medium mb-1 text-muted-foreground">{t("documents.templates.scope")}</label>
             <div className="flex gap-2">
-              <ScopeOption active={scope === "user"} onClick={() => setScope("user")} Icon={UserIcon} label="내 템플릿" hint="나만 사용" />
+              <ScopeOption active={scope === "user"} onClick={() => setScope("user")} Icon={UserIcon} label={t("documents.templates.tabMine")} hint={t("documents.templates.scopeUserHint")} />
               {spaceId && (
                 <ScopeOption
                   active={scope === "space"}
                   onClick={() => setScope("space")}
                   Icon={FolderOpen}
-                  label="이 스페이스"
-                  hint="이 스페이스에서만"
+                  label={t("documents.templates.thisSpace")}
+                  hint={t("documents.templates.thisSpaceHint")}
                 />
               )}
               <ScopeOption
                 active={scope === "workspace"}
                 onClick={() => isWorkspaceAdmin && setScope("workspace")}
                 Icon={Users}
-                label="워크스페이스 공유"
-                hint={isWorkspaceAdmin ? "멤버 모두 사용" : "관리자만 생성 가능"}
+                label={t("documents.templates.workspaceShared")}
+                hint={isWorkspaceAdmin ? t("documents.templates.workspaceSharedHint") : t("documents.templates.adminOnly")}
                 disabled={!isWorkspaceAdmin}
               />
             </div>
           </div>
         </div>
         <div className="flex justify-end gap-2 pt-4">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>취소</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>{t("common.cancel")}</Button>
           <Button disabled={!name.trim() || saveMutation.isPending} onClick={() => saveMutation.mutate()}>
             <FileText className="h-4 w-4 mr-1" />
-            {saveMutation.isPending ? "저장 중..." : "저장"}
+            {saveMutation.isPending ? t("documents.templates.saving") : t("documents.templates.save")}
           </Button>
         </div>
       </DialogContent>

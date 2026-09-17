@@ -11,7 +11,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
-    "check:i18n": "node scripts/check-translations.cjs",
+    "check:i18n": "node scripts/check-translations.cjs && node scripts/check-i18n.mjs",
     "collab": "tsx collab/server.ts",
     "typecheck:collab": "tsc --noEmit -p collab/tsconfig.json"
   },

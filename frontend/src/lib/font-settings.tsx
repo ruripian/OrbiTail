@@ -24,18 +24,19 @@ const FONT_MONO: Record<FontMonoKey, string> = {
   system: 'ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace',
 };
 
-export const FONT_SANS_LABELS: Array<{ value: FontFamilyKey; label: string }> = [
-  { value: "pretendard", label: "Pretendard (기본)" },
-  { value: "system", label: "시스템" },
-  { value: "noto", label: "Noto Sans KR" },
-  { value: "nanum-gothic", label: "나눔고딕" },
-  { value: "nanum-myeongjo", label: "나눔명조" },
+/* 라벨은 화면에서 t() 로 푼다 — 이 모듈은 컴포넌트가 아니라 훅을 쓸 수 없다. */
+export const FONT_SANS_LABELS: Array<{ value: FontFamilyKey; labelKey: string }> = [
+  { value: "pretendard", labelKey: "fonts.pretendard" },
+  { value: "system", labelKey: "fonts.system" },
+  { value: "noto", labelKey: "fonts.noto" },
+  { value: "nanum-gothic", labelKey: "fonts.nanumGothic" },
+  { value: "nanum-myeongjo", labelKey: "fonts.nanumMyeongjo" },
 ];
 
-export const FONT_MONO_LABELS: Array<{ value: FontMonoKey; label: string }> = [
-  { value: "jetbrains", label: "JetBrains Mono (기본)" },
-  { value: "d2coding", label: "D2Coding" },
-  { value: "system", label: "시스템" },
+export const FONT_MONO_LABELS: Array<{ value: FontMonoKey; labelKey: string }> = [
+  { value: "jetbrains", labelKey: "fonts.jetbrains" },
+  { value: "d2coding", labelKey: "fonts.d2coding" },
+  { value: "system", labelKey: "fonts.system" },
 ];
 
 /* 한글 웹폰트 — 필요할 때만 로드. 한 번만 <link> 추가 */

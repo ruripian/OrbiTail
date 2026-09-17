@@ -1,3 +1,4 @@
+import i18n from "@/lib/i18n";
 /**
  * 날짜 포맷 공통 유틸
  *
@@ -39,26 +40,19 @@ export function formatRelative(
   iso: string | Date,
   t?: (key: string, opts?: Record<string, unknown>) => string,
 ): string {
+  /* t 를 받지 않은 호출부를 위해 전역 i18n 인스턴스로 떨어진다.
+     예전에는 여기서 한국어를 하드코딩해 언어 설정과 무관하게 한글이 나왔다. */
+  const tr = t ?? ((key: string, opts?: Record<string, unknown>) => i18n.t(key, opts) as string);
   const d = typeof iso === "string" ? new Date(iso) : iso;
   const diff = Date.now() - d.getTime();
   const minutes = Math.floor(diff / 60000);
 
-  if (t) {
-    if (minutes < 1) return t("dashboard.justNow");
-    if (minutes < 60) return t("dashboard.minutesAgo", { count: minutes });
-    const hours = Math.floor(minutes / 60);
-    if (hours < 24) return t("dashboard.hoursAgo", { count: hours });
-    const days = Math.floor(hours / 24);
-    return t("dashboard.daysAgo", { count: days });
-  }
-
-  // i18n 없이 한국어 하드코딩 (폴백)
-  if (minutes < 1) return "방금";
-  if (minutes < 60) return `${minutes}분 전`;
+  if (minutes < 1) return tr("dashboard.justNow");
+  if (minutes < 60) return tr("dashboard.minutesAgo", { count: minutes });
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}시간 전`;
+  if (hours < 24) return tr("dashboard.hoursAgo", { count: hours });
   const days = Math.floor(hours / 24);
-  return `${days}일 전`;
+  return tr("dashboard.daysAgo", { count: days });
 }
 
 /** "4월 1일 ~ 4월 15일" 형식의 날짜 범위 */

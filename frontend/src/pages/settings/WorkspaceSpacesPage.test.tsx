@@ -16,6 +16,16 @@ vi.mock("@/api/documents", () => ({
 }));
 vi.mock("@/api/workspaces", () => ({ workspacesApi: { members: mocks.members } }));
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
+/* i18n — t 가 키를 그대로 돌려주게 해서 문구 변경에 테스트가 흔들리지 않게 한다. */
+vi.mock("react-i18next", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("react-i18next")>()),
+  useTranslation: () => ({
+    t: (k: string, vars?: Record<string, unknown>) =>
+      vars ? `${k}:${JSON.stringify(vars)}` : k,
+    i18n: { language: "ko", changeLanguage: vi.fn() },
+  }),
+}));
+
 
 import { WorkspaceSpacesPage } from "./WorkspaceSpacesPage";
 import { useAuthStore } from "@/stores/authStore";
@@ -51,8 +61,8 @@ describe("WorkspaceSpacesPage", () => {
   it("멤버가 아닌 비공개 스페이스도 목록에 보이고 공개로 바꿀 수 있다", async () => {
     renderPage();
     expect(await screen.findByText("인사 비밀")).toBeInTheDocument();
-    expect(screen.getByText("· 나는 멤버 아님")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: /공개로/ }));
+    expect(screen.getByText("workspaceSettings.projects.notMember")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "workspaceSettings.spaces.makePublic" }));
     await waitFor(() => expect(mocks.update).toHaveBeenCalledWith("ws", "s1", { is_private: false }));
   });
 

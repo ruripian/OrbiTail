@@ -177,7 +177,7 @@ export function RichTextEditor({
       } else {
         // base64 임베드 — 5MB 이하만
         if (file.size > 5 * 1024 * 1024) {
-          alert("이미지가 5MB 를 초과합니다. 더 작은 파일을 사용해주세요.");
+          alert(t("editor.imageTooLarge"));
           return;
         }
         url = await new Promise<string>((resolve, reject) => {
@@ -191,7 +191,7 @@ export function RichTextEditor({
     } catch (e) {
       // eslint-disable-next-line no-console
       console.error(e);
-      alert("이미지 업로드 실패");
+      alert(t("editor.imageUploadFailed"));
     } finally {
       setUploading(false);
     }

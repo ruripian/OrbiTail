@@ -4,12 +4,14 @@
  */
 
 import { useParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { documentsApi } from "@/api/documents";
 import { sanitizeHtml } from "@/lib/sanitize-html";
 
 export default function PublicDocumentPage() {
+  const { t } = useTranslation();
   const { token } = useParams<{ token: string }>();
 
   const { data, isLoading, error } = useQuery({
@@ -32,9 +34,9 @@ export default function PublicDocumentPage() {
       <div className="flex items-center justify-center h-screen px-6">
         <div className="text-center max-w-md">
           <p className="text-5xl mb-3">🔒</p>
-          <h1 className="text-2xl font-semibold mb-1">공유 링크를 사용할 수 없습니다</h1>
+          <h1 className="text-2xl font-semibold mb-1">{t("publicDoc.unavailableTitle")}</h1>
           <p className="text-sm text-muted-foreground">
-            링크가 만료되었거나, 공유가 해제되었거나, 존재하지 않는 문서일 수 있습니다.
+            {t("publicDoc.unavailableBody")}
           </p>
         </div>
       </div>
@@ -65,7 +67,7 @@ export default function PublicDocumentPage() {
           </div>
         </div>
         <p className="text-2xs text-muted-foreground text-center mt-4">
-          읽기 전용 공개 링크 · 최종 수정 {new Date(data.updated_at).toLocaleString()}
+          {t("publicDoc.footer", { date: new Date(data.updated_at).toLocaleString() })}
         </p>
       </div>
     </div>

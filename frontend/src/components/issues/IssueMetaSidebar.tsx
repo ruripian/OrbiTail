@@ -377,7 +377,7 @@ function LinkedDocumentsSection({ issueId, workspaceSlug, projectId }: { issueId
               onClick={() => setShowAll((v) => !v)}
               className="mt-2 w-full text-center text-2xs text-muted-foreground hover:text-primary transition-colors py-1.5 rounded-md hover:bg-background/60"
             >
-              {showAll ? "접기" : `+ ${links.length - VISIBLE_LINK_LIMIT}개 더보기`}
+              {showAll ? t("common.collapse") : t("issues.detail.showMoreLinks", { count: links.length - VISIBLE_LINK_LIMIT })}
             </button>
           )}
           <button

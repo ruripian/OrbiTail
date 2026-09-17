@@ -11,6 +11,7 @@
  */
 
 import { useEffect, useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import * as Y from "yjs";
 import { HocuspocusProvider } from "@hocuspocus/provider";
 import { useAuthStore } from "@/stores/authStore";
@@ -45,6 +46,7 @@ function colorFor(seed: string): string {
 }
 
 export function useDocumentWebSocket(docId: string | undefined): DocCollab {
+  const { t } = useTranslation();
   const user = useAuthStore((s) => s.user);
   const [connected, setConnected] = useState(false);
   const [synced, setSynced] = useState(false);
@@ -58,7 +60,7 @@ export function useDocumentWebSocket(docId: string | undefined): DocCollab {
   /* user 객체 레퍼런스 변동에 민감하지 않게 — id/name/avatar만 deps로 */
   const me = useMemo(() => ({
     id: user?.id,
-    name: user?.display_name || user?.email || "익명",
+    name: user?.display_name || user?.email || t("presence.anonymous"),
     color: colorFor(user?.id || "anon"),
     avatar: user?.avatar || undefined,
   }), [user?.id, user?.display_name, user?.email, user?.avatar]);

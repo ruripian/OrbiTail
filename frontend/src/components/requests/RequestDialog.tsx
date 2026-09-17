@@ -20,6 +20,7 @@
  * (C1 단계에서는 RequestSubmitPage 안에서만 진입하므로 충족됨)
  */
 import { useState } from "react";
+import { useTranslation, Trans } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -49,25 +50,27 @@ import { sanitizeHtml } from "@/lib/sanitize-html";
 
 /* ────────────── 배지 ────────────── */
 function KindBadge({ kind }: { kind: IssueRequest["kind"] }) {
+  const { t } = useTranslation();
   if (kind === "bug") {
     return (
       <span className="inline-flex items-center gap-1 rounded-full bg-destructive/10 text-destructive px-2 py-0.5 text-2xs font-semibold">
-        <Bug className="h-2.5 w-2.5" /> 버그
+        <Bug className="h-2.5 w-2.5" /> {t("request.filter.bug")}
       </span>
     );
   }
   return (
     <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary px-2 py-0.5 text-2xs font-semibold">
-      <Sparkles className="h-2.5 w-2.5" /> 기능
+      <Sparkles className="h-2.5 w-2.5" /> {t("request.filter.feature")}
     </span>
   );
 }
 
 function StatusBadge({ status }: { status: IssueRequest["status"] }) {
+  const { t } = useTranslation();
   const cfg: Record<IssueRequest["status"], { label: string; cls: string }> = {
-    pending:  { label: "대기",   cls: "bg-amber-500/15 text-amber-600 dark:text-amber-400" },
-    approved: { label: "승인됨", cls: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" },
-    rejected: { label: "거절됨", cls: "bg-muted text-muted-foreground" },
+    pending:  { label: t("request.tab.pending"),      cls: "bg-amber-500/15 text-amber-600 dark:text-amber-400" },
+    approved: { label: t("request.filter.approved"),  cls: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" },
+    rejected: { label: t("request.filter.rejected"),  cls: "bg-muted text-muted-foreground" },
   };
   const c = cfg[status];
   return (
@@ -89,6 +92,7 @@ function MetaBlock({ label, children }: { label: string; children: React.ReactNo
 
 /* ────────────── 본체 ────────────── */
 export function RequestDialog() {
+  const { t } = useTranslation();
   const current = useRequestDialogStore((s) => s.current);
   const context = useRequestDialogStore((s) => s.context);
   const storeClose = useRequestDialogStore((s) => s.close);
@@ -124,7 +128,7 @@ export function RequestDialog() {
     mutationFn: () =>
       requestsApi.delete(context!.workspaceSlug, context!.projectId, current!.id),
     onSuccess: () => {
-      toast.success("요청이 삭제되었습니다");
+      toast.success(t("request.deleted"));
       qc.invalidateQueries({ queryKey: ["requests", context!.workspaceSlug, context!.projectId] });
       close();
     },
@@ -154,7 +158,7 @@ export function RequestDialog() {
               <StatusBadge status={current.status} />
               {current.visibility === "private" && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-muted text-muted-foreground px-2 py-0.5 text-2xs">
-                  <EyeOff className="h-2.5 w-2.5" /> 비공개
+                  <EyeOff className="h-2.5 w-2.5" /> {t("request.private")}
                 </span>
               )}
               {current.approved_issue && current.approved_issue_sequence_id != null && (
@@ -168,7 +172,7 @@ export function RequestDialog() {
                   }}
                   className="inline-flex items-center gap-1 text-2xs font-mono text-emerald-600 dark:text-emerald-400 hover:underline"
                 >
-                  → 이슈 #{current.approved_issue_sequence_id}
+                  → {t("request.issueNo", { id: current.approved_issue_sequence_id })}
                   <ExternalLink className="h-3 w-3" />
                 </button>
               )}
@@ -185,7 +189,7 @@ export function RequestDialog() {
                   dangerouslySetInnerHTML={{ __html: sanitizeHtml(current.description_html) }}
                 />
               ) : (
-                <p className="text-sm text-muted-foreground italic">설명 없음</p>
+                <p className="text-sm text-muted-foreground italic">{t("request.noDescription")}</p>
               )}
 
               {/* bug 의 구조화 meta — description_html 안에도 들어있지만 노출 강조용 별도 카드 */}
@@ -193,13 +197,13 @@ export function RequestDialog() {
                 <div className="rounded-lg border bg-muted/30 px-3 py-2 space-y-1.5">
                   {meta.severity && (
                     <div className="flex items-center gap-2 text-xs">
-                      <span className="text-muted-foreground w-16">심각도</span>
+                      <span className="text-muted-foreground w-16">{t("request.bug.severity")}</span>
                       <span className="font-medium text-destructive">{meta.severity}</span>
                     </div>
                   )}
                   {meta.environment && (
                     <div className="flex items-start gap-2 text-xs">
-                      <span className="text-muted-foreground w-16 shrink-0">환경</span>
+                      <span className="text-muted-foreground w-16 shrink-0">{t("request.bug.environment")}</span>
                       <span className="font-mono text-2xs break-all">{meta.environment}</span>
                     </div>
                   )}
@@ -208,14 +212,14 @@ export function RequestDialog() {
 
               {current.status === "rejected" && current.rejected_reason && (
                 <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2">
-                  <div className="text-2xs uppercase tracking-wide text-destructive font-semibold mb-1">거절 사유</div>
+                  <div className="text-2xs uppercase tracking-wide text-destructive font-semibold mb-1">{t("request.rejectReason")}</div>
                   <p className="text-sm whitespace-pre-wrap">{current.rejected_reason}</p>
                 </div>
               )}
             </div>
 
             <aside className="space-y-3 md:border-l md:pl-4 border-border">
-              <MetaBlock label="제출자">
+              <MetaBlock label={t("request.submitter")}>
                 {current.submitted_by_detail ? (
                   <span className="inline-flex items-center gap-1.5">
                     <AvatarInitials
@@ -227,11 +231,11 @@ export function RequestDialog() {
                   </span>
                 ) : "—"}
               </MetaBlock>
-              <MetaBlock label="제출 시각">
+              <MetaBlock label={t("request.submittedAt")}>
                 <span className="text-muted-foreground">{new Date(current.created_at).toLocaleString()}</span>
               </MetaBlock>
               {current.reviewer_detail && (
-                <MetaBlock label="처리자">
+                <MetaBlock label={t("request.decidedBy")}>
                   <span className="inline-flex items-center gap-1.5">
                     <AvatarInitials
                       name={current.reviewer_detail.display_name}
@@ -243,13 +247,13 @@ export function RequestDialog() {
                 </MetaBlock>
               )}
               {current.reviewed_at && (
-                <MetaBlock label="처리 시각">
+                <MetaBlock label={t("request.decidedAt")}>
                   <span className="text-muted-foreground">{new Date(current.reviewed_at).toLocaleString()}</span>
                 </MetaBlock>
               )}
-              <MetaBlock label="공개 범위">
+              <MetaBlock label={t("request.visibility")}>
                 <span className="text-muted-foreground">
-                  {current.visibility === "public" ? "공개 (멤버 누구나)" : "비공개 (제출자 + 관리자)"}
+                  {current.visibility === "public" ? t("request.publicLong") : t("request.privateLong")}
                 </span>
               </MetaBlock>
             </aside>
@@ -263,25 +267,25 @@ export function RequestDialog() {
                 size="sm"
                 className="h-8 gap-1 text-destructive hover:text-destructive"
                 onClick={() => {
-                  if (window.confirm("이 요청을 삭제하시겠습니까?")) deleteMutation.mutate();
+                  if (window.confirm(t("request.deleteConfirm"))) deleteMutation.mutate();
                 }}
                 disabled={deleteMutation.isPending}
               >
-                <Trash2 className="h-3.5 w-3.5" /> 삭제
+                <Trash2 className="h-3.5 w-3.5" /> {t("common.delete")}
               </Button>
             )}
             <div className="flex-1" />
             {current.status === "pending" && canReview && (
               <>
                 <Button variant="outline" onClick={() => setRejectOpen(true)}>
-                  <X className="h-4 w-4 mr-1 text-destructive" /> 거절
+                  <X className="h-4 w-4 mr-1 text-destructive" /> {t("request.reject")}
                 </Button>
                 <Button onClick={() => setApproveOpen(true)}>
-                  <Check className="h-4 w-4 mr-1" /> 승인
+                  <Check className="h-4 w-4 mr-1" /> {t("settings.workspaceJoinRequests.approve")}
                 </Button>
               </>
             )}
-            <Button variant="ghost" onClick={close}>닫기</Button>
+            <Button variant="ghost" onClick={close}>{t("common.close")}</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -330,6 +334,7 @@ function ApproveForm({
   onClose: () => void;
   onApproved: () => void;
 }) {
+  const { t } = useTranslation();
   const [stateId, setStateId] = useState<string | null>(null);
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [sprintId, setSprintId] = useState<string | null>(null);
@@ -361,17 +366,17 @@ function ApproveForm({
         assignees: assigneeIds.length ? assigneeIds : undefined,
       }),
     onSuccess: () => {
-      toast.success("요청이 승인되어 이슈로 편입되었습니다");
+      toast.success(t("request.approvedToIssue"));
       onApproved();
     },
-    onError: () => toast.error("승인 처리 실패"),
+    onError: () => toast.error(t("request.approveFailed")),
   });
 
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>요청 승인 → 이슈 편입</DialogTitle>
+          <DialogTitle>{t("request.approveTitle")}</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
           <div className="rounded-lg border bg-muted/30 px-3 py-2">
@@ -382,32 +387,32 @@ function ApproveForm({
           </div>
 
           <div>
-            <label className="block text-xs font-medium mb-1 text-muted-foreground">상태</label>
+            <label className="block text-xs font-medium mb-1 text-muted-foreground">{t("documents.issueEmbed.state")}</label>
             <StatePicker states={states} currentStateId={stateId} onChange={(id) => setStateId(id)} />
-            <p className="text-2xs text-muted-foreground/70 mt-1">미지정 시 프로젝트 기본 상태로 생성됩니다.</p>
+            <p className="text-2xs text-muted-foreground/70 mt-1">{t("request.defaultStateHint")}</p>
           </div>
 
           <div>
-            <label className="block text-xs font-medium mb-1 text-muted-foreground">카테고리</label>
+            <label className="block text-xs font-medium mb-1 text-muted-foreground">{t("request.category")}</label>
             <CategoryPicker categories={categories} currentId={categoryId} onChange={(id) => setCategoryId(id)} />
           </div>
 
           <div>
-            <label className="block text-xs font-medium mb-1 text-muted-foreground">스프린트</label>
+            <label className="block text-xs font-medium mb-1 text-muted-foreground">{t("sprints.title")}</label>
             <SprintPicker sprints={sprints} currentId={sprintId} onChange={(id) => setSprintId(id)} />
           </div>
 
           <div>
-            <label className="block text-xs font-medium mb-1 text-muted-foreground">담당자</label>
+            <label className="block text-xs font-medium mb-1 text-muted-foreground">{t("documents.issueEmbed.assignee")}</label>
             <UserPicker variant="avatars" mode="multi" users={membersToUsers(members)} value={assigneeIds} onChange={setAssigneeIds} />
           </div>
         </div>
 
         <div className="flex justify-end gap-2 mt-5">
-          <Button variant="outline" onClick={onClose}>취소</Button>
+          <Button variant="outline" onClick={onClose}>{t("common.cancel")}</Button>
           <Button onClick={() => approveMutation.mutate()} disabled={approveMutation.isPending}>
             <Check className="h-4 w-4 mr-1" />
-            {approveMutation.isPending ? "승인 중..." : "승인 + 이슈 생성"}
+            {approveMutation.isPending ? t("request.approving") : t("request.approveAndCreate")}
           </Button>
         </div>
       </DialogContent>
@@ -425,11 +430,12 @@ function RejectForm({
   onClose: () => void;
   onRejected: () => void;
 }) {
+  const { t } = useTranslation();
   const [reason, setReason] = useState("");
   const rejectMutation = useMutation({
     mutationFn: () => requestsApi.reject(workspaceSlug, projectId, req.id, reason.trim()),
     onSuccess: () => {
-      toast.success("요청이 거절되었습니다");
+      toast.success(t("request.rejected"));
       onRejected();
     },
   });
@@ -438,28 +444,28 @@ function RejectForm({
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>요청 거절</DialogTitle>
+          <DialogTitle>{t("request.rejectTitle")}</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
           <p className="text-sm text-muted-foreground">
-            "<span className="font-medium text-foreground">{req.title}</span>" 요청을 거절합니다.
+            <Trans i18nKey="request.rejectBody" values={{ title: req.title }} components={{ b: <span className="font-medium text-foreground" /> }} />
           </p>
           <div>
-            <label className="block text-xs font-medium mb-1 text-muted-foreground">사유 (선택)</label>
+            <label className="block text-xs font-medium mb-1 text-muted-foreground">{t("request.reason")}</label>
             <textarea
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              placeholder="거절하는 이유를 적어두면 제출자가 확인할 수 있습니다"
+              placeholder={t("request.reasonPlaceholder")}
               rows={3}
               className="w-full text-sm bg-background border rounded-lg px-3 py-2 outline-none focus:border-primary/60 resize-y"
             />
           </div>
         </div>
         <div className="flex justify-end gap-2 mt-5">
-          <Button variant="outline" onClick={onClose}>취소</Button>
+          <Button variant="outline" onClick={onClose}>{t("common.cancel")}</Button>
           <Button variant="destructive" onClick={() => rejectMutation.mutate()} disabled={rejectMutation.isPending}>
             <X className="h-4 w-4 mr-1" />
-            거절
+            {t("request.reject")}
           </Button>
         </div>
       </DialogContent>
