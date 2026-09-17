@@ -71,10 +71,16 @@ AXES_USERNAME_FORM_FIELD = "email"
 AXES_LOCKOUT_RESPONSE = "apps.accounts.lockout.lockout_response"
 # 로그인 성공 시 카운터 리셋
 AXES_RESET_ON_SUCCESS = True
-# django-ipware 가 설치돼 있을 때만 axes 가 읽는다. 지금은 requirements 에 없어
-# 효과가 없고, axes 는 REMOTE_ADDR(프록시 뒤라면 앞단 컨테이너 IP)을 기록한다.
-# 잠금은 위 AXES_LOCKOUT_PARAMETERS 대로 계정 단위라 이 값과 무관하다.
-AXES_IPWARE_PROXY_COUNT = config("AXES_IPWARE_PROXY_COUNT", default=0, cast=int)
+# 기록에 남길 IP 는 apps.core.client_ip 가 정한다 (TRUSTED_PROXY_COUNT 기준).
+# 설정하지 않으면 axes 는 REMOTE_ADDR, 즉 프록시 뒤에서는 nginx 주소만 남긴다.
+# 잠금 자체는 위 AXES_LOCKOUT_PARAMETERS 대로 계정 단위라 IP 와 무관하다.
+AXES_CLIENT_IP_CALLABLE = "apps.core.client_ip.client_ip"
+
+# 앞단 신뢰 프록시 수 — X-Forwarded-For 를 오른쪽에서 몇 번째까지 믿을지.
+# 0 이면 XFF 를 무시한다. 배포 구성마다 달라서 compose 파일이 기본값을 준다
+# (docker-compose.prod.yml = 1, docker-compose.proxied.yml = 2). 자세한 규칙은
+# apps/core/client_ip.py.
+TRUSTED_PROXY_COUNT = config("TRUSTED_PROXY_COUNT", default=0, cast=int)
 
 ROOT_URLCONF = "config.urls"
 
@@ -183,6 +189,10 @@ REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 50,
+    # 스로틀이 클라이언트를 구분할 때 믿을 프록시 수 — client_ip 와 같은 값을 쓴다.
+    # None(기본)이면 XFF 문자열 전체를 식별자로 써서, nginx 단독 배포에서는
+    # 헤더를 바꿔 보내는 것만으로 비로그인 스로틀을 우회할 수 있었다.
+    "NUM_PROXIES": TRUSTED_PROXY_COUNT,
     # --- API 요청 스로틀링 (로그인 시도 제한, DDoS 방어) ---
     "DEFAULT_THROTTLE_CLASSES": [
         "rest_framework.throttling.AnonRateThrottle",

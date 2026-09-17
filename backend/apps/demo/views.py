@@ -19,6 +19,8 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.accounts.serializers import MeSerializer
 
+from apps.core.client_ip import client_ip
+
 from .models import DemoSandbox
 from .sandbox import create_sandbox
 
@@ -26,13 +28,11 @@ from .sandbox import create_sandbox
 def _client_hash(request) -> str:
     """rate limit 용 클라이언트 식별자. 원본 IP 는 저장하지 않는다.
 
-    Caddy → nginx → daphne 순으로 프록시를 거치므로 REMOTE_ADDR 은 항상
-    nginx 다. X-Forwarded-For 의 맨 앞이 원 클라이언트지만 위조 가능하므로,
-    이 값은 남용을 완전히 막는 수단이 아니라 실수로 인한 폭주를 줄이는
-    수준으로만 쓴다.
+    예전에는 X-Forwarded-For 의 맨 앞을 썼는데, 그 값은 클라이언트가 위조할 수
+    있어 헤더만 바꿔 보내면 발급 제한을 넘을 수 있었다. 이제 스로틀·axes 와
+    같은 client_ip 를 쓴다(TRUSTED_PROXY_COUNT 기준).
     """
-    forwarded = request.META.get("HTTP_X_FORWARDED_FOR", "")
-    raw = forwarded.split(",")[0].strip() or request.META.get("REMOTE_ADDR", "")
+    raw = client_ip(request)
     return hashlib.sha256(f"{settings.SECRET_KEY}:{raw}".encode()).hexdigest()
 
 
