@@ -71,8 +71,9 @@ AXES_USERNAME_FORM_FIELD = "email"
 AXES_LOCKOUT_RESPONSE = "apps.accounts.lockout.lockout_response"
 # 로그인 성공 시 카운터 리셋
 AXES_RESET_ON_SUCCESS = True
-# 프록시 뒤일 때 IP 신뢰 — axes 7.x 는 IPWARE_META_PRECEDENCE_ORDER 사용 권장.
-# nginx → X-Forwarded-For 헤더로 클라이언트 IP 추출.
+# django-ipware 가 설치돼 있을 때만 axes 가 읽는다. 지금은 requirements 에 없어
+# 효과가 없고, axes 는 REMOTE_ADDR(프록시 뒤라면 앞단 컨테이너 IP)을 기록한다.
+# 잠금은 위 AXES_LOCKOUT_PARAMETERS 대로 계정 단위라 이 값과 무관하다.
 AXES_IPWARE_PROXY_COUNT = config("AXES_IPWARE_PROXY_COUNT", default=0, cast=int)
 
 ROOT_URLCONF = "config.urls"
