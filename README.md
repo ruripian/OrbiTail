@@ -109,7 +109,7 @@ docker compose -f docker-compose.prod.yml up -d --build
 sudo apt install certbot
 sudo certbot certonly --standalone -d your-domain.com
 
-# nginx/nginx.conf의 HTTPS 블록 활성화 후:
+# .env 에 DOMAIN 을 넣으면 HTTPS 템플릿이 적용된다:
 docker compose -f docker-compose.prod.yml restart nginx
 ```
 

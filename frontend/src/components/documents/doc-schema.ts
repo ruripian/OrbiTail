@@ -566,6 +566,12 @@ export function docExtensions(opts: { collab?: boolean } = {}): Extension[] {
     StarterKit.configure({
       heading: { levels: [1, 2, 3] },
       codeBlock: false,
+      /* v3 StarterKit 은 link·underline 을 이미 품고 있다. 아래에서 따로 등록하므로
+         여기서는 꺼 둔다 — 그냥 두면 같은 이름이 두 번 등록돼
+         "Duplicate extension names found: ['link', 'underline']" 경고가 나고,
+         나중에 등록된 쪽이 앞의 설정을 덮는다. */
+      link: false,
+      underline: false,
       ...(opts.collab ? { undoRedo: false as const } : {}),
     }),
     LinkExt.configure({ openOnClick: false }),

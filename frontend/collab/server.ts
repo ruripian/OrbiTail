@@ -43,9 +43,20 @@ const INTERNAL_PORT = Number(process.env.COLLAB_INTERNAL_PORT || 1235);
 const API_BASE = process.env.COLLAB_API_BASE || "http://backend:8000/api";
 const SHARED_SECRET = process.env.COLLAB_SHARED_SECRET || "";
 
+/* .env.example 을 그대로 복사해 쓰면 비밀값이 공개된 것이나 마찬가지다.
+   비어 있는 것과 똑같이 취급해 시작을 막는다. */
+const PLACEHOLDER_SECRETS = new Set(["change-this", "changeme", "secret", "todo"]);
+
 if (!SHARED_SECRET) {
   // 비밀값이 없으면 저장이 전부 403 으로 조용히 실패한다. 그 상태로 뜨느니 즉시 죽는 게 낫다.
   console.error("[collab] COLLAB_SHARED_SECRET 이 비어 있습니다. 저장이 불가능하므로 시작하지 않습니다.");
+  console.error('[collab] 만들기: python3 -c "import secrets;print(secrets.token_urlsafe(48))"');
+  process.exit(1);
+}
+
+if (PLACEHOLDER_SECRETS.has(SHARED_SECRET.trim().toLowerCase())) {
+  console.error("[collab] COLLAB_SHARED_SECRET 이 예시값 그대로입니다. 실제 값을 넣어 주세요.");
+  console.error('[collab] 만들기: python3 -c "import secrets;print(secrets.token_urlsafe(48))"');
   process.exit(1);
 }
 
