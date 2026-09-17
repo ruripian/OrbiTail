@@ -43,6 +43,7 @@ function readDocIds(dt: DataTransfer): string[] {
 
 /** 사이드바/드롭다운에서 쓰는 스페이스 아이콘. project 스페이스는 프로젝트 아이콘 동기화. */
 function SpaceTypeIcon({ space, className }: { space: DocumentSpace; className?: string }) {
+  const { t } = useTranslation();
   const icon = space.space_type === "project" && space.icon_prop
     ? <ProjectIcon value={space.icon_prop} size={10} className={cn("shrink-0", className)} />
     : space.space_type === "project"
@@ -53,10 +54,10 @@ function SpaceTypeIcon({ space, className }: { space: DocumentSpace; className?:
   if (!(space.space_type === "project" && space.project_network === 2)) return icon;
   /* 비공개 표시는 아이콘 모서리 배지로 — 이름 옆에 따로 두면 좁은 사이드바에서 이름이 잘린다 */
   return (
-    <span className="relative inline-flex shrink-0" title="비공개 프로젝트">
+    <span className="relative inline-flex shrink-0" title={t("documents.layout.privateProject")}>
       {icon}
       <span className="absolute -bottom-1 -right-1 flex h-2.5 w-2.5 items-center justify-center rounded-full bg-background">
-        <Lock className="h-2 w-2 text-muted-foreground" aria-label="비공개" />
+        <Lock className="h-2 w-2 text-muted-foreground" aria-label={t("workspaceSettings.projects.private")} />
       </span>
     </span>
   );
@@ -108,7 +109,7 @@ export function DocumentLayout() {
       }
       e.preventDefault();
       const entry = await popUndo();
-      if (entry) toast.success(`되돌림: ${entry.label}`);
+      if (entry) toast.success(t("common.undone", { label: entry.label }));
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
@@ -152,7 +153,7 @@ export function DocumentLayout() {
   const spaceGroups = useMemo(() => {
     const rest = spaces.filter((s) => !bookmarkedSpaceIds.has(s.id));
     return [
-      { title: "즐겨찾기", items: spaces.filter((s) => bookmarkedSpaceIds.has(s.id)) },
+      { title: t("documents.layout.bookmarks"), items: spaces.filter((s) => bookmarkedSpaceIds.has(s.id)) },
       { title: t("documents.projectSpaces"), items: rest.filter((s) => s.space_type === "project") },
       { title: t("documents.sharedSpaces"), items: rest.filter((s) => s.space_type === "shared") },
       { title: t("documents.personalSpaces"), items: rest.filter((s) => s.space_type === "personal") },
@@ -283,7 +284,7 @@ export function DocumentLayout() {
               위 앱 전환기의 "문서" 가 스페이스 목록으로 간다. 같은 일을 하는 버튼이 셋이었다. */}
           {!activeSpaceId ? (
             <span className="flex-1 px-2.5 text-2xs font-semibold uppercase tracking-widest text-muted-foreground">
-              스페이스
+              {t("documents.docPicker.space")}
             </span>
           ) : (() => {
             const activeSpace = spaces.find((s) => s.id === activeSpaceId);
@@ -338,7 +339,7 @@ export function DocumentLayout() {
                   아이콘을 하나씩 늘리면 좁은 사이드바가 금세 버튼 밭이 된다. */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" title="스페이스 메뉴">
+                  <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" title={t("documents.layout.spaceMenu")}>
                     <MoreHorizontal className="h-3.5 w-3.5" />
                   </Button>
                 </DropdownMenuTrigger>
@@ -365,16 +366,16 @@ export function DocumentLayout() {
                         bookmarkedSpaceIds.has(activeSpaceId) && "text-amber-500 fill-current",
                       )}
                     />
-                    {bookmarkedSpaceIds.has(activeSpaceId) ? "즐겨찾기 해제" : "즐겨찾기에 추가"}
+                    {bookmarkedSpaceIds.has(activeSpaceId) ? t("documents.layout.unbookmark") : t("documents.layout.bookmark")}
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={() => navigate(`/${workspaceSlug}/documents/space/${activeSpaceId}/trash`)}>
                     <Trash2 className="h-3.5 w-3.5 mr-2" />
-                    휴지통
+                    {t("memberDetail.trash")}
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => navigate(`/${workspaceSlug}/documents/space/${activeSpaceId}/settings`)}>
                     <Settings className="h-3.5 w-3.5 mr-2" />
-                    스페이스 설정
+                    {t("documents.layout.spaceSettings")}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -442,7 +443,7 @@ export function DocumentLayout() {
                               e.stopPropagation();
                               toggleSpaceBookmark.mutate({ id: s.id, currently: isBookmarked });
                             }}
-                            title={isBookmarked ? "즐겨찾기 해제" : "즐겨찾기에 추가"}
+                            title={isBookmarked ? t("documents.layout.unbookmark") : t("documents.layout.bookmark")}
                             className={cn(
                               "shrink-0 hidden group-hover/space:block",
                               isBookmarked ? "text-amber-500" : "text-muted-foreground/50 hover:text-foreground",
@@ -516,7 +517,7 @@ export function DocumentLayout() {
                     );
                     const registerUndo = (count: number) => {
                       pushUndo({
-                        label: `${count}개 이동`,
+                        label: t("documents.layout.movedCount", { count }),
                         undo: async () => {
                           const byParent = new Map<string | null, string[]>();
                           for (const [id, prev] of previous) {
@@ -542,8 +543,8 @@ export function DocumentLayout() {
                           /* 옮긴 폴더가 접혀 있으면 문서가 사라진 것처럼 보인다 — 조상까지 펼쳐 보여준다 */
                           setExpandIds(ancestorChain(allDocs, targetId));
                           registerUndo(docIds.length);
-                          toast.success(`${docIds.length}개를 "${target.title}"(으)로 이동`, {
-                            action: { label: "실행 취소", onClick: () => popUndo() },
+                          toast.success(t("documents.layout.movedTo", { count: docIds.length, title: target.title }), {
+                            action: { label: t("common.undo"), onClick: () => popUndo() },
                           });
                         });
                       return;

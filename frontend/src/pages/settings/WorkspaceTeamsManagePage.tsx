@@ -3,6 +3,7 @@
  * 팀 안의 멤버 구성은 팀 화면(팀 관리자)이 맡는다.
  */
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Link, Navigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -15,6 +16,7 @@ import { formatLongDate } from "@/utils/date-format";
 import { useWorkspaceAdmin } from "./useWorkspaceAdmin";
 
 export function WorkspaceTeamsManagePage() {
+  const { t } = useTranslation();
   const { workspaceSlug = "" } = useParams<{ workspaceSlug: string }>();
   const qc = useQueryClient();
   const { isAdmin, isLoading: membersLoading } = useWorkspaceAdmin(workspaceSlug);
@@ -31,9 +33,9 @@ export function WorkspaceTeamsManagePage() {
       qc.invalidateQueries({ queryKey: ["manage-teams", workspaceSlug] });
       qc.invalidateQueries({ queryKey: ["teams", workspaceSlug] });
       setDeleting(null);
-      toast.success("팀을 삭제했습니다");
+      toast.success(t("workspaceSettings.teams.deleted"));
     },
-    onError: (e) => toast.error(apiErrorMessage(e, "삭제하지 못했습니다")),
+    onError: (e) => toast.error(apiErrorMessage(e, t("workspaceSettings.teams.deleteFailed"))),
   });
 
   if (!membersLoading && !isAdmin) {
@@ -43,16 +45,16 @@ export function WorkspaceTeamsManagePage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-bold">팀</h1>
+        <h1 className="text-xl font-bold">{t("sidebar.teams")}</h1>
         <p className="text-xs text-muted-foreground mt-1">
-          워크스페이스의 모든 팀입니다. 팀 멤버 구성은 각 팀 화면에서 팀 관리자가 다룹니다.
+          {t("workspaceSettings.teams.subtitle")}
         </p>
       </div>
 
       {isLoading || membersLoading ? (
-        <p className="text-sm text-muted-foreground py-8 text-center">불러오는 중...</p>
+        <p className="text-sm text-muted-foreground py-8 text-center">{t("common.loading")}</p>
       ) : teams.length === 0 ? (
-        <p className="text-sm text-muted-foreground py-8 text-center">팀이 없습니다.</p>
+        <p className="text-sm text-muted-foreground py-8 text-center">{t("workspaceSettings.teams.empty")}</p>
       ) : (
         <div className="space-y-2">
           {teams.map((team) => (
@@ -63,15 +65,15 @@ export function WorkspaceTeamsManagePage() {
               <div className="flex-1 min-w-[180px]">
                 <Link to={`/${workspaceSlug}/teams/${team.id}`} className="text-sm font-medium hover:underline">{team.name}</Link>
                 <p className="text-2xs text-muted-foreground mt-0.5">
-                  멤버 {team.member_count}
-                  {team.admins.length > 0 && <> · 관리자 {team.admins.join(", ")}</>}
-                  {" · "}{formatLongDate(team.created_at)} 생성
+                  {t("workspaceSettings.teams.memberCount", { count: team.member_count })}
+                  {team.admins.length > 0 && <> · {t("workspaceSettings.teams.admins", { names: team.admins.join(", ") })}</>}
+                  {" · "}{t("workspaceSettings.teams.createdOn", { date: formatLongDate(team.created_at) })}
                   {team.created_by && <> ({team.created_by.display_name || team.created_by.email})</>}
                 </p>
               </div>
               <button type="button" onClick={() => setDeleting(team)}
                 className="px-2 py-1.5 rounded-md text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10">
-                삭제
+                {t("common.delete")}
               </button>
             </div>
           ))}
@@ -81,9 +83,9 @@ export function WorkspaceTeamsManagePage() {
       <ConfirmDialog
         open={!!deleting}
         onOpenChange={(o) => { if (!o) setDeleting(null); }}
-        title={`'${deleting?.name ?? ""}' 팀을 삭제할까요?`}
-        description="팀과 팀 멤버 구성이 지워집니다. 멤버의 프로젝트·이슈는 그대로 남습니다."
-        confirmLabel="삭제"
+        title={t("workspaceSettings.teams.deleteConfirmTitle", { name: deleting?.name ?? "" })}
+        description={t("workspaceSettings.teams.deleteConfirmDesc")}
+        confirmLabel={t("common.delete")}
         variant="destructive"
         loading={remove.isPending}
         onConfirm={() => { if (deleting) remove.mutate(deleting.id); }}

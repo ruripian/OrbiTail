@@ -5,6 +5,7 @@
  * "이 스페이스에만 추가된 인원" 이다. 상속 멤버는 출처를 밝혀 함께 보여주되 역할은 프로젝트에서 바꾼다.
  */
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { FolderKanban, UserCog, X } from "lucide-react";
@@ -20,13 +21,14 @@ import { apiErrorMessage } from "@/lib/api-error";
 import { useSpaceSettings } from "./DocumentSpaceSettingsLayout";
 import { DOC_SPACE_ROLE, type DocumentSpaceRole } from "@/types";
 
-const ROLE_OPTIONS: { value: DocumentSpaceRole; label: string; desc: string }[] = [
-  { value: DOC_SPACE_ROLE.VIEWER, label: "뷰어",   desc: "읽기만" },
-  { value: DOC_SPACE_ROLE.EDITOR, label: "편집자", desc: "문서 편집" },
-  { value: DOC_SPACE_ROLE.ADMIN,  label: "관리자", desc: "설정·멤버·삭제" },
+const ROLE_OPTIONS: { value: DocumentSpaceRole; labelKey: string; descKey: string }[] = [
+  { value: DOC_SPACE_ROLE.VIEWER, labelKey: "documents.spaceRole.viewer", descKey: "documents.spaceRole.viewerDesc" },
+  { value: DOC_SPACE_ROLE.EDITOR, labelKey: "documents.spaceRole.editor", descKey: "documents.spaceRole.editorDesc" },
+  { value: DOC_SPACE_ROLE.ADMIN,  labelKey: "documents.spaceRole.admin",  descKey: "documents.spaceRole.adminDesc" },
 ];
 
 export default function SpaceMembersPage() {
+  const { t } = useTranslation();
   const { space, workspaceSlug, spaceId, isAdmin } = useSpaceSettings();
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -59,28 +61,28 @@ export default function SpaceMembersPage() {
   const add = useMutation({
     mutationFn: (userId: string) =>
       documentsApi.spaces.members.add(workspaceSlug, spaceId, userId, DOC_SPACE_ROLE.EDITOR),
-    onSuccess: () => { invalidate(); toast.success("멤버 추가됨"); },
-    onError: (e) => toast.error(apiErrorMessage(e, "추가 실패")),
+    onSuccess: () => { invalidate(); toast.success(t("documents.spaceMembers.added")); },
+    onError: (e) => toast.error(apiErrorMessage(e, t("documents.spaceMembers.addFailed"))),
   });
 
   const setRole = useMutation({
     mutationFn: ({ userId, role }: { userId: string; role: DocumentSpaceRole }) =>
       documentsApi.spaces.members.setRole(workspaceSlug, spaceId, userId, role),
-    onSuccess: () => { invalidate(); toast.success("역할 변경됨"); },
-    onError: (e) => toast.error(apiErrorMessage(e, "변경 실패")),
+    onSuccess: () => { invalidate(); toast.success(t("documents.spaceMembers.roleChanged")); },
+    onError: (e) => toast.error(apiErrorMessage(e, t("sprints.updateFailed"))),
   });
 
   const remove = useMutation({
     mutationFn: (userId: string) => documentsApi.spaces.members.remove(workspaceSlug, spaceId, userId),
-    onSuccess: () => { invalidate(); toast.success("멤버 제거됨"); },
-    onError: (e) => toast.error(apiErrorMessage(e, "제거 실패")),
+    onSuccess: () => { invalidate(); toast.success(t("documents.spaceMembers.removed")); },
+    onError: (e) => toast.error(apiErrorMessage(e, t("documents.spaceMembers.removeFailed"))),
   });
 
   if (isPersonal) {
     return (
       <div className="max-w-regular space-y-4">
-        <h1 className="text-lg font-semibold">멤버</h1>
-        <p className="text-sm text-muted-foreground">개인 스페이스는 본인만 사용합니다.</p>
+        <h1 className="text-lg font-semibold">{t("project.settings.members.title")}</h1>
+        <p className="text-sm text-muted-foreground">{t("documents.spaceMembers.personalOnly")}</p>
       </div>
     );
   }
@@ -98,38 +100,38 @@ export default function SpaceMembersPage() {
   return (
     <div className="max-w-regular space-y-6">
       <div>
-        <h1 className="text-lg font-semibold">멤버</h1>
+        <h1 className="text-lg font-semibold">{t("project.settings.members.title")}</h1>
         <p className="text-sm text-muted-foreground mt-1">
           {isProject
-            ? "프로젝트 멤버는 프로젝트 권한을 그대로 씁니다. 이 스페이스에만 필요한 사람은 아래에서 추가하세요."
-            : "이 스페이스에 접근할 사람과 역할을 관리합니다."}
+            ? t("documents.spaceMembers.projectNote")
+            : t("documents.spaceMembers.note")}
         </p>
       </div>
 
       {isAdmin && (
         <div className="rounded-xl border bg-card p-4 space-y-2">
-          <p className="text-xs font-medium text-muted-foreground">멤버 추가</p>
+          <p className="text-xs font-medium text-muted-foreground">{t("documents.spaceMembers.addTitle")}</p>
           <UserPicker
             users={candidates}
             value={[]}
             mode="single"
-            placeholder="워크스페이스 멤버 검색"
+            placeholder={t("documents.spaceMembers.searchPlaceholder")}
             onChange={(ids) => ids[0] && add.mutate(ids[0])}
           />
-          <p className="text-2xs text-muted-foreground">추가하면 편집자로 시작합니다. 역할은 아래에서 바꿀 수 있습니다.</p>
+          <p className="text-2xs text-muted-foreground">{t("documents.spaceMembers.addHint")}</p>
         </div>
       )}
 
       <section className="rounded-xl border bg-card divide-y">
         {members.length === 0 && inherited.length === 0 && (
-          <p className="p-5 text-xs text-muted-foreground">멤버 없음</p>
+          <p className="p-5 text-xs text-muted-foreground">{t("workspaceSettings.projects.noMembers")}</p>
         )}
 
         {members.map((m) => (
           <div key={m.id} className="flex items-center gap-3 px-4 py-3">
             <AvatarInitials name={m.member_detail.display_name || m.member_detail.email} avatar={m.member_detail.avatar} size="sm" />
             <div className="flex-1 min-w-0">
-              <div className="text-sm">{m.member_detail.display_name || "(이름 없음)"}</div>
+              <div className="text-sm">{m.member_detail.display_name || t("workspaceSettings.projects.noName")}</div>
               <div className="text-2xs text-muted-foreground truncate">{m.member_detail.email}</div>
             </div>
             <Select
@@ -144,8 +146,8 @@ export default function SpaceMembersPage() {
                 {ROLE_OPTIONS.map((r) => (
                   <SelectItem key={r.value} value={String(r.value)}>
                     <span className="flex flex-col items-start">
-                      <span>{r.label}</span>
-                      <span className="text-2xs text-muted-foreground">{r.desc}</span>
+                      <span>{t(r.labelKey)}</span>
+                      <span className="text-2xs text-muted-foreground">{t(r.descKey)}</span>
                     </span>
                   </SelectItem>
                 ))}
@@ -155,7 +157,7 @@ export default function SpaceMembersPage() {
               <button
                 onClick={() => remove.mutate(m.member)}
                 className="text-muted-foreground hover:text-destructive p-1"
-                title="스페이스에서 제거"
+                title={t("workspaceSettings.spaces.removeFromSpace")}
               >
                 <X className="h-3.5 w-3.5" />
               </button>
@@ -168,15 +170,15 @@ export default function SpaceMembersPage() {
             <AvatarInitials name={pm.member.display_name || pm.member.email} avatar={pm.member.avatar} size="sm" />
             <div className="flex-1 min-w-0">
               <div className="text-sm flex items-center gap-2">
-                {pm.member.display_name || "(이름 없음)"}
+                {pm.member.display_name || t("workspaceSettings.projects.noName")}
                 <span className="text-3xs px-1.5 py-0.5 rounded bg-primary/10 text-primary inline-flex items-center gap-1">
                   <FolderKanban className="h-2.5 w-2.5" />
-                  프로젝트 멤버
+                  {t("documents.spaceMembers.projectMember")}
                 </span>
               </div>
               <div className="text-2xs text-muted-foreground truncate">{pm.member.email}</div>
             </div>
-            <span className="text-2xs text-muted-foreground">프로젝트 권한 적용</span>
+            <span className="text-2xs text-muted-foreground">{t("documents.spaceMembers.projectPerms")}</span>
           </div>
         ))}
       </section>
@@ -187,7 +189,7 @@ export default function SpaceMembersPage() {
           className="text-xs text-primary hover:underline inline-flex items-center gap-1"
         >
           <UserCog className="h-3 w-3" />
-          프로젝트 멤버 관리로 이동
+          {t("documents.spaceMembers.goToProjectMembers")}
         </button>
       )}
     </div>

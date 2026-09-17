@@ -1747,6 +1747,17 @@
       "storageIssues": "이슈 첨부",
       "storageTotal": "첨부 {{count}}개",
       "title": "시스템 개요"
+    },
+    "orphanSpaces": {
+      "deleted": "스페이스가 삭제되었습니다.",
+      "deleteConfirm": "\"{{name}}\" 스페이스를 영구 삭제할까요?\n안의 모든 문서/첨부가 함께 삭제됩니다.",
+      "backToList": "워크스페이스 목록",
+      "title": "탈퇴자 개인 스페이스",
+      "subtitle": "<b>{{slug}}</b> 워크스페이스에서 탈퇴했거나 비활성화된 사용자의 개인 스페이스. 내용은 볼 수 없으며 영구 삭제만 가능합니다.",
+      "empty": "정리할 탈퇴자 스페이스가 없습니다.",
+      "docCount": "문서 수",
+      "createdOn": "생성일",
+      "deletedOn": "탈퇴 ({{date}})"
     }
   },
   "common": {
@@ -1776,7 +1787,8 @@
     "resizePanel": "패널 너비 조정",
     "collapse": "접기",
     "undone": "되돌림: {{label}}",
-    "nothingToUndo": "되돌릴 작업이 없습니다"
+    "nothingToUndo": "되돌릴 작업이 없습니다",
+    "undo": "실행 취소"
   },
   "time": {
     "justNow": "방금 전",
@@ -2051,7 +2063,10 @@
     "spaceRole": {
       "viewer": "뷰어",
       "editor": "편집자",
-      "admin": "관리자"
+      "admin": "관리자",
+      "viewerDesc": "읽기만",
+      "editorDesc": "문서 편집",
+      "adminDesc": "설정·멤버·삭제"
     },
     "graphHintA": "클릭 = 열기 · Alt+클릭 =",
     "graphHintB": "주변만 보기 · 휠 = 확대 · 빈 곳 끌기 = 이동",
@@ -2076,6 +2091,54 @@
       "content": "콘텐츠",
       "integration": "연동",
       "backToSpace": "스페이스로"
+    },
+    "blocks": {
+      "bookmarkUrl": "북마크 URL",
+      "add": "추가",
+      "edit": "편집",
+      "gallery": "이미지 갤러리",
+      "columns": "{{count}}열",
+      "addImage": "이미지 추가",
+      "galleryHint": "이미지를 드래그하거나 위 + 버튼으로 추가",
+      "galleryEmpty": "이미지 없음",
+      "moveForward": "앞으로",
+      "moveBack": "뒤로"
+    },
+    "integration": {
+      "subtitle": "이 스페이스가 프로젝트·이슈와 어떻게 이어져 있는지 보여줍니다.",
+      "linkedProject": "연결된 프로젝트",
+      "syncNote": "이름·아이콘·보관 상태가 프로젝트와 동기화됩니다.",
+      "openProject": "프로젝트 열기",
+      "standalone": "독립 스페이스입니다. 프로젝트를 만들면 그 프로젝트 전용 스페이스가 자동으로 생깁니다.",
+      "docIssueLinks": "문서 ↔ 이슈 링크",
+      "linkCounts": "문서 {{docs}}개에 이슈 {{links}}건이 연결돼 있습니다. 연결은 문서 화면에서 추가·해제합니다.",
+      "empty": "아직 이슈에 연결된 문서가 없습니다."
+    },
+    "layout": {
+      "privateProject": "비공개 프로젝트",
+      "bookmarks": "즐겨찾기",
+      "spaceMenu": "스페이스 메뉴",
+      "unbookmark": "즐겨찾기 해제",
+      "bookmark": "즐겨찾기에 추가",
+      "spaceSettings": "스페이스 설정",
+      "movedCount": "{{count}}개 이동",
+      "movedTo": "{{count}}개를 \"{{title}}\"(으)로 이동"
+    },
+    "spaceMembers": {
+      "added": "멤버 추가됨",
+      "addFailed": "추가 실패",
+      "roleChanged": "역할 변경됨",
+      "removed": "멤버 제거됨",
+      "removeFailed": "제거 실패",
+      "personalOnly": "개인 스페이스는 본인만 사용합니다.",
+      "projectNote": "프로젝트 멤버는 프로젝트 권한을 그대로 씁니다. 이 스페이스에만 필요한 사람은 아래에서 추가하세요.",
+      "note": "이 스페이스에 접근할 사람과 역할을 관리합니다.",
+      "addTitle": "멤버 추가",
+      "searchPlaceholder": "워크스페이스 멤버 검색",
+      "addHint": "추가하면 편집자로 시작합니다. 역할은 아래에서 바꿀 수 있습니다.",
+      "projectMember": "프로젝트 멤버",
+      "projectPerms": "프로젝트 권한 적용",
+      "goToProjectMembers": "프로젝트 멤버 관리로 이동"
     }
   },
   "projectFilter": {
@@ -2486,6 +2549,54 @@
       "prev": "이전",
       "next": "다음",
       "pageNo": "{{page}} 쪽"
+    },
+    "teams": {
+      "deleted": "팀을 삭제했습니다",
+      "deleteFailed": "삭제하지 못했습니다",
+      "subtitle": "워크스페이스의 모든 팀입니다. 팀 멤버 구성은 각 팀 화면에서 팀 관리자가 다룹니다.",
+      "empty": "팀이 없습니다.",
+      "memberCount": "멤버 {{count}}",
+      "admins": "관리자 {{names}}",
+      "createdOn": "{{date}} 생성",
+      "deleteConfirmTitle": "'{{name}}' 팀을 삭제할까요?",
+      "deleteConfirmDesc": "팀과 팀 멤버 구성이 지워집니다. 멤버의 프로젝트·이슈는 그대로 남습니다."
+    },
+    "usage": {
+      "reason": {
+        "ownerMissing": "주인 계정 없음",
+        "ownerInactive": "탈퇴·비활성 계정",
+        "ownerLeft": "워크스페이스를 떠남"
+      },
+      "title": "사용량",
+      "subtitle": "워크스페이스의 규모와 첨부 파일 용량, 정리할 항목입니다.",
+      "members": "멤버",
+      "issues": "이슈",
+      "sharedSpaces": "공용 스페이스",
+      "documents": "문서",
+      "projectSub": "보관 {{archived}} · 휴지통 {{trashed}}",
+      "trashedSub": "휴지통 {{count}}",
+      "attachments": "첨부 파일",
+      "total": "합계",
+      "fileCount": "{{count}}개",
+      "orphanTitle": "주인 없는 개인 스페이스",
+      "orphanDesc": "탈퇴했거나 워크스페이스를 떠난 사람의 개인 스페이스입니다. 개인 공간이라 내용은 보이지 않습니다.",
+      "purgeVia": "영구 삭제는",
+      "adminConsole": "관리자 콘솔",
+      "askAdmin": "영구 삭제는 시스템 관리자에게 요청하세요.",
+      "orphanEmpty": "정리할 스페이스가 없습니다.",
+      "docCount": "문서 {{count}}"
+    },
+    "spaces": {
+      "deleted": "스페이스를 삭제했습니다",
+      "subtitle": "워크스페이스의 모든 공용 스페이스를 관리합니다. 비공개 스페이스는 관리자라도 멤버가 아니면 문서 화면에 보이지 않으며, 여기서도 문서 내용은 보이지 않습니다. 내용을 봐야 하면 자신을 멤버로 추가하세요.",
+      "empty": "공용 스페이스가 없습니다.",
+      "counts": "문서 {{docs}} · 멤버 {{members}}",
+      "makePublic": "공개로",
+      "makePrivate": "비공개로",
+      "deleteConfirmTitle": "'{{name}}' 스페이스를 삭제할까요?",
+      "deleteConfirmDesc": "스페이스 안의 문서가 모두 함께 지워지고 되돌릴 수 없습니다.",
+      "addHint": "추가하면 편집자로 시작합니다.",
+      "removeFromSpace": "스페이스에서 제거"
     }
   },
   "memberDetail": {
