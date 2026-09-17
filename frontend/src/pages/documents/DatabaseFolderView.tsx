@@ -10,6 +10,7 @@
  */
 
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -32,10 +33,10 @@ import { useIssueDialogStore } from "@/stores/issueDialogStore";
 import type { Document as DocType, DbColumn, DbColumnType } from "@/types";
 
 const TYPE_LABELS: Record<DbColumnType, string> = {
-  text: "텍스트", number: "숫자", date: "날짜",
-  select: "선택", multi_select: "다중 선택", checkbox: "체크박스",
-  issue: "이슈", doc: "문서",
-  created: "생성일", updated: "수정일",
+  text: "documents.db.typeText", number: "documents.db.typeNumber", date: "documents.db.typeDate",
+  select: "documents.db.typeSelect", multi_select: "documents.db.typeMultiSelect", checkbox: "documents.db.typeCheckbox",
+  issue: "documents.db.typeIssue", doc: "documents.db.typeDoc",
+  created: "documents.db.typeCreated", updated: "documents.db.typeUpdated",
 };
 
 /** 문서 자체에서 나오는 칸 — 사람이 채우지 않고, 셀도 읽기 전용이다 */
@@ -60,6 +61,7 @@ interface Props {
 export function DatabaseFolderView({
   folder, workspaceSlug, spaceId, editable, projectId = null, onUpdateFolder, onInvalidate,
 }: Props) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const columns = folder.db_columns ?? [];
@@ -78,19 +80,19 @@ export function DatabaseFolderView({
     mutationFn: ({ id, properties }: { id: string; properties: Record<string, DbValue> }) =>
       documentsApi.update(workspaceSlug, spaceId, id, { properties }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["documents", workspaceSlug, spaceId, "children", folder.id] }),
-    onError: (e) => toast.error(apiErrorMessage(e, "저장 실패")),
+    onError: (e) => toast.error(apiErrorMessage(e, t("documents.cover.saveFailed"))),
   });
 
   const addRow = useMutation({
     mutationFn: () => documentsApi.create(workspaceSlug, spaceId, {
-      title: "제목 없음", parent: folder.id, is_folder: false,
+      title: t("documents.untitled"), parent: folder.id, is_folder: false,
     }),
     onSuccess: (doc) => {
       qc.invalidateQueries({ queryKey: ["documents", workspaceSlug, spaceId, "children", folder.id] });
       onInvalidate();
       navigate(`/${workspaceSlug}/documents/space/${spaceId}/${doc.id}`);
     },
-    onError: (e) => toast.error(apiErrorMessage(e, "문서 생성 실패")),
+    onError: (e) => toast.error(apiErrorMessage(e, t("documents.docPicker.createFailed"))),
   });
 
   const visible = useMemo(() => {
@@ -145,11 +147,11 @@ export function DatabaseFolderView({
         <div className="flex items-end justify-between gap-4 mb-5 flex-wrap">
           <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-1 flex items-center gap-1.5">
-              <Table2 className="h-3.5 w-3.5" /> 표
+              <Table2 className="h-3.5 w-3.5" /> {t("documents.db.table")}
             </p>
             <h1 className="text-2xl font-bold truncate">{folder.title}</h1>
             <p className="text-sm text-muted-foreground mt-0.5">
-              문서 {visible.length}
+              {t("workspaceSettings.usage.docCount", { count: visible.length })}
               {visible.length !== rows.filter((r) => !r.is_folder).length &&
                 ` / ${rows.filter((r) => !r.is_folder).length}`}
             </p>
@@ -157,12 +159,12 @@ export function DatabaseFolderView({
           <div className="flex items-center gap-2 shrink-0">
             {activeFilters > 0 && (
               <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setFilters({})}>
-                <X className="h-3.5 w-3.5" /> 필터 {activeFilters} 해제
+                <X className="h-3.5 w-3.5" /> {t("documents.db.clearFilters", { count: activeFilters })}
               </Button>
             )}
             {editable && (
               <Button size="sm" className="h-8 gap-1.5" onClick={() => addRow.mutate()}>
-                <Plus className="h-3.5 w-3.5" /> 새 문서
+                <Plus className="h-3.5 w-3.5" /> {t("documents.db.newDoc")}
               </Button>
             )}
           </div>
@@ -170,13 +172,13 @@ export function DatabaseFolderView({
 
         {columns.length === 0 ? (
           <div className="rounded-xl border border-dashed p-10 text-center space-y-3">
-            <p className="text-sm text-muted-foreground">칸을 정하면 표가 됩니다</p>
+            <p className="text-sm text-muted-foreground">{t("documents.db.setupTitle")}</p>
             <p className="text-xs text-muted-foreground leading-relaxed">
-              이 표에 넣을 문서들이 공통으로 가질 칸을 만드세요.
+              {t("documents.db.setupHint")}
             </p>
             {editable && (
               <div className="flex items-center justify-center pt-1">
-                <AddColumnButton existing={[]} onAdd={(col) => onUpdateFolder({ db_columns: [col] })} label="칸 만들기" />
+                <AddColumnButton existing={[]} onAdd={(col) => onUpdateFolder({ db_columns: [col] })} label={t("documents.db.createColumn")} />
               </div>
             )}
           </div>
@@ -185,7 +187,7 @@ export function DatabaseFolderView({
             <table className="w-full text-sm border-collapse">
               <thead>
                 <tr className="border-b border-border bg-background sticky top-0 z-10">
-                  <th className="text-left font-medium text-xs text-muted-foreground px-4 py-2.5 min-w-[280px]">제목</th>
+                  <th className="text-left font-medium text-xs text-muted-foreground px-4 py-2.5 min-w-[280px]">{t("documents.templates.name")}</th>
                   {columns.map((col, i) => (
                     <th key={col.name} className="text-left font-medium text-xs text-muted-foreground px-1 py-2.5 min-w-[145px]">
                       <ColumnHeader
@@ -222,10 +224,10 @@ export function DatabaseFolderView({
               </thead>
               <tbody>
                 {isLoading ? (
-                  <tr><td colSpan={columns.length + 1} className="px-3 py-6 text-center text-xs text-muted-foreground">불러오는 중...</td></tr>
+                  <tr><td colSpan={columns.length + 1} className="px-3 py-6 text-center text-xs text-muted-foreground">{t("common.loading")}</td></tr>
                 ) : visible.length === 0 ? (
                   <tr><td colSpan={columns.length + 1} className="px-3 py-6 text-center text-xs text-muted-foreground">
-                    {rows.length ? "조건에 맞는 문서가 없습니다" : "아직 문서가 없습니다"}
+                    {rows.length ? t("documents.db.noMatch") : t("documents.db.noDocs")}
                   </td></tr>
                 ) : visible.map((row) => (
                   <tr key={row.id} className="border-b border-border last:border-0 hover:bg-muted/40 transition-colors duration-fast group">
@@ -314,6 +316,7 @@ function ColumnHeader({
   /** null 을 주면 칸을 지운다 */
   onChangeColumn: (next: DbColumn | null) => void;
 }) {
+  const { t } = useTranslation();
   const [renaming, setRenaming] = useState(false);
   const [draft, setDraft] = useState(column.name);
   const [editingOptions, setEditingOptions] = useState(false);
@@ -355,12 +358,12 @@ function ColumnHeader({
         <DropdownMenuContent align="start" className="w-48">
           <DropdownMenuItem className="text-xs" onSelect={onSort}>
             <ArrowUpDown className="h-3.5 w-3.5 mr-2" />
-            {sorted === "asc" ? "내림차순" : sorted === "desc" ? "정렬 해제" : "오름차순"}
+            {sorted === "asc" ? t("documents.db.sortDesc") : sorted === "desc" ? t("documents.db.sortClear") : t("documents.db.sortAsc")}
           </DropdownMenuItem>
           {selectLike && (column.options?.length ?? 0) > 0 && (
             <>
               <DropdownMenuSeparator />
-              <div className="px-2 py-1 text-2xs text-muted-foreground">거르기</div>
+              <div className="px-2 py-1 text-2xs text-muted-foreground">{t("documents.db.filter")}</div>
               {(column.options ?? []).map((opt) => (
                 <DropdownMenuItem key={opt} className="text-xs"
                   onSelect={(e) => {
@@ -373,7 +376,7 @@ function ColumnHeader({
               ))}
               {chosenFilters.length > 0 && (
                 <DropdownMenuItem className="text-xs text-muted-foreground" onSelect={() => onFilterChange([])}>
-                  모두 보기
+                  {t("documents.db.showAll")}
                 </DropdownMenuItem>
               )}
             </>
@@ -382,11 +385,11 @@ function ColumnHeader({
             <>
               <DropdownMenuSeparator />
               <DropdownMenuItem className="text-xs" onSelect={() => setTimeout(() => setRenaming(true), 0)}>
-                <Pencil className="h-3.5 w-3.5 mr-2" /> 이름 바꾸기
+                <Pencil className="h-3.5 w-3.5 mr-2" /> {t("documents.db.rename")}
               </DropdownMenuItem>
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger className="text-xs">
-                  <Type className="h-3.5 w-3.5 mr-2" /> 종류 · {TYPE_LABELS[column.type]}
+                  <Type className="h-3.5 w-3.5 mr-2" /> {t("admin.content.filterKind")} · {t(TYPE_LABELS[column.type])}
                 </DropdownMenuSubTrigger>
                 <DropdownMenuSubContent>
                   {(Object.keys(TYPE_LABELS) as DbColumnType[]).map((t) => (
@@ -402,14 +405,14 @@ function ColumnHeader({
               </DropdownMenuSub>
               {selectLike && (
                 <DropdownMenuItem className="text-xs" onSelect={(e) => { e.preventDefault(); setEditingOptions((v) => !v); }}>
-                  <ListChecks className="h-3.5 w-3.5 mr-2" /> 선택지 편집
+                  <ListChecks className="h-3.5 w-3.5 mr-2" /> {t("documents.db.editOptions")}
                 </DropdownMenuItem>
               )}
               <DropdownMenuItem
                 className="text-xs text-destructive focus:text-destructive"
                 onSelect={() => onChangeColumn(null)}
               >
-                <Trash2 className="h-3.5 w-3.5 mr-2" /> 칸 삭제
+                <Trash2 className="h-3.5 w-3.5 mr-2" /> {t("documents.db.deleteColumn")}
               </DropdownMenuItem>
             </>
           )}
@@ -432,6 +435,7 @@ function ColumnHeader({
 function AddColumnButton({ existing, onAdd, label }: {
   existing: string[]; onAdd: (col: DbColumn) => void; label?: string;
 }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [type, setType] = useState<DbColumnType>("text");
@@ -441,7 +445,7 @@ function AddColumnButton({ existing, onAdd, label }: {
     if (!n) return;
     // 이름이 곧 값의 key 라 중복되면 한 칸이 다른 칸의 값을 덮는다
     if (existing.some((e) => e.toLowerCase() === n.toLowerCase())) {
-      toast.error("같은 이름의 칸이 이미 있습니다");
+      toast.error(t("documents.db.duplicateColumn"));
       return;
     }
     onAdd({ name: n, type, ...(type === "select" || type === "multi_select" ? { options: [] } : {}) });
@@ -456,7 +460,7 @@ function AddColumnButton({ existing, onAdd, label }: {
             <Plus className="h-3.5 w-3.5" /> {label}
           </Button>
         ) : (
-          <button className="p-1 rounded hover:bg-accent text-muted-foreground" title="칸 추가">
+          <button className="p-1 rounded hover:bg-accent text-muted-foreground" title={t("documents.db.addColumn")}>
             <Plus className="h-3.5 w-3.5" />
           </button>
         )}
@@ -467,7 +471,7 @@ function AddColumnButton({ existing, onAdd, label }: {
           value={name}
           onChange={(e) => setName(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") submit(); e.stopPropagation(); }}
-          placeholder="칸 이름"
+          placeholder={t("documents.db.columnName")}
           className="w-full text-xs bg-transparent border rounded-md px-2 py-1.5 outline-none focus:border-primary"
         />
         <div className="flex flex-wrap gap-1">
@@ -482,13 +486,14 @@ function AddColumnButton({ existing, onAdd, label }: {
             </button>
           ))}
         </div>
-        <Button size="sm" className="w-full h-7 text-xs" onClick={submit}>추가</Button>
+        <Button size="sm" className="w-full h-7 text-xs" onClick={submit}>{t("documents.blocks.add")}</Button>
       </DropdownMenuContent>
     </DropdownMenu>
   );
 }
 
 function OptionEditor({ options, onChange }: { options: string[]; onChange: (v: string[]) => void }) {
+  const { t } = useTranslation();
   const [draft, setDraft] = useState("");
   return (
     <div className="flex flex-wrap items-center gap-1">
@@ -509,7 +514,7 @@ function OptionEditor({ options, onChange }: { options: string[]; onChange: (v: 
           if (v && !options.includes(v)) onChange([...options, v]);
           setDraft("");
         }}
-        placeholder="선택지 추가 ⏎"
+        placeholder={t("documents.db.addOption")}
         className="text-2xs bg-transparent outline-none w-28 border-b border-transparent focus:border-primary"
       />
     </div>

@@ -54,10 +54,11 @@ function nl2br(s: string): string {
   return esc(s.trim()).replace(/\n/g, "<br/>");
 }
 
+/* 제출 시점의 언어로 굽는다 — 제출자가 쓴 글과 같은 언어의 제목이 붙는다. */
 function buildDescriptionHtml(kind: RequestKind, v: {
   description: string;
   steps: string; expected: string; actual: string; environment: string; severity: Severity | "";
-}): string {
+}, t: (k: string) => string): string {
   const sections: string[] = [];
   // description 은 RichTextEditor 에서 오는 완성된 HTML — 그대로 사용 (escape 금지)
   const descTrim = v.description.replace(/<p><\/p>/g, "").trim();
@@ -66,13 +67,13 @@ function buildDescriptionHtml(kind: RequestKind, v: {
     if (v.steps.trim()) {
       const items = v.steps.split("\n").map((s) => s.replace(/^\d+\.\s*/, "").trim()).filter(Boolean);
       if (items.length) {
-        sections.push(`<h3>재현 단계</h3><ol>${items.map((i) => `<li>${esc(i)}</li>`).join("")}</ol>`);
+        sections.push(`<h3>${esc(t("request.bug.steps"))}</h3><ol>${items.map((i) => `<li>${esc(i)}</li>`).join("")}</ol>`);
       }
     }
-    if (v.expected.trim()) sections.push(`<h3>예상 동작</h3><p>${nl2br(v.expected)}</p>`);
-    if (v.actual.trim()) sections.push(`<h3>실제 동작</h3><p>${nl2br(v.actual)}</p>`);
-    if (v.environment.trim()) sections.push(`<h3>환경</h3><p>${nl2br(v.environment)}</p>`);
-    if (v.severity) sections.push(`<p><strong>심각도:</strong> ${esc(SEVERITY_LABEL[v.severity])}</p>`);
+    if (v.expected.trim()) sections.push(`<h3>${esc(t("request.bug.expected"))}</h3><p>${nl2br(v.expected)}</p>`);
+    if (v.actual.trim()) sections.push(`<h3>${esc(t("request.bug.actual"))}</h3><p>${nl2br(v.actual)}</p>`);
+    if (v.environment.trim()) sections.push(`<h3>${esc(t("request.bug.environment"))}</h3><p>${nl2br(v.environment)}</p>`);
+    if (v.severity) sections.push(`<p><strong>${esc(t("request.bug.severity"))}:</strong> ${esc(SEVERITY_LABEL[v.severity])}</p>`);
   }
   return sections.join("\n");
 }
@@ -140,7 +141,7 @@ export function RequestSubmitPage() {
         title: title.trim(),
         description_html: buildDescriptionHtml(kind, {
           description, steps, expected, actual, environment, severity,
-        }),
+        }, t),
         meta: kind === "bug"
           ? { severity: severity || undefined, environment: environment || undefined }
           : {},
@@ -330,7 +331,7 @@ export function RequestSubmitPage() {
                 showToolbar
               />
               <p className="mt-1 text-2xs text-muted-foreground/70">
-                이미지: 드래그·붙여넣기 또는 툴바의 이미지 버튼 (5MB 이하)
+                {t("request.imageHint")}
               </p>
             </div>
 
@@ -578,20 +579,22 @@ function KindFilterChip({
 }
 
 function StatusBadge({ status }: { status: IssueRequest["status"] }) {
+  const { t } = useTranslation();
   const cfg: Record<IssueRequest["status"], { label: string; cls: string }> = {
-    pending:  { label: "대기",   cls: "bg-amber-500/15 text-amber-600 dark:text-amber-400" },
-    approved: { label: "승인됨", cls: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" },
-    rejected: { label: "거절됨", cls: "bg-muted text-muted-foreground" },
+    pending:  { label: t("request.tab.pending"),     cls: "bg-amber-500/15 text-amber-600 dark:text-amber-400" },
+    approved: { label: t("request.filter.approved"), cls: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" },
+    rejected: { label: t("request.filter.rejected"), cls: "bg-muted text-muted-foreground" },
   };
   const c = cfg[status];
   return <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-2xs font-semibold", c.cls)}>{c.label}</span>;
 }
 
 function KindBadge({ kind }: { kind: IssueRequest["kind"] }) {
+  const { t } = useTranslation();
   if (kind === "bug") {
-    return <span className="inline-flex items-center gap-1 rounded-full bg-destructive/10 text-destructive px-2 py-0.5 text-2xs font-semibold"><Bug className="h-2.5 w-2.5" />버그</span>;
+    return <span className="inline-flex items-center gap-1 rounded-full bg-destructive/10 text-destructive px-2 py-0.5 text-2xs font-semibold"><Bug className="h-2.5 w-2.5" />{t("request.filter.bug")}</span>;
   }
-  return <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary px-2 py-0.5 text-2xs font-semibold"><Sparkles className="h-2.5 w-2.5" />기능</span>;
+  return <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary px-2 py-0.5 text-2xs font-semibold"><Sparkles className="h-2.5 w-2.5" />{t("request.filter.feature")}</span>;
 }
 
 /* 행은 요약만 노출. 액션(승인/거절/삭제) 과 풀 내용은 클릭 시 열리는 RequestDialog 가 담당. */
@@ -601,6 +604,7 @@ function RequestRow({
   req: IssueRequest;
   onClick: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <li
       className="px-5 py-4 transition-colors cursor-pointer hover:bg-accent/40"
@@ -613,12 +617,12 @@ function RequestRow({
             <StatusBadge status={req.status} />
             {req.visibility === "private" && (
               <span className="inline-flex items-center gap-1 rounded-full bg-muted text-muted-foreground px-2 py-0.5 text-2xs">
-                <EyeOff className="h-2.5 w-2.5" /> 비공개
+                <EyeOff className="h-2.5 w-2.5" /> {t("request.private")}
               </span>
             )}
             {req.approved_issue && req.approved_issue_sequence_id != null && (
               <span className="text-2xs font-mono text-emerald-600 dark:text-emerald-400">
-                → 이슈 #{req.approved_issue_sequence_id}
+                → {t("request.issueNo", { id: req.approved_issue_sequence_id })}
               </span>
             )}
           </div>
@@ -640,7 +644,7 @@ function RequestRow({
               <>
                 <span>·</span>
                 <span className="italic truncate max-w-[220px]" title={req.rejected_reason}>
-                  사유: {req.rejected_reason}
+                  {t("request.reasonPrefix")}: {req.rejected_reason}
                 </span>
               </>
             )}

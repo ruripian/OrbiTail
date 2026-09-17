@@ -19,37 +19,78 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SRC = path.join(ROOT, "frontend/src");
 const HANGUL = /[가-힣ㄱ-ㅎㅏ-ㅣ]/;
 
-/** 주석만 공백으로 지운다. 문자열 안의 // 나 /* 는 건드리지 않는다. */
+/** 주석만 공백으로 지우고 나머지는 그대로 둔다(줄 번호 유지).
+ *
+ *  까다로운 두 가지를 함께 처리한다.
+ *   - 정규식 리터럴: .replace(/"/g, …) 의 따옴표를 문자열 시작으로 오인하면
+ *     그 뒤 주석이 전부 코드로 남아 오탐이 된다.
+ *   - 중첩 템플릿 리터럴: `a${`b`}c` 처럼 ${} 안에 또 백틱이 올 수 있어
+ *     단순 토글로는 상태가 어긋난다. 스택으로 센다.
+ */
 function stripComments(src) {
   let out = "";
-  let state = "code"; // code | line | block | sq | dq | bt
-  for (let i = 0; i < src.length; i++) {
+  let i = 0;
+  const n = src.length;
+  // 스택 최상단이 현재 문맥: "code" | "sq" | "dq" | "bt"
+  const stack = ["code"];
+  let prev = ""; // 직전 비공백 코드 문자 — / 가 나눗셈인지 정규식인지 가른다
+  const top = () => stack[stack.length - 1];
+
+  while (i < n) {
     const c = src[i];
-    const n = src[i + 1] ?? "";
-    if (state === "code") {
-      if (c === "/" && n === "/") { state = "line"; out += "  "; i++; continue; }
-      if (c === "/" && n === "*") { state = "block"; out += "  "; i++; continue; }
-      if (c === "'") state = "sq";
-      else if (c === '"') state = "dq";
-      else if (c === "`") state = "bt";
-      out += c;
+    const nx = src[i + 1] ?? "";
+    const st = top();
+
+    if (st === "code") {
+      if (c === "/" && nx === "/") {            // 줄 주석
+        while (i < n && src[i] !== "\n") { out += " "; i++; }
+        continue;
+      }
+      if (c === "/" && nx === "*") {            // 블록 주석
+        out += "  "; i += 2;
+        while (i < n && !(src[i] === "*" && src[i + 1] === "/")) {
+          out += src[i] === "\n" ? "\n" : " "; i++;
+        }
+        out += "  "; i += 2;
+        continue;
+      }
+      if (c === "/" && (prev === "" || "(,=:[!&|?{};+-*%~^<>return".includes(prev))) {
+        let inClass = false;                    // 정규식 리터럴
+        out += c; i++;
+        while (i < n) {
+          const r = src[i];
+          if (r === "\n") break;                // 정규식이 아니었다
+          out += r; i++;
+          if (r === "\\") { if (i < n) { out += src[i]; i++; } continue; }
+          if (r === "[") inClass = true;
+          else if (r === "]") inClass = false;
+          else if (r === "/" && !inClass) break;
+        }
+        prev = "/";
+        continue;
+      }
+      if (c === "'") stack.push("sq");
+      else if (c === '"') stack.push("dq");
+      else if (c === "`") stack.push("bt");
+      else if (c === "}" && stack.length > 1) { // ${ … } 닫힘 → 바깥 템플릿으로
+        const under = stack[stack.length - 2];
+        if (under === "bt" && stack[stack.length - 1] === "code") stack.pop();
+      }
+      if (!/\s/.test(c)) prev = c;
+      out += c; i++;
       continue;
     }
-    if (state === "line") {
-      if (c === "\n") { state = "code"; out += "\n"; } else out += " ";
+
+    // 문자열/템플릿 내부
+    if (c === "\\") { out += c; i++; if (i < n) { out += src[i]; i++; } continue; }
+    if (st === "bt" && c === "$" && nx === "{") {   // 보간 시작 → 코드 문맥
+      out += "${"; i += 2; stack.push("code"); prev = "{";
       continue;
     }
-    if (state === "block") {
-      if (c === "*" && n === "/") { state = "code"; out += "  "; i++; continue; }
-      out += c === "\n" ? "\n" : " ";
-      continue;
+    if ((st === "sq" && c === "'") || (st === "dq" && c === '"') || (st === "bt" && c === "`")) {
+      stack.pop();
     }
-    // 문자열 내부
-    if (c === "\\") { out += c + (src[i + 1] ?? ""); i++; continue; }
-    if ((state === "sq" && c === "'") || (state === "dq" && c === '"') || (state === "bt" && c === "`")) {
-      state = "code";
-    }
-    out += c;
+    out += c; i++;
   }
   return out;
 }
