@@ -9,6 +9,8 @@
  *  - 워크스페이스 스페이스의 문서면 사용자가 직접 프로젝트 선택
  */
 import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react";
+import type { TFunction } from "i18next";
+import { useTranslation } from "react-i18next";
 import { useState, useEffect, useContext } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -43,19 +45,20 @@ interface EmbedAttrs {
   height?: number;
 }
 
-const VIEW_LABELS: Record<ViewMode, { label: string; icon: typeof Kanban }> = {
-  board:    { label: "보드",    icon: Kanban },
-  table:    { label: "표",      icon: TableIcon },
-  calendar: { label: "캘린더",  icon: CalendarIcon },
+const VIEW_LABELS: Record<ViewMode, { titleKey: string; icon: typeof Kanban }> = {
+  board:    { titleKey: "documents.issueEmbed.titleBoard",    icon: Kanban },
+  table:    { titleKey: "documents.issueEmbed.titleTable",    icon: TableIcon },
+  calendar: { titleKey: "documents.issueEmbed.titleCalendar", icon: CalendarIcon },
 };
 
-const PRIORITY_OPTIONS = [
-  { value: "", label: "전체 우선순위" },
-  { value: "urgent", label: "긴급" },
-  { value: "high", label: "높음" },
-  { value: "medium", label: "중간" },
-  { value: "low", label: "낮음" },
-  { value: "none", label: "없음" },
+/* t 가 필요하므로 상수가 아니라 함수. 호출부에서 매 렌더 만든다. */
+const priorityOptions = (t: TFunction) => [
+  { value: "", label: t("documents.issueEmbed.priorityAll") },
+  { value: "urgent", label: t("issues.priority.urgent") },
+  { value: "high", label: t("issues.priority.high") },
+  { value: "medium", label: t("issues.priority.medium") },
+  { value: "low", label: t("issues.priority.low") },
+  { value: "none", label: t("issues.priority.none") },
 ];
 
 const DEFAULT_CAL_SETTINGS: CalendarSettings = {
@@ -63,6 +66,7 @@ const DEFAULT_CAL_SETTINGS: CalendarSettings = {
 };
 
 export function IssueViewEmbedView({ node, updateAttributes }: NodeViewProps) {
+  const { t } = useTranslation();
   const attrs = node.attrs as EmbedAttrs;
   const { workspaceSlug } = useParams<{ workspaceSlug: string }>();
   const docCtx = useContext(DocEditorContext);
@@ -128,7 +132,7 @@ export function IssueViewEmbedView({ node, updateAttributes }: NodeViewProps) {
       <div className="flex items-center gap-1.5 px-3 py-2 border-b bg-muted/30">
         <div className="flex items-center gap-1.5 text-xs font-semibold">
           <ViewIcon className="h-3.5 w-3.5 text-primary" />
-          이슈 {VIEW_LABELS[attrs.viewMode].label}
+          {t(VIEW_LABELS[attrs.viewMode].titleKey)}
         </div>
 
         {/* 프로젝트 — 잠겨 있으면 단순 표시, 아니면 드롭다운 선택 */}
@@ -139,14 +143,14 @@ export function IssueViewEmbedView({ node, updateAttributes }: NodeViewProps) {
               <DropdownMenuTrigger asChild>
                 <button className="flex items-center gap-1 h-6 px-2 text-xs font-medium rounded-md hover:bg-muted/60">
                   <span className="truncate max-w-[140px]">
-                    {project ? project.name : "프로젝트 선택"}
+                    {project ? project.name : t("documents.issueEmbed.pickProject")}
                   </span>
                   <ChevronDown className="h-3 w-3 opacity-60" />
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="max-h-72 overflow-y-auto">
                 {projects.length === 0 ? (
-                  <div className="px-3 py-2 text-xs text-muted-foreground">접근 가능한 프로젝트 없음</div>
+                  <div className="px-3 py-2 text-xs text-muted-foreground">{t("documents.issueEmbed.noProjects")}</div>
                 ) : (
                   projects.map((p) => (
                     <DropdownMenuItem key={p.id} className="text-xs"
@@ -173,7 +177,7 @@ export function IssueViewEmbedView({ node, updateAttributes }: NodeViewProps) {
           )}
         >
           <Filter className="h-3 w-3" />
-          필터{activeFilterCount > 0 && ` (${activeFilterCount})`}
+          {t("documents.issueEmbed.filter")}{activeFilterCount > 0 && ` (${activeFilterCount})`}
         </button>
       </div>
 
@@ -181,22 +185,22 @@ export function IssueViewEmbedView({ node, updateAttributes }: NodeViewProps) {
       {filterOpen && effectiveProjectId && (
         <div className="flex items-center flex-wrap gap-2 px-3 py-2 border-b bg-muted/20">
           <FilterSelect
-            label="상태"
+            label={t("documents.issueEmbed.state")}
             value={attrs.filters?.state ?? ""}
-            options={[{ value: "", label: "전체 상태" }, ...states.map((s) => ({ value: s.id, label: s.name }))]}
+            options={[{ value: "", label: t("documents.issueEmbed.stateAll") }, ...states.map((s) => ({ value: s.id, label: s.name }))]}
             onChange={(v) => setFilter("state", v)}
           />
           <FilterSelect
-            label="우선순위"
+            label={t("documents.issueEmbed.priority")}
             value={attrs.filters?.priority ?? ""}
-            options={PRIORITY_OPTIONS}
+            options={priorityOptions(t)}
             onChange={(v) => setFilter("priority", v)}
           />
           <FilterSelect
-            label="담당자"
+            label={t("documents.issueEmbed.assignee")}
             value={attrs.filters?.assignees ?? ""}
             options={[
-              { value: "", label: "전체 담당자" },
+              { value: "", label: t("documents.issueEmbed.assigneeAll") },
               ...members.map((m: ProjectMember) => ({
                 value: m.member.id,
                 label: m.member.display_name || m.member.email || m.member.id.slice(0, 8),
@@ -208,7 +212,7 @@ export function IssueViewEmbedView({ node, updateAttributes }: NodeViewProps) {
             <button onClick={clearFilters}
               className="flex items-center gap-1 h-6 px-2 text-2xs text-muted-foreground hover:text-destructive">
               <X className="h-3 w-3" />
-              모두 지우기
+              {t("documents.issueEmbed.clearAll")}
             </button>
           )}
         </div>
@@ -217,7 +221,7 @@ export function IssueViewEmbedView({ node, updateAttributes }: NodeViewProps) {
       {/* 본체 — 고정된 뷰 모드 렌더 */}
       {!effectiveProjectId ? (
         <div className="flex items-center justify-center h-32 text-xs text-muted-foreground">
-          {projectIsLocked ? "프로젝트 정보를 불러오는 중..." : "상단에서 프로젝트를 선택하세요"}
+          {projectIsLocked ? t("documents.issueEmbed.loadingProject") : t("documents.issueEmbed.selectProjectAbove")}
         </div>
       ) : (
         <div className="relative" style={{ height: attrs.height ?? 480 }}>
@@ -265,13 +269,14 @@ function FilterSelect({
   options: Array<{ value: string; label: string }>;
   onChange: (v: string) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button className="flex items-center gap-1 h-6 px-2 text-2xs rounded-md border bg-background hover:bg-muted/40">
           <span className="text-muted-foreground">{label}:</span>
           <span className="font-medium truncate max-w-[100px]">
-            {options.find((o) => o.value === value)?.label ?? "전체"}
+            {options.find((o) => o.value === value)?.label ?? t("documents.issueEmbed.all")}
           </span>
           <ChevronDown className="h-3 w-3 opacity-60" />
         </button>

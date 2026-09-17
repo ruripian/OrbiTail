@@ -97,6 +97,8 @@ for (const file of files) {
         if (!missing.has(key)) missing.set(key, `${path.relative(ROOT, file)}:${idx + 1}`);
       }
     }
+    // 의도적으로 한글인 줄(저장된 데이터와의 비교 등)은 // i18n-ignore 로 표시한다
+    if (/\/\/\s*i18n-ignore/.test(rawLines[idx])) return;
     if (HANGUL.test(line)) {
       // t("key", "한글") 의 폴백은 위에서 키 누락으로 따로 잡으므로 제외
       const onlyFallback = /\bt\(\s*"[^"]+"\s*,\s*"[^"]*[가-힣]/.test(line) &&

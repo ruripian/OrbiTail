@@ -4,6 +4,7 @@
  */
 
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Copy, ExternalLink, Share2 } from "lucide-react";
@@ -22,6 +23,7 @@ interface Props {
 }
 
 export function ShareDialog({ open, onOpenChange, workspaceSlug, spaceId, docId }: Props) {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const [expiresAt, setExpiresAt] = useState<string>(""); // datetime-local string
 
@@ -36,16 +38,16 @@ export function ShareDialog({ open, onOpenChange, workspaceSlug, spaceId, docId 
       documentsApi.share.enable(workspaceSlug, spaceId, docId, exp),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["doc-share", docId] });
-      toast.success("공유 링크가 활성화되었습니다");
+      toast.success(t("documents.shareLink.enabled"));
     },
-    onError: () => toast.error("공유 링크 활성화 실패 — 편집 권한을 확인해주세요"),
+    onError: () => toast.error(t("documents.shareLink.enableFailed")),
   });
 
   const disableMutation = useMutation({
     mutationFn: () => documentsApi.share.disable(workspaceSlug, spaceId, docId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["doc-share", docId] });
-      toast.success("공유 링크가 해제되었습니다");
+      toast.success(t("documents.shareLink.disabled"));
     },
   });
 
@@ -55,7 +57,7 @@ export function ShareDialog({ open, onOpenChange, workspaceSlug, spaceId, docId 
   const copy = () => {
     if (!url) return;
     navigator.clipboard.writeText(url);
-    toast.success("링크가 복사되었습니다");
+    toast.success(t("documents.shareLink.copied"));
   };
 
   return (
@@ -64,17 +66,17 @@ export function ShareDialog({ open, onOpenChange, workspaceSlug, spaceId, docId 
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Share2 className="h-4 w-4" />
-            공개 공유 링크
+            {t("documents.shareLink.title")}
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
           {q.isLoading ? (
-            <p className="text-sm text-muted-foreground text-center py-4">로딩 중...</p>
+            <p className="text-sm text-muted-foreground text-center py-4">{t("common.loading")}</p>
           ) : enabled ? (
             <>
               <div>
-                <label className="block text-xs font-medium mb-1 text-muted-foreground">공유 URL</label>
+                <label className="block text-xs font-medium mb-1 text-muted-foreground">{t("documents.shareLink.urlLabel")}</label>
                 <div className="flex gap-1">
                   <input
                     readOnly
@@ -82,24 +84,24 @@ export function ShareDialog({ open, onOpenChange, workspaceSlug, spaceId, docId 
                     onFocus={(e) => e.currentTarget.select()}
                     className="flex-1 text-xs font-mono bg-muted/40 border rounded-md px-2 py-1.5 outline-none"
                   />
-                  <Button size="sm" variant="outline" className="h-8 gap-1" onClick={copy} title="복사">
+                  <Button size="sm" variant="outline" className="h-8 gap-1" onClick={copy} title={t("documents.shareLink.copy")}>
                     <Copy className="h-3.5 w-3.5" />
                   </Button>
                   <a
                     href={url} target="_blank" rel="noopener noreferrer"
                     className="inline-flex h-8 px-2 items-center justify-center rounded-md border hover:bg-muted/60 transition-colors"
-                    title="새 탭에서 열기"
+                    title={t("documents.shareLink.openNewTab")}
                   >
                     <ExternalLink className="h-3.5 w-3.5" />
                   </a>
                 </div>
                 <p className="text-2xs text-muted-foreground mt-1">
-                  로그인 없이 이 링크로 누구나 문서를 읽을 수 있습니다 (편집 불가).
+                  {t("documents.shareLink.notice")}
                 </p>
               </div>
 
               <div>
-                <label className="block text-xs font-medium mb-1 text-muted-foreground">만료일 (선택)</label>
+                <label className="block text-xs font-medium mb-1 text-muted-foreground">{t("documents.shareLink.expiryLabel")}</label>
                 <div className="flex gap-1">
                   <input
                     type="datetime-local"
@@ -111,7 +113,7 @@ export function ShareDialog({ open, onOpenChange, workspaceSlug, spaceId, docId 
                     size="sm" variant="outline" className="h-8"
                     onClick={() => enableMutation.mutate(expiresAt ? new Date(expiresAt).toISOString() : null)}
                   >
-                    적용
+                    {t("documents.shareLink.apply")}
                   </Button>
                 </div>
               </div>
@@ -119,22 +121,22 @@ export function ShareDialog({ open, onOpenChange, workspaceSlug, spaceId, docId 
               <div className="flex justify-between items-center pt-2 border-t">
                 <p className="text-xs text-muted-foreground">
                   {q.data?.expires_at
-                    ? `만료: ${new Date(q.data.expires_at).toLocaleString()}`
-                    : "만료 없음"}
+                    ? t("documents.shareLink.expiresAt", { at: new Date(q.data.expires_at).toLocaleString() })
+                    : t("documents.shareLink.noExpiry")}
                 </p>
                 <Button
                   size="sm" variant="outline"
                   onClick={() => disableMutation.mutate()}
                   disabled={disableMutation.isPending}
                 >
-                  공유 해제
+                  {t("documents.shareLink.disable")}
                 </Button>
               </div>
             </>
           ) : (
             <div className="text-center py-4">
               <p className="text-sm text-muted-foreground mb-3">
-                이 문서는 현재 공개되어 있지 않습니다.
+                {t("documents.shareLink.notShared")}
               </p>
               <Button
                 onClick={() => enableMutation.mutate(null)}
@@ -142,7 +144,7 @@ export function ShareDialog({ open, onOpenChange, workspaceSlug, spaceId, docId 
                 className="gap-2"
               >
                 <Share2 className="h-4 w-4" />
-                {enableMutation.isPending ? "활성화 중..." : "공유 링크 생성"}
+                {enableMutation.isPending ? t("documents.shareLink.enabling") : t("documents.shareLink.enable")}
               </Button>
             </div>
           )}

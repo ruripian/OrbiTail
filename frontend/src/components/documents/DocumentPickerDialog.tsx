@@ -13,6 +13,7 @@
  * 프로젝트 문서라, 워크스페이스의 모든 스페이스가 한꺼번에 깔려 있으면 찾는 데 방해가 된다.
  */
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { Search, FileText, Loader2, ChevronRight, ChevronDown, FolderOpen, Folder, Plus } from "lucide-react";
@@ -41,6 +42,7 @@ interface Props {
 export function DocumentPickerDialog({
   open, onOpenChange, workspaceSlug, excludeIds = [], onSelect, onCreate, defaultSpaceId, focusSpaceId,
 }: Props) {
+  const { t } = useTranslation();
   const [q, setQ] = useState("");
   const [debounced, setDebounced] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
@@ -140,7 +142,7 @@ export function DocumentPickerDialog({
       await onCreate(doc);
       onOpenChange(false);
     } catch {
-      toast.error("문서 생성 실패");
+      toast.error(t("documents.docPicker.createFailed"));
     } finally {
       setCreating(false);
     }
@@ -155,7 +157,7 @@ export function DocumentPickerDialog({
             autoFocus
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder={onCreate ? "검색하거나, 새 문서 이름을 입력하세요" : "검색하거나 아래 트리에서 선택..."}
+            placeholder={onCreate ? t("documents.docPicker.searchOrCreate") : t("documents.docPicker.searchPlaceholder")}
             className="flex-1 bg-transparent outline-none text-sm"
           />
           {searching && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
@@ -183,12 +185,12 @@ export function DocumentPickerDialog({
               className="flex w-full items-center gap-1.5 border-t px-3 py-2 text-left text-xs text-muted-foreground hover:bg-muted/40 hover:text-foreground"
             >
               {showOthers ? (
-                "이 프로젝트 문서만 보기"
+                t("documents.docPicker.thisProjectOnly")
               ) : (
                 <>
-                  다른 스페이스 문서도 보기
+                  {t("documents.docPicker.includeOtherSpaces")}
                   {isSearching && hiddenResultCount > 0 && (
-                    <span className="ml-auto tabular-nums">{hiddenResultCount}건 더 있음</span>
+                    <span className="ml-auto tabular-nums">{t("documents.docPicker.hiddenCount", { count: hiddenResultCount })}</span>
                   )}
                 </>
               )}
@@ -214,12 +216,12 @@ export function DocumentPickerDialog({
                     ? <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
                     : <Plus className="h-3.5 w-3.5 shrink-0" />}
                   <span className="truncate">
-                    <span className="font-medium">&ldquo;{q.trim()}&rdquo;</span> 새 문서로 만들기
+                    <span className="font-medium">&ldquo;{q.trim()}&rdquo;</span> {t("documents.docPicker.createAsNew")}
                   </span>
                 </button>
                 <Select value={targetSpaceId} onValueChange={setCreateSpaceId}>
                   <SelectTrigger className="h-8 w-36 text-xs shrink-0">
-                    <SelectValue placeholder="스페이스" />
+                    <SelectValue placeholder={t("documents.docPicker.space")} />
                   </SelectTrigger>
                   <SelectContent className="max-h-64">
                     {spaces.map((sp) => (
@@ -230,7 +232,7 @@ export function DocumentPickerDialog({
               </div>
             ) : (
               <p className="px-2 py-1 text-2xs text-muted-foreground">
-                찾는 문서가 없으면 이름을 입력해 새로 만들 수 있습니다.
+                {t("documents.docPicker.createHint")}
               </p>
             )}
           </div>
@@ -243,8 +245,9 @@ export function DocumentPickerDialog({
 function SearchResults({ results, excludeIds, busy, onSelect }: {
   results: Document[]; excludeIds: string[]; busy: string | null; onSelect: (d: Document) => void;
 }) {
+  const { t } = useTranslation();
   if (results.length === 0) {
-    return <div className="px-4 py-6 text-center text-xs text-muted-foreground">검색 결과 없음</div>;
+    return <div className="px-4 py-6 text-center text-xs text-muted-foreground">{t("issues.detail.nodes.searchEmpty")}</div>;
   }
   return (
     <ul>
@@ -261,8 +264,8 @@ function SearchResults({ results, excludeIds, busy, onSelect }: {
               )}
             >
               <FileText className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-              <span className="truncate">{d.title || "제목 없음"}</span>
-              {excluded && <span className="ml-auto text-2xs text-muted-foreground">이미 연결됨</span>}
+              <span className="truncate">{d.title || t("documents.untitled")}</span>
+              {excluded && <span className="ml-auto text-2xs text-muted-foreground">{t("documents.docPicker.alreadyLinkedLong")}</span>}
               {busy === d.id && <Loader2 className="h-3 w-3 animate-spin ml-auto" />}
             </button>
           </li>
@@ -286,8 +289,9 @@ function SpaceTree({
   onToggleDoc: (id: string) => void;
   onSelect: (d: Document) => void;
 }) {
+  const { t } = useTranslation();
   if (spaces.length === 0) {
-    return <div className="px-4 py-6 text-center text-xs text-muted-foreground">접근 가능한 스페이스 없음</div>;
+    return <div className="px-4 py-6 text-center text-xs text-muted-foreground">{t("documents.docPicker.noSpaces")}</div>;
   }
   return (
     <div className="py-1">
@@ -309,7 +313,7 @@ function SpaceTree({
             {isOpen && (
               <div>
                 {roots.length === 0 && docs.length === 0 ? (
-                  <div className="pl-9 py-2 text-2xs text-muted-foreground/60">로딩 중 또는 비어 있음</div>
+                  <div className="pl-9 py-2 text-2xs text-muted-foreground/60">{t("documents.docPicker.emptyOrLoading")}</div>
                 ) : (
                   roots.map((root) => (
                     <DocNode
@@ -339,6 +343,7 @@ function DocNode({ doc, depth, allDocs, expandedDocs, excludeIds, busy, onToggle
   expandedDocs: Set<string>; excludeIds: string[]; busy: string | null;
   onToggleDoc: (id: string) => void; onSelect: (d: Document) => void;
 }) {
+  const { t } = useTranslation();
   const children = allDocs.filter((d) => d.parent === doc.id);
   const hasChildren = children.length > 0;
   const isOpen = expandedDocs.has(doc.id);
@@ -372,8 +377,8 @@ function DocNode({ doc, depth, allDocs, expandedDocs, excludeIds, busy, onToggle
           )}
           title={doc.title}
         >
-          {doc.title || "제목 없음"}
-          {excluded && <span className="ml-2 text-2xs text-muted-foreground">(연결됨)</span>}
+          {doc.title || t("documents.untitled")}
+          {excluded && <span className="ml-2 text-2xs text-muted-foreground">{t("documents.docPicker.alreadyLinked")}</span>}
         </button>
         {busy === doc.id && <Loader2 className="h-3 w-3 animate-spin mr-2" />}
       </div>

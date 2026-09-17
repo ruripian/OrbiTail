@@ -1858,7 +1858,135 @@
     "spaceDescriptionPlaceholder": "Briefly describe what this space is for",
     "spaceIdentifier": "Identifier (optional)",
     "spaceIdentifierHint": "Uppercase letters and digits, up to 12 characters. Used in document URLs and references.",
-    "spaceNamePlaceholder": "e.g. Engineering docs"
+    "spaceNamePlaceholder": "e.g. Engineering docs",
+    "commentsPanel": {
+      "createFailed": "Failed to create the comment",
+      "tabOpen": "Open",
+      "tabResolved": "Resolved",
+      "newTitle": "New comment",
+      "newPlaceholder": "Write a comment... (Cmd+Enter to send, Esc to cancel)",
+      "emptyOpen": "No open comment threads",
+      "emptyResolved": "No resolved comments",
+      "deleteConfirm": "Delete this comment thread?",
+      "replyPlaceholder": "Reply...",
+      "reopen": "Reopen",
+      "markResolved": "Mark as resolved",
+      "resolve": "Resolve",
+      "deleteThread": "Delete thread"
+    },
+    "cover": {
+      "tooLarge": "Images must be 10MB or smaller.",
+      "notImage": "Only image files are allowed.",
+      "selectImage": "Choose an image.",
+      "saveFailed": "Failed to save",
+      "removeConfirm": "Remove the cover image?",
+      "title": "Cover image",
+      "dragHint": "Drag to reposition",
+      "zoom": "Zoom",
+      "height": "Height",
+      "save": "Save",
+      "saving": "Saving...",
+      "pickOther": "Choose a different file",
+      "pickHint": "Drag an image here or click to choose (10MB max)"
+    },
+    "shareLink": {
+      "enabled": "Public link enabled",
+      "enableFailed": "Could not enable the public link — check your edit permission",
+      "disabled": "Public link disabled",
+      "copied": "Link copied",
+      "title": "Public share link",
+      "urlLabel": "Share URL",
+      "copy": "Copy",
+      "openNewTab": "Open in a new tab",
+      "notice": "Anyone with this link can read the document without signing in. They cannot edit it.",
+      "expiryLabel": "Expiry date (optional)",
+      "apply": "Apply",
+      "expiresAt": "Expires: {{at}}",
+      "noExpiry": "No expiry",
+      "disable": "Stop sharing",
+      "notShared": "This document is not public right now.",
+      "enabling": "Enabling...",
+      "enable": "Create public link"
+    },
+    "labelPicker": {
+      "removeLabel": "Remove {{name}}",
+      "trigger": "Labels",
+      "searchPlaceholder": "Search labels",
+      "empty": "No labels yet.",
+      "create": "Create \"{{name}}\""
+    },
+    "issuePicker": {
+      "searchPlaceholder": "Search, or pick from the tree below...",
+      "alreadyLinked": "(linked)",
+      "noProjects": "You are not a member of any project",
+      "emptyOrLoading": "No issues, or still loading"
+    },
+    "docPicker": {
+      "createFailed": "Failed to create the document",
+      "searchOrCreate": "Search, or type a name for a new document",
+      "searchPlaceholder": "Search, or pick from the tree below...",
+      "thisProjectOnly": "Show only this project's documents",
+      "includeOtherSpaces": "Include documents from other spaces",
+      "hiddenCount": "{{count}} more",
+      "createAsNew": "Create as a new document",
+      "space": "Space",
+      "createHint": "If you cannot find the document, type a name to create a new one.",
+      "alreadyLinkedLong": "Already linked",
+      "alreadyLinked": "(linked)",
+      "noSpaces": "No spaces you can access",
+      "emptyOrLoading": "Loading, or empty"
+    },
+    "issueEmbed": {
+      "titleBoard": "Issue board",
+      "titleTable": "Issue table",
+      "titleCalendar": "Issue calendar",
+      "priorityAll": "All priorities",
+      "pickProject": "Select a project",
+      "noProjects": "No projects you can access",
+      "filter": "Filter",
+      "state": "State",
+      "stateAll": "All states",
+      "priority": "Priority",
+      "assignee": "Assignee",
+      "assigneeAll": "All assignees",
+      "clearAll": "Clear all",
+      "loadingProject": "Loading project information...",
+      "selectProjectAbove": "Select a project above",
+      "all": "All"
+    },
+    "templates": {
+      "newDoc": "Create a new document",
+      "tabAll": "All",
+      "tabMine": "My templates",
+      "blank": "Blank document",
+      "blankHint": "Start from scratch",
+      "emptyMine": "No saved templates yet. You can save one from an existing document's settings menu.",
+      "empty": "No templates",
+      "deleteConfirm": "Delete the template \"{{name}}\"?",
+      "delete": "Delete template",
+      "scopeBuiltIn": "Built-in",
+      "scopeWorkspace": "Shared",
+      "scopeSpace": "Space",
+      "scopeUser": "Mine",
+      "saveAs": "Save as template",
+      "name": "Name",
+      "namePlaceholder": "e.g. Weekly retrospective",
+      "desc": "Description (optional)",
+      "scope": "Scope",
+      "scopeUserHint": "Only I can use it",
+      "thisSpace": "This space",
+      "thisSpaceHint": "Only in this space",
+      "workspaceShared": "Shared with the workspace",
+      "workspaceSharedHint": "Any member can use it",
+      "adminOnly": "Only administrators can create this",
+      "saving": "Saving...",
+      "save": "Save"
+    },
+    "spaceRole": {
+      "viewer": "Viewer",
+      "editor": "Editor",
+      "admin": "Admin"
+    }
   },
   "projectFilter": {
     "label": "Projects",
@@ -2160,6 +2288,127 @@
       "updateFailed": "Failed to save the change",
       "upload": "Upload",
       "useDefault": "Default"
+    },
+    "projects": {
+      "changeFailed": "Could not save the change",
+      "trashed": "Moved to the trash",
+      "trashFailed": "Could not move it",
+      "title": "Projects",
+      "subtitle": "Manage every project in the workspace. A private project stays hidden from the project screen unless you are a member, and its issues are not shown here either. To see the contents, add yourself as a member — that is recorded in the activity log.",
+      "searchPlaceholder": "Search by name or identifier",
+      "empty": "No projects.",
+      "private": "Private",
+      "public": "Public",
+      "archived": "Archived",
+      "notMember": "· you are not a member",
+      "counts": "{{issues}} issues · {{members}} members · lead {{lead}}",
+      "noLead": "none",
+      "membersAndLead": "Members and lead",
+      "unarchive": "Unarchive",
+      "archive": "Archive",
+      "trashNotice": "{{count}} projects are in the trash",
+      "trashLink": "restore or delete permanently in the archive",
+      "trashConfirmTitle": "Move the project '{{name}}' to the trash?",
+      "trashConfirmDesc": "You can restore it from the archive's trash for 30 days. After that it is deleted permanently, along with its issues and documents.",
+      "trashConfirmLabel": "Move to trash",
+      "actionFailed": "Could not complete the action",
+      "addMemberPlaceholder": "Add a workspace member",
+      "addMemberHint": "New people start as members. The lead also gets the administrator role.",
+      "noMembers": "No members",
+      "noName": "(no name)",
+      "lead": "Lead",
+      "unsetLead": "Unset lead",
+      "setLead": "Make lead",
+      "removeFromProject": "Remove from the project"
+    },
+    "activity": {
+      "action": {
+        "project": {
+          "trashed": "moved a project to the trash",
+          "restored": "restored a project",
+          "purged": "permanently deleted a project",
+          "archived": "archived a project",
+          "unarchived": "unarchived a project",
+          "lead_changed": "changed a project lead",
+          "member_added": "added a project member",
+          "member_removed": "removed a project member",
+          "member_role": "changed a project member's role"
+        },
+        "space": {
+          "visibility": "changed a space's visibility",
+          "archived": "archived a space",
+          "unarchived": "unarchived a space",
+          "deleted": "deleted a space",
+          "member_added": "added a space member",
+          "member_removed": "removed a space member",
+          "member_role": "changed a space member's role",
+          "personal_deleted": "deleted a personal space"
+        },
+        "member": {
+          "role": "changed a workspace role",
+          "removed": "removed someone from the workspace"
+        },
+        "invitation": {
+          "sent": "sent an invitation",
+          "revoked": "revoked an invitation"
+        },
+        "join": {
+          "approved": "approved a join request",
+          "rejected": "rejected a join request"
+        },
+        "team": {
+          "deleted": "deleted a team"
+        },
+        "api_token": {
+          "created": "created an API token",
+          "revoked": "revoked an API token"
+        },
+        "webhook": {
+          "created": "created a webhook",
+          "updated": "updated a webhook",
+          "deleted": "deleted a webhook"
+        }
+      },
+      "cat": {
+        "all": "All",
+        "project": "Projects",
+        "space": "Document spaces",
+        "member": "Members",
+        "invitation": "Invitations",
+        "join": "Join requests",
+        "team": "Teams",
+        "apiToken": "API tokens",
+        "webhook": "Webhooks"
+      },
+      "leadTo": "lead → {{name}}",
+      "leadNone": "none",
+      "toPrivate": "made private",
+      "toPublic": "made public",
+      "changedFields": "changed: {{fields}}",
+      "viaSettings": "from workspace settings",
+      "title": "Activity log",
+      "subtitle": "A record of workspace administration actions. When an administrator adds themselves to a private project or space, that is flagged separately.",
+      "empty": "No activity yet.",
+      "selfAddedPrivate": "added themselves to a private item",
+      "prev": "Previous",
+      "next": "Next",
+      "pageNo": "Page {{page}}"
     }
+  },
+  "memberDetail": {
+    "none": "None",
+    "title": "Member details",
+    "suspended": "Suspended",
+    "inactive": "Inactive",
+    "joinedOn": "Joined {{date}}",
+    "lastLogin": "Last sign-in {{date}}",
+    "noRecord": "no record",
+    "openIssues": "Open issues assigned",
+    "activeTokens": "Active API tokens",
+    "yes": "Yes",
+    "no": "No",
+    "personalSpace": "Personal space",
+    "trash": "Trash",
+    "spaces": "Document spaces"
   }
 }

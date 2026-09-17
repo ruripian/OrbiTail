@@ -3,21 +3,28 @@
  * 내보내거나 역할을 바꾸기 전에 영향을 확인하는 용도. 이슈 제목 같은 내용은 싣지 않는다.
  */
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 
 import { manageApi } from "@/api/manage";
 import { AvatarInitials } from "@/components/ui/avatar-initials";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { formatLongDate } from "@/utils/date-format";
-import { PROJECT_ROLE_LABEL } from "./WorkspaceProjectsManagePage";
+import { PROJECT_ROLE_KEY } from "./WorkspaceProjectsManagePage";
 
-const SPACE_ROLE_LABEL: Record<number, string> = { 5: "뷰어", 15: "편집자", 20: "관리자" };
-const TEAM_ROLE_LABEL: Record<number, string> = { 15: "멤버", 20: "관리자" };
+/* 역할 번호 → i18n 키 (문구가 아니라 키) */
+const SPACE_ROLE_KEY: Record<number, string> = {
+  5: "documents.spaceRole.viewer",
+  15: "documents.spaceRole.editor",
+  20: "documents.spaceRole.admin",
+};
+const TEAM_ROLE_KEY: Record<number, string> = { 15: "team.role.member", 20: "team.role.admin" };
 
 function Section({ title, count, children }: { title: string; count: number; children: React.ReactNode }) {
+  const { t } = useTranslation();
   return (
     <section>
       <h3 className="text-xs font-semibold text-muted-foreground mb-1.5">{title} {count}</h3>
-      {count === 0 ? <p className="text-2xs text-muted-foreground">없음</p> : <div className="rounded-md border divide-y">{children}</div>}
+      {count === 0 ? <p className="text-2xs text-muted-foreground">{t("memberDetail.none")}</p> : <div className="rounded-md border divide-y">{children}</div>}
     </section>
   );
 }
@@ -27,6 +34,7 @@ export function MemberDetailDialog({ workspaceSlug, userId, onClose }: {
   userId: string;
   onClose: () => void;
 }) {
+  const { t } = useTranslation();
   const { data, isLoading } = useQuery({
     queryKey: ["manage-member", workspaceSlug, userId],
     queryFn: () => manageApi.member(workspaceSlug, userId),
@@ -36,10 +44,10 @@ export function MemberDetailDialog({ workspaceSlug, userId, onClose }: {
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent className="sm:max-w-[520px] max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>멤버 상세</DialogTitle>
+          <DialogTitle>{t("memberDetail.title")}</DialogTitle>
         </DialogHeader>
         {isLoading || !data ? (
-          <p className="text-sm text-muted-foreground py-6 text-center">불러오는 중...</p>
+          <p className="text-sm text-muted-foreground py-6 text-center">{t("common.loading")}</p>
         ) : (
           <div className="space-y-4">
             <div className="flex items-center gap-3">
@@ -48,13 +56,13 @@ export function MemberDetailDialog({ workspaceSlug, userId, onClose }: {
                 <p className="text-sm font-medium truncate">
                   {data.user.display_name}
                   {(!data.user.is_active || data.user.is_suspended) && (
-                    <span className="ml-1.5 text-2xs text-destructive">{data.user.is_suspended ? "정지됨" : "비활성"}</span>
+                    <span className="ml-1.5 text-2xs text-destructive">{data.user.is_suspended ? t("memberDetail.suspended") : t("memberDetail.inactive")}</span>
                   )}
                 </p>
                 <p className="text-xs text-muted-foreground truncate">{data.user.email}</p>
                 <p className="text-2xs text-muted-foreground mt-0.5">
-                  {formatLongDate(data.joined_at)} 가입
-                  {" · "}마지막 로그인 {data.user.last_login ? formatLongDate(data.user.last_login) : "기록 없음"}
+                  {t("memberDetail.joinedOn", { date: formatLongDate(data.joined_at) })}
+                  {" · "}{t("memberDetail.lastLogin", { date: data.user.last_login ? formatLongDate(data.user.last_login) : t("memberDetail.noRecord") })}
                 </p>
               </div>
             </div>
@@ -62,49 +70,49 @@ export function MemberDetailDialog({ workspaceSlug, userId, onClose }: {
             <div className="grid grid-cols-3 gap-2 text-center">
               <div className="rounded-md border p-2">
                 <p className="text-lg font-bold tabular-nums">{data.open_issue_count}</p>
-                <p className="text-2xs text-muted-foreground">맡은 미완료 이슈</p>
+                <p className="text-2xs text-muted-foreground">{t("memberDetail.openIssues")}</p>
               </div>
               <div className="rounded-md border p-2">
                 <p className="text-lg font-bold tabular-nums">{data.active_api_tokens}</p>
-                <p className="text-2xs text-muted-foreground">활성 API 토큰</p>
+                <p className="text-2xs text-muted-foreground">{t("memberDetail.activeTokens")}</p>
               </div>
               <div className="rounded-md border p-2">
-                <p className="text-lg font-bold">{data.has_personal_space ? "있음" : "없음"}</p>
-                <p className="text-2xs text-muted-foreground">개인 스페이스</p>
+                <p className="text-lg font-bold">{data.has_personal_space ? t("memberDetail.yes") : t("memberDetail.no")}</p>
+                <p className="text-2xs text-muted-foreground">{t("memberDetail.personalSpace")}</p>
               </div>
             </div>
 
-            <Section title="프로젝트" count={data.projects.length}>
+            <Section title={t("workspaceSettings.projects.title")} count={data.projects.length}>
               {data.projects.map((p) => (
                 <div key={p.id} className="flex items-center gap-2 px-3 py-1.5 text-sm">
                   <span className="w-12 shrink-0 font-mono text-2xs text-muted-foreground">{p.identifier}</span>
                   <span className="truncate">{p.name}</span>
-                  {p.visibility === "private" && <span className="text-2xs text-muted-foreground">비공개</span>}
-                  {p.trashed && <span className="text-2xs text-muted-foreground">휴지통</span>}
+                  {p.visibility === "private" && <span className="text-2xs text-muted-foreground">{t("workspaceSettings.projects.private")}</span>}
+                  {p.trashed && <span className="text-2xs text-muted-foreground">{t("memberDetail.trash")}</span>}
                   <span className="ml-auto shrink-0 text-2xs text-muted-foreground">
-                    {p.is_lead && <span className="font-semibold text-primary mr-1">리드</span>}
-                    {PROJECT_ROLE_LABEL[p.role] ?? p.role}
+                    {p.is_lead && <span className="font-semibold text-primary mr-1">{t("workspaceSettings.projects.lead")}</span>}
+                    {PROJECT_ROLE_KEY[p.role] ? t(PROJECT_ROLE_KEY[p.role]) : p.role}
                   </span>
                 </div>
               ))}
             </Section>
 
-            <Section title="문서 스페이스" count={data.spaces.length}>
+            <Section title={t("memberDetail.spaces")} count={data.spaces.length}>
               {data.spaces.map((s) => (
                 <div key={s.id} className="flex items-center gap-2 px-3 py-1.5 text-sm">
                   <span className="truncate">{s.name}</span>
-                  {s.is_private && <span className="text-2xs text-muted-foreground">비공개</span>}
-                  <span className="ml-auto shrink-0 text-2xs text-muted-foreground">{SPACE_ROLE_LABEL[s.role] ?? s.role}</span>
+                  {s.is_private && <span className="text-2xs text-muted-foreground">{t("workspaceSettings.projects.private")}</span>}
+                  <span className="ml-auto shrink-0 text-2xs text-muted-foreground">{SPACE_ROLE_KEY[s.role] ? t(SPACE_ROLE_KEY[s.role]) : s.role}</span>
                 </div>
               ))}
             </Section>
 
-            <Section title="팀" count={data.teams.length}>
-              {data.teams.map((t) => (
-                <div key={t.id} className="flex items-center gap-2 px-3 py-1.5 text-sm">
-                  <span className="truncate">{t.name}</span>
-                  {t.title && <span className="text-2xs text-muted-foreground">{t.title}</span>}
-                  <span className="ml-auto shrink-0 text-2xs text-muted-foreground">{TEAM_ROLE_LABEL[t.role] ?? t.role}</span>
+            <Section title={t("sidebar.teams")} count={data.teams.length}>
+              {data.teams.map((tm) => (
+                <div key={tm.id} className="flex items-center gap-2 px-3 py-1.5 text-sm">
+                  <span className="truncate">{tm.name}</span>
+                  {tm.title && <span className="text-2xs text-muted-foreground">{tm.title}</span>}
+                  <span className="ml-auto shrink-0 text-2xs text-muted-foreground">{TEAM_ROLE_KEY[tm.role] ? t(TEAM_ROLE_KEY[tm.role]) : tm.role}</span>
                 </div>
               ))}
             </Section>

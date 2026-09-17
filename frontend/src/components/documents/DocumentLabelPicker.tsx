@@ -5,6 +5,7 @@
  * 칩 렌더(LabelChip)와 선택 팝오버(DocumentLabelPicker)를 여기서 함께 제공한다.
  */
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Check, Plus, Tag, X } from "lucide-react";
 import { documentsApi } from "@/api/documents";
@@ -22,6 +23,7 @@ export const LABEL_COLORS = [
 export function LabelChip({
   label, onRemove, className,
 }: { label: DocumentLabel; onRemove?: () => void; className?: string }) {
+  const { t } = useTranslation();
   return (
     <span
       className={cn(
@@ -36,7 +38,7 @@ export function LabelChip({
           type="button"
           onClick={(e) => { e.preventDefault(); e.stopPropagation(); onRemove(); }}
           className="hover:opacity-70"
-          aria-label={`${label.name} 제거`}
+          aria-label={t("documents.labelPicker.removeLabel", { name: label.name })}
         >
           <X className="h-2.5 w-2.5" />
         </button>
@@ -57,8 +59,9 @@ interface Props {
 }
 
 export function DocumentLabelPicker({
-  workspaceSlug, value, onChange, allowCreate = true, disabled, triggerLabel = "라벨",
+  workspaceSlug, value, onChange, allowCreate = true, disabled, triggerLabel,
 }: Props) {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -97,7 +100,7 @@ export function DocumentLabelPicker({
           disabled={disabled}
         >
           <Tag className="h-3 w-3" />
-          {triggerLabel}
+          {triggerLabel ?? t("documents.labelPicker.trigger")}
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-60 p-2">
@@ -105,7 +108,7 @@ export function DocumentLabelPicker({
           autoFocus
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="라벨 검색"
+          placeholder={t("documents.labelPicker.searchPlaceholder")}
           className="h-8 text-xs mb-2"
           onKeyDown={(e) => {
             if (e.key === "Enter" && allowCreate && query.trim() && !exactExists) create.mutate(query.trim());
@@ -126,7 +129,7 @@ export function DocumentLabelPicker({
             </li>
           ))}
           {filtered.length === 0 && !query && (
-            <li className="px-2 py-3 text-2xs text-muted-foreground">아직 라벨이 없습니다.</li>
+            <li className="px-2 py-3 text-2xs text-muted-foreground">{t("documents.labelPicker.empty")}</li>
           )}
         </ul>
         {allowCreate && query.trim() && !exactExists && (
@@ -137,7 +140,7 @@ export function DocumentLabelPicker({
             className="mt-1 w-full flex items-center gap-1.5 rounded px-2 py-1.5 text-xs text-primary hover:bg-primary/5"
           >
             <Plus className="h-3 w-3" />
-            "{query.trim()}" 만들기
+            {t("documents.labelPicker.create", { name: query.trim() })}
           </button>
         )}
       </PopoverContent>

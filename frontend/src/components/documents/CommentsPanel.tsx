@@ -8,6 +8,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { ResizableAside } from "@/components/ui/resizable-aside";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -40,6 +41,7 @@ export function CommentsPanel({
   activeThreadId, onActiveThreadChange,
   newThread, onNewThreadHandled,
 }: Props) {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const currentUser = useAuthStore((s) => s.user);
   const [tab, setTab] = useState<"open" | "resolved">("open");
@@ -104,7 +106,7 @@ export function CommentsPanel({
       newThread.resolve(thread.id);
       onNewThreadHandled();
     } catch {
-      toast.error("댓글 생성 실패");
+      toast.error(t("documents.commentsPanel.createFailed"));
     }
   };
 
@@ -125,7 +127,7 @@ export function CommentsPanel({
     >
       <div className="flex items-center gap-1 px-3 py-2 border-b">
         <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mr-auto">
-          댓글
+          {t("documents.comments")}
         </h2>
         <button
           onClick={() => setTab("open")}
@@ -133,14 +135,14 @@ export function CommentsPanel({
             "text-xs px-2 py-1 rounded-md transition-colors",
             tab === "open" ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-muted/50",
           )}
-        >진행</button>
+        >{t("documents.commentsPanel.tabOpen")}</button>
         <button
           onClick={() => setTab("resolved")}
           className={cn(
             "text-xs px-2 py-1 rounded-md transition-colors",
             tab === "resolved" ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-muted/50",
           )}
-        >해결됨</button>
+        >{t("documents.commentsPanel.tabResolved")}</button>
       </div>
 
       <div className="flex-1 overflow-y-auto">
@@ -148,7 +150,7 @@ export function CommentsPanel({
         {newThread && (
           <div className="p-3 border-b bg-amber-500/5">
             <p className="text-2xs font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400 mb-1.5">
-              새 댓글
+              {t("documents.commentsPanel.newTitle")}
             </p>
             <blockquote className="text-xs text-muted-foreground border-l-2 border-amber-500/60 pl-2 mb-2 line-clamp-3">
               "{newThread.selectedText}"
@@ -162,26 +164,26 @@ export function CommentsPanel({
                 else if (e.key === "Escape") { e.preventDefault(); cancelNewThread(); }
               }}
               rows={3}
-              placeholder="댓글을 입력하세요... (Cmd+Enter 전송, Esc 취소)"
+              placeholder={t("documents.commentsPanel.newPlaceholder")}
               className="w-full text-sm bg-background border rounded-md px-2 py-1.5 outline-none focus:border-primary/60 resize-none"
             />
             <div className="flex justify-end gap-1.5 mt-2">
               <Button variant="ghost" size="sm" className="h-7" onClick={cancelNewThread}>
-                취소
+                {t("common.cancel")}
               </Button>
               <Button size="sm" className="h-7 gap-1" disabled={!newContent.trim() || createMutation.isPending} onClick={submitNewThread}>
                 <CornerDownLeft className="h-3 w-3" />
-                등록
+                {t("documents.postComment")}
               </Button>
             </div>
           </div>
         )}
 
         {threadsQ.isLoading ? (
-          <p className="p-6 text-xs text-muted-foreground text-center">로딩 중...</p>
+          <p className="p-6 text-xs text-muted-foreground text-center">{t("common.loading")}</p>
         ) : (threadsQ.data ?? []).length === 0 ? (
           <p className="p-6 text-xs text-muted-foreground text-center">
-            {tab === "open" ? "열린 댓글 스레드가 없습니다" : "해결된 댓글이 없습니다"}
+            {tab === "open" ? t("documents.commentsPanel.emptyOpen") : t("documents.commentsPanel.emptyResolved")}
           </p>
         ) : (
           <ul className="divide-y divide-border">
@@ -195,7 +197,7 @@ export function CommentsPanel({
                 onReply={(content) => replyMutation.mutate({ threadId: th.id, content })}
                 onResolve={() => resolveMutation.mutate(th.id)}
                 onDelete={() => {
-                  if (confirm("이 댓글 스레드를 삭제하시겠습니까?")) deleteMutation.mutate(th.id);
+                  if (confirm(t("documents.commentsPanel.deleteConfirm"))) deleteMutation.mutate(th.id);
                 }}
                 replyPending={replyMutation.isPending && replyMutation.variables?.threadId === th.id}
               />
@@ -221,6 +223,7 @@ function ThreadItem({
   onDelete: () => void;
   replyPending: boolean;
 }) {
+  const { t } = useTranslation();
   const [reply, setReply] = useState("");
   const isCreator = currentUserId && thread.created_by === currentUserId;
 
@@ -266,7 +269,7 @@ function ThreadItem({
               }
             }}
             rows={1}
-            placeholder="답글..."
+            placeholder={t("documents.commentsPanel.replyPlaceholder")}
             className="w-full text-sm bg-background border rounded-md px-2 py-1 outline-none focus:border-primary/60 resize-none"
           />
           <div className="flex justify-end gap-1 mt-1">
@@ -276,7 +279,7 @@ function ThreadItem({
                 disabled={replyPending}
                 onClick={() => { onReply(reply.trim()); setReply(""); }}
               >
-                <MessageSquareReply className="h-3 w-3" /> 답글
+                <MessageSquareReply className="h-3 w-3" /> {t("issues.detail.comments.reply")}
               </Button>
             )}
           </div>
@@ -288,17 +291,17 @@ function ThreadItem({
         <button
           onClick={onResolve}
           className="text-2xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
-          title={thread.resolved ? "재개" : "해결됨으로 표시"}
+          title={thread.resolved ? t("documents.commentsPanel.reopen") : t("documents.commentsPanel.markResolved")}
         >
-          {thread.resolved ? <><XIcon className="h-3 w-3" /> 재개</> : <><Check className="h-3 w-3" /> 해결</>}
+          {thread.resolved ? <><XIcon className="h-3 w-3" /> {t("documents.commentsPanel.reopen")}</> : <><Check className="h-3 w-3" /> {t("documents.commentsPanel.resolve")}</>}
         </button>
         {isCreator && (
           <button
             onClick={onDelete}
             className="ml-auto text-2xs text-muted-foreground hover:text-destructive inline-flex items-center gap-1"
-            title="스레드 삭제"
+            title={t("documents.commentsPanel.deleteThread")}
           >
-            <Trash2 className="h-3 w-3" /> 삭제
+            <Trash2 className="h-3 w-3" /> {t("common.delete")}
           </button>
         )}
       </div>

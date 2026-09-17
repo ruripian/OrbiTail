@@ -1858,7 +1858,135 @@
     "spaceDescriptionPlaceholder": "이 스페이스의 목적을 간단히 설명하세요",
     "spaceIdentifier": "구분자 (선택)",
     "spaceIdentifierHint": "영문 대문자/숫자, 최대 12자. 문서 URL 및 참조에 사용됩니다.",
-    "spaceNamePlaceholder": "예: 기술 문서"
+    "spaceNamePlaceholder": "예: 기술 문서",
+    "commentsPanel": {
+      "createFailed": "댓글 생성 실패",
+      "tabOpen": "진행",
+      "tabResolved": "해결됨",
+      "newTitle": "새 댓글",
+      "newPlaceholder": "댓글을 입력하세요... (Cmd+Enter 전송, Esc 취소)",
+      "emptyOpen": "열린 댓글 스레드가 없습니다",
+      "emptyResolved": "해결된 댓글이 없습니다",
+      "deleteConfirm": "이 댓글 스레드를 삭제하시겠습니까?",
+      "replyPlaceholder": "답글...",
+      "reopen": "재개",
+      "markResolved": "해결됨으로 표시",
+      "resolve": "해결",
+      "deleteThread": "스레드 삭제"
+    },
+    "cover": {
+      "tooLarge": "이미지는 10MB 이하만 가능합니다.",
+      "notImage": "이미지 파일만 가능합니다.",
+      "selectImage": "이미지를 선택하세요.",
+      "saveFailed": "저장 실패",
+      "removeConfirm": "커버 이미지를 제거할까요?",
+      "title": "커버 이미지",
+      "dragHint": "드래그해서 위치 조정",
+      "zoom": "확대",
+      "height": "높이",
+      "save": "저장",
+      "saving": "저장 중...",
+      "pickOther": "다른 파일 선택",
+      "pickHint": "이미지를 드래그하거나 클릭해 선택 (최대 10MB)"
+    },
+    "shareLink": {
+      "enabled": "공유 링크가 활성화되었습니다",
+      "enableFailed": "공유 링크 활성화 실패 — 편집 권한을 확인해주세요",
+      "disabled": "공유 링크가 해제되었습니다",
+      "copied": "링크가 복사되었습니다",
+      "title": "공개 공유 링크",
+      "urlLabel": "공유 URL",
+      "copy": "복사",
+      "openNewTab": "새 탭에서 열기",
+      "notice": "로그인 없이 이 링크로 누구나 문서를 읽을 수 있습니다 (편집 불가).",
+      "expiryLabel": "만료일 (선택)",
+      "apply": "적용",
+      "expiresAt": "만료: {{at}}",
+      "noExpiry": "만료 없음",
+      "disable": "공유 해제",
+      "notShared": "이 문서는 현재 공개되어 있지 않습니다.",
+      "enabling": "활성화 중...",
+      "enable": "공유 링크 생성"
+    },
+    "labelPicker": {
+      "removeLabel": "{{name}} 제거",
+      "trigger": "라벨",
+      "searchPlaceholder": "라벨 검색",
+      "empty": "아직 라벨이 없습니다.",
+      "create": "\"{{name}}\" 만들기"
+    },
+    "issuePicker": {
+      "searchPlaceholder": "검색하거나 아래 트리에서 선택...",
+      "alreadyLinked": "(연결됨)",
+      "noProjects": "참여 중인 프로젝트가 없습니다",
+      "emptyOrLoading": "이슈 없음 또는 로딩 중"
+    },
+    "docPicker": {
+      "createFailed": "문서 생성 실패",
+      "searchOrCreate": "검색하거나, 새 문서 이름을 입력하세요",
+      "searchPlaceholder": "검색하거나 아래 트리에서 선택...",
+      "thisProjectOnly": "이 프로젝트 문서만 보기",
+      "includeOtherSpaces": "다른 스페이스 문서도 보기",
+      "hiddenCount": "{{count}}건 더 있음",
+      "createAsNew": "새 문서로 만들기",
+      "space": "스페이스",
+      "createHint": "찾는 문서가 없으면 이름을 입력해 새로 만들 수 있습니다.",
+      "alreadyLinkedLong": "이미 연결됨",
+      "alreadyLinked": "(연결됨)",
+      "noSpaces": "접근 가능한 스페이스 없음",
+      "emptyOrLoading": "로딩 중 또는 비어 있음"
+    },
+    "issueEmbed": {
+      "titleBoard": "이슈 보드",
+      "titleTable": "이슈 표",
+      "titleCalendar": "이슈 캘린더",
+      "priorityAll": "전체 우선순위",
+      "pickProject": "프로젝트 선택",
+      "noProjects": "접근 가능한 프로젝트 없음",
+      "filter": "필터",
+      "state": "상태",
+      "stateAll": "전체 상태",
+      "priority": "우선순위",
+      "assignee": "담당자",
+      "assigneeAll": "전체 담당자",
+      "clearAll": "모두 지우기",
+      "loadingProject": "프로젝트 정보를 불러오는 중...",
+      "selectProjectAbove": "상단에서 프로젝트를 선택하세요",
+      "all": "전체"
+    },
+    "templates": {
+      "newDoc": "새 문서 만들기",
+      "tabAll": "전체",
+      "tabMine": "내 템플릿",
+      "blank": "빈 문서",
+      "blankHint": "처음부터 직접 작성",
+      "emptyMine": "아직 저장된 템플릿이 없습니다. 기존 문서 설정 메뉴에서 '템플릿으로 저장' 가능.",
+      "empty": "템플릿 없음",
+      "deleteConfirm": "\"{{name}}\" 템플릿을 삭제하시겠습니까?",
+      "delete": "템플릿 삭제",
+      "scopeBuiltIn": "기본",
+      "scopeWorkspace": "공유",
+      "scopeSpace": "스페이스",
+      "scopeUser": "내 것",
+      "saveAs": "템플릿으로 저장",
+      "name": "이름",
+      "namePlaceholder": "예: 주간 회고",
+      "desc": "설명 (선택)",
+      "scope": "범위",
+      "scopeUserHint": "나만 사용",
+      "thisSpace": "이 스페이스",
+      "thisSpaceHint": "이 스페이스에서만",
+      "workspaceShared": "워크스페이스 공유",
+      "workspaceSharedHint": "멤버 모두 사용",
+      "adminOnly": "관리자만 생성 가능",
+      "saving": "저장 중...",
+      "save": "저장"
+    },
+    "spaceRole": {
+      "viewer": "뷰어",
+      "editor": "편집자",
+      "admin": "관리자"
+    }
   },
   "projectFilter": {
     "label": "프로젝트",
@@ -2160,6 +2288,127 @@
       "updateFailed": "변경에 실패했습니다",
       "upload": "업로드",
       "useDefault": "기본값"
+    },
+    "projects": {
+      "changeFailed": "변경하지 못했습니다",
+      "trashed": "휴지통으로 옮겼습니다",
+      "trashFailed": "옮기지 못했습니다",
+      "title": "프로젝트",
+      "subtitle": "워크스페이스의 모든 프로젝트를 관리합니다. 비공개 프로젝트는 관리자라도 멤버가 아니면 프로젝트 화면에 보이지 않으며, 여기서도 이슈 내용은 보이지 않습니다. 내용을 봐야 하면 자신을 멤버로 추가하세요 — 활동 기록에 남습니다.",
+      "searchPlaceholder": "이름·식별자 검색",
+      "empty": "프로젝트가 없습니다.",
+      "private": "비공개",
+      "public": "공개",
+      "archived": "보관됨",
+      "notMember": "· 나는 멤버 아님",
+      "counts": "이슈 {{issues}} · 멤버 {{members}} · 리드 {{lead}}",
+      "noLead": "없음",
+      "membersAndLead": "멤버·리드",
+      "unarchive": "보관 해제",
+      "archive": "보관",
+      "trashNotice": "휴지통에 프로젝트 {{count}}개가 있습니다",
+      "trashLink": "보관함에서 복구·영구 삭제",
+      "trashConfirmTitle": "'{{name}}' 프로젝트를 휴지통으로 옮길까요?",
+      "trashConfirmDesc": "30일 동안 보관함의 휴지통에서 복구할 수 있고, 지나면 이슈·문서와 함께 영구 삭제됩니다.",
+      "trashConfirmLabel": "휴지통으로",
+      "actionFailed": "처리하지 못했습니다",
+      "addMemberPlaceholder": "워크스페이스 멤버를 추가",
+      "addMemberHint": "추가하면 멤버로 시작합니다. 리드는 관리자 역할을 함께 받습니다.",
+      "noMembers": "멤버 없음",
+      "noName": "(이름 없음)",
+      "lead": "리드",
+      "unsetLead": "리드 해제",
+      "setLead": "리드로",
+      "removeFromProject": "프로젝트에서 제거"
+    },
+    "activity": {
+      "action": {
+        "project": {
+          "trashed": "프로젝트를 휴지통으로 옮김",
+          "restored": "프로젝트를 복구함",
+          "purged": "프로젝트를 영구 삭제함",
+          "archived": "프로젝트를 보관함",
+          "unarchived": "프로젝트 보관을 해제함",
+          "lead_changed": "프로젝트 리드를 바꿈",
+          "member_added": "프로젝트 멤버를 추가함",
+          "member_removed": "프로젝트 멤버를 제거함",
+          "member_role": "프로젝트 멤버 역할을 바꿈"
+        },
+        "space": {
+          "visibility": "스페이스 공개 범위를 바꿈",
+          "archived": "스페이스를 보관함",
+          "unarchived": "스페이스 보관을 해제함",
+          "deleted": "스페이스를 삭제함",
+          "member_added": "스페이스 멤버를 추가함",
+          "member_removed": "스페이스 멤버를 제거함",
+          "member_role": "스페이스 멤버 역할을 바꿈",
+          "personal_deleted": "개인 스페이스를 삭제함"
+        },
+        "member": {
+          "role": "워크스페이스 역할을 바꿈",
+          "removed": "워크스페이스에서 내보냄"
+        },
+        "invitation": {
+          "sent": "초대를 보냄",
+          "revoked": "초대를 취소함"
+        },
+        "join": {
+          "approved": "가입을 승인함",
+          "rejected": "가입을 거절함"
+        },
+        "team": {
+          "deleted": "팀을 삭제함"
+        },
+        "api_token": {
+          "created": "API 토큰을 만듦",
+          "revoked": "API 토큰을 폐기함"
+        },
+        "webhook": {
+          "created": "웹훅을 만듦",
+          "updated": "웹훅을 수정함",
+          "deleted": "웹훅을 삭제함"
+        }
+      },
+      "cat": {
+        "all": "전체",
+        "project": "프로젝트",
+        "space": "문서 스페이스",
+        "member": "멤버",
+        "invitation": "초대",
+        "join": "가입 승인",
+        "team": "팀",
+        "apiToken": "API 토큰",
+        "webhook": "웹훅"
+      },
+      "leadTo": "리드 → {{name}}",
+      "leadNone": "없음",
+      "toPrivate": "비공개로",
+      "toPublic": "공개로",
+      "changedFields": "변경: {{fields}}",
+      "viaSettings": "워크스페이스 설정에서",
+      "title": "활동 기록",
+      "subtitle": "워크스페이스 관리 동작의 기록입니다. 관리자가 비공개 프로젝트·스페이스에 자신을 추가한 경우 따로 표시합니다.",
+      "empty": "기록이 없습니다.",
+      "selfAddedPrivate": "비공개에 자신을 추가",
+      "prev": "이전",
+      "next": "다음",
+      "pageNo": "{{page}} 쪽"
     }
+  },
+  "memberDetail": {
+    "none": "없음",
+    "title": "멤버 상세",
+    "suspended": "정지됨",
+    "inactive": "비활성",
+    "joinedOn": "{{date}} 가입",
+    "lastLogin": "마지막 로그인 {{date}}",
+    "noRecord": "기록 없음",
+    "openIssues": "맡은 미완료 이슈",
+    "activeTokens": "활성 API 토큰",
+    "yes": "있음",
+    "no": "없음",
+    "personalSpace": "개인 스페이스",
+    "trash": "휴지통",
+    "spaces": "문서 스페이스"
   }
 }

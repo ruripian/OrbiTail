@@ -10,6 +10,7 @@
  *  - sub-issue 까지 트리 형태로 들여쓰기 표시.
  */
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { Search, Loader2, ChevronRight, ChevronDown, Folder } from "lucide-react";
@@ -32,6 +33,7 @@ interface Props {
 }
 
 export function IssuePickerDialog({ open, onOpenChange, workspaceSlug, projectId = null, excludeIds = [], onSelect }: Props) {
+  const { t } = useTranslation();
   const [q, setQ] = useState("");
   const [debounced, setDebounced] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
@@ -134,7 +136,7 @@ export function IssuePickerDialog({ open, onOpenChange, workspaceSlug, projectId
             autoFocus
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="검색하거나 아래 트리에서 선택..."
+            placeholder={t("documents.issuePicker.searchPlaceholder")}
             className="flex-1 bg-transparent outline-none text-sm"
           />
           {searching && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
@@ -175,8 +177,9 @@ function SearchResults({ results, excludeIds, busy, onSelect, setBusy }: {
   results: IssueSearchResult[]; excludeIds: string[]; busy: string | null;
   onSelect: (i: IssueSearchResult) => void; setBusy: (id: string | null) => void;
 }) {
+  const { t } = useTranslation();
   if (results.length === 0) {
-    return <div className="px-4 py-6 text-center text-xs text-muted-foreground">검색 결과 없음</div>;
+    return <div className="px-4 py-6 text-center text-xs text-muted-foreground">{t("issues.detail.nodes.searchEmpty")}</div>;
   }
   return (
     <ul>
@@ -203,7 +206,7 @@ function SearchResults({ results, excludeIds, busy, onSelect, setBusy }: {
               </span>
               <span className="truncate">{i.title}</span>
               <span className="text-2xs text-muted-foreground/70 shrink-0 ml-auto">{i.project_name}</span>
-              {excluded && <span className="text-2xs text-muted-foreground">(연결됨)</span>}
+              {excluded && <span className="text-2xs text-muted-foreground">{t("documents.issuePicker.alreadyLinked")}</span>}
               {busy === i.id && <Loader2 className="h-3 w-3 animate-spin" />}
             </button>
           </li>
@@ -243,8 +246,9 @@ function ProjectTree({ projects, expanded, issuesMap, excludeIds, busy, onToggle
   onToggle: (pid: string) => void;
   onSelect: (i: Issue, p: Project) => void;
 }) {
+  const { t } = useTranslation();
   if (projects.length === 0) {
-    return <div className="px-4 py-6 text-center text-xs text-muted-foreground">참여 중인 프로젝트가 없습니다</div>;
+    return <div className="px-4 py-6 text-center text-xs text-muted-foreground">{t("documents.issuePicker.noProjects")}</div>;
   }
   return (
     <div className="py-1">
@@ -267,7 +271,7 @@ function ProjectTree({ projects, expanded, issuesMap, excludeIds, busy, onToggle
             {isOpen && (
               <div>
                 {tree.length === 0 ? (
-                  <div className="pl-9 py-2 text-2xs text-muted-foreground/60">이슈 없음 또는 로딩 중</div>
+                  <div className="pl-9 py-2 text-2xs text-muted-foreground/60">{t("documents.issuePicker.emptyOrLoading")}</div>
                 ) : (
                   tree.map((i) => {
                     const excluded = excludeIds.includes(i.id);
@@ -303,7 +307,7 @@ function ProjectTree({ projects, expanded, issuesMap, excludeIds, busy, onToggle
                           title={i.title}
                         >
                           {i.title}
-                          {excluded && <span className="ml-2 text-2xs text-muted-foreground">(연결됨)</span>}
+                          {excluded && <span className="ml-2 text-2xs text-muted-foreground">{t("documents.issuePicker.alreadyLinked")}</span>}
                         </button>
                         {busy === i.id && <Loader2 className="h-3 w-3 animate-spin" />}
                       </div>
