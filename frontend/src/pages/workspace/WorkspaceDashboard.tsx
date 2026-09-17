@@ -363,7 +363,7 @@ export function WorkspaceDashboard() {
                     className="w-full flex items-center gap-1.5 px-2 py-1 text-2xs text-muted-foreground hover:text-destructive hover:bg-destructive/5 rounded-md transition-colors"
                   >
                     <X className="h-3 w-3" />
-                    <span>선택 해제 ({stateGroupFilter.size})</span>
+                    <span>{t("issues.table.clearSelection", { count: stateGroupFilter.size })}</span>
                   </button>
                 </>
               )}
@@ -406,7 +406,7 @@ export function WorkspaceDashboard() {
                     className="w-full flex items-center gap-1.5 px-2 py-1 text-2xs text-muted-foreground hover:text-destructive hover:bg-destructive/5 rounded-md transition-colors"
                   >
                     <X className="h-3 w-3" />
-                    <span>선택 해제 ({priorityFilter.size})</span>
+                    <span>{t("issues.table.clearSelection", { count: priorityFilter.size })}</span>
                   </button>
                 </>
               )}

@@ -1,4 +1,5 @@
 import { useAuthStore } from "@/stores/authStore";
+import { useTranslation } from "react-i18next";
 import { usePresenceStore, selectScopeUsers } from "@/stores/presenceStore";
 import { AvatarInitials } from "@/components/ui/avatar-initials";
 
@@ -12,6 +13,7 @@ import { AvatarInitials } from "@/components/ui/avatar-initials";
 const MAX_VISIBLE = 5;
 
 export function PresenceStack({ scope }: { scope: string | null }) {
+  const { t } = useTranslation();
   const me = useAuthStore((s) => s.user);
   const users = usePresenceStore(selectScopeUsers(scope));
 
@@ -26,7 +28,7 @@ export function PresenceStack({ scope }: { scope: string | null }) {
     <div
       className="flex -space-x-1.5"
       role="group"
-      aria-label={`접속 중인 사용자 ${others.length}명`}
+      aria-label={t("presence.online", { count: others.length })}
     >
       {visible.map((u) => (
         <div key={u.id} title={u.display_name} className="relative">
@@ -40,7 +42,7 @@ export function PresenceStack({ scope }: { scope: string | null }) {
       {overflow > 0 && (
         <span
           className="h-5 w-5 rounded-full bg-muted text-3xs flex items-center justify-center border-2 border-background text-muted-foreground"
-          title={`+${overflow}명 더`}
+          title={t("presence.more", { count: overflow })}
         >
           +{overflow}
         </span>

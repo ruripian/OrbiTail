@@ -194,7 +194,8 @@
         "updatedAt": "수정일"
       },
       "resetSort": "정렬 초기화",
-      "resetSortHint": "수동 순서로 복귀"
+      "resetSortHint": "수동 순서로 복귀",
+      "clearSelection": "선택 해제 ({{count}})"
     },
     "bulk": {
       "selected": "{{count}}개 선택됨",
@@ -351,7 +352,8 @@
         "searchPlaceholder": "이슈 제목으로 검색 (2자 이상)",
         "self": "자기 자신",
         "thisProject": "이 프로젝트"
-      }
+      },
+      "showMoreLinks": "+ {{count}}개 더보기"
     },
     "field": {
       "label": "필드",
@@ -370,7 +372,10 @@
       "moved": "{{identifier}}(으)로 옮겼습니다",
       "failed": "이동하지 못했습니다"
     },
-    "categoryInheritsFromParent": "하위 이슈는 상위 이슈의 모듈을 따라갑니다"
+    "categoryInheritsFromParent": "하위 이슈는 상위 이슈의 모듈을 따라갑니다",
+    "attachments": {
+      "fromComment": "댓글에서 업로드됨"
+    }
   },
   "setup": {
     "title": "초기 설정",
@@ -1047,7 +1052,8 @@
       "revokeSuccess": "초대가 취소되었습니다.",
       "revokeFailed": "초대 취소에 실패했습니다.",
       "confirmRevoke": "{{email}}로 보낸 초대를 취소하시겠습니까?",
-      "membersTitle": "멤버"
+      "membersTitle": "멤버",
+      "viewDetails": "소속·맡은 일 보기"
     },
     "profile": {
       "title": "프로필",
@@ -1399,7 +1405,10 @@
     "alignRight": "오른쪽 정렬",
     "highlight": "형광펜",
     "image": "이미지",
-    "underline": "밑줄"
+    "underline": "밑줄",
+    "noResults": "결과 없음",
+    "imageTooLarge": "이미지가 5MB 를 초과합니다. 더 작은 파일을 사용해주세요.",
+    "imageUploadFailed": "이미지 업로드 실패"
   },
   "search": {
     "placeholder": "이슈 검색... (제목으로 검색)",
@@ -1409,7 +1418,8 @@
     "searching": "검색 중...",
     "navigate": "이동",
     "open": "열기",
-    "close": "닫기"
+    "close": "닫기",
+    "docSyntaxHint": "title:회의 · tag:정책 · space:기획"
   },
   "datePicker": {
     "placeholder": "날짜 선택",
@@ -1503,7 +1513,9 @@
       "comment_added": "새 댓글",
       "comment_replied": "댓글에 답글",
       "mentioned": "멘션"
-    }
+    },
+    "newOne": "새 알림",
+    "view": "보기"
   },
   "users": {
     "statusApproved": "승인 완료",
@@ -1650,7 +1662,10 @@
       "searchPlaceholder": "파일명 · 제목 검색",
       "tabDocument": "문서 첨부",
       "tabIssue": "이슈 첨부",
-      "title": "콘텐츠 탐색기"
+      "title": "콘텐츠 탐색기",
+      "mimeImage": "이미지",
+      "mimeVideo": "동영상",
+      "mimePdf": "PDF"
     },
     "group": {
       "content": "콘텐츠",
@@ -1710,7 +1725,11 @@
     "error": "처리에 실패했습니다.",
     "loading": "불러오는 중…",
     "search": "검색",
-    "unknown": "이름 없음"
+    "unknown": "이름 없음",
+    "resizePanel": "패널 너비 조정",
+    "collapse": "접기",
+    "undone": "되돌림: {{label}}",
+    "nothingToUndo": "되돌릴 작업이 없습니다"
   },
   "time": {
     "justNow": "방금 전",
@@ -1986,6 +2005,14 @@
       "viewer": "뷰어",
       "editor": "편집자",
       "admin": "관리자"
+    },
+    "graphHintA": "클릭 = 열기 · Alt+클릭 =",
+    "graphHintB": "주변만 보기 · 휠 = 확대 · 빈 곳 끌기 = 이동",
+    "db": {
+      "pick": "고르기",
+      "clear": "비우기",
+      "choose": "선택",
+      "noOptions": "선택지가 없습니다 — 폴더 칸 설정에서 추가하세요"
     }
   },
   "projectFilter": {
@@ -2174,7 +2201,9 @@
       "today": "오늘",
       "week": "이번 주",
       "earlier": "이전"
-    }
+    },
+    "read": "읽음",
+    "unread": "읽지 않음"
   },
   "demo": {
     "subtitle": "둘러보기용 데모",
@@ -2287,7 +2316,8 @@
       "title": "일반 설정",
       "updateFailed": "변경에 실패했습니다",
       "upload": "업로드",
-      "useDefault": "기본값"
+      "useDefault": "기본값",
+      "brandColorPlaceholder": "#5e6ad2 또는 빈 값"
     },
     "projects": {
       "changeFailed": "변경하지 못했습니다",
@@ -2410,5 +2440,32 @@
     "personalSpace": "개인 스페이스",
     "trash": "휴지통",
     "spaces": "문서 스페이스"
+  },
+  "presence": {
+    "anonymous": "익명",
+    "online": "접속 중인 사용자 {{count}}명",
+    "more": "+{{count}}명 더"
+  },
+  "errorFallback": {
+    "title": "오류가 발생했습니다",
+    "details": "상세 정보(개발자용)",
+    "back": "이전으로",
+    "home": "홈으로"
+  },
+  "publicDoc": {
+    "unavailableTitle": "공유 링크를 사용할 수 없습니다",
+    "unavailableBody": "링크가 만료되었거나, 공유가 해제되었거나, 존재하지 않는 문서일 수 있습니다.",
+    "footer": "읽기 전용 공개 링크 · 최종 수정 {{date}}"
+  },
+  "fonts": {
+    "pretendard": "Pretendard (기본)",
+    "pretendardPlain": "Pretendard",
+    "system": "시스템",
+    "noto": "Noto Sans KR",
+    "nanumGothic": "나눔고딕",
+    "nanumMyeongjo": "나눔명조",
+    "jetbrains": "JetBrains Mono (기본)",
+    "d2coding": "D2Coding",
+    "appDefault": "앱 기본"
   }
 }

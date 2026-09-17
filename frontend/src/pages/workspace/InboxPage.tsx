@@ -122,7 +122,7 @@ export function InboxPage() {
           <h1 className="font-display text-3xl font-semibold tracking-tight">{t("inbox.title", "인박스")}</h1>
           <p className="text-sm text-muted-foreground mt-1">
             {unreadCount > 0
-              ? t("inbox.unreadSummary", { count: unreadCount, defaultValue: "{{count}}개의 새 알림" })
+              ? t("inbox.unreadSummary", { count: unreadCount })
               : t("inbox.allCaughtUp", "전부 확인했습니다")}
           </p>
         </div>
@@ -192,7 +192,7 @@ export function InboxPage() {
                             "h-2 w-2 rounded-full shrink-0 mt-2",
                             n.read ? "bg-transparent" : "bg-primary",
                           )}
-                          aria-label={n.read ? "읽음" : "읽지 않음"}
+                          aria-label={n.read ? t("inbox.read") : t("inbox.unread")}
                         />
                         <Icon className="h-4 w-4 shrink-0 mt-0.5 text-muted-foreground" />
                         <AvatarInitials

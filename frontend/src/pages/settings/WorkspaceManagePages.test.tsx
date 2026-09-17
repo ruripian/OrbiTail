@@ -21,6 +21,17 @@ vi.mock("@/api/manage", () => ({
   },
 }));
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
+/* i18n — t 가 키를 그대로 돌려주게 해서 문구 변경에 테스트가 흔들리지 않게 한다.
+   (DemoLandingPage.test.tsx 와 같은 방식) */
+vi.mock("react-i18next", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("react-i18next")>()),
+  useTranslation: () => ({
+    t: (k: string, vars?: Record<string, unknown>) =>
+      vars ? `${k}:${JSON.stringify(vars)}` : k,
+    i18n: { language: "ko", changeLanguage: vi.fn() },
+  }),
+}));
+
 
 import { WorkspaceProjectsManagePage } from "./WorkspaceProjectsManagePage";
 import { WorkspaceActivityPage } from "./WorkspaceActivityPage";
@@ -61,15 +72,15 @@ describe("WorkspaceProjectsManagePage", () => {
   it("멤버가 아닌 비공개 프로젝트를 보여 주고 보관·휴지통으로 옮길 수 있다", async () => {
     renderAt("projects", <WorkspaceProjectsManagePage />);
     expect(await screen.findByText("비밀 결제")).toBeInTheDocument();
-    expect(screen.getByText("· 나는 멤버 아님")).toBeInTheDocument();
+    expect(screen.getByText("workspaceSettings.projects.notMember")).toBeInTheDocument();
     expect(screen.queryByText("지운 것")).not.toBeInTheDocument();
-    expect(screen.getByText(/휴지통에 프로젝트 1개/)).toBeInTheDocument();
+    expect(screen.getByText(/workspaceSettings\.projects\.trashNotice/)).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: "보관" }));
+    await userEvent.click(screen.getByRole("button", { name: "workspaceSettings.projects.archive" }));
     await waitFor(() => expect(mocks.update).toHaveBeenCalledWith("ws", "p1", { archived: true }));
 
-    await userEvent.click(screen.getByRole("button", { name: "삭제" }));
-    await userEvent.click(await screen.findByRole("button", { name: "휴지통으로" }));
+    await userEvent.click(screen.getByRole("button", { name: "common.delete" }));
+    await userEvent.click(await screen.findByRole("button", { name: "workspaceSettings.projects.trashConfirmLabel" }));
     await waitFor(() => expect(mocks.trash).toHaveBeenCalledWith("ws", "p1"));
   });
 
@@ -93,11 +104,11 @@ describe("WorkspaceActivityPage", () => {
       }],
     });
     renderAt("activity", <WorkspaceActivityPage />);
-    expect(await screen.findByText("비공개에 자신을 추가")).toBeInTheDocument();
-    expect(screen.getByText(/스페이스 멤버를 추가함/)).toBeInTheDocument();
-    expect(screen.getByText(/뷰어 · 워크스페이스 설정에서/)).toBeInTheDocument();
+    expect(await screen.findByText("workspaceSettings.activity.selfAddedPrivate")).toBeInTheDocument();
+    expect(screen.getByText(/workspaceSettings\.activity\.action\.space\.member_added/)).toBeInTheDocument();
+    expect(screen.getByText(/documents\.spaceRole\.viewer · workspaceSettings\.activity\.viaSettings/)).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: "웹훅" }));
+    await userEvent.click(screen.getByRole("button", { name: "workspaceSettings.activity.cat.webhook" }));
     await waitFor(() => expect(mocks.activity).toHaveBeenLastCalledWith("ws", { category: "webhook", page: 1 }));
   });
 });

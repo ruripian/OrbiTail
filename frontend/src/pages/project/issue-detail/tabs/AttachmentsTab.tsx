@@ -18,14 +18,15 @@ function formatFileSize(bytes: number): string {
 
 /** 첨부 출처 배지 — 댓글 RichEditor 에서 올라온 첨부에만 표시. 직접 업로드는 라벨 없음(노이즈 회피). */
 function SourceBadge({ source }: { source?: string }) {
+  const { t } = useTranslation();
   if (source !== "from_comment") return null;
   return (
     <span
-      title="댓글에서 업로드됨"
+      title={t("issues.attachments.fromComment")}
       className="inline-flex items-center gap-0.5 text-2xs px-1.5 py-0.5 rounded bg-primary/10 text-primary shrink-0"
     >
       <MessageSquare className="h-2.5 w-2.5" />
-      댓글
+      {t("documents.comments")}
     </span>
   );
 }

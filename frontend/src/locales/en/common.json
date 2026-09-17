@@ -194,7 +194,8 @@
         "updatedAt": "Updated"
       },
       "resetSort": "Reset sorting",
-      "resetSortHint": "Back to manual order"
+      "resetSortHint": "Back to manual order",
+      "clearSelection": "Clear selection ({{count}})"
     },
     "bulk": {
       "selected": "{{count}} selected",
@@ -351,7 +352,8 @@
         "searchPlaceholder": "Search by issue title (2+ characters)",
         "self": "Itself",
         "thisProject": "This project"
-      }
+      },
+      "showMoreLinks": "+ {{count}} more"
     },
     "field": {
       "label": "Field",
@@ -370,7 +372,10 @@
       "moved": "Moved to {{identifier}}",
       "failed": "Couldn't move the issue"
     },
-    "categoryInheritsFromParent": "Sub-issues inherit the module of their parent issue"
+    "categoryInheritsFromParent": "Sub-issues inherit the module of their parent issue",
+    "attachments": {
+      "fromComment": "Uploaded from a comment"
+    }
   },
   "setup": {
     "title": "Initial Setup",
@@ -1047,7 +1052,8 @@
       "revokeSuccess": "Invitation revoked.",
       "revokeFailed": "Failed to revoke invitation.",
       "confirmRevoke": "Revoke invitation sent to {{email}}?",
-      "membersTitle": "Members"
+      "membersTitle": "Members",
+      "viewDetails": "View memberships and assignments"
     },
     "profile": {
       "title": "Profile",
@@ -1399,7 +1405,10 @@
     "alignRight": "Align right",
     "highlight": "Highlight",
     "image": "Image",
-    "underline": "Underline"
+    "underline": "Underline",
+    "noResults": "No results",
+    "imageTooLarge": "The image is larger than 5MB. Please use a smaller file.",
+    "imageUploadFailed": "Image upload failed"
   },
   "search": {
     "placeholder": "Search issues... (by title)",
@@ -1409,7 +1418,8 @@
     "searching": "Searching...",
     "navigate": "Navigate",
     "open": "Open",
-    "close": "Close"
+    "close": "Close",
+    "docSyntaxHint": "title:meeting · tag:policy · space:planning"
   },
   "datePicker": {
     "placeholder": "Select date",
@@ -1503,7 +1513,9 @@
       "comment_added": "New Comment",
       "comment_replied": "Comment Reply",
       "mentioned": "Mentioned"
-    }
+    },
+    "newOne": "New notification",
+    "view": "View"
   },
   "users": {
     "statusApproved": "Approved",
@@ -1650,7 +1662,10 @@
       "searchPlaceholder": "Search file name or title",
       "tabDocument": "Document attachments",
       "tabIssue": "Issue attachments",
-      "title": "Content explorer"
+      "title": "Content explorer",
+      "mimeImage": "Image",
+      "mimeVideo": "Video",
+      "mimePdf": "PDF"
     },
     "group": {
       "content": "Content",
@@ -1710,7 +1725,11 @@
     "error": "Something went wrong.",
     "loading": "Loading…",
     "search": "Search",
-    "unknown": "Untitled"
+    "unknown": "Untitled",
+    "resizePanel": "Resize panel",
+    "collapse": "Collapse",
+    "undone": "Undone: {{label}}",
+    "nothingToUndo": "Nothing to undo"
   },
   "time": {
     "justNow": "just now",
@@ -1986,6 +2005,14 @@
       "viewer": "Viewer",
       "editor": "Editor",
       "admin": "Admin"
+    },
+    "graphHintA": "Click to open · Alt+click for",
+    "graphHintB": "neighbours only · scroll to zoom · drag empty space to pan",
+    "db": {
+      "pick": "Pick",
+      "clear": "Clear",
+      "choose": "Choose",
+      "noOptions": "No options yet — add them in the folder's column settings"
     }
   },
   "projectFilter": {
@@ -2174,7 +2201,9 @@
       "today": "Today",
       "week": "This week",
       "earlier": "Earlier"
-    }
+    },
+    "read": "Read",
+    "unread": "Unread"
   },
   "demo": {
     "subtitle": "A demo to look around",
@@ -2287,7 +2316,8 @@
       "title": "General settings",
       "updateFailed": "Failed to save the change",
       "upload": "Upload",
-      "useDefault": "Default"
+      "useDefault": "Default",
+      "brandColorPlaceholder": "#5e6ad2, or leave empty"
     },
     "projects": {
       "changeFailed": "Could not save the change",
@@ -2410,5 +2440,32 @@
     "personalSpace": "Personal space",
     "trash": "Trash",
     "spaces": "Document spaces"
+  },
+  "presence": {
+    "anonymous": "Anonymous",
+    "online": "{{count}} people online",
+    "more": "+{{count}} more"
+  },
+  "errorFallback": {
+    "title": "Something went wrong",
+    "details": "Details (for developers)",
+    "back": "Go back",
+    "home": "Go home"
+  },
+  "publicDoc": {
+    "unavailableTitle": "This share link is not available",
+    "unavailableBody": "The link may have expired, sharing may have been turned off, or the document may not exist.",
+    "footer": "Read-only public link · last edited {{date}}"
+  },
+  "fonts": {
+    "pretendard": "Pretendard (default)",
+    "pretendardPlain": "Pretendard",
+    "system": "System",
+    "noto": "Noto Sans KR",
+    "nanumGothic": "Nanum Gothic",
+    "nanumMyeongjo": "Nanum Myeongjo",
+    "jetbrains": "JetBrains Mono (default)",
+    "d2coding": "D2Coding",
+    "appDefault": "App default"
   }
 }

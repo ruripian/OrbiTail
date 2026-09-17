@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode, type CSSProperties } from "react";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -22,6 +23,7 @@ export function ResizableAside({
   storageKey, defaultWidth, minWidth, maxWidth = 720, handleSide,
   className, style, children, ariaLabel,
 }: Props) {
+  const { t } = useTranslation();
   const min = minWidth ?? defaultWidth;
   const [width, setWidth] = useState<number>(() => {
     const v = Number(localStorage.getItem(storageKey));
@@ -65,7 +67,7 @@ export function ResizableAside({
       <div
         role="separator"
         aria-orientation="vertical"
-        aria-label="패널 너비 조정"
+        aria-label={t("common.resizePanel")}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerEnd}

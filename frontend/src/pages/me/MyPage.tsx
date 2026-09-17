@@ -14,10 +14,10 @@ import { MyGraphTab } from "./MyGraphTab";
 type Tab = "calendar" | "graph" | "summary";
 const TABS: Tab[] = ["calendar", "graph", "summary"];
 
-const TAB_META: Record<Tab, { icon: typeof LayoutDashboard; labelKey: string; fallback: string }> = {
-  calendar: { icon: CalIcon,         labelKey: "me.tabs.calendar", fallback: "캘린더" },
-  graph:    { icon: Network,         labelKey: "me.tabs.graph",    fallback: "그래프" },
-  summary:  { icon: LayoutDashboard, labelKey: "me.tabs.summary",  fallback: "종합" },
+const TAB_META: Record<Tab, { icon: typeof LayoutDashboard; labelKey: string }> = {
+  calendar: { icon: CalIcon,         labelKey: "me.tabs.calendar" },
+  graph:    { icon: Network,         labelKey: "me.tabs.graph" },
+  summary:  { icon: LayoutDashboard, labelKey: "me.tabs.summary" },
 };
 
 export function MyPage() {
@@ -52,7 +52,7 @@ export function MyPage() {
               }
             >
               <Icon className="h-3.5 w-3.5" />
-              {t(TAB_META[id].labelKey, TAB_META[id].fallback)}
+              {t(TAB_META[id].labelKey)}
             </button>
           );
         })}

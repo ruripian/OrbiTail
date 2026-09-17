@@ -19,13 +19,13 @@ export type DocFontSizes = { body: number; h3: number; h2: number; h1: number };
 /** 문서 서체 — 앱 UI 서체 목록을 그대로 쓰되 "앱 기본" 옵션을 앞에 둔다. */
 export type DocFontKey = FontFamilyKey | "inherit";
 
-export const DOC_FONT_LABELS: Array<{ value: DocFontKey; label: string }> = [
-  { value: "inherit", label: "앱 기본" },
-  { value: "pretendard", label: "Pretendard" },
-  { value: "noto", label: "Noto Sans KR" },
-  { value: "nanum-gothic", label: "나눔고딕" },
-  { value: "nanum-myeongjo", label: "나눔명조" },
-  { value: "system", label: "시스템" },
+export const DOC_FONT_LABELS: Array<{ value: DocFontKey; labelKey: string }> = [
+  { value: "inherit", labelKey: "fonts.appDefault" },
+  { value: "pretendard", labelKey: "fonts.pretendardPlain" },
+  { value: "noto", labelKey: "fonts.noto" },
+  { value: "nanum-gothic", labelKey: "fonts.nanumGothic" },
+  { value: "nanum-myeongjo", labelKey: "fonts.nanumMyeongjo" },
+  { value: "system", labelKey: "fonts.system" },
 ];
 
 /** doc-frame 에 주입할 font-family 값. "inherit" 이면 앱 서체(--font-sans)를 따른다. */

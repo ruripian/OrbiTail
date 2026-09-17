@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Outlet, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -18,6 +19,7 @@ import { GlobalIssueDialog } from "@/components/issues/GlobalIssueDialog";
 import { RequestDialog } from "@/components/requests/RequestDialog";
 
 export function AppLayout() {
+  const { t } = useTranslation();
   const { workspaceSlug } = useParams<{ workspaceSlug: string }>();
   const isDesktop = useIsDesktop();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -66,8 +68,8 @@ export function AppLayout() {
       }
       e.preventDefault();
       const entry = await popUndo();
-      if (entry) toast.success(`되돌림: ${entry.label}`);
-      else toast.message("되돌릴 작업이 없습니다");
+      if (entry) toast.success(t("common.undone", { label: entry.label }));
+      else toast.message(t("common.nothingToUndo"));
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);

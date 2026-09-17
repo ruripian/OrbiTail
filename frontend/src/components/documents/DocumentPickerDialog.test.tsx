@@ -18,6 +18,17 @@ vi.mock("@/api/documents", () => ({
   },
 }));
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
+/* i18n — t 가 키를 그대로 돌려주게 해서 문구 변경에 테스트가 흔들리지 않게 한다.
+   (DemoLandingPage.test.tsx 와 같은 방식) */
+vi.mock("react-i18next", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("react-i18next")>()),
+  useTranslation: () => ({
+    t: (k: string, vars?: Record<string, unknown>) =>
+      vars ? `${k}:${JSON.stringify(vars)}` : k,
+    i18n: { language: "ko", changeLanguage: vi.fn() },
+  }),
+}));
+
 
 import { DocumentPickerDialog } from "./DocumentPickerDialog";
 
@@ -47,22 +58,22 @@ describe("DocumentPickerDialog — 프로젝트 스페이스 우선", () => {
     expect(await screen.findByText("결제 설계")).toBeInTheDocument();
     expect(screen.queryByText("다른 프로젝트")).not.toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: /다른 스페이스 문서도 보기/ }));
+    await userEvent.click(screen.getByRole("button", { name: /documents\.docPicker\.includeOtherSpaces/ }));
     expect(await screen.findByText("다른 프로젝트")).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: "이 프로젝트 문서만 보기" }));
+    await userEvent.click(screen.getByRole("button", { name: "documents.docPicker.thisProjectOnly" }));
     await waitFor(() => expect(screen.queryByText("다른 프로젝트")).not.toBeInTheDocument());
   });
 
   it("검색도 이 프로젝트 문서로 좁히고, 가려진 건수를 알려 준다", async () => {
     renderPicker({ focusSpaceId: "s-mine" });
-    await userEvent.type(await screen.findByPlaceholderText(/검색/), "결제");
+    await userEvent.type(await screen.findByPlaceholderText("documents.docPicker.searchPlaceholder"), "결제");
     /* 트리에도 같은 제목이 있으므로 검색 결과가 도착했다는 신호(가려진 건수)를 먼저 기다린다 */
-    expect(await screen.findByText("1건 더 있음")).toBeInTheDocument();
+    expect(await screen.findByText('documents.docPicker.hiddenCount:{"count":1}')).toBeInTheDocument();
     expect(screen.getByText("결제 설계")).toBeInTheDocument();
     expect(screen.queryByText("결제 남의 문서")).not.toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: /다른 스페이스 문서도 보기/ }));
+    await userEvent.click(screen.getByRole("button", { name: /documents\.docPicker\.includeOtherSpaces/ }));
     expect(await screen.findByText("결제 남의 문서")).toBeInTheDocument();
   });
 
@@ -70,6 +81,6 @@ describe("DocumentPickerDialog — 프로젝트 스페이스 우선", () => {
     renderPicker();
     expect(await screen.findByText("결제 프로젝트")).toBeInTheDocument();
     expect(screen.getByText("다른 프로젝트")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /다른 스페이스 문서도 보기/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /documents\.docPicker\.includeOtherSpaces/ })).not.toBeInTheDocument();
   });
 });

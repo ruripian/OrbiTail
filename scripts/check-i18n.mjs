@@ -81,6 +81,11 @@ const ko = flatten(JSON.parse(fs.readFileSync(path.join(SRC, "locales/ko/common.
 const files = walk(SRC).filter((f) => !/\.test\.tsx?$/.test(f) && !f.includes("/locales/"));
 
 const T_CALL = /\bt\(\s*"([^"]+)"/g;
+/** t("key", "기본값") 의 기본값 문자열을 같은 길이의 공백으로 지운다(줄 수 유지).
+ *  기본값은 키 누락 검사가 따로 보므로, 하드코딩 검사에서는 세지 않는다. */
+const blankDefaults = (code) =>
+  code.replace(/\bt\(\s*"[^"]+"\s*,\s*"(?:[^"\\]|\\.)*"/g, (m) =>
+    m.replace(/[^\n]/g, " "));
 const missing = new Map();   // key -> "file:line"
 const hardcoded = [];        // {file, line, text}
 
@@ -88,7 +93,7 @@ for (const file of files) {
   const raw = fs.readFileSync(file, "utf8");
   if (!HANGUL.test(raw) && !raw.includes("t(")) continue;
   const rawLines = raw.split("\n");
-  const codeLines = stripComments(raw).split("\n");
+  const codeLines = blankDefaults(stripComments(raw)).split("\n");
 
   codeLines.forEach((line, idx) => {
     for (const m of line.matchAll(T_CALL)) {
@@ -100,12 +105,7 @@ for (const file of files) {
     // 의도적으로 한글인 줄(저장된 데이터와의 비교 등)은 // i18n-ignore 로 표시한다
     if (/\/\/\s*i18n-ignore/.test(rawLines[idx])) return;
     if (HANGUL.test(line)) {
-      // t("key", "한글") 의 폴백은 위에서 키 누락으로 따로 잡으므로 제외
-      const onlyFallback = /\bt\(\s*"[^"]+"\s*,\s*"[^"]*[가-힣]/.test(line) &&
-        !HANGUL.test(line.replace(/\bt\(\s*"[^"]+"\s*,\s*"[^"]*"/g, ""));
-      if (!onlyFallback) {
-        hardcoded.push({ file: path.relative(ROOT, file), line: idx + 1, text: rawLines[idx].trim().slice(0, 120) });
-      }
+      hardcoded.push({ file: path.relative(ROOT, file), line: idx + 1, text: rawLines[idx].trim().slice(0, 120) });
     }
   });
 }

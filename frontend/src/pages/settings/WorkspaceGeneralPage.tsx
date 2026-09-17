@@ -275,7 +275,7 @@ export function WorkspaceGeneralPage() {
             value={brandColor}
             onChange={(e) => setBrandColor(e.target.value)}
             onBlur={() => commitBrandColor(brandColor)}
-            placeholder="#5e6ad2 또는 빈 값"
+            placeholder={t("workspaceSettings.general.brandColorPlaceholder")}
             className="flex-1 font-mono text-sm"
           />
           {brandColor && (

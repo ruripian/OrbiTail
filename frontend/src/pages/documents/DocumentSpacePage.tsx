@@ -613,7 +613,7 @@ function DocumentEditorView({
                       className="mt-0.5 w-full h-7 rounded-md border bg-background px-1.5 text-2xs"
                     >
                       {DOC_FONT_LABELS.map((f) => (
-                        <option key={f.value} value={f.value}>{f.label}</option>
+                        <option key={f.value} value={f.value}>{t(f.labelKey)}</option>
                       ))}
                     </select>
                   </div>

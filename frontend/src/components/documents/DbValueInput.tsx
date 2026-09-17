@@ -9,6 +9,7 @@
  */
 
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Check, ChevronDown, X, Link2 } from "lucide-react";
 import { DatePicker } from "@/components/ui/date-picker";
 import {
@@ -58,6 +59,7 @@ interface Props {
 }
 
 export function DbValueInput({ column, value, editable, onChange, compact, onPickRef, onOpenRef }: Props) {
+  const { t } = useTranslation();
   const base = compact
     ? "w-full bg-transparent outline-none text-xs px-2 py-1"
     : "flex-1 min-w-0 bg-transparent border-b border-transparent hover:border-border focus:border-primary outline-none py-0.5 text-xs";
@@ -89,7 +91,7 @@ export function DbValueInput({ column, value, editable, onChange, compact, onPic
           </button>
         ) : (
           <span className="text-xs text-muted-foreground flex-1 truncate">
-            {editable ? "고르기" : ""}
+            {editable ? t("documents.db.pick") : ""}
           </span>
         )}
         {editable && (
@@ -97,7 +99,7 @@ export function DbValueInput({ column, value, editable, onChange, compact, onPic
             <button
               type="button"
               className="p-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-accent shrink-0"
-              title="고르기"
+              title={t("documents.db.pick")}
               onClick={() => onPickRef?.(column, value)}
             >
               <Link2 className="h-3 w-3" />
@@ -106,7 +108,7 @@ export function DbValueInput({ column, value, editable, onChange, compact, onPic
               <button
                 type="button"
                 className="p-0.5 rounded text-muted-foreground hover:text-destructive shrink-0"
-                title="비우기"
+                title={t("documents.db.clear")}
                 onClick={() => onChange(null)}
               >
                 <X className="h-3 w-3" />
@@ -184,6 +186,7 @@ export function DbValueInput({ column, value, editable, onChange, compact, onPic
 function SelectInput({ column, value, onChange, compact }: {
   column: DbColumn; value: DbValue; onChange: (v: DbValue) => void; compact?: boolean;
 }) {
+  const { t } = useTranslation();
   const multi = column.type === "multi_select";
   const chosen: string[] = multi
     ? (Array.isArray(value) ? value : value ? [String(value)] : [])
@@ -207,7 +210,7 @@ function SelectInput({ column, value, onChange, compact }: {
             compact ? "w-full px-2 py-1" : "flex-1 px-1 py-0.5")}
         >
           <span className={cn("truncate flex-1", chosen.length === 0 && "text-muted-foreground")}>
-            {chosen.length ? chosen.join(", ") : "선택"}
+            {chosen.length ? chosen.join(", ") : t("documents.db.choose")}
           </span>
           <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground" />
         </button>
@@ -215,7 +218,7 @@ function SelectInput({ column, value, onChange, compact }: {
       <DropdownMenuContent align="start" className="max-h-64 overflow-y-auto">
         {options.length === 0 ? (
           <div className="px-2 py-1.5 text-2xs text-muted-foreground">
-            선택지가 없습니다 — 폴더 칸 설정에서 추가하세요
+            {t("documents.db.noOptions")}
           </div>
         ) : options.map((opt) => (
           <DropdownMenuItem
@@ -229,7 +232,7 @@ function SelectInput({ column, value, onChange, compact }: {
         ))}
         {chosen.length > 0 && (
           <DropdownMenuItem className="text-xs text-muted-foreground" onSelect={() => onChange(null)}>
-            <X className="h-3 w-3 mr-1.5" /> 비우기
+            <X className="h-3 w-3 mr-1.5" /> {t("documents.db.clear")}
           </DropdownMenuItem>
         )}
       </DropdownMenuContent>

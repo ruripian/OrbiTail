@@ -19,9 +19,9 @@ type Tab = "document" | "issue";
 
 /** mime 앞부분으로 거르는 종류 필터 — 대용량 정리할 때 이미지/동영상만 보는 용도. */
 const MIME_GROUPS = [
-  { value: "image/", labelKey: "admin.content.mimeImage", fallback: "이미지" },
-  { value: "video/", labelKey: "admin.content.mimeVideo", fallback: "동영상" },
-  { value: "application/pdf", labelKey: "admin.content.mimePdf", fallback: "PDF" },
+  { value: "image/", labelKey: "admin.content.mimeImage" },
+  { value: "video/", labelKey: "admin.content.mimeVideo" },
+  { value: "application/pdf", labelKey: "admin.content.mimePdf" },
 ];
 
 /**
@@ -168,7 +168,7 @@ export function AdminContentPage() {
       key: "mime_prefix",
       label: t("admin.content.filterKind", "종류"),
       type: "select",
-      options: MIME_GROUPS.map((g) => ({ value: g.value, label: t(g.labelKey, g.fallback) })),
+      options: MIME_GROUPS.map((g) => ({ value: g.value, label: t(g.labelKey) })),
     },
     ...(tab === "issue"
       ? ([{

@@ -22,7 +22,7 @@ import { AuthCard, AuthCardHeader } from "@/components/auth/AuthCard";
 import { TIMEZONES } from "@/lib/timezones";
 
 const LANGUAGES = [
-  { value: "ko", label: "한국어" },
+  { value: "ko", label: "한국어" }, // i18n-ignore — 언어 자기 이름
   { value: "en", label: "English" },
 ] as const;
 
