@@ -29,6 +29,16 @@ vi.mock("@/api/issues", () => ({ issuesApi: { list: mocks.issues, update: vi.fn(
 vi.mock("@/hooks/useProjectPerms", () => ({
   useProjectPerms: () => ({ perms: { can_edit: true } }),
 }));
+/* i18n — t 가 키를 그대로 돌려주게 해서 문구 변경에 테스트가 흔들리지 않게 한다. */
+vi.mock("react-i18next", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("react-i18next")>()),
+  useTranslation: () => ({
+    t: (k: string, vars?: Record<string, unknown>) =>
+      vars ? `${k}:${JSON.stringify(vars)}` : k,
+    i18n: { language: "ko", changeLanguage: vi.fn() },
+  }),
+}));
+
 
 import { SprintView } from "./SprintView";
 
@@ -83,9 +93,9 @@ describe("SprintView", () => {
 
   it("목록 — 진행 중/예정/지난 세 구획으로 나눠 보여준다", async () => {
     renderView();
-    expect(await screen.findByText("진행 중")).toBeInTheDocument();
-    expect(screen.getByText("예정")).toBeInTheDocument();
-    expect(screen.getByText("지난 스프린트")).toBeInTheDocument();
+    expect(await screen.findByText("sprints.status.active")).toBeInTheDocument();
+    expect(screen.getByText("sprints.status.draft")).toBeInTheDocument();
+    expect(screen.getByText("sprints.past")).toBeInTheDocument();
     for (const name of ["Sprint 12", "Sprint 13", "Sprint 11"]) {
       expect(screen.getByText(name)).toBeInTheDocument();
     }
@@ -94,7 +104,7 @@ describe("SprintView", () => {
   it("목록 — 진행 중 카드만 진척(완료/전체·%)을 펼쳐 보여준다", async () => {
     renderView();
     /* 완료 1건 / 전체 3건 = 33% — 예상 포인트와 무관하게 이슈 수로 센다 */
-    expect(await screen.findByText("/ 3건 · 33%")).toBeInTheDocument();
+    expect(await screen.findByText(/issues\.countIssues.*33%/)).toBeInTheDocument();
     expect(screen.queryByText(/\dpt\b/)).not.toBeInTheDocument();
     /* 지난 스프린트는 완료율 한 칸만 */
     expect(screen.getByText("0%")).toBeInTheDocument();
@@ -102,7 +112,7 @@ describe("SprintView", () => {
 
   it("목록 — 백로그에 남은 건수를 알려준다", async () => {
     renderView();
-    expect(await screen.findByText("1건 대기")).toBeInTheDocument();
+    expect(await screen.findByText('sprints.backlogWaiting:{"count":1}')).toBeInTheDocument();
   });
 
   it("스프린트를 누르면 상세로 들어가고 상태 그룹별로 이슈가 묶인다", async () => {
@@ -111,11 +121,11 @@ describe("SprintView", () => {
 
     /* 헤더 — 제목·목표·진척이 두 줄 안에 */
     expect(await screen.findByText("결제 모듈 안정화")).toBeInTheDocument();
-    expect(screen.getByText("작업")).toBeInTheDocument();
+    expect(screen.getByText("sprints.tabWork")).toBeInTheDocument();
 
     /* 작업 탭 — 그룹 헤더와 이슈 행 */
-    expect(screen.getByText("할 일")).toBeInTheDocument();
-    expect(screen.getAllByText("1건").length).toBeGreaterThan(0); // 그룹 헤더는 건수만
+    expect(screen.getByText("issues.stateGroup.unstarted")).toBeInTheDocument();
+    expect(screen.getAllByText('issues.countIssues:{"count":1}').length).toBeGreaterThan(0); // 그룹 헤더는 건수만
     expect(screen.queryByText(/\dpt\b/)).not.toBeInTheDocument();
     expect(screen.getByText("로그인 유지 체크박스")).toBeInTheDocument();
     /* 백로그 패널 — 이 스프린트에 없는 이슈 */
@@ -125,7 +135,7 @@ describe("SprintView", () => {
   it("스프린트 만들기 창에 설명을 적을 수 있다 — 입력 중 포커스가 튀지 않는다", async () => {
     renderView();
     await userEvent.click(await screen.findByRole("button", { name: /cycles.create|스프린트/ }));
-    const desc = await screen.findByPlaceholderText("이번 스프린트의 목표");
+    const desc = await screen.findByPlaceholderText("sprints.goalPlaceholder");
     await userEvent.type(desc, "결제 안정화");
     expect(desc).toHaveValue("결제 안정화");
   });
@@ -133,6 +143,6 @@ describe("SprintView", () => {
   it("이슈가 없는 스프린트도 상세가 열린다", async () => {
     mocks.issues.mockResolvedValue([]);
     renderView("/ws/p/issues?view=sprints&sprint=sp-draft");
-    expect(await screen.findByText("이 스프린트에 담긴 이슈가 없습니다.")).toBeInTheDocument();
+    expect(await screen.findByText("sprints.emptySprint")).toBeInTheDocument();
   });
 });

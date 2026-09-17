@@ -51,7 +51,9 @@ describe("groupOf / formatCount", () => {
     expect(groupOf({ state: null } as unknown as Issue, stateMap)).toBe("backlog");
   });
 
-  it("건 단위로 표기한다", () => {
-    expect(formatCount(3)).toBe("3건");
+  it("건수를 t 에 넘겨 문구를 만든다", () => {
+    /* 문구는 로케일이 정한다 — 여기서는 키와 개수만 확인한다 */
+    const t = (k: string, o?: Record<string, unknown>) => `${k}:${o?.count}`;
+    expect(formatCount(3, t)).toBe("issues.countIssues:3");
   });
 });

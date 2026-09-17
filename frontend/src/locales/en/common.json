@@ -353,7 +353,8 @@
         "self": "Itself",
         "thisProject": "This project"
       },
-      "showMoreLinks": "+ {{count}} more"
+      "showMoreLinks": "+ {{count}} more",
+      "goToProject": "Go to the {{name}} project"
     },
     "field": {
       "label": "Field",
@@ -375,6 +376,22 @@
     "categoryInheritsFromParent": "Sub-issues inherit the module of their parent issue",
     "attachments": {
       "fromComment": "Uploaded from a comment"
+    },
+    "stateGroup": {
+      "backlog": "Backlog",
+      "unstarted": "To do",
+      "started": "In progress",
+      "completed": "Done",
+      "cancelled": "Cancelled"
+    },
+    "countIssues": "{{count}} issues",
+    "linkType": {
+      "relatesTo": "Related",
+      "blocks": "Depends on",
+      "blockedBy": "Blocked by",
+      "duplicates": "Duplicate",
+      "references": "References",
+      "sharedLabel": "Same label"
     }
   },
   "setup": {
@@ -588,6 +605,36 @@
       },
       "workflow": {
         "subtitle": "Tools for classifying issues — states and labels"
+      },
+      "features": {
+        "board": {
+          "label": "Board view",
+          "desc": "Kanban-style cards grouped by state"
+        },
+        "calendar": {
+          "label": "Calendar view",
+          "desc": "Shows ranges and events by month or week"
+        },
+        "timeline": {
+          "label": "Timeline view",
+          "desc": "See issues as a Gantt chart"
+        },
+        "graph": {
+          "label": "Graph view",
+          "desc": "Visualizes how issues are linked"
+        },
+        "sprints": {
+          "label": "Sprints",
+          "desc": "Create and run sprints, burndown included"
+        },
+        "analytics": {
+          "label": "Analytics",
+          "desc": "Charts by state, priority and assignee"
+        },
+        "request": {
+          "label": "Requests",
+          "desc": "A page for taking in bug and feature requests"
+        }
       }
     }
   },
@@ -2013,6 +2060,22 @@
       "clear": "Clear",
       "choose": "Choose",
       "noOptions": "No options yet — add them in the folder's column settings"
+    },
+    "explorerBar": {
+      "labelCount": "{{count}} labels",
+      "clearFilter": "Clear",
+      "cutCount": "{{count}} items cut",
+      "unsplit": "Remove split",
+      "split": "Split the view",
+      "single": "Single",
+      "splitShort": "Split"
+    },
+    "spaceSettings": {
+      "general": "General",
+      "members": "Members",
+      "content": "Content",
+      "integration": "Integrations",
+      "backToSpace": "Back to the space"
     }
   },
   "projectFilter": {
@@ -2467,5 +2530,71 @@
     "jetbrains": "JetBrains Mono (default)",
     "d2coding": "D2Coding",
     "appDefault": "App default"
+  },
+  "sprints": {
+    "status": {
+      "active": "In progress",
+      "draft": "Planned",
+      "completed": "Done",
+      "cancelled": "Cancelled"
+    },
+    "assignFailed": "Could not assign",
+    "createFailed": "Could not create",
+    "updated": "Sprint updated",
+    "updateFailed": "Could not save the change",
+    "cancelled": "Sprint cancelled",
+    "cancelFailed": "Could not cancel",
+    "deleted": "Sprint deleted",
+    "deleteFailed": "Could not delete",
+    "started": "Sprint started",
+    "startFailed": "Could not start",
+    "completedMoved": "Sprint complete — moved {{count}} unfinished issues to the {{target}}",
+    "toBacklog": "backlog",
+    "toNextSprint": "next sprint",
+    "completedPlain": "Sprint completed",
+    "completeFailed": "Could not complete",
+    "expandSubIssues": "Expand sub-issues",
+    "collapseSubIssues": "Collapse sub-issues",
+    "manage": "Manage sprint",
+    "edit": "Edit",
+    "cancelConfirm": "Cancel the sprint \"{{name}}\"? The issues in it stay where they are.",
+    "deleteConfirm": "Delete the sprint \"{{name}}\"? The issues in it go back to the backlog.",
+    "description": "Description",
+    "goalPlaceholder": "The goal for this sprint",
+    "editTitle": "Edit sprint",
+    "completeTitle": "Complete sprint",
+    "completeBody": "<b>{{count}} issues</b> are still unfinished. Where should they go?",
+    "toBacklogOpt": "To the backlog",
+    "toBacklogDesc": "Removes them from the sprint",
+    "toPlannedDesc": "Move to a planned sprint",
+    "completing": "Completing...",
+    "complete": "Complete",
+    "list": "List",
+    "importIssues": "Import issues",
+    "start": "Start",
+    "timeElapsed": "{{percent}}% of the time has passed",
+    "daysLeft": "{{count}} days left",
+    "daysOver": "{{count}} days over",
+    "detailTabs": "Sprint detail tabs",
+    "tabWork": "Work",
+    "tabReport": "Report",
+    "overloaded": "{{names}} carry more than the average load",
+    "noMetrics": "No issues in this sprint, so there are no metrics to show.",
+    "emptySprint": "This sprint has no issues.",
+    "emptySprintHint": "Drag them in from the backlog on the right, or use Import issues.",
+    "backlog": "Backlog",
+    "backlogEmpty": "The backlog is empty.",
+    "addedIssue": "Added \"{{title}}\"",
+    "title": "Sprints",
+    "none": "No sprints yet.",
+    "noneHint": "Create a sprint, put backlog issues in it, and start.",
+    "past": "Past sprints",
+    "backlogWaiting": "{{count}} waiting",
+    "cardEmpty": "No issues yet. Open it and add some from the backlog.",
+    "behind": "{{percent}}% behind schedule",
+    "loadByAssignee": "Load by assignee",
+    "doneCount": "{{count}} done",
+    "busyDays": "{{count}} days booked during the sprint",
+    "days": "{{count}} days"
   }
 }

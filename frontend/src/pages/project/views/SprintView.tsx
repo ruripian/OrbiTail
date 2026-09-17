@@ -12,7 +12,7 @@
 import { useState, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useTranslation } from "react-i18next";
+import { useTranslation, Trans } from "react-i18next";
 import { toast } from "sonner";
 import {
   Zap, CheckCircle2, Play, Plus, ChevronRight, ChevronDown, Trash2, Inbox,
@@ -45,7 +45,7 @@ import type { Issue, ProjectEvent, Sprint, State, User } from "@/types";
 import { SprintBurndown } from "@/components/charts/SprintBurndown";
 import {
   sprintMetrics, groupOf, formatCount,
-  GROUP_ORDER, GROUP_LABEL, GROUP_COLOR,
+  GROUP_ORDER, GROUP_LABEL_KEY, GROUP_COLOR,
   type SprintMetrics,
 } from "./sprint-metrics";
 
@@ -68,11 +68,11 @@ const timeProgress = (sprint: Sprint) => {
 const daysLeft = (sprint: Sprint) =>
   Math.ceil((new Date(sprint.end_date).getTime() - Date.now()) / 86_400_000);
 
-const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
-  active: { label: "진행 중", cls: "bg-blue-500/10 text-blue-600" },
-  draft: { label: "예정", cls: "bg-muted text-muted-foreground" },
-  completed: { label: "완료", cls: "bg-green-500/10 text-green-600" },
-  cancelled: { label: "취소됨", cls: "bg-red-500/10 text-red-600" },
+const STATUS_BADGE: Record<string, { labelKey: string; cls: string }> = {
+  active: { labelKey: "sprints.status.active", cls: "bg-blue-500/10 text-blue-600" },
+  draft: { labelKey: "sprints.status.draft", cls: "bg-muted text-muted-foreground" },
+  completed: { labelKey: "sprints.status.completed", cls: "bg-green-500/10 text-green-600" },
+  cancelled: { labelKey: "sprints.status.cancelled", cls: "bg-red-500/10 text-red-600" },
 };
 
 export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
@@ -183,7 +183,7 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
     mutationFn: ({ issueId, sprintId }: { issueId: string; sprintId: string | null }) =>
       issuesApi.update(workspaceSlug, projectId, issueId, { sprint: sprintId }),
     onSuccess: () => invalidate(),
-    onError: (e) => toast.error(apiErrorMessage(e, "배정 실패")),
+    onError: (e) => toast.error(apiErrorMessage(e, t("sprints.assignFailed"))),
   });
 
   const createMutation = useMutation({
@@ -196,33 +196,33 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
       setCreateOpen(false);
       setFormName(""); setFormDesc(""); setFormStart(null); setFormEnd(null);
     },
-    onError: (e) => toast.error(apiErrorMessage(e, "생성 실패")),
+    onError: (e) => toast.error(apiErrorMessage(e, t("sprints.createFailed"))),
   });
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: Partial<Sprint> }) =>
       projectsApi.sprints.update(workspaceSlug, projectId, id, data),
-    onSuccess: () => { invalidate(); setEditTarget(null); toast.success("스프린트 수정됨"); },
-    onError: (e) => toast.error(apiErrorMessage(e, "수정 실패")),
+    onSuccess: () => { invalidate(); setEditTarget(null); toast.success(t("sprints.updated")); },
+    onError: (e) => toast.error(apiErrorMessage(e, t("sprints.updateFailed"))),
   });
 
   const cancelMutation = useMutation({
     mutationFn: (id: string) =>
       projectsApi.sprints.update(workspaceSlug, projectId, id, { status: "cancelled" }),
-    onSuccess: () => { invalidate(); toast.success("스프린트를 취소했습니다"); },
-    onError: (e) => toast.error(apiErrorMessage(e, "취소 실패")),
+    onSuccess: () => { invalidate(); toast.success(t("sprints.cancelled")); },
+    onError: (e) => toast.error(apiErrorMessage(e, t("sprints.cancelFailed"))),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => projectsApi.sprints.delete(workspaceSlug, projectId, id),
-    onSuccess: () => { invalidate(); openSprint(null); toast.success("스프린트 삭제됨"); },
-    onError: (e) => toast.error(apiErrorMessage(e, "삭제 실패")),
+    onSuccess: () => { invalidate(); openSprint(null); toast.success(t("sprints.deleted")); },
+    onError: (e) => toast.error(apiErrorMessage(e, t("sprints.deleteFailed"))),
   });
 
   const startMutation = useMutation({
     mutationFn: (id: string) => projectsApi.sprints.start(workspaceSlug, projectId, id),
-    onSuccess: () => { invalidate(); toast.success("스프린트를 시작했습니다"); },
-    onError: (e) => toast.error(apiErrorMessage(e, "시작 실패")),
+    onSuccess: () => { invalidate(); toast.success(t("sprints.started")); },
+    onError: (e) => toast.error(apiErrorMessage(e, t("sprints.startFailed"))),
   });
 
   const completeMutation = useMutation({
@@ -233,11 +233,11 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
       setCompleteTarget(null);
       toast.success(
         r.moved_issues > 0
-          ? `스프린트 완료 — 미완료 ${r.moved_issues}건을 ${r.moved_to === "backlog" ? "백로그" : "다음 스프린트"}로 옮겼습니다`
-          : "스프린트를 완료했습니다",
+          ? t("sprints.completedMoved", { count: r.moved_issues, target: r.moved_to === "backlog" ? t("sprints.toBacklog") : t("sprints.toNextSprint") })
+          : t("sprints.completedPlain"),
       );
     },
-    onError: (e) => toast.error(apiErrorMessage(e, "완료 실패")),
+    onError: (e) => toast.error(apiErrorMessage(e, t("sprints.completeFailed"))),
   });
 
   const toggle = (id: string) =>
@@ -282,7 +282,7 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
           <button
             onClick={(e) => { e.stopPropagation(); toggle(issue.id); }}
             className="shrink-0 rounded text-muted-foreground hover:bg-accent hover:text-foreground"
-            aria-label={isCollapsed ? "하위 이슈 펼치기" : "하위 이슈 접기"}
+            aria-label={isCollapsed ? t("sprints.expandSubIssues") : t("sprints.collapseSubIssues")}
           >
             {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
           </button>
@@ -311,7 +311,7 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
         <DropdownMenuTrigger asChild>
           <button
             className="shrink-0 p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-            title="스프린트 관리"
+            title={t("sprints.manage")}
             onClick={(e) => e.stopPropagation()}
           >
             <MoreHorizontal className="h-3.5 w-3.5" />
@@ -327,29 +327,29 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
               setEditEnd(sprint.end_date);
             }}
           >
-            <Pencil className="h-3.5 w-3.5 mr-2" /> 수정
+            <Pencil className="h-3.5 w-3.5 mr-2" /> {t("sprints.edit")}
           </DropdownMenuItem>
           {sprint.status !== "cancelled" && (
             <DropdownMenuItem
               onClick={() => {
-                if (window.confirm(`"${sprint.name}" 스프린트를 취소할까요? 담긴 이슈는 그대로 남습니다.`)) {
+                if (window.confirm(t("sprints.cancelConfirm", { name: sprint.name }))) {
                   cancelMutation.mutate(sprint.id);
                 }
               }}
             >
-              <Ban className="h-3.5 w-3.5 mr-2" /> 취소
+              <Ban className="h-3.5 w-3.5 mr-2" /> {t("common.cancel")}
             </DropdownMenuItem>
           )}
           <DropdownMenuSeparator />
           <DropdownMenuItem
             className="text-destructive focus:text-destructive"
             onClick={() => {
-              if (window.confirm(`"${sprint.name}" 스프린트를 삭제할까요? 담긴 이슈는 백로그로 돌아갑니다.`)) {
+              if (window.confirm(t("sprints.deleteConfirm", { name: sprint.name }))) {
                 deleteMutation.mutate(sprint.id);
               }
             }}
           >
-            <Trash2 className="h-3.5 w-3.5 mr-2" /> 삭제
+            <Trash2 className="h-3.5 w-3.5 mr-2" /> {t("common.delete")}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -373,12 +373,12 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
             </div>
             {/* 수정 창과 같은 칸 — 만들 때부터 목표를 적어 두면 목록·상세 헤더에 바로 보인다 */}
             <div className="space-y-1">
-              <Label>설명</Label>
+              <Label>{t("sprints.description")}</Label>
               <textarea
                 className="w-full min-h-[64px] rounded-md border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
                 value={formDesc}
                 onChange={(e) => setFormDesc(e.target.value)}
-                placeholder="이번 스프린트의 목표"
+                placeholder={t("sprints.goalPlaceholder")}
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -407,7 +407,7 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
       <Dialog open={!!editTarget} onOpenChange={(v) => !v && setEditTarget(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>스프린트 수정</DialogTitle>
+            <DialogTitle>{t("sprints.editTitle")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div className="space-y-1">
@@ -415,12 +415,12 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
               <Input value={editName} onChange={(e) => setEditName(e.target.value)} autoFocus />
             </div>
             <div className="space-y-1">
-              <Label>설명</Label>
+              <Label>{t("sprints.description")}</Label>
               <textarea
                 className="w-full min-h-[64px] rounded-md border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
                 value={editDesc}
                 onChange={(e) => setEditDesc(e.target.value)}
-                placeholder="이번 스프린트의 목표"
+                placeholder={t("sprints.goalPlaceholder")}
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -447,7 +447,7 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
                   },
                 })}
               >
-                {updateMutation.isPending ? "저장 중..." : "저장"}
+                {updateMutation.isPending ? t("documents.templates.saving") : t("documents.templates.save")}
               </Button>
             </div>
           </div>
@@ -457,7 +457,7 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
       <Dialog open={!!completeTarget} onOpenChange={(v) => !v && setCompleteTarget(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>스프린트 완료</DialogTitle>
+            <DialogTitle>{t("sprints.completeTitle")}</DialogTitle>
           </DialogHeader>
           {completeTarget && (() => {
             const remain = issuesOf(completeTarget.id).filter(
@@ -466,14 +466,14 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
             return (
               <div className="space-y-4">
                 <p className="text-sm text-muted-foreground">
-                  완료되지 않은 이슈 <span className="font-medium text-foreground">{remain}건</span>이 남아 있습니다. 어디로 옮길까요?
+                  <Trans i18nKey="sprints.completeBody" values={{ count: remain }} components={{ b: <span className="font-medium text-foreground" /> }} />
                 </p>
                 <div className="space-y-2">
                   {[
-                    { value: "backlog", label: "백로그로", desc: "스프린트에서 떼어냅니다" },
+                    { value: "backlog", label: t("sprints.toBacklogOpt"), desc: t("sprints.toBacklogDesc") },
                     ...draftSprints
                       .filter((s: Sprint) => s.id !== completeTarget.id)
-                      .map((s: Sprint) => ({ value: s.id, label: s.name, desc: "예정 스프린트로 이관" })),
+                      .map((s: Sprint) => ({ value: s.id, label: s.name, desc: t("sprints.toPlannedDesc") })),
                   ].map((opt) => (
                     <button
                       key={opt.value}
@@ -489,12 +489,12 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
                   ))}
                 </div>
                 <div className="flex justify-end gap-2">
-                  <Button variant="outline" onClick={() => setCompleteTarget(null)}>취소</Button>
+                  <Button variant="outline" onClick={() => setCompleteTarget(null)}>{t("common.cancel")}</Button>
                   <Button
                     disabled={completeMutation.isPending}
                     onClick={() => completeMutation.mutate({ id: completeTarget.id, target: moveTo })}
                   >
-                    {completeMutation.isPending ? "완료 중..." : "완료"}
+                    {completeMutation.isPending ? t("sprints.completing") : t("sprints.complete")}
                   </Button>
                 </div>
               </div>
@@ -523,10 +523,10 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
           <div className="flex items-center gap-2 px-4 py-2.5">
             <Button variant="ghost" size="sm" className="h-8 shrink-0 gap-1.5 px-2 text-xs" onClick={() => openSprint(null)}>
               <ArrowLeft className="h-3.5 w-3.5" />
-              목록
+              {t("sprints.list")}
             </Button>
             <h1 className="shrink-0 text-sm font-semibold truncate">{current.name}</h1>
-            <Badge variant="secondary" className={cn("shrink-0 px-1.5 py-0 text-2xs", badge.cls)}>{badge.label}</Badge>
+            <Badge variant="secondary" className={cn("shrink-0 px-1.5 py-0 text-2xs", badge.cls)}>{t(badge.labelKey)}</Badge>
             {/* 스프린트 목표는 제목 옆에 붙인다 — 한 단을 차지할 만큼 긴 정보가 아니다 */}
             {current.description && (
               <span className="hidden min-w-0 truncate text-xs text-muted-foreground lg:inline" title={current.description}>
@@ -538,13 +538,13 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
               {canEdit && (
                 <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5" onClick={() => setPickerOpen(true)}>
                   <ListPlus className="h-3.5 w-3.5" />
-                  이슈 가져오기
+                  {t("sprints.importIssues")}
                 </Button>
               )}
               {canEdit && current.status === "draft" && (
                 <Button size="sm" className="h-8 text-xs gap-1.5" onClick={() => startMutation.mutate(current.id)}>
                   <Play className="h-3.5 w-3.5" />
-                  시작
+                  {t("sprints.start")}
                 </Button>
               )}
               {canEdit && current.status === "active" && (
@@ -553,7 +553,7 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
                   onClick={() => { setMoveTo(draftSprints[0]?.id ?? "backlog"); setCompleteTarget(current); }}
                 >
                   <CheckCircle2 className="h-3.5 w-3.5" />
-                  완료
+                  {t("sprints.complete")}
                 </Button>
               )}
               <SprintMenu sprint={current} />
@@ -565,8 +565,8 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
           {issues.length > 0 && (
             <div className="flex items-center gap-3 px-4 pb-2.5">
               <span className="shrink-0 text-xs tabular-nums">
-                <span className="font-semibold">{formatCount(metrics.done)}</span>
-                <span className="text-muted-foreground"> / {formatCount(metrics.total)} · {metrics.percent}%</span>
+                <span className="font-semibold">{formatCount(metrics.done, t)}</span>
+                <span className="text-muted-foreground"> / {formatCount(metrics.total, t)} · {metrics.percent}%</span>
               </span>
               <div className="relative min-w-0 flex-1">
                 <DistributionBar metrics={metrics} height={6} />
@@ -574,7 +574,7 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
                   <div
                     className="absolute top-0 bottom-0 w-px bg-foreground/50"
                     style={{ left: `${timeProgress(current)}%` }}
-                    title={`기간 경과 ${timeProgress(current)}%`}
+                    title={t("sprints.timeElapsed", { percent: timeProgress(current) })}
                   />
                 )}
               </div>
@@ -582,7 +582,7 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
                 <span className="hidden sm:inline">{fmt(current.start_date)} ~ {fmt(current.end_date)}</span>
                 {current.status === "active" && (
                   <span className="sm:before:content-['_·_']">
-                    {daysLeft(current) >= 0 ? `${daysLeft(current)}일 남음` : `${Math.abs(daysLeft(current))}일 지남`}
+                    {daysLeft(current) >= 0 ? t("sprints.daysLeft", { count: daysLeft(current) }) : t("sprints.daysOver", { count: Math.abs(daysLeft(current)) })}
                   </span>
                 )}
               </span>
@@ -592,7 +592,7 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
           {/* 탭 — 기존 이슈 상세와 같은 WAI-ARIA tablist 패턴 */}
           <div
             role="tablist"
-            aria-label="스프린트 상세 탭"
+            aria-label={t("sprints.detailTabs")}
             className="flex gap-0.5 px-3"
             onKeyDown={(e) => {
               if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
@@ -602,8 +602,8 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
             }}
           >
             {([
-              { id: "work" as const, label: "작업", icon: ListPlus },
-              { id: "report" as const, label: "리포트", icon: BarChart3 },
+              { id: "work" as const, label: t("sprints.tabWork"), icon: ListPlus },
+              { id: "report" as const, label: t("sprints.tabReport"), icon: BarChart3 },
             ]).map(({ id, label, icon: Icon }) => (
               <button
                 key={id}
@@ -626,7 +626,7 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
                 {id === "report" && overloaded.length > 0 && (
                   <span
                     className="inline-flex items-center gap-0.5 rounded bg-amber-500/15 px-1 py-px text-2xs font-medium text-amber-700 dark:text-amber-400"
-                    title={`${overloaded.map((l) => l.user.display_name || l.user.email).join(", ")} 의 부하가 평균보다 큽니다`}
+                    title={t("sprints.overloaded", { names: overloaded.map((l) => l.user.display_name || l.user.email).join(", ") })}
                   >
                     <AlertTriangle className="h-2.5 w-2.5" />
                     {overloaded.length}
@@ -648,7 +648,7 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
             <div className="mx-auto max-w-regular space-y-4 p-4">
               {issues.length === 0 ? (
                 <p className="py-16 text-center text-sm text-muted-foreground">
-                  담긴 이슈가 없어 보여줄 지표가 없습니다.
+                  {t("sprints.noMetrics")}
                 </p>
               ) : (
                 <>
@@ -689,9 +689,9 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
             {issues.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-center gap-2 py-16">
                 <Zap className="h-8 w-8 text-muted-foreground/30" />
-                <p className="text-sm text-muted-foreground">이 스프린트에 담긴 이슈가 없습니다.</p>
+                <p className="text-sm text-muted-foreground">{t("sprints.emptySprint")}</p>
                 <p className="text-xs text-muted-foreground/70">
-                  오른쪽 백로그에서 끌어오거나 [이슈 가져오기]로 담으세요.
+                  {t("sprints.emptySprintHint")}
                 </p>
               </div>
             ) : (
@@ -717,10 +717,10 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
                           className="text-2xs font-semibold uppercase tracking-widest"
                           style={{ color: GROUP_COLOR[g] }}
                         >
-                          {GROUP_LABEL[g]}
+                          {t(GROUP_LABEL_KEY[g])}
                         </span>
                         <span className="text-2xs tabular-nums text-muted-foreground">
-                          {formatCount(roots.length)}
+                          {formatCount(roots.length, t)}
                         </span>
                         <span className="ml-1 h-px flex-1 bg-border/60" />
                       </div>
@@ -757,12 +757,12 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
           >
             <div className="flex shrink-0 items-center gap-2 border-b px-3 py-2.5">
               <Inbox className="h-3.5 w-3.5 text-muted-foreground" />
-              <span className="text-2xs font-semibold uppercase tracking-widest text-muted-foreground">백로그</span>
+              <span className="text-2xs font-semibold uppercase tracking-widest text-muted-foreground">{t("sprints.backlog")}</span>
               <span className="ml-auto text-xs tabular-nums text-muted-foreground">{backlog.length}</span>
             </div>
             <div className="flex-1 overflow-y-auto p-1.5">
               {backlog.length === 0 ? (
-                <p className="px-2 py-6 text-xs text-muted-foreground/70 text-center">백로그가 비었습니다.</p>
+                <p className="px-2 py-6 text-xs text-muted-foreground/70 text-center">{t("sprints.backlogEmpty")}</p>
               ) : (
                 backlog.map((issue) => <IssueRow key={issue.id} issue={issue} compact />)
               )}
@@ -780,7 +780,7 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
           excludeIds={issues.map((i) => i.id)}
           onSelect={async (issue) => {
             await assign.mutateAsync({ issueId: issue.id, sprintId: current.id });
-            toast.success(`"${issue.title}" 담김`);
+            toast.success(t("sprints.addedIssue", { title: issue.title }));
           }}
         />
 
@@ -802,7 +802,7 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
     <PageTransition className="h-full overflow-y-auto">
       <div className="max-w-regular mx-auto p-4 sm:p-6">
         <div className="flex items-center justify-between gap-3">
-          <h1 className="text-base font-semibold">스프린트</h1>
+          <h1 className="text-base font-semibold">{t("sprints.title")}</h1>
           {canEdit && (
             <Button size="sm" className="gap-1.5" onClick={() => setCreateOpen(true)}>
               <Plus className="h-3.5 w-3.5" />
@@ -814,16 +814,16 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
         {sprints.length === 0 ? (
           <div className="mt-3 rounded-xl border border-dashed p-10 text-center">
             <Zap className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
-            <p className="text-sm text-muted-foreground">아직 스프린트가 없습니다.</p>
+            <p className="text-sm text-muted-foreground">{t("sprints.none")}</p>
             <p className="text-xs text-muted-foreground/70 mt-1">
-              스프린트를 만들고 백로그의 이슈를 담아 시작하세요.
+              {t("sprints.noneHint")}
             </p>
           </div>
         ) : (
           <>
             {activeSprints.length > 0 && (
               <>
-                <SectionLabel>진행 중</SectionLabel>
+                <SectionLabel>{t("sprints.status.active")}</SectionLabel>
                 <div className="space-y-2">
                   {activeSprints.map((s: Sprint) => (
                     <ActiveSprintCard key={s.id} sprint={s} m={sprintMetrics(issuesOf(s.id), stateMap)} onOpen={() => openSprint(s.id)} />
@@ -833,7 +833,7 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
             )}
             {draftSprints.length > 0 && (
               <>
-                <SectionLabel>예정</SectionLabel>
+                <SectionLabel>{t("sprints.status.draft")}</SectionLabel>
                 {draftSprints.map((s: Sprint) => (
                   <SprintRow key={s.id} sprint={s} m={sprintMetrics(issuesOf(s.id), stateMap)} onOpen={() => openSprint(s.id)} />
                 ))}
@@ -841,7 +841,7 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
             )}
             {pastSprints.length > 0 && (
               <>
-                <SectionLabel>지난 스프린트</SectionLabel>
+                <SectionLabel>{t("sprints.past")}</SectionLabel>
                 {pastSprints.map((s: Sprint) => (
                   <SprintRow key={s.id} sprint={s} m={sprintMetrics(issuesOf(s.id), stateMap)} onOpen={() => openSprint(s.id)} />
                 ))}
@@ -853,8 +853,8 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
         {/* 백로그 — 목록에서도 얼마나 쌓였는지는 보이게 두되, 담는 건 상세에서 한다 */}
         <div className="mt-4 flex items-center gap-2 rounded-lg border border-dashed px-3 py-2">
           <Inbox className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-          <span className="flex-1 text-sm text-muted-foreground">백로그</span>
-          <span className="text-xs tabular-nums text-muted-foreground">{backlog.length}건 대기</span>
+          <span className="flex-1 text-sm text-muted-foreground">{t("sprints.backlog")}</span>
+          <span className="text-xs tabular-nums text-muted-foreground">{t("sprints.backlogWaiting", { count: backlog.length })}</span>
         </div>
       </div>
 
@@ -873,6 +873,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 /** 진행 중 — 이 화면에서 유일하게 펼쳐 보여주는 카드 */
 function ActiveSprintCard({ sprint, m, onOpen }: { sprint: Sprint; m: SprintMetrics; onOpen: () => void }) {
+  const { t } = useTranslation();
   const elapsed = timeProgress(sprint);
   const left = daysLeft(sprint);
   /* 기간은 60% 지났는데 완료가 30% 면 30포인트 뒤진 것 */
@@ -894,23 +895,23 @@ function ActiveSprintCard({ sprint, m, onOpen }: { sprint: Sprint; m: SprintMetr
             {fmt(sprint.start_date)} ~ {fmt(sprint.end_date)} ·{" "}
           </span>
           <span className={cn(left < 0 ? "font-medium text-amber-600" : "text-muted-foreground")}>
-            {left >= 0 ? `${left}일 남음` : `${Math.abs(left)}일 지남`}
+            {left >= 0 ? t("sprints.daysLeft", { count: left }) : t("sprints.daysOver", { count: Math.abs(left) })}
           </span>
         </span>
       </div>
 
       {m.total === 0 ? (
         <p className="mt-2 text-xs text-muted-foreground">
-          담긴 이슈가 없습니다. 열어서 백로그의 이슈를 담으세요.
+          {t("sprints.cardEmpty")}
         </p>
       ) : (
         <>
           <div className="mt-2.5 flex items-baseline gap-1.5 tabular-nums">
             <span className="text-lg font-semibold leading-none">
-              {formatCount(m.done)}
+              {formatCount(m.done, t)}
             </span>
             <span className="text-xs text-muted-foreground">
-              / {formatCount(m.total)} · {m.percent}%
+              / {formatCount(m.total, t)} · {m.percent}%
             </span>
           </div>
           <div className="relative mt-2">
@@ -918,7 +919,7 @@ function ActiveSprintCard({ sprint, m, onOpen }: { sprint: Sprint; m: SprintMetr
             <div
               className="absolute top-0 bottom-0 w-px bg-foreground/50"
               style={{ left: `${elapsed}%` }}
-              title={`기간 경과 ${elapsed}%`}
+              title={t("sprints.timeElapsed", { percent: elapsed })}
             />
           </div>
           {/* 색 점 범례는 이 카드에만 둔다 — 목록 전체에 반복하면 그게 소음이 된다 */}
@@ -926,11 +927,11 @@ function ActiveSprintCard({ sprint, m, onOpen }: { sprint: Sprint; m: SprintMetr
             {GROUP_ORDER.filter((g) => m.byGroup[g] > 0).map((g) => (
               <span key={g} className="inline-flex items-center gap-1">
                 <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: GROUP_COLOR[g] }} />
-                {GROUP_LABEL[g]} {m.byGroup[g]}
+                {t(GROUP_LABEL_KEY[g])} {m.byGroup[g]}
               </span>
             ))}
             {behind >= 15 && (
-              <span className="ml-auto font-medium text-amber-600">일정보다 {behind}% 뒤짐</span>
+              <span className="ml-auto font-medium text-amber-600">{t("sprints.behind", { percent: behind })}</span>
             )}
           </div>
         </>
@@ -941,6 +942,7 @@ function ActiveSprintCard({ sprint, m, onOpen }: { sprint: Sprint; m: SprintMetr
 
 /** 예정·지난 — 이름/기간/양만. 자세한 건 열어서 본다. */
 function SprintRow({ sprint, m, onOpen }: { sprint: Sprint; m: SprintMetrics; onOpen: () => void }) {
+  const { t } = useTranslation();
   const isPast = sprint.status === "completed" || sprint.status === "cancelled";
   return (
     <button
@@ -950,7 +952,7 @@ function SprintRow({ sprint, m, onOpen }: { sprint: Sprint; m: SprintMetrics; on
       <span className="flex-1 truncate text-sm">{sprint.name}</span>
       {sprint.status === "cancelled" && (
         <Badge variant="secondary" className={cn("shrink-0 px-1.5 py-0 text-2xs", STATUS_BADGE.cancelled.cls)}>
-          {STATUS_BADGE.cancelled.label}
+          {t(STATUS_BADGE.cancelled.labelKey)}
         </Badge>
       )}
       <span className="hidden shrink-0 text-xs tabular-nums text-muted-foreground sm:inline">
@@ -958,7 +960,7 @@ function SprintRow({ sprint, m, onOpen }: { sprint: Sprint; m: SprintMetrics; on
       </span>
       {/* 예정은 "얼마나 담겼나", 지난 건 "얼마나 끝냈나" 가 궁금하다 */}
       <span className="w-16 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
-        {isPast ? `${m.percent}%` : formatCount(m.total)}
+        {isPast ? `${m.percent}%` : formatCount(m.total, t)}
       </span>
       <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
     </button>
@@ -969,6 +971,7 @@ function SprintRow({ sprint, m, onOpen }: { sprint: Sprint; m: SprintMetrics; on
 function DistributionBar({
   metrics, height = 6,
 }: { metrics: ReturnType<typeof sprintMetrics>; height?: number }) {
+  const { t } = useTranslation();
   if (metrics.total === 0) return null;
   return (
     <div className="flex h-full w-full overflow-hidden rounded-full bg-muted/50" style={{ height }}>
@@ -979,7 +982,7 @@ function DistributionBar({
           <div
             key={g}
             style={{ width: `${(v / metrics.total) * 100}%`, backgroundColor: GROUP_COLOR[g] }}
-            title={`${GROUP_LABEL[g]} ${formatCount(v)}`}
+            title={`${t(GROUP_LABEL_KEY[g])} ${formatCount(v, t)}`}
           />
         );
       })}
@@ -1033,6 +1036,7 @@ function buildLoads(
 }
 
 function LoadPanel({ loads }: { loads: Load[] }) {
+  const { t } = useTranslation();
   if (loads.length === 0) return null;
   const max = Math.max(...loads.map((l) => l.value), 1);
   /* 평균의 1.5배를 넘으면 과부하로 본다 — 절대 기준을 두면 팀마다 안 맞는다 */
@@ -1042,7 +1046,7 @@ function LoadPanel({ loads }: { loads: Load[] }) {
   return (
     <div className="px-4 pb-3">
       <p className="mb-1.5 text-2xs font-semibold uppercase tracking-widest text-muted-foreground">
-        담당자별 부하
+        {t("sprints.loadByAssignee")}
       </p>
       <ul className="space-y-1">
         {loads.map((l) => (
@@ -1057,19 +1061,19 @@ function LoadPanel({ loads }: { loads: Load[] }) {
               <div
                 className="absolute inset-y-0 left-0 rounded-full bg-emerald-500/70"
                 style={{ width: `${(l.done / max) * 100}%` }}
-                title={`완료 ${formatCount(l.done)}`}
+                title={t("sprints.doneCount", { count: l.done })}
               />
             </div>
             <span className="w-12 shrink-0 text-right text-2xs tabular-nums text-muted-foreground">
-              {formatCount(l.value)}
+              {formatCount(l.value, t)}
             </span>
             {l.busyDays > 0 && (
               <span
                 className="flex shrink-0 items-center gap-0.5 text-2xs text-amber-600"
-                title={`스프린트 기간 중 일정 ${l.busyDays}일`}
+                title={t("sprints.busyDays", { count: l.busyDays })}
               >
                 <CalendarClock className="h-3 w-3" />
-                {l.busyDays}일
+                {t("sprints.days", { count: l.busyDays })}
               </span>
             )}
           </li>

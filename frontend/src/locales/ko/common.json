@@ -353,7 +353,8 @@
         "self": "자기 자신",
         "thisProject": "이 프로젝트"
       },
-      "showMoreLinks": "+ {{count}}개 더보기"
+      "showMoreLinks": "+ {{count}}개 더보기",
+      "goToProject": "{{name}} 프로젝트로 이동"
     },
     "field": {
       "label": "필드",
@@ -375,6 +376,22 @@
     "categoryInheritsFromParent": "하위 이슈는 상위 이슈의 모듈을 따라갑니다",
     "attachments": {
       "fromComment": "댓글에서 업로드됨"
+    },
+    "stateGroup": {
+      "backlog": "백로그",
+      "unstarted": "할 일",
+      "started": "진행 중",
+      "completed": "완료",
+      "cancelled": "취소"
+    },
+    "countIssues": "{{count}}건",
+    "linkType": {
+      "relatesTo": "연결",
+      "blocks": "의존",
+      "blockedBy": "블록됨",
+      "duplicates": "중복",
+      "references": "참조",
+      "sharedLabel": "같은 라벨"
     }
   },
   "setup": {
@@ -588,6 +605,36 @@
       },
       "workflow": {
         "subtitle": "이슈를 분류하는 도구 — 상태와 라벨"
+      },
+      "features": {
+        "board": {
+          "label": "보드 뷰",
+          "desc": "칸반 스타일로 상태별 카드 배치"
+        },
+        "calendar": {
+          "label": "캘린더 뷰",
+          "desc": "기간/이벤트 월/주 단위 표시"
+        },
+        "timeline": {
+          "label": "타임라인 뷰",
+          "desc": "이슈를 간트 차트로 보기"
+        },
+        "graph": {
+          "label": "그래프 뷰",
+          "desc": "이슈 연결 관계망 시각화"
+        },
+        "sprints": {
+          "label": "스프린트",
+          "desc": "스프린트 생성·운영 (번다운 포함)"
+        },
+        "analytics": {
+          "label": "통계",
+          "desc": "상태·우선순위·담당자별 차트"
+        },
+        "request": {
+          "label": "요청",
+          "desc": "버그/기능 요청 접수 페이지"
+        }
       }
     }
   },
@@ -2013,6 +2060,22 @@
       "clear": "비우기",
       "choose": "선택",
       "noOptions": "선택지가 없습니다 — 폴더 칸 설정에서 추가하세요"
+    },
+    "explorerBar": {
+      "labelCount": "라벨 {{count}}",
+      "clearFilter": "해제",
+      "cutCount": "잘라낸 항목 {{count}}개",
+      "unsplit": "분할 해제",
+      "split": "화면 분할",
+      "single": "단일",
+      "splitShort": "분할"
+    },
+    "spaceSettings": {
+      "general": "일반",
+      "members": "멤버",
+      "content": "콘텐츠",
+      "integration": "연동",
+      "backToSpace": "스페이스로"
     }
   },
   "projectFilter": {
@@ -2467,5 +2530,71 @@
     "jetbrains": "JetBrains Mono (기본)",
     "d2coding": "D2Coding",
     "appDefault": "앱 기본"
+  },
+  "sprints": {
+    "status": {
+      "active": "진행 중",
+      "draft": "예정",
+      "completed": "완료",
+      "cancelled": "취소됨"
+    },
+    "assignFailed": "배정 실패",
+    "createFailed": "생성 실패",
+    "updated": "스프린트 수정됨",
+    "updateFailed": "수정 실패",
+    "cancelled": "스프린트를 취소했습니다",
+    "cancelFailed": "취소 실패",
+    "deleted": "스프린트 삭제됨",
+    "deleteFailed": "삭제 실패",
+    "started": "스프린트를 시작했습니다",
+    "startFailed": "시작 실패",
+    "completedMoved": "스프린트 완료 — 미완료 {{count}}건을 {{target}}로 옮겼습니다",
+    "toBacklog": "백로그",
+    "toNextSprint": "다음 스프린트",
+    "completedPlain": "스프린트를 완료했습니다",
+    "completeFailed": "완료 실패",
+    "expandSubIssues": "하위 이슈 펼치기",
+    "collapseSubIssues": "하위 이슈 접기",
+    "manage": "스프린트 관리",
+    "edit": "수정",
+    "cancelConfirm": "\"{{name}}\" 스프린트를 취소할까요? 담긴 이슈는 그대로 남습니다.",
+    "deleteConfirm": "\"{{name}}\" 스프린트를 삭제할까요? 담긴 이슈는 백로그로 돌아갑니다.",
+    "description": "설명",
+    "goalPlaceholder": "이번 스프린트의 목표",
+    "editTitle": "스프린트 수정",
+    "completeTitle": "스프린트 완료",
+    "completeBody": "완료되지 않은 이슈 <b>{{count}}건</b>이 남아 있습니다. 어디로 옮길까요?",
+    "toBacklogOpt": "백로그로",
+    "toBacklogDesc": "스프린트에서 떼어냅니다",
+    "toPlannedDesc": "예정 스프린트로 이관",
+    "completing": "완료 중...",
+    "complete": "완료",
+    "list": "목록",
+    "importIssues": "이슈 가져오기",
+    "start": "시작",
+    "timeElapsed": "기간 경과 {{percent}}%",
+    "daysLeft": "{{count}}일 남음",
+    "daysOver": "{{count}}일 지남",
+    "detailTabs": "스프린트 상세 탭",
+    "tabWork": "작업",
+    "tabReport": "리포트",
+    "overloaded": "{{names}} 의 부하가 평균보다 큽니다",
+    "noMetrics": "담긴 이슈가 없어 보여줄 지표가 없습니다.",
+    "emptySprint": "이 스프린트에 담긴 이슈가 없습니다.",
+    "emptySprintHint": "오른쪽 백로그에서 끌어오거나 [이슈 가져오기]로 담으세요.",
+    "backlog": "백로그",
+    "backlogEmpty": "백로그가 비었습니다.",
+    "addedIssue": "\"{{title}}\" 담김",
+    "title": "스프린트",
+    "none": "아직 스프린트가 없습니다.",
+    "noneHint": "스프린트를 만들고 백로그의 이슈를 담아 시작하세요.",
+    "past": "지난 스프린트",
+    "backlogWaiting": "{{count}}건 대기",
+    "cardEmpty": "담긴 이슈가 없습니다. 열어서 백로그의 이슈를 담으세요.",
+    "behind": "일정보다 {{percent}}% 뒤짐",
+    "loadByAssignee": "담당자별 부하",
+    "doneCount": "완료 {{count}}건",
+    "busyDays": "스프린트 기간 중 일정 {{count}}일",
+    "days": "{{count}}일"
   }
 }
