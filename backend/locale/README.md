@@ -22,7 +22,7 @@ MEETING = "meeting", gettext_lazy("Meeting")               # 모듈·클래스 �
 
 ```bash
 python manage.py makemessages -l ko -i "staticfiles/*" -i "mediafiles/*" \
-  -i "*/migrations/*" -i "*/management/*" -i "*/tests*" --no-location --no-obsolete
+  -i "*/migrations/*" -i "*/management/*" -i "*/tests*" --no-location --no-obsolete --no-wrap
 ```
 
 `django.po` 에 새로 생긴 `msgstr ""` 에 한국어를 채우고 커밋한다. `.mo` 는 커밋하지 않는다 —

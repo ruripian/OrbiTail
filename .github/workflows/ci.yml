@@ -66,7 +66,7 @@ jobs:
       - name: check translation catalog is up to date
         run: |
           python manage.py makemessages -l ko -i "staticfiles/*" -i "mediafiles/*" \
-            -i "*/migrations/*" -i "*/management/*" -i "*/tests*" --no-location --no-obsolete
+            -i "*/migrations/*" -i "*/management/*" -i "*/tests*" --no-location --no-obsolete --no-wrap
           git diff --exit-code -I 'POT-Creation-Date' -- locale/ || {
             echo "::error::코드에 새 번역 문장이 있습니다. makemessages 후 locale/ko 에 한국어를 채워 커밋하세요."; exit 1; }
       - run: python manage.py compilemessages
