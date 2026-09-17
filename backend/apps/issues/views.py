@@ -668,7 +668,7 @@ class IssueMoveView(APIView):
             pk=target_id, workspace_id=issue.workspace_id, kind=Project.Kind.NORMAL,
         ).first() if target_id else None
         if target is None:
-            return Response({"target_project": ["옮길 Project not found."]}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"target_project": ["The target project was not found."]}, status=status.HTTP_400_BAD_REQUEST)
         if target.pk == issue.project_id:
             return Response({"target_project": ["이미 이 프로젝트의 이슈입니다."]}, status=status.HTTP_400_BAD_REQUEST)
         _require_perm(request.user, target.pk, "can_edit")
@@ -819,7 +819,7 @@ class IssueNodeLinkListCreateView(generics.ListCreateAPIView):
         readable = Issue.objects.filter(pk__in=[source.pk, target.pk], deleted_at__isnull=True).filter(
             _issue_read_q(self.request.user)).values("pk").distinct().count()
         if readable != 2:
-            raise ValidationError({"target": "연결할 Issue not found."})
+            raise ValidationError({"target": "The issue to link was not found."})
         serializer.save(created_by=self.request.user)
 
 
@@ -1335,7 +1335,7 @@ class IssueBulkUpdateView(APIView):
         )
 
         if issues.count() != len(issue_ids):
-            return Response({"detail": "일부 Issue not found."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": "Some of the issues were not found."}, status=status.HTTP_400_BAD_REQUEST)
 
         if not isinstance(updates, dict) or not isinstance(issue_ids, list):
             return Response({"detail": "형식이 잘못되었습니다."}, status=status.HTTP_400_BAD_REQUEST)
