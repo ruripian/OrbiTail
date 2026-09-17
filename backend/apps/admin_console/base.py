@@ -31,7 +31,7 @@ def as_datetime(raw: str):
     if value is None:
         date_only = parse_date(raw)
         if date_only is None:
-            raise ValidationError(f"날짜 형식이 올바르지 않습니다: {raw}")
+            raise ValidationError(f"Invalid date format: {raw}")
         value = datetime.combine(date_only, time.min)
     return _aware(value)
 
@@ -46,7 +46,7 @@ def as_datetime_end(raw: str):
     if value is None:
         date_only = parse_date(raw)
         if date_only is None:
-            raise ValidationError(f"날짜 형식이 올바르지 않습니다: {raw}")
+            raise ValidationError(f"Invalid date format: {raw}")
         value = datetime.combine(date_only, time.max)
     return _aware(value)
 
@@ -55,7 +55,7 @@ def as_int(raw: str) -> int:
     try:
         return int(raw)
     except (TypeError, ValueError):
-        raise ValidationError(f"숫자가 필요합니다: {raw}")
+        raise ValidationError(f"A number is required: {raw}")
 
 
 def as_bool(raw: str) -> bool:
@@ -64,7 +64,7 @@ def as_bool(raw: str) -> bool:
         return True
     if lowered in ("0", "false", "no"):
         return False
-    raise ValidationError(f"true/false 가 필요합니다: {raw}")
+    raise ValidationError(f"true or false is required: {raw}")
 
 
 class AdminResourceListView(generics.ListAPIView):

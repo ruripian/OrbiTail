@@ -137,7 +137,7 @@ class EmailChangeRequestSerializer(serializers.Serializer):
 
     def validate_new_email(self, value):
         if User.objects.filter(email=value).exists():
-            raise serializers.ValidationError("이미 사용 중인 이메일입니다.")
+            raise serializers.ValidationError("That email address is already in use.")
         return value
 
 

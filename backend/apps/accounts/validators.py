@@ -18,9 +18,9 @@ class PasswordComplexityValidator:
 
         if not (has_letter and has_digit and has_special):
             raise ValidationError(
-                _("비밀번호는 영문, 숫자, 특수문자를 모두 포함해야 합니다."),
+                _("The password must contain letters, digits and symbols."),
                 code="password_too_simple",
             )
 
     def get_help_text(self):
-        return _("비밀번호는 영문, 숫자, 특수문자를 모두 포함해야 합니다.")
+        return _("The password must contain letters, digits and symbols.")

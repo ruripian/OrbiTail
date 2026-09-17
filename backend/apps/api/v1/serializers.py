@@ -181,13 +181,13 @@ class IssueWriteSerializer(serializers.Serializer):
     def validate_title(self, value):
         value = value.strip()
         if not value:
-            raise serializers.ValidationError("제목을 입력하세요.")
+            raise serializers.ValidationError("Enter a title.")
         return value
 
     def validate(self, attrs):
         start, due = attrs.get("start_date"), attrs.get("due_date")
         if start and due and start > due:
-            raise serializers.ValidationError({"due_date": "마감일이 시작일보다 앞설 수 없습니다."})
+            raise serializers.ValidationError({"due_date": "The due date cannot be earlier than the start date."})
         if "description" in attrs:
             attrs["description_html"] = markdown_to_html(attrs.pop("description"))
         return attrs
@@ -214,7 +214,7 @@ class CommentWriteSerializer(serializers.Serializer):
 
     def validate_body(self, value):
         if not value.strip():
-            raise serializers.ValidationError("내용을 입력하세요.")
+            raise serializers.ValidationError("Enter some content.")
         return value
 
 
@@ -281,7 +281,7 @@ class DocumentCreateSerializer(serializers.Serializer):
     def validate_title(self, value):
         value = value.strip()
         if not value:
-            raise serializers.ValidationError("제목을 입력하세요.")
+            raise serializers.ValidationError("Enter a title.")
         return value
 
     def validate_properties(self, value):

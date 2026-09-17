@@ -103,16 +103,16 @@ class DocumentSerializer(serializers.ModelSerializer):
         그 폴더를 지울 때 이 문서까지 함께 지워진다."""
         space = self._space()
         if value is not None and space is not None and value.space_id != space.pk:
-            raise serializers.ValidationError("같은 스페이스의 문서만 부모로 지정할 수 있습니다.")
+            raise serializers.ValidationError("Only a document in the same space can be set as the parent.")
         if value is not None and self.instance is not None and value.pk == self.instance.pk:
-            raise serializers.ValidationError("자신을 부모로 지정할 수 없습니다.")
+            raise serializers.ValidationError("A document cannot be its own parent.")
         return value
 
     def validate_labels(self, value):
         """라벨은 이 스페이스의 워크스페이스 것만 — 다른 워크스페이스 라벨의 이름·만든 사람이 새지 않게."""
         space = self._space()
         if space is not None and any(lb.workspace_id != space.workspace_id for lb in value):
-            raise serializers.ValidationError("이 워크스페이스의 라벨이 아닌 것이 있습니다.")
+            raise serializers.ValidationError("Some labels do not belong to this workspace.")
         return value
 
     #: 표의 칸에 쓸 수 있는 값 종류.
@@ -131,29 +131,29 @@ class DocumentSerializer(serializers.ModelSerializer):
         if value is None:
             return None
         if not isinstance(value, list):
-            raise serializers.ValidationError("칸 정의는 목록이어야 합니다.")
+            raise serializers.ValidationError("The column definition must be a list.")
         if len(value) > self.MAX_COLUMNS:
-            raise serializers.ValidationError(f"칸은 최대 {self.MAX_COLUMNS}개까지입니다.")
+            raise serializers.ValidationError(f"At most {self.MAX_COLUMNS} columns are allowed.")
         cleaned = []
         seen = set()
         for col in value:
             if not isinstance(col, dict):
-                raise serializers.ValidationError("칸 하나는 이름과 종류를 가진 묶음이어야 합니다.")
+                raise serializers.ValidationError("Each column must be an object with a name and a type.")
             name = str(col.get("name", "")).strip()
             if not name:
-                raise serializers.ValidationError("칸 이름은 비워 둘 수 없습니다.")
+                raise serializers.ValidationError("A column name cannot be empty.")
             # 이름이 곧 값의 key 라 중복되면 한 칸이 다른 칸의 값을 덮는다
             if name.lower() in seen:
-                raise serializers.ValidationError(f"칸 이름 '{name}' 이 중복됩니다.")
+                raise serializers.ValidationError(f"The column name '{name}' is duplicated.")
             seen.add(name.lower())
             ctype = str(col.get("type", "text"))
             if ctype not in self.COLUMN_TYPES:
-                raise serializers.ValidationError(f"'{name}' 의 종류 '{ctype}' 를 알 수 없습니다.")
+                raise serializers.ValidationError(f"Unknown type '{ctype}' for '{name}'.")
             entry = {"name": name[:100], "type": ctype}
             if ctype in ("select", "multi_select"):
                 options = col.get("options") or []
                 if not isinstance(options, list):
-                    raise serializers.ValidationError(f"'{name}' 의 선택지는 목록이어야 합니다.")
+                    raise serializers.ValidationError(f"The options for '{name}' must be a list.")
                 entry["options"] = [str(o).strip()[:100] for o in options if str(o).strip()][:50]
             cleaned.append(entry)
         return cleaned
@@ -164,7 +164,7 @@ class DocumentSerializer(serializers.ModelSerializer):
 
     def validate_properties(self, value):
         if not isinstance(value, dict):
-            raise serializers.ValidationError("프로퍼티는 key-value 묶음이어야 합니다.")
+            raise serializers.ValidationError("Properties must be a key-value object.")
         if len(value) > self.MAX_PROPERTY_KEYS:
             raise serializers.ValidationError(
                 f"프로퍼티는 최대 {self.MAX_PROPERTY_KEYS}개까지입니다."
@@ -173,17 +173,17 @@ class DocumentSerializer(serializers.ModelSerializer):
         for key, val in value.items():
             name = str(key).strip()
             if not name:
-                raise serializers.ValidationError("프로퍼티 이름은 비워 둘 수 없습니다.")
+                raise serializers.ValidationError("A property name cannot be empty.")
             # 무언가를 가리키는 칸 — 보여줄 이름과 따라갈 id 를 함께 담는다
             if isinstance(val, dict):
                 ref_id = str(val.get("id", "")).strip()
                 label = str(val.get("label", "")).strip()
                 if not ref_id:
-                    raise serializers.ValidationError(f"'{name}' 이 가리키는 대상이 없습니다.")
+                    raise serializers.ValidationError(f"'{name}' points to something that does not exist.")
                 cleaned[name] = {"id": ref_id[:64], "label": label[:200]}
             elif isinstance(val, list):
                 if not all(isinstance(v, (str, int, float, bool)) for v in val):
-                    raise serializers.ValidationError(f"'{name}' 목록에는 값만 넣을 수 있습니다.")
+                    raise serializers.ValidationError(f"The '{name}' list can only contain values.")
                 cleaned[name] = [str(v) if not isinstance(v, bool) else v for v in val]
             elif isinstance(val, (str, int, float, bool)) or val is None:
                 cleaned[name] = val

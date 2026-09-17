@@ -306,7 +306,7 @@ class WorkspaceDetailView(generics.RetrieveUpdateDestroyAPIView):
         ).first()
         if membership is None or membership.role != WorkspaceMember.Role.OWNER:
             from rest_framework.exceptions import PermissionDenied
-            raise PermissionDenied("워크스페이스 삭제는 소유자 또는 슈퍼어드민만 할 수 있습니다.")
+            raise PermissionDenied("Only the owner or a superadmin can delete a workspace.")
         instance.delete()
 
     def update(self, request, *args, **kwargs):

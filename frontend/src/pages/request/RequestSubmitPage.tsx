@@ -442,7 +442,7 @@ export function RequestSubmitPage() {
           {activeTab === "history" && (
             <div>
               <div className="flex items-center gap-2 px-5 py-3 border-b border-border">
-                <span className="text-xs text-muted-foreground">{t("request.filter", "필터")}</span>
+                <span className="text-xs text-muted-foreground">{t("request.filterLabel", "필터")}</span>
                 <FilterChip active={historyFilter === "rejected"} onClick={() => setHistoryFilter("rejected")}>
                   {t("request.filter.rejected", "거절됨")}
                 </FilterChip>

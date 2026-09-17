@@ -21,7 +21,11 @@
       "error": "이메일 또는 비밀번호가 올바르지 않습니다",
       "noAccount": "계정이 없으신가요?",
       "signUpLink": "회원가입",
-      "forgotPassword": "비밀번호 찾기"
+      "forgotPassword": "비밀번호 찾기",
+      "approvalNoticeBody": "가입은 완료됐습니다. 관리자가 승인하면 로그인할 수 있습니다.",
+      "approvalNoticeTitle": "관리자 승인이 필요합니다",
+      "verifyEmailNoticeBody": "가입한 이메일 주소로 인증 링크를 보냈습니다. 메일을 확인한 뒤 로그인해 주세요.",
+      "verifyEmailNoticeTitle": "이메일 인증이 필요합니다"
     },
     "register": {
       "subtitle": "새 계정을 만드세요",
@@ -54,7 +58,21 @@
       "lastNamePlaceholder": "성 입력",
       "firstName": "이름(First Name)",
       "firstNamePlaceholder": "이름 입력",
-      "displayName": "표시 이름(Display Name)"
+      "displayName": "표시 이름(Display Name)",
+      "autoRedirecting": "잠시 후 로그인 화면으로 이동합니다...",
+      "backToLogin": "로그인 화면으로",
+      "bigNoticeBody": "이메일 인증 → 관리자 승인 → 워크스페이스 입장 순서입니다.",
+      "bigNoticeTitle": "⚠ 가입 후 워크스페이스 관리자가 승인해야 사용할 수 있습니다",
+      "verifyEmailBody1": "{{email}} 으로 인증 메일을 보냈습니다.",
+      "verifyEmailBody2": "메일을 열어 인증 링크를 클릭한 다음, 워크스페이스 관리자의 승인을 기다려 주세요.",
+      "verifyEmailHintTitle": "다음 단계",
+      "verifyEmailStep1": "메일함에서 OrbiTail 인증 메일을 확인하세요",
+      "verifyEmailStep2": "인증 링크를 클릭하세요",
+      "verifyEmailStep3": "워크스페이스 관리자가 가입을 승인할 때까지 기다리세요",
+      "verifyEmailTitle": "가입 신청이 접수되었습니다",
+      "workspace": "가입할 워크스페이스",
+      "workspaceHint": "선택하면 가입 즉시 해당 워크스페이스 관리자에게 가입 신청이 전달됩니다.",
+      "workspacePlaceholder": "워크스페이스 선택 (선택 사항)"
     },
     "forgotPassword": {
       "subtitle": "가입하신 이메일 주소를 입력해주세요",
@@ -83,7 +101,8 @@
       "toLogin": "로그인 페이지로",
       "errorTitle": "인증 실패",
       "defaultError": "이메일 인증에 실패했습니다.",
-      "invalidAccess": "유효하지 않은 접근입니다."
+      "invalidAccess": "유효하지 않은 접근입니다.",
+      "successAutoRequested": "워크스페이스 가입 신청이 자동으로 등록되었습니다. 워크스페이스 관리자의 승인을 기다려 주세요."
     }
   },
   "issues": {
@@ -173,7 +192,9 @@
         "cycle": "스프린트",
         "createdAt": "생성일",
         "updatedAt": "수정일"
-      }
+      },
+      "resetSort": "정렬 초기화",
+      "resetSortHint": "수동 순서로 복귀"
     },
     "bulk": {
       "selected": "{{count}}개 선택됨",
@@ -226,7 +247,8 @@
         "links": "링크",
         "comments": "댓글",
         "attachments": "첨부파일",
-        "activity": "활동 로그"
+        "activity": "활동 로그",
+        "nodes": "관련 이슈"
       },
       "meta": {
         "title": "제목",
@@ -241,7 +263,10 @@
         "createdBy": "생성자",
         "createdAt": "생성일",
         "updatedAt": "최근 수정",
-        "info": "정보"
+        "info": "정보",
+        "notSharedWithTeam": "본인만 보기",
+        "sharedWithTeam": "팀 캘린더에 표시",
+        "teamShare": "팀 공유"
       },
       "subIssues": {
         "empty": "하위 이슈가 없습니다",
@@ -301,7 +326,9 @@
         "linkDeleteFailed": "링크 삭제에 실패했습니다.",
         "subIssueCreateFailed": "하위 이슈 생성에 실패했습니다.",
         "attachmentUploadFailed": "파일 업로드에 실패했습니다.",
-        "attachmentDeleteFailed": "첨부파일 삭제에 실패했습니다."
+        "attachmentDeleteFailed": "첨부파일 삭제에 실패했습니다.",
+        "nodeLinkCreateFailed": "관련 이슈 연결에 실패했습니다",
+        "updated": "{{field}} 수정됨"
       },
       "attachments": {
         "empty": "첨부된 파일이 없습니다",
@@ -312,7 +339,19 @@
         "dropHere": "파일을 여기에 놓으세요"
       },
       "attachDoc": "문서 연결",
-      "unlinkDoc": "연결 해제"
+      "unlinkDoc": "연결 해제",
+      "description": "설명",
+      "nodes": {
+        "empty": "아직 연결된 이슈가 없습니다. 다른 프로젝트나 트리의 이슈도 자유롭게 연결할 수 있습니다.",
+        "linked": "연결됨",
+        "otherProjects": "다른 프로젝트",
+        "remove": "연결 해제",
+        "searchEmpty": "검색 결과 없음",
+        "searchHint": "다른 프로젝트 검색은 2자 이상 입력",
+        "searchPlaceholder": "이슈 제목으로 검색 (2자 이상)",
+        "self": "자기 자신",
+        "thisProject": "이 프로젝트"
+      }
     },
     "field": {
       "label": "필드",
@@ -330,7 +369,8 @@
       "submit": "이동",
       "moved": "{{identifier}}(으)로 옮겼습니다",
       "failed": "이동하지 못했습니다"
-    }
+    },
+    "categoryInheritsFromParent": "하위 이슈는 상위 이슈의 모듈을 따라갑니다"
   },
   "setup": {
     "title": "초기 설정",
@@ -481,7 +521,16 @@
         "deleteDescription": "프로젝트를 휴지통으로 옮깁니다. 30일이 지나면 모든 데이터가 영구 삭제됩니다.",
         "deleteButton": "삭제",
         "deleteConfirmMessage": "휴지통으로 옮깁니다. 30일 안에는 워크스페이스 설정 › 보관함에서 복구할 수 있고, 지나면 이슈·문서까지 영구 삭제됩니다. 확인을 위해 프로젝트 이름 '{{name}}'을 입력해주세요.",
-        "deleted": "프로젝트를 휴지통으로 옮겼습니다"
+        "deleted": "프로젝트를 휴지통으로 옮겼습니다",
+        "autoSaved": "변경 사항은 자동으로 저장됩니다.",
+        "featuresTitle": "사용할 기능",
+        "icon": "프로젝트 아이콘",
+        "reviewPolicy": {
+          "admin": "관리자만",
+          "all": "모든 멤버 가능"
+        },
+        "reviewPolicyTitle": "요청 승인 권한",
+        "unarchived": "보관함에서 복구했습니다"
       },
       "members": {
         "title": "멤버",
@@ -511,7 +560,8 @@
         "permDelete": "휴지통",
         "permPurge": "영구 삭제",
         "permSchedule": "일정 수정",
-        "permEmpty": "관리자가 아닌 멤버가 없습니다."
+        "permEmpty": "관리자가 아닌 멤버가 없습니다.",
+        "toggleAllHint": "전체 토글"
       },
       "autoArchive": {
         "title": "자동 보관",
@@ -527,6 +577,12 @@
         "saving": "저장 중...",
         "saved": "자동 보관 설정이 저장되었습니다",
         "saveFailed": "저장에 실패했습니다"
+      },
+      "automation": {
+        "subtitle": "정책 — 자동 보관과 외부 통합"
+      },
+      "workflow": {
+        "subtitle": "이슈를 분류하는 도구 — 상태와 라벨"
       }
     }
   },
@@ -684,7 +740,19 @@
       "all": "전체",
       "me": "내 일정",
       "user": "사용자별"
-    }
+    },
+    "daySuffix": "일",
+    "drawer": {
+      "dragHint": "드래그해서 캘린더에 놓기",
+      "empty": "표시할 이슈가 없습니다",
+      "meOnly": "내 이슈만",
+      "noPerm": "일정 수정 권한이 없습니다",
+      "statesFilter": "상태",
+      "title": "이슈",
+      "toggle": "이슈 패널"
+    },
+    "monthSuffix": "월",
+    "moreCount": "개 더"
   },
   "events": {
     "add": "이벤트",
@@ -713,7 +781,9 @@
       "descriptionPlaceholder": "메모 또는 참고사항",
       "participants": "참여자",
       "global": "프로젝트 전체 일정",
-      "globalHint": "프로젝트·팀 캘린더에만 표시되고, 멤버 개인 일정에는 들어가지 않습니다"
+      "globalHint": "프로젝트·팀 캘린더에만 표시되고, 멤버 개인 일정에는 들어가지 않습니다",
+      "shareWithTeam": "팀과 공유",
+      "shareWithTeamHint": "켜면 같은 팀 멤버의 팀 캘린더에 표시됩니다"
     },
     "type": {
       "meeting": "회의",
@@ -846,7 +916,14 @@
     "unfavorite": "즐겨찾기에서 제거",
     "allFavorited": "모든 프로젝트가 즐겨찾기에 있습니다",
     "privateProjects": "비공개",
-    "logout": "로그아웃"
+    "logout": "로그아웃",
+    "collapseProject": "접기",
+    "expandProject": "펴기",
+    "goHome": "홈으로",
+    "sendRequest": "요청",
+    "teams": "팀",
+    "workspaceMenu": "워크스페이스 메뉴",
+    "workspaceSettings": "워크스페이스 설정"
   },
   "topbar": {
     "search": "이슈 검색...",
@@ -891,7 +968,8 @@
       "created": "생성",
       "completed": "완료",
       "noAssignees": "담당자가 배정된 이슈가 없습니다"
-    }
+    },
+    "filterByState": "상태"
   },
   "workspaceSelect": {
     "loading": "로딩 중...",
@@ -904,7 +982,13 @@
     "deleteConfirm": "이 워크스페이스를 영구 삭제하려면 이름 \"{{name}}\"을(를) 그대로 입력하세요:",
     "deleteMismatch": "이름이 일치하지 않아 삭제를 취소했습니다.",
     "deleteSuccess": "워크스페이스가 삭제되었습니다.",
-    "deleteFailed": "워크스페이스 삭제에 실패했습니다."
+    "deleteFailed": "워크스페이스 삭제에 실패했습니다.",
+    "cancelRequest": "신청 취소",
+    "pendingHint": "관리자 승인을 기다리는 중입니다",
+    "pendingTitle": "승인 대기 중",
+    "pickToJoin": "가입할 워크스페이스를 선택하세요",
+    "requestFailed": "가입 신청에 실패했습니다.",
+    "requested": "가입 신청을 보냈습니다. 관리자 승인을 기다려 주세요."
   },
   "settings": {
     "layout": {
@@ -921,7 +1005,11 @@
       "sponsorGithub": "GitHub Sponsors",
       "sponsorKofi": "Ko-fi",
       "workspaceApiTokens": "API 토큰",
-      "workspaceWebhooks": "웹훅"
+      "workspaceWebhooks": "웹훅",
+      "workspaceAdmin": "워크스페이스 관리",
+      "workspaceArchived": "보관함",
+      "workspaceGeneral": "일반",
+      "workspaceJoinRequests": "가입 승인"
     },
     "workspaceMembers": {
       "title": "워크스페이스 멤버",
@@ -981,7 +1069,26 @@
       "emailRequestAgain": "다시 요청하기",
       "emailNew": "새 이메일 주소",
       "emailSending": "발송 중...",
-      "emailSendVerification": "인증 메일 발송"
+      "emailSendVerification": "인증 메일 발송",
+      "avatarChange": "프로필 사진 변경",
+      "avatarHint": "PNG/JPG, 최대 5MB",
+      "avatarHover": "사진을 클릭해 변경, 우측 아래 버튼으로 삭제",
+      "avatarInvalidType": "이미지 파일만 업로드할 수 있습니다.",
+      "avatarLabel": "프로필 사진",
+      "avatarRemove": "삭제",
+      "avatarRemoveFailed": "프로필 사진 삭제에 실패했습니다.",
+      "avatarRemoved": "프로필 사진이 삭제되었습니다.",
+      "avatarTooLarge": "5MB 이하 이미지만 업로드할 수 있습니다.",
+      "avatarUpdateFailed": "프로필 사진 변경에 실패했습니다.",
+      "avatarUpdated": "프로필 사진이 변경되었습니다.",
+      "avatarUploading": "업로드 중...",
+      "crop": {
+        "apply": "적용",
+        "resetRotation": "회전 초기화",
+        "rotation": "회전",
+        "title": "프로필 사진 편집",
+        "zoom": "확대"
+      }
     },
     "preferences": {
       "title": "환경설정",
@@ -1146,6 +1253,24 @@
         "success": "성공",
         "failed": "실패"
       }
+    },
+    "workspaceJoinRequests": {
+      "approve": "승인",
+      "approved": "가입을 승인했습니다.",
+      "decidedOn": "처리일",
+      "emptyAll": "가입 신청 내역이 없습니다.",
+      "emptyPending": "대기 중인 가입 신청이 없습니다.",
+      "reject": "거절",
+      "rejected": "가입 신청을 거절했습니다.",
+      "requestedOn": "신청일",
+      "statusApproved": "승인됨",
+      "statusCanceled": "취소됨",
+      "statusPending": "대기",
+      "statusRejected": "거절됨",
+      "subtitle": "워크스페이스 가입을 신청한 사용자를 승인하거나 거절합니다.",
+      "tabAll": "전체",
+      "tabPending": "대기",
+      "title": "가입 승인"
     }
   },
   "emailVerify": {
@@ -1185,7 +1310,8 @@
       "restore": "복원",
       "restored": "이슈가 보관함에서 복원되었습니다",
       "archivedDate": "보관일",
-      "readOnlyNotice": "보관된 이슈입니다. 수정하려면 복원하세요."
+      "readOnlyNotice": "보관된 이슈입니다. 수정하려면 복원하세요.",
+      "delete": "삭제"
     },
     "trash": {
       "empty": "삭제된 이슈가 없습니다",
@@ -1197,7 +1323,11 @@
       "daysLeft": "{{count}}일 남음",
       "purge": "영구 삭제",
       "purged": "이슈가 영구 삭제되었습니다",
-      "purgeConfirm": "이 작업은 되돌릴 수 없습니다. 이 이슈를 영구 삭제하시겠습니까?"
+      "purgeConfirm": "이 작업은 되돌릴 수 없습니다. 이 이슈를 영구 삭제하시겠습니까?",
+      "tabs": {
+        "attachments": "첨부파일",
+        "issues": "이슈"
+      }
     },
     "categoryFilter": {
       "all": "전체 이슈",
@@ -1263,7 +1393,13 @@
     "quote": "인용",
     "link": "링크",
     "undo": "실행 취소",
-    "redo": "다시 실행"
+    "redo": "다시 실행",
+    "alignCenter": "가운데 정렬",
+    "alignLeft": "왼쪽 정렬",
+    "alignRight": "오른쪽 정렬",
+    "highlight": "형광펜",
+    "image": "이미지",
+    "underline": "밑줄"
   },
   "search": {
     "placeholder": "이슈 검색... (제목으로 검색)",
@@ -1311,7 +1447,18 @@
       "general": "일반",
       "creative": "크리에이티브",
       "content": "콘텐츠"
-    }
+    },
+    "customImage": "사용자 지정",
+    "notImage": "이미지 파일만 업로드할 수 있습니다.",
+    "removeImage": "기본 아이콘으로 되돌리기",
+    "replace": "이미지 교체",
+    "tabDefault": "기본",
+    "tabImage": "사용자 지정",
+    "tooLarge": "5MB 이하 이미지만 업로드할 수 있습니다.",
+    "uploadFailed": "아이콘 업로드에 실패했습니다.",
+    "uploadHint": "이미지 선택 (PNG/JPG, 5MB 이하)",
+    "uploaded": "아이콘이 업로드되었습니다.",
+    "uploading": "업로드 중..."
   },
   "invite": {
     "title": "워크스페이스 초대",
@@ -1382,7 +1529,12 @@
       "users": "사용자 관리",
       "workspaces": "워크스페이스 관리",
       "superusers": "슈퍼 어드민",
-      "audit": "감사 로그"
+      "audit": "감사 로그",
+      "backToApp": "워크스페이스로 돌아가기",
+      "content": "첨부 탐색",
+      "overview": "개요",
+      "scopeAll": "전체 시스템",
+      "systemAdmin": "시스템 관리"
     },
     "users": {
       "title": "사용자 관리",
@@ -1429,7 +1581,8 @@
       "transferTitle": "{{name}} 소유자 이관",
       "transferDesc": "현재 소유자: {{current}} — 새 소유자에게 이관하면 기존 소유자는 Admin으로 강등됩니다.",
       "newOwnerLabel": "새 소유자",
-      "transferSuccess": "소유자를 이관했습니다."
+      "transferSuccess": "소유자를 이관했습니다.",
+      "spacesBtn": "스페이스 정리"
     },
     "superusers": {
       "title": "슈퍼 어드민",
@@ -1459,7 +1612,79 @@
         "workspace_create": "워크스페이스 생성",
         "workspace_delete": "워크스페이스 삭제",
         "workspace_owner": "소유자 이관"
-      }
+      },
+      "columnAction": "행위",
+      "columnActor": "행위자",
+      "columnMetadata": "상세",
+      "columnTarget": "대상",
+      "columnTime": "시각",
+      "filterFrom": "시작일",
+      "filterTargetType": "대상 종류",
+      "filterTo": "종료일",
+      "searchPlaceholder": "행위자 · 대상 검색",
+      "targetUser": "사용자",
+      "targetWorkspace": "워크스페이스"
+    },
+    "content": {
+      "badgeComment": "댓글",
+      "badgePersonal": "개인",
+      "columnDocument": "문서",
+      "columnFile": "파일명",
+      "columnIssue": "이슈",
+      "columnSize": "크기",
+      "columnUploaded": "업로드",
+      "columnUploader": "업로더",
+      "columnWorkspace": "워크스페이스",
+      "desc": "전체 워크스페이스의 첨부를 찾고 정리합니다.",
+      "download": "다운로드",
+      "empty": "첨부가 없습니다",
+      "emptyDesc": "검색어나 필터를 바꿔보세요.",
+      "filterFrom": "시작일",
+      "filterKind": "종류",
+      "filterOrigin": "업로드 경로",
+      "filterTo": "종료일",
+      "filterWorkspace": "워크스페이스",
+      "openParent": "원본 열기",
+      "originComment": "댓글",
+      "originDirect": "첨부 탭",
+      "searchPlaceholder": "파일명 · 제목 검색",
+      "tabDocument": "문서 첨부",
+      "tabIssue": "이슈 첨부",
+      "title": "콘텐츠 탐색기"
+    },
+    "group": {
+      "content": "콘텐츠",
+      "org": "조직",
+      "people": "구성원",
+      "records": "기록",
+      "status": "현황"
+    },
+    "overview": {
+      "deletedUsers": "탈퇴 계정",
+      "desc": "전체 시스템의 현재 상태입니다.",
+      "queueClear": "처리할 항목이 없습니다.",
+      "queuePending": "가입 승인 대기",
+      "queuePendingHint": "이메일 인증까지 끝낸 사용자입니다",
+      "queueSuspended": "정지된 계정",
+      "queueSuspendedHint": "로그인이 차단된 상태입니다",
+      "queueUnverified": "이메일 미인증",
+      "queueUnverifiedHint": "인증 전에는 승인할 수 없습니다",
+      "sectionQueue": "처리 대기",
+      "sectionScale": "규모",
+      "sectionSignups": "최근 가입",
+      "sectionStorage": "저장 용량",
+      "signup30d": "최근 30일",
+      "signup7d": "최근 7일",
+      "statDocuments": "문서",
+      "statIssuesSub": "이슈 {{count}}건",
+      "statProjects": "프로젝트",
+      "statUsers": "사용자",
+      "statUsersSub": "슈퍼유저 {{count}}명",
+      "statWorkspaces": "워크스페이스",
+      "storageDocuments": "문서 첨부",
+      "storageIssues": "이슈 첨부",
+      "storageTotal": "첨부 {{count}}개",
+      "title": "시스템 개요"
     }
   },
   "common": {
@@ -1479,7 +1704,13 @@
     "cancel": "취소",
     "confirm": "확인",
     "close": "닫기 (Esc)",
-    "clickToEdit": "클릭하여 편집"
+    "clickToEdit": "클릭하여 편집",
+    "create": "생성",
+    "creating": "생성 중...",
+    "error": "처리에 실패했습니다.",
+    "loading": "불러오는 중…",
+    "search": "검색",
+    "unknown": "이름 없음"
   },
   "time": {
     "justNow": "방금 전",
@@ -1498,7 +1729,9 @@
     "deleted": "라벨이 삭제되었습니다.",
     "deleteFailed": "삭제에 실패했습니다.",
     "created": "라벨이 추가되었습니다.",
-    "createFailed": "추가에 실패했습니다."
+    "createFailed": "추가에 실패했습니다.",
+    "add": "라벨 추가",
+    "namePlaceholder": "라벨 이름 (Enter)"
   },
   "states": {
     "title": "상태 관리",
@@ -1614,7 +1847,18 @@
     "backToDocument": "표 해제",
     "fields": "칸",
     "projectIssues": "프로젝트 이슈",
-    "homeDocument": "홈 문서"
+    "homeDocument": "홈 문서",
+    "cyclicNestError": "자신 또는 하위 문서로는 이동할 수 없습니다",
+    "docCountTotal": "문서",
+    "dropToRoot": "여기에 끌어 놓으면 최상위로",
+    "home": "홈",
+    "recentlyUpdated": "최근 업데이트",
+    "rootPages": "최상위 문서",
+    "spaceDescription": "설명 (선택)",
+    "spaceDescriptionPlaceholder": "이 스페이스의 목적을 간단히 설명하세요",
+    "spaceIdentifier": "구분자 (선택)",
+    "spaceIdentifierHint": "영문 대문자/숫자, 최대 12자. 문서 URL 및 참조에 사용됩니다.",
+    "spaceNamePlaceholder": "예: 기술 문서"
   },
   "projectFilter": {
     "label": "프로젝트",
@@ -1728,7 +1972,12 @@
       "hint": "내가 담당한 이슈의 마감/시작일과 프로젝트 이벤트, 그리고 개인 일정을 한 캘린더에 모아 봅니다. 빈 셀을 누르면 그 날짜에 개인 일정을 추가할 수 있어요.",
       "today": "오늘",
       "newEvent": "새 일정",
-      "more": "개 더"
+      "more": "개 더",
+      "newIssue": "새 이슈",
+      "toast": {
+        "eventUpdateFailed": "이벤트 수정 권한이 없습니다",
+        "updateFailed": "일정 수정에 실패했습니다"
+      }
     },
     "graph": {
       "hint": "내가 담당한 이슈를 워크스페이스 → 프로젝트 단위로 묶어 한눈에 봅니다. 칩을 누르면 해당 이슈가 팝업으로 열려요.",
@@ -1767,6 +2016,16 @@
         "updateFailed": "일정 수정에 실패했습니다.",
         "deleteFailed": "일정 삭제에 실패했습니다."
       }
+    },
+    "personalIssue": {
+      "createFailed": "이슈 생성에 실패했습니다",
+      "created": "단발성 이슈가 생성되었습니다",
+      "fields": {
+        "descPlaceholder": "메모 (선택)",
+        "title": "제목",
+        "titlePlaceholder": "할 일을 입력하세요"
+      },
+      "title": "단발성 이슈"
     }
   },
   "inbox": {
@@ -1802,5 +2061,105 @@
     "startFailed": "데모를 시작하지 못했습니다. 잠시 후 다시 시도해 주세요.",
     "badgeLabel": "데모",
     "badgeRemaining": "{{hours}}시간 {{minutes}}분 남음"
+  },
+  "appUpdate": {
+    "refresh": "새로고침",
+    "title": "새 버전이 배포되었습니다"
+  },
+  "graph": {
+    "animation": "애니메이션 모드",
+    "empty": "이 프로젝트에 아직 이슈가 없습니다.",
+    "labelSize": "라벨 크기",
+    "orbitSpeed": "궤도 속도",
+    "showIds": "이슈 ID 표시",
+    "view": "뷰"
+  },
+  "request": {
+    "bug": {
+      "actual": "실제 동작",
+      "details": "재현 단계 · 환경 · 심각도 (선택)",
+      "environment": "환경",
+      "expected": "예상 동작",
+      "severity": "심각도",
+      "severityUnset": "미지정",
+      "steps": "재현 단계",
+      "tab": "버그 리포트",
+      "tabHint": "작동이 이상하거나 오류 발생"
+    },
+    "create": "요청 생성",
+    "description": "설명",
+    "descriptionPlaceholder": "내용을 입력하거나 이미지를 드래그/붙여넣기 하세요",
+    "emptyHistory": "해당 항목이 없습니다",
+    "emptyPending": "대기 중인 요청이 없습니다",
+    "feature": {
+      "tab": "기능 요청",
+      "tabHint": "이런 기능이 있으면 좋겠어요"
+    },
+    "filter": {
+      "all": "전체",
+      "approved": "승인됨",
+      "bug": "버그",
+      "feature": "기능",
+      "mine": "내가 제출",
+      "rejected": "거절됨"
+    },
+    "private": "비공개",
+    "privateHint": "제출자와 관리자만 조회 가능",
+    "public": "공개",
+    "publicHint": "멤버 누구나 조회 가능",
+    "queueHeadline": "요청",
+    "queueSubtitle": "버그/기능 요청을 접수하고 프로젝트에 반영할지 결정합니다.",
+    "section": {
+      "submit": "요청 생성"
+    },
+    "subject": "제목",
+    "submit": "요청 보내기",
+    "submitFailed": "요청 접수 실패",
+    "submitted": "요청이 접수되었습니다",
+    "submitting": "제출 중...",
+    "tab": {
+      "history": "처리됨",
+      "pending": "대기"
+    },
+    "title": "요청",
+    "titlePlaceholder": "제목",
+    "visibility": "공개 범위",
+    "filterLabel": "필터"
+  },
+  "workspaceSettings": {
+    "general": {
+      "brandColor": "브랜드 색",
+      "brandColorDesc": "워크스페이스 아바타와 액센트에 사용. 빈 값이면 기본 색 사용.",
+      "changeSlug": "변경",
+      "description": "설명",
+      "descriptionPlaceholder": "이 워크스페이스의 용도/팀 소개",
+      "logo": "로고",
+      "logoFailed": "로고 업로드 실패",
+      "logoUpdated": "로고가 변경되었습니다",
+      "name": "이름",
+      "namePlaceholder": "워크스페이스 이름",
+      "priorityColors": "우선순위 색",
+      "priorityColorsDesc": "이슈 우선순위 5단계의 색을 워크스페이스 단위로 커스터마이즈",
+      "remove": "제거",
+      "resetDefaults": "기본값으로",
+      "slug": "주소(slug)",
+      "slugChanged": "주소가 변경되었습니다",
+      "slugFailed": "주소 변경에 실패했습니다",
+      "slugHint": "URL 의 일부 — 변경 시 모든 링크가 깨집니다",
+      "slugWarn": {
+        "confirm": "변경하기",
+        "l1": "북마크/공유 링크 모두 깨짐",
+        "l2": "외부 시스템(CI/Webhook)에 등록된 URL 도 수동 업데이트 필요",
+        "l3": "이전 주소는 즉시 사용 불가",
+        "line1": "주소를 바꾸면 다음이 모두 영향을 받습니다:",
+        "newSlug": "새 주소 (영문 소문자/숫자/하이픈만)",
+        "title": "주소 변경 — 신중하게"
+      },
+      "subtitle": "워크스페이스 기본 정보 — 변경은 자동 저장됩니다",
+      "title": "일반 설정",
+      "updateFailed": "변경에 실패했습니다",
+      "upload": "업로드",
+      "useDefault": "기본값"
+    }
   }
 }

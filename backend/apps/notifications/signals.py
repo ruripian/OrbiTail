@@ -225,9 +225,9 @@ def notify_on_issue_activity(sender, instance, created, **kwargs):
     breadcrumb = _issue_breadcrumb(issue)
     project_name = issue.project.name
     if activity.new_value:
-        message = f"{actor.display_name}님이 {project_name}에서 '{breadcrumb}'의 {field}을(를) 변경했습니다."
+        message = f"{actor.display_name} changed {field} on '{breadcrumb}' in {project_name}."
     else:
-        message = f"{actor.display_name}님이 {project_name}에서 '{breadcrumb}'을(를) 업데이트했습니다."
+        message = f"{actor.display_name} updated '{breadcrumb}' in {project_name}."
 
     _create_notifications(
         recipients=assignees,
@@ -277,8 +277,8 @@ def notify_on_comment(sender, instance, created, **kwargs):
             issue=issue,
             ntype=Notification.Type.MENTIONED,
             message=(
-                f"{actor.display_name}님이 {project_name}에서 "
-                f"'{breadcrumb}' 댓글에서 회원님을 멘션했습니다."
+                f"{actor.display_name} mentioned you in a comment on "
+                f"'{breadcrumb}' in {project_name}."
             ),
         )
 
@@ -292,8 +292,8 @@ def notify_on_comment(sender, instance, created, **kwargs):
                 issue=issue,
                 ntype=Notification.Type.COMMENT_REPLIED,
                 message=(
-                    f"{actor.display_name}님이 {project_name}에서 "
-                    f"'{breadcrumb}' 회원님 댓글에 답글을 남겼습니다."
+                    f"{actor.display_name} replied to your comment on "
+                    f"'{breadcrumb}' in {project_name}."
                 ),
             )
         return
@@ -311,8 +311,8 @@ def notify_on_comment(sender, instance, created, **kwargs):
     recipients = list(User.objects.filter(id__in=recipients_ids))
 
     message = (
-        f"{actor.display_name}님이 {project_name}에서 "
-        f"'{breadcrumb}'에 댓글을 남겼습니다."
+        f"{actor.display_name} commented on "
+        f"'{breadcrumb}' in {project_name}."
     )
 
     _create_notifications(
@@ -368,13 +368,13 @@ def broadcast_issue_change(sender, instance, created, **kwargs):
 
     if issue.parent_id and issue.parent:
         message = (
-            f"{actor.display_name}님이 {issue.project.name}에서 "
-            f"'{issue.parent.title}' 아래에 새 이슈 '{issue.title}'을(를) 생성했습니다."
+            f"{actor.display_name} created a new issue '{issue.title}' under "
+            f"'{issue.parent.title}' in {issue.project.name}."
         )
     else:
         message = (
-            f"{actor.display_name}님이 {issue.project.name}에 "
-            f"새 이슈 '{issue.title}'을(를) 생성했습니다."
+            f"{actor.display_name} created a new issue '{issue.title}' "
+            f"in {issue.project.name}."
         )
     _create_notifications(
         recipients=recipients,
@@ -408,8 +408,8 @@ def notify_on_assignee_added(sender, instance, action, pk_set, **kwargs):
     new_assignees = list(User.objects.filter(id__in=pk_set))
 
     message = (
-        f"{actor.display_name}님이 {issue.project.name}에서 "
-        f"'{_issue_breadcrumb(issue)}'에 담당자로 배정했습니다."
+        f"{actor.display_name} assigned you to "
+        f"'{_issue_breadcrumb(issue)}' in {issue.project.name}."
     )
 
     _create_notifications(
@@ -443,8 +443,8 @@ def notify_on_assignee_removed(sender, instance, action, pk_set, **kwargs):
     removed = list(User.objects.filter(id__in=pk_set))
 
     message = (
-        f"{actor.display_name}님이 {issue.project.name}에서 "
-        f"'{_issue_breadcrumb(issue)}'의 담당자에서 제외했습니다."
+        f"{actor.display_name} removed you as an assignee on "
+        f"'{_issue_breadcrumb(issue)}' in {issue.project.name}."
     )
 
     _create_notifications(
