@@ -2,8 +2,10 @@ import logging
 from datetime import timedelta
 
 from django.conf import settings
+from django.utils import translation
 from django.core.mail import send_mail
 from django.utils import timezone
+from django.utils.translation import gettext
 
 logger = logging.getLogger(__name__)
 from rest_framework import generics, permissions, status
@@ -14,7 +16,7 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 
-from .models import Announcement, EmailChangeToken, EmailVerificationToken, PasswordResetToken, User
+from .models import Announcement, EmailChangeToken, EmailVerificationToken, PasswordResetToken, User, request_language, user_language
 
 
 def _create_join_request(user, workspace, notify_admins=True):
@@ -94,6 +96,9 @@ class RegisterView(generics.CreateAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
+        # 모델 기본값("ko") 대신 가입한 화면의 언어로 — 이후 메일·알림이 이 언어로 나간다
+        user.language = request_language()
+        user.save(update_fields=["language"])
 
         # 첫 가입자 부트스트랩 — 시스템에 슈퍼유저가 0명이면 이 계정을 즉시 슈퍼유저로 승격.
         # `createsuperuser` 없이 웹 가입만으로 초기 관리자 계정 셋업이 가능하도록 하는 장치.
@@ -108,7 +113,7 @@ class RegisterView(generics.CreateAPIView):
                 "is_approved", "is_email_verified",
             ])
             return Response(
-                {"detail": "첫 관리자 계정으로 등록되었습니다. 바로 로그인할 수 있습니다.",
+                {"detail": gettext("You are registered as the first administrator. You can sign in right away."),
                  "email_verification_required": False, "auto_activated": True, "bootstrap_superuser": True},
                 status=status.HTTP_201_CREATED,
             )
@@ -142,7 +147,7 @@ class RegisterView(generics.CreateAPIView):
                 invite.save(update_fields=["status"])
                 return Response(
                     {
-                        "detail": "초대 수락 완료. 바로 로그인할 수 있습니다.",
+                        "detail": gettext("Invitation accepted. You can sign in right away."),
                         "email_verification_required": False,
                         "auto_activated": True,
                         # 프론트가 로그인 후 /invite/{token} 대신 워크스페이스로 직진하도록 응답에 포함.
@@ -166,21 +171,21 @@ class RegisterView(generics.CreateAPIView):
             )
             verify_url = f"{settings.FRONTEND_URL}/auth/verify-email?token={token_obj.token}"
             send_mail(
-                subject="[OrbiTail] 이메일 인증 안내",
-                message=(
-                    f"안녕하세요, {user.display_name}님.\n\n"
-                    f"OrbiTail 에 가입하신 것을 환영합니다.\n"
-                    f"아래 링크를 클릭하여 이메일 인증을 완료해주세요.\n\n"
-                    f"{verify_url}\n\n"
-                    f"인증을 완료하면 워크스페이스 관리자의 가입 승인을 기다리게 됩니다.\n"
-                    f"승인이 완료되면 워크스페이스에 입장할 수 있습니다.\n"
-                    f"이 링크는 24시간 후 만료됩니다."
-                ),
+                subject=gettext("[OrbiTail] Verify your email"),
+                message=gettext(
+                    "Hello %(name)s,\n\n"
+                    "Welcome to OrbiTail.\n"
+                    "Click the link below to verify your email.\n\n"
+                    "%(url)s\n\n"
+                    "Once verified, you will wait for a workspace administrator to approve your sign-up.\n"
+                    "After approval you can enter the workspace.\n"
+                    "This link expires in 24 hours."
+                ) % {"name": user.display_name, "url": verify_url},
                 from_email=settings.DEFAULT_FROM_EMAIL,
                 recipient_list=[user.email],
             )
             return Response(
-                {"detail": "가입 완료. 이메일을 확인하여 인증을 완료해주세요.",
+                {"detail": gettext("Sign-up complete. Check your email to finish verification."),
                  "email_verification_required": True,
                  "requested_workspace": requested_workspace_slug},
                 status=status.HTTP_201_CREATED,
@@ -193,7 +198,7 @@ class RegisterView(generics.CreateAPIView):
             user.save(update_fields=["is_email_verified", "is_approved", "is_active"])
             requested_workspace_slug = _maybe_auto_request_join(user, requested_slug)
             return Response(
-                {"detail": "가입 완료. 바로 로그인할 수 있습니다.",
+                {"detail": gettext("Sign-up complete. You can sign in right away."),
                  "email_verification_required": False, "auto_activated": True,
                  "requested_workspace": requested_workspace_slug,
                  "auto_requested_workspace": requested_workspace_slug},  # 호환
@@ -273,7 +278,7 @@ class MeView(generics.RetrieveUpdateAPIView):
             try:
                 old_avatar.delete(save=False)
             except Exception as exc:
-                logger.warning("avatar 구파일 삭제 실패 user=%s: %s", serializer.instance.pk, exc)
+                logger.warning("failed to delete old avatar user=%s: %s", serializer.instance.pk, exc)
 
 
 
@@ -299,22 +304,22 @@ class IconUploadView(APIView):
 
         file_obj = request.FILES.get("file")
         if file_obj is None:
-            return Response({"detail": "file 필드가 필요합니다."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": gettext("The file field is required.")}, status=status.HTTP_400_BAD_REQUEST)
 
         if file_obj.size > self.MAX_SIZE:
             return Response(
-                {"detail": f"이미지는 {self.MAX_SIZE // (1024 * 1024)}MB 이하만 업로드할 수 있습니다."},
+                {"detail": gettext("Images must be %(mb)sMB or smaller.") % {"mb": self.MAX_SIZE // (1024 * 1024)}},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         ext = os.path.splitext(file_obj.name)[1].lower()
         if ext not in self.ALLOWED_EXTS:
-            return Response({"detail": "허용되지 않는 이미지 형식입니다."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": gettext("That image format is not allowed.")}, status=status.HTTP_400_BAD_REQUEST)
 
         # MIME 은 환경 따라 들쭉날쭉하므로 image/ 로 시작하거나 비어 있으면 통과
         ct = getattr(file_obj, "content_type", "") or ""
         if ct and not ct.startswith("image/"):
-            return Response({"detail": "이미지 파일만 업로드할 수 있습니다."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": gettext("Only image files can be uploaded.")}, status=status.HTTP_400_BAD_REQUEST)
 
         # 랜덤 파일명으로 저장 — 원본명은 보존하지 않음 (추후 추적 필요 없음)
         name = f"icons/{uuid.uuid4().hex}{ext}"
@@ -338,12 +343,12 @@ class DeleteAccountView(APIView):
 
         if not password:
             return Response(
-                {"detail": "비밀번호를 입력해주세요."},
+                {"detail": gettext("Enter your password.")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         if not user.check_password(password):
             return Response(
-                {"detail": "비밀번호가 올바르지 않습니다."},
+                {"detail": gettext("The password is incorrect.")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -357,7 +362,7 @@ class DeleteAccountView(APIView):
         user.email = masked_email
         user.save(update_fields=["deleted_at", "is_active", "email", "updated_at"])
 
-        return Response({"detail": "계정이 삭제되었습니다."}, status=status.HTTP_200_OK)
+        return Response({"detail": gettext("Your account has been deleted.")}, status=status.HTTP_200_OK)
 
 
 def _revoke_refresh_tokens(user):
@@ -381,7 +386,7 @@ class ChangePasswordView(APIView):
         user = request.user
         if not user.check_password(serializer.validated_data["current_password"]):
             return Response(
-                {"detail": "현재 비밀번호가 올바르지 않습니다."},
+                {"detail": gettext("Your current password is incorrect.")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -391,7 +396,7 @@ class ChangePasswordView(APIView):
         # 다른 기기의 세션은 끊고, 지금 바꾼 이 세션만 새 토큰으로 이어 간다
         from rest_framework_simplejwt.tokens import RefreshToken
         refresh = RefreshToken.for_user(user)
-        return Response({"detail": "비밀번호가 변경되었습니다.",
+        return Response({"detail": gettext("Your password has been changed."),
                          "access": str(refresh.access_token), "refresh": str(refresh)})
 
 
@@ -416,19 +421,19 @@ class EmailChangeRequestView(APIView):
 
         verify_url = f"{settings.FRONTEND_URL}/email-change/verify?token={token_obj.token}"
         send_mail(
-            subject="[OrbiTail] 이메일 변경 인증",
-            message=(
-                f"안녕하세요, {user.display_name}님.\n\n"
-                f"아래 링크를 클릭하여 이메일 변경을 완료하세요.\n\n"
-                f"{verify_url}\n\n"
-                f"이 링크는 24시간 후 만료됩니다.\n"
-                f"본인이 요청하지 않은 경우 이 메일을 무시하세요."
-            ),
+            subject=gettext("[OrbiTail] Confirm your email change"),
+            message=gettext(
+                "Hello %(name)s,\n\n"
+                "Click the link below to finish changing your email.\n\n"
+                "%(url)s\n\n"
+                "This link expires in 24 hours.\n"
+                "If you did not request this, you can ignore this email."
+            ) % {"name": user.display_name, "url": verify_url},
             from_email=settings.DEFAULT_FROM_EMAIL,
             recipient_list=[new_email],
         )
 
-        return Response({"detail": "인증 메일을 발송했습니다."})
+        return Response({"detail": gettext("A verification email has been sent.")})
 
 
 class EmailChangeVerifyView(APIView):
@@ -446,13 +451,13 @@ class EmailChangeVerifyView(APIView):
             )
         except EmailChangeToken.DoesNotExist:
             return Response(
-                {"detail": "유효하지 않은 토큰입니다."},
+                {"detail": gettext("Invalid token.")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         if not token_obj.is_valid():
             return Response(
-                {"detail": "만료된 토큰입니다. 이메일 변경을 다시 요청해주세요."},
+                {"detail": gettext("This link has expired. Request the email change again.")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -466,7 +471,7 @@ class EmailChangeVerifyView(APIView):
         # 이메일이 변경됐으므로 새 JWT 발급
         refresh = RefreshToken.for_user(user)
         return Response({
-            "detail": "이메일이 변경되었습니다.",
+            "detail": gettext("Your email has been changed."),
             "access": str(refresh.access_token),
             "refresh": str(refresh),
             "user": MeSerializer(user).data,
@@ -487,10 +492,10 @@ class VerifyEmailView(APIView):
                 is_used=False,
             )
         except EmailVerificationToken.DoesNotExist:
-            return Response({"detail": "유효하지 않은 토큰입니다."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": gettext("Invalid token.")}, status=status.HTTP_400_BAD_REQUEST)
 
         if not token_obj.is_valid():
-            return Response({"detail": "만료된 토큰입니다."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": gettext("This link has expired.")}, status=status.HTTP_400_BAD_REQUEST)
 
         user = token_obj.user
         # 이메일 인증 = 본인 확인 + 활성화. 시스템 단위 관리자 승인 단계 제거,
@@ -505,9 +510,9 @@ class VerifyEmailView(APIView):
 
         auto_requested = _maybe_auto_request_join(user)
         if auto_requested:
-            detail = "Your email has been verified. Please wait for a workspace administrator to approve you."
+            detail = gettext("Your email has been verified. Please wait for a workspace administrator to approve you.")
         else:
-            detail = "Your email has been verified. Sign in and request to join a workspace."
+            detail = gettext("Your email has been verified. Sign in and request to join a workspace.")
         return Response({
             "detail": detail,
             "auto_requested_workspace": auto_requested,
@@ -526,7 +531,7 @@ class PasswordResetRequestView(APIView):
 
         email = serializer.validated_data["email"]
         # 보안: 이메일 존재 여부와 무관하게 동일한 응답 반환 (열거 공격 방지)
-        generic_msg = "해당 이메일로 비밀번호 재설정 안내가 발송됩니다."
+        generic_msg = gettext("If that email is registered, password reset instructions will be sent to it.")
 
         try:
             user = User.objects.get(email=email)
@@ -542,13 +547,13 @@ class PasswordResetRequestView(APIView):
 
         reset_url = f"{settings.FRONTEND_URL}/auth/reset-password?token={token_obj.token}"
         send_mail(
-            subject="[OrbiTail] 비밀번호 재설정",
-            message=(
-                f"안녕하세요, {user.display_name}님.\n\n"
-                f"아래 링크를 클릭하여 비밀번호를 재설정하세요.\n\n"
-                f"{reset_url}\n\n"
-                f"이 링크는 1시간 후 만료됩니다."
-            ),
+            subject=gettext("[OrbiTail] Reset your password"),
+            message=gettext(
+                "Hello %(name)s,\n\n"
+                "Click the link below to reset your password.\n\n"
+                "%(url)s\n\n"
+                "This link expires in 1 hour."
+            ) % {"name": user.display_name, "url": reset_url},
             from_email=settings.DEFAULT_FROM_EMAIL,
             recipient_list=[user.email],
         )
@@ -570,10 +575,10 @@ class PasswordResetConfirmView(APIView):
                 is_used=False,
             )
         except PasswordResetToken.DoesNotExist:
-            return Response({"detail": "유효하지 않은 토큰입니다."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": gettext("Invalid token.")}, status=status.HTTP_400_BAD_REQUEST)
 
         if not token_obj.is_valid():
-            return Response({"detail": "만료된 토큰입니다."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": gettext("This link has expired.")}, status=status.HTTP_400_BAD_REQUEST)
 
         user = token_obj.user
         user.set_password(serializer.validated_data["new_password"])
@@ -583,7 +588,7 @@ class PasswordResetConfirmView(APIView):
         token_obj.is_used = True
         token_obj.save()
 
-        return Response({"detail": "비밀번호가 성공적으로 변경되었습니다."})
+        return Response({"detail": gettext("Your password was changed successfully.")})
 
 
 class AdminUserListView(AdminResourceListView):
@@ -625,10 +630,10 @@ class AdminUserApproveView(APIView):
         try:
             user = User.objects.get(pk=pk)
         except User.DoesNotExist:
-            return Response({"detail": "사용자를 찾을 수 없습니다."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": gettext("User not found.")}, status=status.HTTP_404_NOT_FOUND)
 
         if user.is_approved:
-            return Response({"detail": "이미 승인된 사용자입니다."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": gettext("This user is already approved.")}, status=status.HTTP_400_BAD_REQUEST)
 
         user.is_approved = True
         user.is_active = True
@@ -643,19 +648,23 @@ class AdminUserApproveView(APIView):
         )
 
         login_url = f"{settings.FRONTEND_URL}/auth/login"
+        # 요청 언어는 승인한 관리자의 것이다 — 메일은 받는 사람 언어로 쓴다
+        with translation.override(user_language(user)):
+            subject = gettext("[OrbiTail] Your account has been approved")
+            body = gettext(
+                "Hello %(name)s,\n\n"
+                "An administrator has approved your OrbiTail account.\n"
+                "You can now sign in.\n\n"
+                "Sign in: %(url)s"
+            ) % {"name": user.display_name, "url": login_url}
         send_mail(
-            subject="[OrbiTail] 계정 승인 완료 안내",
-            message=(
-                f"안녕하세요, {user.display_name}님.\n\n"
-                f"관리자가 OrbiTail 계정을 승인했습니다.\n"
-                f"이제 로그인하여 이용할 수 있습니다.\n\n"
-                f"로그인 주소: {login_url}"
-            ),
+            subject=subject,
+            message=body,
             from_email=settings.DEFAULT_FROM_EMAIL,
             recipient_list=[user.email],
         )
 
-        return Response({"detail": "사용자가 승인되었습니다."})
+        return Response({"detail": gettext("The user has been approved.")})
 
 
 class AdminUserSuperuserView(APIView):
@@ -667,17 +676,17 @@ class AdminUserSuperuserView(APIView):
         try:
             user = User.objects.get(pk=pk)
         except User.DoesNotExist:
-            return Response({"detail": "사용자를 찾을 수 없습니다."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": gettext("User not found.")}, status=status.HTTP_404_NOT_FOUND)
 
         new_value = request.data.get("is_superuser")
         if new_value is None:
-            return Response({"detail": "is_superuser 값이 필요합니다."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": gettext("The is_superuser value is required.")}, status=status.HTTP_400_BAD_REQUEST)
         new_value = bool(new_value)
 
         # 본인 강등 금지 — 실수로 전체 접근을 잃는 것을 방지
         if user.pk == request.user.pk and not new_value:
             return Response(
-                {"detail": "본인의 슈퍼유저 권한은 해제할 수 없습니다. 다른 슈퍼유저가 대신 진행해야 합니다."},
+                {"detail": gettext("You cannot remove your own superuser rights. Another superuser has to do it.")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -686,7 +695,7 @@ class AdminUserSuperuserView(APIView):
             other_count = User.objects.filter(is_superuser=True).exclude(pk=user.pk).count()
             if other_count == 0:
                 return Response(
-                    {"detail": "마지막 슈퍼유저는 강등할 수 없습니다."},
+                    {"detail": gettext("The last superuser cannot be demoted.")},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
@@ -720,13 +729,13 @@ class AdminUserSuspendView(APIView):
         try:
             user = User.objects.get(pk=pk)
         except User.DoesNotExist:
-            return Response({"detail": "사용자를 찾을 수 없습니다."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": gettext("User not found.")}, status=status.HTTP_404_NOT_FOUND)
 
         if user.pk == request.user.pk:
-            return Response({"detail": "본인을 정지할 수 없습니다."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": gettext("You cannot suspend yourself.")}, status=status.HTTP_400_BAD_REQUEST)
         if user.is_superuser:
             return Response(
-                {"detail": "슈퍼유저는 정지할 수 없습니다. 먼저 슈퍼유저 권한을 해제하세요."},
+                {"detail": gettext("A superuser cannot be suspended. Remove their superuser rights first.")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -754,13 +763,13 @@ class AdminUserDeleteView(APIView):
         try:
             user = User.objects.get(pk=pk)
         except User.DoesNotExist:
-            return Response({"detail": "사용자를 찾을 수 없습니다."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": gettext("User not found.")}, status=status.HTTP_404_NOT_FOUND)
 
         if user.pk == request.user.pk:
-            return Response({"detail": "본인은 삭제할 수 없습니다."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": gettext("You cannot delete yourself.")}, status=status.HTTP_400_BAD_REQUEST)
         if user.is_superuser:
             return Response(
-                {"detail": "슈퍼유저는 삭제할 수 없습니다. 먼저 슈퍼유저 권한을 해제하세요."},
+                {"detail": gettext("A superuser cannot be deleted. Remove their superuser rights first.")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 

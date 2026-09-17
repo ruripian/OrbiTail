@@ -1,6 +1,7 @@
 import axios from "axios";
 import { useAuthStore } from "@/stores/authStore";
 import { getAccessToken, getRefreshToken } from "@/lib/token-storage";
+import i18n from "@/lib/i18n";
 
 /* baseURL은 항상 상대 경로 "/api" — 같은 도메인에서 SPA + API를 서빙하므로 절대 URL 불필요.
    개발 환경: vite proxy (/api → backend:8000)
@@ -13,6 +14,9 @@ export const api = axios.create({
 api.interceptors.request.use((config) => {
   const token = getAccessToken();
   if (token) config.headers.Authorization = `Bearer ${token}`;
+  // 서버가 오류·안내 문장을 화면과 같은 언어로 돌려주게 한다 (Django LocaleMiddleware).
+  // 브라우저 기본 Accept-Language 는 앱에서 고른 언어와 다를 수 있다.
+  config.headers["Accept-Language"] = i18n.resolvedLanguage || i18n.language || "en";
   // FormData 를 전송할 때는 Content-Type 을 명시적으로 제거해 브라우저가
   // multipart/form-data; boundary=... 를 자동으로 채우도록 둠.
   // (인스턴스 기본 Content-Type: application/json 이 FormData 까지 덮어씌우는 문제 방지)

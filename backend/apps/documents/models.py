@@ -2,6 +2,7 @@ import uuid
 
 from django.conf import settings
 from django.db import models
+from django.utils.translation import gettext_lazy
 
 
 class DocumentSpace(models.Model):
@@ -174,7 +175,7 @@ class Document(models.Model):
         related_name="children",
     )
 
-    title = models.CharField(max_length=500, default="제목 없음")
+    title = models.CharField(max_length=500, default=gettext_lazy("Untitled"))
     icon_prop = models.JSONField(null=True, blank=True, default=None)  # { type: "lucide", name: "Box", color: "#hex" }
     labels = models.ManyToManyField(DocumentLabel, blank=True, related_name="documents")
 

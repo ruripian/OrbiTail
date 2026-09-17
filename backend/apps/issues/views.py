@@ -9,6 +9,7 @@ from rest_framework.generics import get_object_or_404
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django_filters.rest_framework import DjangoFilterBackend
+from django.utils.translation import gettext, gettext_lazy
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 from config.pagination import StandardPagination
@@ -75,12 +76,12 @@ def _check_perm(user, project_id, perm_key):
     perms = _get_effective_perms(user, project_id)
     if perms is None:
         return False, Response(
-            {"detail": "프로젝트 멤버만 접근할 수 있습니다."},
+            {"detail": gettext("Only project members have access.")},
             status=status.HTTP_403_FORBIDDEN,
         )
     if not perms.get(perm_key, False):
         return False, Response(
-            {"detail": f"이 작업에 대한 권한이 없습니다. ({perm_key})"},
+            {"detail": gettext("You do not have permission for this action. (%(perm)s)") % {"perm": perm_key}},
             status=status.HTTP_403_FORBIDDEN,
         )
     return True, None
@@ -122,7 +123,7 @@ def _get_readable_issue(request, kwargs, issue_key="issue_pk"):
         .first()
     )
     if issue is None:
-        raise NotFound("Issue not found.")
+        raise NotFound(gettext("Issue not found."))
     return issue
 
 
@@ -139,7 +140,7 @@ def _get_readable_project(request, workspace_slug, project_pk):
         .first()
     )
     if project is None:
-        raise NotFound("Project not found.")
+        raise NotFound(gettext("Project not found."))
     return project
 
 
@@ -156,17 +157,17 @@ def _require_perm(user, project_id, perm_key):
 #: 활동 로그로 추적하는 필드와 사람이 읽는 이름.
 #: 단건 수정과 일괄 수정이 같은 정의를 봐야 "어디서 바꿨느냐"에 따라 로그가 달라지지 않는다.
 TRACKED_FIELDS = {
-    "title": "제목",
-    "priority": "우선순위",
-    "state": "상태",
-    "assignees": "담당자",
-    "label": "라벨",
-    "sprint": "스프린트",
-    "category": "카테고리",
-    "parent": "상위 이슈",
-    "start_date": "시작일",
-    "due_date": "마감일",
-    "estimate_point": "예상 포인트",
+    "title": gettext_lazy("Title"),
+    "priority": gettext_lazy("Priority"),
+    "state": gettext_lazy("State"),
+    "assignees": gettext_lazy("Assignees"),
+    "label": gettext_lazy("Labels"),
+    "sprint": gettext_lazy("Sprint"),
+    "category": gettext_lazy("Category"),
+    "parent": gettext_lazy("Parent issue"),
+    "start_date": gettext_lazy("Start date"),
+    "due_date": gettext_lazy("Due date"),
+    "estimate_point": gettext_lazy("Estimate"),
 }
 
 
@@ -260,7 +261,7 @@ class IssueListCreateView(generics.ListCreateAPIView):
         if not ok:
             return err
         if str(request.data.get("project", self.kwargs["project_pk"])) != str(self.kwargs["project_pk"]):
-            return Response({"project": ["주소의 프로젝트와 다릅니다."]}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"project": [gettext("It does not match the project in the URL.")]}, status=status.HTTP_400_BAD_REQUEST)
         return super().create(request, *args, **kwargs)
 
     def perform_create(self, serializer):
@@ -549,7 +550,7 @@ class IssueArchiveView(APIView):
             deleted_at__isnull=True,
         )
         if issue.archived_at:
-            return Response({"detail": "이미 보관된 이슈입니다."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": gettext("This issue is already archived.")}, status=status.HTTP_400_BAD_REQUEST)
         now = timezone.now()
         issue.archived_at = now
         issue.save(update_fields=["archived_at"])
@@ -668,15 +669,15 @@ class IssueMoveView(APIView):
             pk=target_id, workspace_id=issue.workspace_id, kind=Project.Kind.NORMAL,
         ).first() if target_id else None
         if target is None:
-            return Response({"target_project": ["The target project was not found."]}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"target_project": [gettext("The target project was not found.")]}, status=status.HTTP_400_BAD_REQUEST)
         if target.pk == issue.project_id:
-            return Response({"target_project": ["이미 이 프로젝트의 이슈입니다."]}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"target_project": [gettext("The issue already belongs to this project.")]}, status=status.HTTP_400_BAD_REQUEST)
         _require_perm(request.user, target.pk, "can_edit")
 
         source = issue.project
         target_states = list(State.objects.filter(project=target).order_by("sequence"))
         if not target_states:
-            return Response({"target_project": ["대상 프로젝트에 상태가 없어 옮길 수 없습니다."]},
+            return Response({"target_project": [gettext("The target project has no states, so the issue cannot be moved.")]},
                             status=status.HTTP_400_BAD_REQUEST)
         by_name = {st.name.strip().lower(): st for st in target_states}
         by_group = {}
@@ -815,11 +816,11 @@ class IssueNodeLinkListCreateView(generics.ListCreateAPIView):
         from rest_framework.exceptions import ValidationError
         source, target = serializer.validated_data["source"], serializer.validated_data["target"]
         if str(source.project_id) != str(self.kwargs["project_pk"]):
-            raise ValidationError({"source": "That issue does not belong to the project in the URL."})
+            raise ValidationError({"source": gettext("That issue does not belong to the project in the URL.")})
         readable = Issue.objects.filter(pk__in=[source.pk, target.pk], deleted_at__isnull=True).filter(
             _issue_read_q(self.request.user)).values("pk").distinct().count()
         if readable != 2:
-            raise ValidationError({"target": "The issue to link was not found."})
+            raise ValidationError({"target": gettext("The issue to link was not found.")})
         serializer.save(created_by=self.request.user)
 
 
@@ -1274,14 +1275,14 @@ def _clean_bulk_updates(project_pk, updates):
     allowed = BULK_SCALAR_FIELDS | set(BULK_FK_FIELDS) | {"assignees", "label"}
     unknown = set(updates) - allowed
     if unknown:
-        return None, f"일괄 변경할 수 없는 필드입니다: {', '.join(sorted(unknown))}"
+        return None, gettext("These fields cannot be bulk-updated: %(fields)s") % {"fields": ", ".join(sorted(unknown))}
 
     cleaned = {}
     try:
         for field, value in updates.items():
             if field == "priority":
                 if value not in Issue.Priority.values:
-                    return None, "우선순위 값이 잘못되었습니다."
+                    return None, gettext("Invalid priority value.")
                 cleaned[field] = value
             elif field in ("start_date", "due_date"):
                 cleaned[field] = None if value is None else drf_serializers.DateField().to_internal_value(value)
@@ -1290,22 +1291,22 @@ def _clean_bulk_updates(project_pk, updates):
             elif field in BULK_FK_FIELDS:
                 model = getattr(project_models, BULK_FK_FIELDS[field])
                 if value is not None and not model.objects.filter(pk=value, project_id=project_pk).exists():
-                    return None, f"이 프로젝트의 {field} 가 아닙니다."
+                    return None, gettext("That %(field)s does not belong to this project.") % {"field": field}
                 cleaned[f"{field}_id"] = value
             elif field == "label":
                 ids = set(value or [])
                 if Label.objects.filter(pk__in=ids, project_id=project_pk).count() != len(ids):
-                    return None, "이 프로젝트의 라벨이 아닌 것이 있습니다."
+                    return None, gettext("Some labels do not belong to this project.")
                 cleaned[field] = list(ids)
             elif field == "assignees":
                 ids = set(value or [])
                 workspace_id = Project.objects.filter(pk=project_pk).values_list("workspace_id", flat=True).first()
                 found = WorkspaceMember.objects.filter(workspace_id=workspace_id, member_id__in=ids).count()
                 if found != len(ids):
-                    return None, "이 워크스페이스의 멤버가 아닌 사용자가 있습니다."
+                    return None, gettext("Some users are not members of this workspace.")
                 cleaned[field] = list(ids)
     except (drf_serializers.ValidationError, ValueError, TypeError, DjangoValidationError):
-        return None, "값 형식이 잘못되었습니다."
+        return None, gettext("The value has the wrong format.")
     return cleaned, None
 
 
@@ -1325,7 +1326,7 @@ class IssueBulkUpdateView(APIView):
         updates = request.data.get("updates", {})
 
         if not issue_ids or not updates:
-            return Response({"detail": "issue_ids와 updates가 필요합니다."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": gettext("issue_ids and updates are required.")}, status=status.HTTP_400_BAD_REQUEST)
 
         issues = Issue.objects.filter(
             id__in=issue_ids,
@@ -1335,10 +1336,10 @@ class IssueBulkUpdateView(APIView):
         )
 
         if issues.count() != len(issue_ids):
-            return Response({"detail": "Some of the issues were not found."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": gettext("Some of the issues were not found.")}, status=status.HTTP_400_BAD_REQUEST)
 
         if not isinstance(updates, dict) or not isinstance(issue_ids, list):
-            return Response({"detail": "형식이 잘못되었습니다."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": gettext("Invalid format.")}, status=status.HTTP_400_BAD_REQUEST)
         # 본문을 그대로 queryset.update() 에 넣으면 project_id·deleted_at·description_html 등 무엇이든
         # 바꿀 수 있다. 일괄 변경 화면이 쓰는 필드만 받고, 관계 값은 같은 프로젝트 소속인지 확인한다.
         updates, error = _clean_bulk_updates(project_pk, updates)
@@ -1380,7 +1381,7 @@ class IssueBulkUpdateView(APIView):
             "project_id": str(project_pk),
             "actor_color": _actor_color(request.user),
         })
-        return Response({"detail": f"{issues.count()}개 이슈가 업데이트되었습니다."})
+        return Response({"detail": gettext("Updated %(count)s issues.") % {"count": issues.count()}})
 
 
 class IssueBulkDeleteView(APIView):
@@ -1397,7 +1398,7 @@ class IssueBulkDeleteView(APIView):
 
         issue_ids = request.data.get("issue_ids", [])
         if not issue_ids:
-            return Response({"detail": "issue_ids가 필요합니다."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": gettext("issue_ids is required.")}, status=status.HTTP_400_BAD_REQUEST)
 
         now = timezone.now()
         targets = Issue.objects.filter(
@@ -1423,7 +1424,7 @@ class IssueBulkDeleteView(APIView):
             "project_id": str(project_pk),
             "actor_color": _actor_color(request.user),
         })
-        return Response({"detail": f"{updated}개 이슈가 삭제되었습니다."})
+        return Response({"detail": gettext("Deleted %(count)s issues.") % {"count": updated}})
 
 
 class ProjectIssueStatsView(APIView):
@@ -1638,7 +1639,7 @@ class IssueDocumentLinksView(APIView):
         if not ProjectMember.objects.filter(
             project_id=project_pk, member=request.user,
         ).exists():
-            return Response({"detail": "이슈 접근 권한 없음"}, status=status.HTTP_403_FORBIDDEN)
+            return Response({"detail": gettext("No access to the issue")}, status=status.HTTP_403_FORBIDDEN)
         # URL 의 이슈가 그 프로젝트 것이어야 한다 — 멤버인 프로젝트 id 로 남의 이슈에 연결하던 것
         _get_readable_issue(request, self.kwargs, issue_key="pk")
 
@@ -1647,17 +1648,17 @@ class IssueDocumentLinksView(APIView):
         from apps.documents.views import _check_space_access
         document_id = request.data.get("document_id")
         if not document_id:
-            return Response({"detail": "document_id 필요"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": gettext("document_id is required")}, status=status.HTTP_400_BAD_REQUEST)
         document = get_object_or_404(
             Document.objects.select_related("space"),
             id=document_id,
             deleted_at__isnull=True,
         )
         if not _check_space_access(request.user, document.space):
-            return Response({"detail": "문서 접근 권한 없음"}, status=status.HTTP_403_FORBIDDEN)
+            return Response({"detail": gettext("No access to the document")}, status=status.HTTP_403_FORBIDDEN)
         # 워크스페이스 경계 — URL 의 workspace_slug 와 문서의 워크스페이스가 일치해야 함
         if document.space.workspace.slug != workspace_slug:
-            return Response({"detail": "다른 워크스페이스 문서"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": gettext("The document belongs to another workspace")}, status=status.HTTP_400_BAD_REQUEST)
 
         link, _ = DocumentIssueLink.objects.get_or_create(
             document=document, issue_id=pk,
@@ -1678,7 +1679,7 @@ class IssueDocumentLinkDeleteView(APIView):
         if not ProjectMember.objects.filter(
             project_id=project_pk, member=request.user,
         ).exists():
-            return Response({"detail": "이슈 접근 권한 없음"}, status=status.HTTP_403_FORBIDDEN)
+            return Response({"detail": gettext("No access to the issue")}, status=status.HTTP_403_FORBIDDEN)
         from apps.documents.models import DocumentIssueLink
         issue = _get_readable_issue(request, self.kwargs, issue_key="pk")
         deleted, _ = DocumentIssueLink.objects.filter(
@@ -1765,17 +1766,17 @@ class IssueRequestApproveView(APIView):
         try:
             project = Project.objects.select_related("workspace").get(pk=project_pk)
         except Project.DoesNotExist:
-            return Response({"detail": "Project not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": gettext("Project not found.")}, status=status.HTTP_404_NOT_FOUND)
 
         if not _can_review_request(request.user, project):
             return Response(
-                {"detail": "요청 승인 권한이 없습니다."},
+                {"detail": gettext("You do not have permission to approve requests.")},
                 status=status.HTTP_403_FORBIDDEN,
             )
 
         req = get_object_or_404(IssueRequest, pk=pk, project_id=project_pk)
         if req.status != IssueRequest.Status.PENDING:
-            return Response({"detail": "이미 처리된 요청입니다."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": gettext("This request has already been handled.")}, status=status.HTTP_400_BAD_REQUEST)
 
         # 관계 값은 이 프로젝트 것만, 담당자는 워크스페이스 멤버만 — 일괄 수정과 같은 규칙
         relation_updates = {k: request.data.get(k) for k in ("state", "category", "sprint", "assignees", "label",
@@ -1794,7 +1795,7 @@ class IssueRequestApproveView(APIView):
                 or State.objects.filter(project=project).order_by("sequence").first()
             )
             if default_state is None:
-                return Response({"detail": "프로젝트에 상태가 없어 이슈를 생성할 수 없습니다."}, status=400)
+                return Response({"detail": gettext("The project has no states, so the issue cannot be created.")}, status=400)
             state_id = default_state.id
 
         issue = Issue.objects.create(
@@ -1843,14 +1844,14 @@ class IssueRequestRejectView(APIView):
         try:
             project = Project.objects.get(pk=project_pk)
         except Project.DoesNotExist:
-            return Response({"detail": "Project not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": gettext("Project not found.")}, status=status.HTTP_404_NOT_FOUND)
 
         if not _can_review_request(request.user, project):
-            return Response({"detail": "요청 거절 권한이 없습니다."}, status=status.HTTP_403_FORBIDDEN)
+            return Response({"detail": gettext("You do not have permission to reject requests.")}, status=status.HTTP_403_FORBIDDEN)
 
         req = get_object_or_404(IssueRequest, pk=pk, project_id=project_pk)
         if req.status != IssueRequest.Status.PENDING:
-            return Response({"detail": "이미 처리된 요청입니다."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": gettext("This request has already been handled.")}, status=status.HTTP_400_BAD_REQUEST)
 
         req.status = IssueRequest.Status.REJECTED
         req.reviewer = request.user
@@ -1871,6 +1872,6 @@ class IssueRequestDeleteView(APIView):
         is_owner = req.submitted_by_id == request.user.id
         is_admin = _can_review_request(request.user, project)
         if not (is_admin or (is_owner and req.status == IssueRequest.Status.PENDING)):
-            return Response({"detail": "이 요청을 삭제할 권한이 없습니다."}, status=status.HTTP_403_FORBIDDEN)
+            return Response({"detail": gettext("You do not have permission to delete this request.")}, status=status.HTTP_403_FORBIDDEN)
         req.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)

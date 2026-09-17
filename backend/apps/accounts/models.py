@@ -3,6 +3,7 @@ from django.conf import settings
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
 from django.db import models
 from django.utils import timezone as tz
+from django.utils.translation import gettext_lazy
 
 
 class UserManager(BaseUserManager):
@@ -142,10 +143,10 @@ class Announcement(models.Model):
     버전 태그를 붙여 릴리스 노트로도 활용. is_staff 만 작성/편집 가능."""
 
     class Category(models.TextChoices):
-        FEATURE     = "feature",     "신규 기능"
-        IMPROVEMENT = "improvement", "개선"
-        BUGFIX      = "bugfix",      "버그 수정"
-        NOTICE      = "notice",      "공지"
+        FEATURE     = "feature",     gettext_lazy("New feature")
+        IMPROVEMENT = "improvement", gettext_lazy("Improvement")
+        BUGFIX      = "bugfix",      gettext_lazy("Bug fix")
+        NOTICE      = "notice",      gettext_lazy("Notice")
 
     id          = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     title       = models.CharField(max_length=255)
@@ -165,3 +166,18 @@ class Announcement(models.Model):
 
     def __str__(self):
         return f"[{self.version or '-'}] {self.title}"
+
+
+def user_language(user) -> str:
+    """메일·알림처럼 요청 없이 만드는 문장에 쓸 사용자 언어. 지원하지 않는 값이면 기본 언어."""
+    from django.conf import settings
+    lang = (getattr(user, "language", None) or settings.LANGUAGE_CODE).split("-")[0].lower()
+    return lang if lang in dict(settings.LANGUAGES) else settings.LANGUAGE_CODE
+
+
+def request_language() -> str:
+    """지금 요청의 언어(LocaleMiddleware 가 정함) — 가입 때 User.language 로 저장한다."""
+    from django.conf import settings
+    from django.utils import translation
+    lang = (translation.get_language() or settings.LANGUAGE_CODE).split("-")[0].lower()
+    return lang if lang in dict(settings.LANGUAGES) else settings.LANGUAGE_CODE

@@ -4,6 +4,7 @@
 곧 외부 연동 파괴가 되므로, 외부에 약속할 것만 이 파일에 따로 올린다.
 """
 from django.urls import path
+from django.utils.translation import gettext_lazy
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
 from .v1 import views as v
@@ -11,12 +12,7 @@ from .v1 import views as v
 SCHEMA_SETTINGS = {
     "TITLE": "OrbiTail API v1",
     "DESCRIPTION": (
-        "워크스페이스 설정 › API 토큰에서 만든 토큰을 `Authorization: Bearer orbt_…` 로 보냅니다.\n\n"
-        "- 워크스페이스는 토큰에서 정해집니다 — 주소에 넣지 않습니다.\n"
-        "- 토큰은 만든 사람의 권한으로 동작합니다. 그 사람이 볼 수 없는 것은 토큰도 볼 수 없습니다.\n"
-        "- read 토큰은 조회만, write 토큰은 만들기·고치기·지우기까지 할 수 있습니다.\n"
-        "- 본문(이슈 설명·댓글·문서)은 마크다운으로 주고받습니다.\n"
-        "- 목록은 `?page=` `&page_size=`(최대 100)로 나눠 받습니다."
+        gettext_lazy("Send a token created under Workspace settings › API tokens as `Authorization: Bearer orbt_…`.\n\n- The workspace comes from the token — do not put it in the URL.\n- A token acts with the permissions of the person who created it. Whatever they cannot see, the token cannot see either.\n- A read token can only read; a write token can also create, update and delete.\n- Bodies (issue descriptions, comments, documents) are exchanged as Markdown.\n- Lists are paginated with `?page=` and `&page_size=` (up to 100).")
     ),
     "VERSION": "1",
     "SCHEMA_PATH_PREFIX": "/api/v1",

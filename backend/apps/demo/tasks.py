@@ -31,8 +31,8 @@ def purge_expired_sandboxes() -> int:
             delete_sandbox(sandbox)
             deleted += 1
         except Exception:
-            logger.exception("데모 샌드박스 삭제 실패: %s", sandbox.email_domain)
+            logger.exception("failed to delete demo sandbox: %s", sandbox.email_domain)
 
     if deleted:
-        logger.info("만료된 데모 샌드박스 %d개 삭제", deleted)
+        logger.info("deleted %d expired demo sandboxes", deleted)
     return deleted

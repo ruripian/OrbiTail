@@ -1,3 +1,4 @@
+from django.utils.translation import gettext
 from rest_framework import serializers
 from apps.accounts.serializers import UserSerializer
 from .models import DocumentSpace, DocumentSpaceMember, DocumentLabel, Document, DocumentIssueLink, DocumentAttachment, DocumentComment, DocumentVersion, CommentThread, DocumentTemplate
@@ -103,16 +104,16 @@ class DocumentSerializer(serializers.ModelSerializer):
         그 폴더를 지울 때 이 문서까지 함께 지워진다."""
         space = self._space()
         if value is not None and space is not None and value.space_id != space.pk:
-            raise serializers.ValidationError("Only a document in the same space can be set as the parent.")
+            raise serializers.ValidationError(gettext("Only a document in the same space can be set as the parent."))
         if value is not None and self.instance is not None and value.pk == self.instance.pk:
-            raise serializers.ValidationError("A document cannot be its own parent.")
+            raise serializers.ValidationError(gettext("A document cannot be its own parent."))
         return value
 
     def validate_labels(self, value):
         """라벨은 이 스페이스의 워크스페이스 것만 — 다른 워크스페이스 라벨의 이름·만든 사람이 새지 않게."""
         space = self._space()
         if space is not None and any(lb.workspace_id != space.workspace_id for lb in value):
-            raise serializers.ValidationError("Some labels do not belong to this workspace.")
+            raise serializers.ValidationError(gettext("Some labels do not belong to this workspace."))
         return value
 
     #: 표의 칸에 쓸 수 있는 값 종류.
@@ -131,29 +132,29 @@ class DocumentSerializer(serializers.ModelSerializer):
         if value is None:
             return None
         if not isinstance(value, list):
-            raise serializers.ValidationError("The column definition must be a list.")
+            raise serializers.ValidationError(gettext("The column definition must be a list."))
         if len(value) > self.MAX_COLUMNS:
-            raise serializers.ValidationError(f"At most {self.MAX_COLUMNS} columns are allowed.")
+            raise serializers.ValidationError(gettext("At most %(max)s columns are allowed.") % {"max": self.MAX_COLUMNS})
         cleaned = []
         seen = set()
         for col in value:
             if not isinstance(col, dict):
-                raise serializers.ValidationError("Each column must be an object with a name and a type.")
+                raise serializers.ValidationError(gettext("Each column must be an object with a name and a type."))
             name = str(col.get("name", "")).strip()
             if not name:
-                raise serializers.ValidationError("A column name cannot be empty.")
+                raise serializers.ValidationError(gettext("A column name cannot be empty."))
             # 이름이 곧 값의 key 라 중복되면 한 칸이 다른 칸의 값을 덮는다
             if name.lower() in seen:
-                raise serializers.ValidationError(f"The column name '{name}' is duplicated.")
+                raise serializers.ValidationError(gettext("The column name '%(name)s' is duplicated.") % {"name": name})
             seen.add(name.lower())
             ctype = str(col.get("type", "text"))
             if ctype not in self.COLUMN_TYPES:
-                raise serializers.ValidationError(f"Unknown type '{ctype}' for '{name}'.")
+                raise serializers.ValidationError(gettext("Unknown type '%(type)s' for '%(name)s'.") % {"type": ctype, "name": name})
             entry = {"name": name[:100], "type": ctype}
             if ctype in ("select", "multi_select"):
                 options = col.get("options") or []
                 if not isinstance(options, list):
-                    raise serializers.ValidationError(f"The options for '{name}' must be a list.")
+                    raise serializers.ValidationError(gettext("The options for '%(name)s' must be a list.") % {"name": name})
                 entry["options"] = [str(o).strip()[:100] for o in options if str(o).strip()][:50]
             cleaned.append(entry)
         return cleaned
@@ -164,16 +165,16 @@ class DocumentSerializer(serializers.ModelSerializer):
 
     def validate_properties(self, value):
         if not isinstance(value, dict):
-            raise serializers.ValidationError("Properties must be a key-value object.")
+            raise serializers.ValidationError(gettext("Properties must be a key-value object."))
         if len(value) > self.MAX_PROPERTY_KEYS:
             raise serializers.ValidationError(
-                f"프로퍼티는 최대 {self.MAX_PROPERTY_KEYS}개까지입니다."
+                gettext("At most %(max)s properties are allowed.") % {"max": self.MAX_PROPERTY_KEYS}
             )
         cleaned = {}
         for key, val in value.items():
             name = str(key).strip()
             if not name:
-                raise serializers.ValidationError("A property name cannot be empty.")
+                raise serializers.ValidationError(gettext("A property name cannot be empty."))
             # 무언가를 가리키는 칸 — 보여줄 이름과 따라갈 id 를 함께 담는다
             if isinstance(val, dict):
                 ref_id = str(val.get("id", "")).strip()
@@ -183,13 +184,13 @@ class DocumentSerializer(serializers.ModelSerializer):
                 cleaned[name] = {"id": ref_id[:64], "label": label[:200]}
             elif isinstance(val, list):
                 if not all(isinstance(v, (str, int, float, bool)) for v in val):
-                    raise serializers.ValidationError(f"The '{name}' list can only contain values.")
+                    raise serializers.ValidationError(gettext("The '%(name)s' list can only contain values.") % {"name": name})
                 cleaned[name] = [str(v) if not isinstance(v, bool) else v for v in val]
             elif isinstance(val, (str, int, float, bool)) or val is None:
                 cleaned[name] = val
             else:
                 raise serializers.ValidationError(
-                    f"'{name}' 값은 글자·숫자·참거짓 또는 그 목록만 됩니다."
+                    gettext("'%(name)s' can only be text, a number, true/false, or a list of those.") % {"name": name}
                 )
         return cleaned
 

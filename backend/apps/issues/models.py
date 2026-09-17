@@ -1,6 +1,7 @@
 import uuid
 from django.db import models
 from django.conf import settings
+from django.utils.translation import gettext_lazy
 
 
 class Label(models.Model):
@@ -249,7 +250,7 @@ class IssueAttachment(models.Model):
     issue = models.ForeignKey(Issue, on_delete=models.CASCADE, related_name="attachments")
     file = models.FileField(upload_to="attachments/%Y/%m/")
     filename = models.CharField(max_length=255)
-    size = models.PositiveIntegerField(default=0, help_text="파일 크기 (bytes)")
+    size = models.PositiveIntegerField(default=0, help_text=gettext_lazy("File size (bytes)"))
     mime_type = models.CharField(max_length=100, blank=True, default="")
     # 첨부 경로 추적 — direct=첨부탭 직접 업로드 / from_comment=댓글 RichEditor 드롭/붙여넣기.
     # 첨부탭에서 출처 배지로 구분 노출 + 통계/감사에 활용.
@@ -285,9 +286,9 @@ class IssueTemplate(models.Model):
     project = models.ForeignKey(
         "projects.Project", on_delete=models.CASCADE, related_name="issue_templates"
     )
-    name = models.CharField(max_length=255, help_text="템플릿 이름")
-    title_template = models.CharField(max_length=255, blank=True, default="", help_text="이슈 제목 기본값")
-    description_html = models.TextField(blank=True, default="", help_text="이슈 설명 기본값 (HTML)")
+    name = models.CharField(max_length=255, help_text=gettext_lazy("Template name"))
+    title_template = models.CharField(max_length=255, blank=True, default="", help_text=gettext_lazy("Default issue title"))
+    description_html = models.TextField(blank=True, default="", help_text=gettext_lazy("Default issue description (HTML)"))
     priority = models.CharField(
         max_length=10,
         choices=Issue.Priority.choices,

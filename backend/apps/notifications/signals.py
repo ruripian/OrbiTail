@@ -9,8 +9,12 @@
 
 import re
 
+from django.conf import settings
+
 from django.db.models.signals import post_save, m2m_changed
 from django.dispatch import receiver
+from django.utils import translation
+from django.utils.translation import gettext
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 
@@ -19,7 +23,7 @@ from .models import Notification
 
 
 # `@displayname` 형태 멘션 추출 — 한글/영문/숫자/.-_ 토큰만, 공백/구두점 전까지.
-_MENTION_RE = re.compile(r"@([\wㄱ-힝\.\-]+)", re.UNICODE)
+_MENTION_RE = re.compile(r"@([\wㄱ-힝\.\-]+)", re.UNICODE)  # i18n-ignore — 한글 이름 매칭용
 
 
 def _extract_mentioned_users(text: str, workspace):
@@ -137,8 +141,16 @@ def _issue_breadcrumb(issue) -> str:
     return issue.title
 
 
+def _recipient_language(user):
+    lang = (getattr(user, "language", None) or settings.LANGUAGE_CODE).split("-")[0]
+    return lang if lang in dict(settings.LANGUAGES) else settings.LANGUAGE_CODE
+
+
 def _create_notifications(recipients, actor, issue, ntype, message):
     """알림 일괄 생성 헬퍼 — actor 본인은 제외, WebSocket으로 실시간 전달.
+
+    message 는 문자열이 아니라 **인자 없는 함수**다. 수신자마다 그 사람의 언어
+    (User.language)로 호출해 문장을 만든다 — 한 알림이 여러 언어 사용자에게 간다.
 
     추가로 각 수신자의 prefs를 확인해 이메일 발송 태스크를 큐에 적재.
     prefs 체크는 Celery 태스크 안에서 다시 한번 — 큐 적재 후 사용자가 끄는 경우 대비.
@@ -152,6 +164,11 @@ def _create_notifications(recipients, actor, issue, ntype, message):
     if not targets:
         return
 
+    messages = {}
+    for user in targets:
+        with translation.override(_recipient_language(user)):
+            messages[user.id] = str(message())
+
     Notification.objects.bulk_create([
         Notification(
             recipient=user,
@@ -159,21 +176,20 @@ def _create_notifications(recipients, actor, issue, ntype, message):
             type=ntype,
             issue=issue,
             workspace=issue.workspace,
-            message=message,
+            message=messages[user.id],
         )
         for user in targets
     ])
 
-    payload = {
-        "type": "notification.new",
-        "notification_type": ntype,
-        "message": message,
-        "issue_id": str(issue.id),
-        "project_id": str(issue.project_id),
-        "actor_name": actor.display_name,
-    }
     for user in targets:
-        _broadcast_to_user(user.id, payload)
+        _broadcast_to_user(user.id, {
+            "type": "notification.new",
+            "notification_type": ntype,
+            "message": messages[user.id],
+            "issue_id": str(issue.id),
+            "project_id": str(issue.project_id),
+            "actor_name": actor.display_name,
+        })
 
     # 이메일 발송 — Celery 태스크로 위임 (실패해도 인앱 알림은 보존)
     from .tasks import send_notification_email
@@ -183,7 +199,7 @@ def _create_notifications(recipients, actor, issue, ntype, message):
             send_notification_email.delay(
                 recipient_id=str(user.id),
                 ntype=ntype,
-                message=message,
+                message=messages[user.id],
                 issue_id=str(issue.id) if issue else None,
                 actor_name=actor.display_name,
                 project_id=project_id,
@@ -224,10 +240,13 @@ def notify_on_issue_activity(sender, instance, created, **kwargs):
     field = activity.field or activity.verb
     breadcrumb = _issue_breadcrumb(issue)
     project_name = issue.project.name
+    ctx = {"actor": actor.display_name, "field": field, "issue": breadcrumb, "project": project_name}
     if activity.new_value:
-        message = f"{actor.display_name} changed {field} on '{breadcrumb}' in {project_name}."
+        def message():
+            return gettext("%(actor)s changed %(field)s on '%(issue)s' in %(project)s.") % ctx
     else:
-        message = f"{actor.display_name} updated '{breadcrumb}' in {project_name}."
+        def message():
+            return gettext("%(actor)s updated '%(issue)s' in %(project)s.") % ctx
 
     _create_notifications(
         recipients=assignees,
@@ -276,10 +295,8 @@ def notify_on_comment(sender, instance, created, **kwargs):
             actor=actor,
             issue=issue,
             ntype=Notification.Type.MENTIONED,
-            message=(
-                f"{actor.display_name} mentioned you in a comment on "
-                f"'{breadcrumb}' in {project_name}."
-            ),
+            message=lambda: gettext("%(actor)s mentioned you in a comment on '%(issue)s' in %(project)s.")
+            % {"actor": actor.display_name, "issue": breadcrumb, "project": project_name},
         )
 
     if comment.parent_id and comment.parent and comment.parent.actor_id:
@@ -291,10 +308,8 @@ def notify_on_comment(sender, instance, created, **kwargs):
                 actor=actor,
                 issue=issue,
                 ntype=Notification.Type.COMMENT_REPLIED,
-                message=(
-                    f"{actor.display_name} replied to your comment on "
-                    f"'{breadcrumb}' in {project_name}."
-                ),
+                message=lambda: gettext("%(actor)s replied to your comment on '%(issue)s' in %(project)s.")
+                % {"actor": actor.display_name, "issue": breadcrumb, "project": project_name},
             )
         return
 
@@ -310,10 +325,9 @@ def notify_on_comment(sender, instance, created, **kwargs):
     User = get_user_model()
     recipients = list(User.objects.filter(id__in=recipients_ids))
 
-    message = (
-        f"{actor.display_name} commented on "
-        f"'{breadcrumb}' in {project_name}."
-    )
+    def message():
+        return gettext("%(actor)s commented on '%(issue)s' in %(project)s.") % {
+            "actor": actor.display_name, "issue": breadcrumb, "project": project_name}
 
     _create_notifications(
         recipients=recipients,
@@ -366,16 +380,14 @@ def broadcast_issue_change(sender, instance, created, **kwargs):
     if not recipients:
         return
 
+    ctx = {"actor": actor.display_name, "issue": issue.title, "project": issue.project.name,
+           "parent": issue.parent.title if issue.parent_id and issue.parent else ""}
     if issue.parent_id and issue.parent:
-        message = (
-            f"{actor.display_name} created a new issue '{issue.title}' under "
-            f"'{issue.parent.title}' in {issue.project.name}."
-        )
+        def message():
+            return gettext("%(actor)s created a new issue '%(issue)s' under '%(parent)s' in %(project)s.") % ctx
     else:
-        message = (
-            f"{actor.display_name} created a new issue '{issue.title}' "
-            f"in {issue.project.name}."
-        )
+        def message():
+            return gettext("%(actor)s created a new issue '%(issue)s' in %(project)s.") % ctx
     _create_notifications(
         recipients=recipients,
         actor=actor,
@@ -407,10 +419,10 @@ def notify_on_assignee_added(sender, instance, action, pk_set, **kwargs):
     User = get_user_model()
     new_assignees = list(User.objects.filter(id__in=pk_set))
 
-    message = (
-        f"{actor.display_name} assigned you to "
-        f"'{_issue_breadcrumb(issue)}' in {issue.project.name}."
-    )
+    ctx = {"actor": actor.display_name, "issue": _issue_breadcrumb(issue), "project": issue.project.name}
+
+    def message():
+        return gettext("%(actor)s assigned you to '%(issue)s' in %(project)s.") % ctx
 
     _create_notifications(
         recipients=new_assignees,
@@ -442,10 +454,10 @@ def notify_on_assignee_removed(sender, instance, action, pk_set, **kwargs):
     User = get_user_model()
     removed = list(User.objects.filter(id__in=pk_set))
 
-    message = (
-        f"{actor.display_name} removed you as an assignee on "
-        f"'{_issue_breadcrumb(issue)}' in {issue.project.name}."
-    )
+    ctx = {"actor": actor.display_name, "issue": _issue_breadcrumb(issue), "project": issue.project.name}
+
+    def message():
+        return gettext("%(actor)s removed you as an assignee on '%(issue)s' in %(project)s.") % ctx
 
     _create_notifications(
         recipients=removed,

@@ -42,6 +42,8 @@ MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
+    # 요청의 Accept-Language 로 응답 언어를 고른다. 프론트가 화면 언어를 이 헤더로 보낸다.
+    "django.middleware.locale.LocaleMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
@@ -163,7 +165,11 @@ DEMO_MAX_ISSUES_PER_SANDBOX = config("DEMO_MAX_ISSUES_PER_SANDBOX", default=500,
 DEMO_MAX_DOCUMENTS_PER_SANDBOX = config("DEMO_MAX_DOCUMENTS_PER_SANDBOX", default=200, cast=int)
 DEMO_MAX_WORKSPACES_PER_SANDBOX = config("DEMO_MAX_WORKSPACES_PER_SANDBOX", default=5, cast=int)
 
-LANGUAGE_CODE = "en-us"
+# 코드의 원문은 영어, 한국어는 locale/ko/LC_MESSAGES/django.po 에 번역으로 둔다.
+# 요청이 없는 곳(메일·알림)은 받는 사람의 User.language 로 translation.override 한다.
+LANGUAGE_CODE = "en"
+LANGUAGES = [("en", "English"), ("ko", "Korean")]
+LOCALE_PATHS = [BASE_DIR / "locale"]
 TIME_ZONE = "UTC"
 USE_I18N = True
 USE_TZ = True

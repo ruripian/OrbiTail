@@ -1,3 +1,4 @@
+from django.utils.translation import gettext, gettext_lazy
 from rest_framework import serializers
 from apps.accounts.serializers import UserSerializer
 from .constants import DEFAULT_STATES
@@ -35,7 +36,7 @@ class ProjectEventSerializer(serializers.ModelSerializer):
             ok = set(WorkspaceMember.objects.filter(workspace_id=workspace_id, member__in=value)
                      .values_list("member_id", flat=True))
             if any(u.pk not in ok for u in value):
-                raise serializers.ValidationError("Some users are not members of this workspace.")
+                raise serializers.ValidationError(gettext("Some users are not members of this workspace."))
         return value
 
     def validate(self, attrs):
@@ -43,7 +44,7 @@ class ProjectEventSerializer(serializers.ModelSerializer):
         date = attrs.get("date") or (self.instance and self.instance.date)
         end_date = attrs.get("end_date")
         if end_date and date and end_date < date:
-            raise serializers.ValidationError({"end_date": "The end date must be after the start date."})
+            raise serializers.ValidationError({"end_date": gettext("The end date must be after the start date.")})
         return attrs
 
 
@@ -66,7 +67,7 @@ class ProjectSerializer(serializers.ModelSerializer):
         write_only=True,
         required=False,
         default=list,
-        help_text="생성 시 초기 멤버로 등록할 워크스페이스 멤버의 user id 목록(MEMBER 역할로 추가)",
+        help_text=gettext_lazy("User ids of workspace members to add as initial members on create (added with the MEMBER role)"),
     )
 
     class Meta:
@@ -112,8 +113,8 @@ class ProjectSerializer(serializers.ModelSerializer):
         existing = qs.first()
         if existing is not None:
             if existing.deleted_at is not None:
-                raise serializers.ValidationError("A project in the trash is using this identifier. Delete it permanently or choose a different identifier.")
-            raise serializers.ValidationError("That identifier is already in use.")
+                raise serializers.ValidationError(gettext("A project in the trash is using this identifier. Delete it permanently or choose a different identifier."))
+            raise serializers.ValidationError(gettext("That identifier is already in use."))
         return value
 
     def validate_lead(self, value):
@@ -140,7 +141,7 @@ class ProjectSerializer(serializers.ModelSerializer):
             ).exists()
             if not is_member:
                 raise serializers.ValidationError(
-                    "리더는 해당 워크스페이스 멤버여야 합니다."
+                    gettext("The lead must be a member of the workspace.")
                 )
         return value
 
@@ -261,7 +262,7 @@ class CategorySerializer(serializers.ModelSerializer):
         project_pk = self.context["view"].kwargs.get("project_pk") if self.context.get("view") else None
         if value is not None and project_pk and not ProjectMember.objects.filter(
                 project_id=project_pk, member=value).exists():
-            raise serializers.ValidationError("Only a project member can be set as lead.")
+            raise serializers.ValidationError(gettext("Only a project member can be set as lead."))
         return value
 
     def get_issue_count(self, obj):
@@ -285,9 +286,9 @@ class SprintSerializer(serializers.ModelSerializer):
     def validate_status(self, value):
         # 진행·완료는 시작/완료 API 로만 — 거기서 "활성은 하나", "미완료 이슈 이관" 규칙을 지킨다
         if value not in (Sprint.Status.DRAFT, Sprint.Status.CANCELLED):
-            raise serializers.ValidationError("The active and completed states can only be changed by starting or completing the sprint.")
+            raise serializers.ValidationError(gettext("The active and completed states can only be changed by starting or completing the sprint."))
         if self.instance is not None and self.instance.status in (Sprint.Status.COMPLETED,) and value != self.instance.status:
-            raise serializers.ValidationError("The state of a completed sprint cannot be changed.")
+            raise serializers.ValidationError(gettext("The state of a completed sprint cannot be changed."))
         return value
 
     def get_issue_count(self, obj):

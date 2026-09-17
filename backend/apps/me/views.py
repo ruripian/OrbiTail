@@ -9,6 +9,7 @@
 from datetime import date, timedelta
 
 from django.db.models import Count
+from django.utils.translation import gettext
 from rest_framework import generics, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -129,7 +130,7 @@ class MeIssuesView(generics.ListCreateAPIView):
         ws = _resolve_workspace(request)
         if ws is None:
             return Response(
-                {"detail": "workspace_slug가 필요하거나 멤버가 아닙니다."},
+                {"detail": gettext("workspace_slug is missing or you are not a member.")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -139,10 +140,10 @@ class MeIssuesView(generics.ListCreateAPIView):
         state_id = request.data.get("state")
         # 상태는 본인 개인 프로젝트 것만 — 다른 프로젝트 상태 id 를 넣어 그 이름을 응답으로 받아 보던 것
         if state_id and not State.objects.filter(pk=state_id, project=personal_project).exists():
-            return Response({"state": ["이 프로젝트의 상태가 아닙니다."]}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"state": [gettext("That state does not belong to this project.")]}, status=status.HTTP_400_BAD_REQUEST)
         priority = request.data.get("priority", Issue.Priority.NONE)
         if priority not in Issue.Priority.values:
-            return Response({"priority": ["우선순위 값이 잘못되었습니다."]}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"priority": [gettext("Invalid priority value.")]}, status=status.HTTP_400_BAD_REQUEST)
         shared = request.data.get("shared_with_team", True)
         # bool("false") 는 True 라서 문자열로 보내면 끌 수 없었다
         shared = shared if isinstance(shared, bool) else str(shared).lower() not in ("false", "0", "")
@@ -156,7 +157,7 @@ class MeIssuesView(generics.ListCreateAPIView):
         issue = Issue.objects.create(
             project=personal_project,
             workspace=ws,
-            title=request.data.get("title", "").strip() or "제목 없음",
+            title=request.data.get("title", "").strip() or gettext("Untitled"),
             description=request.data.get("description"),
             description_html=request.data.get("description_html", ""),
             priority=priority,
@@ -188,7 +189,7 @@ class MePersonalStatesView(APIView):
         ws = _resolve_workspace(request)
         if ws is None:
             return Response(
-                {"detail": "workspace가 필요하거나 멤버가 아닙니다."},
+                {"detail": gettext("workspace is missing or you are not a member.")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         project = get_or_create_personal_project(ws, request.user)
@@ -209,7 +210,7 @@ class MePersonalProjectView(APIView):
         ws = _resolve_workspace(request)
         if ws is None:
             return Response(
-                {"detail": "workspace가 필요하거나 멤버가 아닙니다."},
+                {"detail": gettext("workspace is missing or you are not a member.")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         project = get_or_create_personal_project(ws, request.user)

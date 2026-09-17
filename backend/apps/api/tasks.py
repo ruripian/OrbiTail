@@ -8,6 +8,8 @@ from datetime import timedelta
 
 from celery import shared_task
 from django.utils import timezone
+from django.utils import translation
+from django.utils.translation import gettext
 
 from .webhook_http import WebhookTargetError, post_json
 
@@ -34,7 +36,7 @@ def _payload_for(webhook, event, object_type, object_id, snapshot):
         return None
 
     if object_type == "ping":
-        return {"message": "OrbiTail 웹훅이 연결되었습니다."}
+        return {"message": gettext("The OrbiTail webhook is connected.")}
 
     if object_type == "issue":
         issue = (
@@ -123,7 +125,7 @@ def deliver(delivery_id):
         return
     hook = delivery.webhook
     if not hook.is_active:
-        delivery.status, delivery.error = WebhookDelivery.Status.FAILED, "웹훅이 꺼져 있습니다."
+        delivery.status, delivery.error = WebhookDelivery.Status.FAILED, gettext("This webhook is turned off.")
         delivery.save(update_fields=["status", "error"])
         return
 
@@ -140,15 +142,20 @@ def deliver(delivery_id):
 
     delivery.attempts += 1
     retryable = True
+    # 전달 기록·꺼짐 사유는 설정 화면에 보인다 — 웹훅을 만든 사람의 언어로 남긴다
+    from apps.accounts.models import user_language
+    lang = user_language(hook.created_by)
     try:
-        code, text = post_json(hook.url, body, headers)
+        with translation.override(lang):
+            code, text = post_json(hook.url, body, headers)
         delivery.response_status, delivery.response_body, delivery.error = code, text, ""
         ok = 200 <= code < 300
     except WebhookTargetError as exc:
         # 주소 자체가 막힌 경우는 기다려도 풀리지 않는다
         delivery.error, ok, retryable = str(exc)[:300], False, False
     except OSError as exc:
-        delivery.error, ok = f"연결 실패: {exc}"[:300], False
+        with translation.override(lang):
+            delivery.error, ok = (gettext("Connection failed: %(error)s") % {"error": exc})[:300], False
 
     if ok:
         delivery.status, delivery.delivered_at = WebhookDelivery.Status.SUCCESS, timezone.now()
@@ -168,7 +175,10 @@ def deliver(delivery_id):
     fields = ["consecutive_failures"]
     if hook.consecutive_failures >= DISABLE_AFTER_FAILURES:
         hook.is_active = False
-        hook.disabled_reason = f"연속 {hook.consecutive_failures}건 전달에 실패해 자동으로 껐습니다."
+        with translation.override(lang):
+            hook.disabled_reason = gettext(
+                "Turned off automatically after %(count)s failed deliveries in a row."
+            ) % {"count": hook.consecutive_failures}
         fields += ["is_active", "disabled_reason"]
     hook.save(update_fields=fields)
 

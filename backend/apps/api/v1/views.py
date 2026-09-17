@@ -7,6 +7,7 @@ import re
 
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
+from django.utils.translation import gettext, gettext_lazy
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema, inline_serializer
 from rest_framework import serializers, status
@@ -39,7 +40,7 @@ IDENTIFIER_RE = re.compile(r"^([A-Za-z0-9]{1,12})-(\d+)$")
 class MeView(PublicApiView):
     @extend_schema(
         tags=["token"],
-        summary="토큰 확인 — 누구로, 어느 워크스페이스에, 어떤 권한으로 붙었는지",
+        summary=gettext_lazy("Check the token — who it acts as, which workspace, and what permission"),
         responses=inline_serializer("Me", {
             "user": s.UserBriefSerializer(),
             "workspace": inline_serializer("MeWorkspace", {
@@ -72,17 +73,17 @@ class ProjectMixin:
 
     def get_project(self, project_id):
         if not UUID_RE.match(str(project_id)):
-            raise NotFound("Project not found.")
+            raise NotFound(gettext("Project not found."))
         project = self.readable_projects().filter(pk=project_id).first()
         if project is None:
-            raise NotFound("Project not found.")
+            raise NotFound(gettext("Project not found."))
         return project
 
 
 class ProjectListView(ProjectMixin, PublicApiView):
     @extend_schema(
-        tags=["projects"], summary="프로젝트 목록",
-        parameters=[OpenApiParameter("include_archived", bool, description="보관된 프로젝트도 포함")],
+        tags=["projects"], summary=gettext_lazy("List projects"),
+        parameters=[OpenApiParameter("include_archived", bool, description=gettext_lazy("Include archived projects"))],
         responses=s.ProjectSerializer(many=True),
     )
     def get(self, request):
@@ -93,7 +94,7 @@ class ProjectListView(ProjectMixin, PublicApiView):
 
 
 class ProjectDetailView(ProjectMixin, PublicApiView):
-    @extend_schema(tags=["projects"], summary="프로젝트", responses=s.ProjectSerializer)
+    @extend_schema(tags=["projects"], summary=gettext_lazy("Project"), responses=s.ProjectSerializer)
     def get(self, request, project_id):
         return Response(s.ProjectSerializer(self.get_project(project_id), context={"request": request}).data)
 
@@ -112,14 +113,14 @@ def _sub_resource_view(model, serializer_class, summary, ordering, extra_filter=
     return View
 
 
-ProjectStateListView = _sub_resource_view(State, s.StateSerializer, "프로젝트의 상태 목록", ["sequence"])
-ProjectLabelListView = _sub_resource_view(Label, s.LabelSerializer, "프로젝트의 라벨 목록", ["name"])
-ProjectSprintListView = _sub_resource_view(Sprint, s.SprintSerializer, "프로젝트의 스프린트 목록", ["-start_date"])
-ProjectCategoryListView = _sub_resource_view(Category, s.CategorySerializer, "프로젝트의 카테고리 목록", ["sort_order", "name"])
+ProjectStateListView = _sub_resource_view(State, s.StateSerializer, gettext_lazy("Project states"), ["sequence"])
+ProjectLabelListView = _sub_resource_view(Label, s.LabelSerializer, gettext_lazy("Project labels"), ["name"])
+ProjectSprintListView = _sub_resource_view(Sprint, s.SprintSerializer, gettext_lazy("Project sprints"), ["-start_date"])
+ProjectCategoryListView = _sub_resource_view(Category, s.CategorySerializer, gettext_lazy("Project categories"), ["sort_order", "name"])
 
 
 class ProjectMemberListView(ProjectMixin, PublicApiView):
-    @extend_schema(tags=["projects"], summary="프로젝트 멤버", responses=s.ProjectMemberSerializer(many=True))
+    @extend_schema(tags=["projects"], summary=gettext_lazy("Project members"), responses=s.ProjectMemberSerializer(many=True))
     def get(self, request, project_id):
         project = self.get_project(project_id)
         qs = ProjectMember.objects.filter(project=project).select_related("member").order_by("member__display_name")
@@ -157,15 +158,15 @@ class IssueMixin(ProjectMixin):
                 if m else None
             )
         if issue is None:
-            raise NotFound("Issue not found.")
+            raise NotFound(gettext("Issue not found."))
         return issue
 
     def require_perm(self, project, perm_key):
         pm = ProjectMember.objects.filter(project=project, member=self.request.user).first()
         if pm is None:
-            raise PermissionDenied("Only a project member can do this.")
+            raise PermissionDenied(gettext("Only a project member can do this."))
         if not pm.effective_perms.get(perm_key, False):
-            raise PermissionDenied(f"You do not have permission for this action. ({perm_key})")
+            raise PermissionDenied(gettext("You do not have permission for this action. (%(perm)s)") % {"perm": perm_key})
 
     def resolve_relations(self, project, data, instance=None):
         """id 로 받은 관계 값을 실제 객체로. 전부 같은 프로젝트 소속이어야 한다."""
@@ -183,9 +184,9 @@ class IssueMixin(ProjectMixin):
                 raise ValidationError({field: message})
             resolved[field] = obj
 
-        one("state", State, "이 프로젝트의 상태가 아닙니다.")
-        one("sprint", Sprint, "이 프로젝트의 스프린트가 아닙니다.")
-        one("category", Category, "이 프로젝트의 카테고리가 아닙니다.")
+        one("state", State, gettext("That state does not belong to this project."))
+        one("sprint", Sprint, gettext("That sprint does not belong to this project."))
+        one("category", Category, gettext("That category does not belong to this project."))
 
         if "parent" in data:
             parent_id = data["parent"]
@@ -194,13 +195,13 @@ class IssueMixin(ProjectMixin):
             else:
                 parent = Issue.objects.filter(pk=parent_id, project=project, deleted_at__isnull=True).first()
                 if parent is None:
-                    raise ValidationError({"parent": "That issue does not belong to this project."})
+                    raise ValidationError({"parent": gettext("That issue does not belong to this project.")})
                 if instance is not None:
                     # 자기 자신이나 자손 밑으로 넣으면 트리가 고리가 된다
                     cur, seen = parent, set()
                     while cur is not None and cur.pk not in seen:
                         if cur.pk == instance.pk:
-                            raise ValidationError({"parent": "It cannot be moved under itself or one of its own sub-issues."})
+                            raise ValidationError({"parent": gettext("It cannot be moved under itself or one of its own sub-issues.")})
                         seen.add(cur.pk)
                         cur = cur.parent
                 resolved["parent"] = parent
@@ -209,7 +210,7 @@ class IssueMixin(ProjectMixin):
             ids = set(data["labels"])
             labels = list(Label.objects.filter(pk__in=ids, project=project))
             if len(labels) != len(ids):
-                raise ValidationError({"labels": "Some labels do not belong to this project."})
+                raise ValidationError({"labels": gettext("Some labels do not belong to this project.")})
             resolved["labels"] = labels
 
         if "assignees" in data:
@@ -220,7 +221,7 @@ class IssueMixin(ProjectMixin):
                 workspace_memberships__role__gte=WorkspaceMember.Role.MEMBER,
             ).distinct())
             if len(users) != len(ids):
-                raise ValidationError({"assignees": "Some users are not members of this workspace."})
+                raise ValidationError({"assignees": gettext("Some users are not members of this workspace.")})
             resolved["assignees"] = users
         return resolved
 
@@ -230,21 +231,21 @@ SCALAR_ISSUE_FIELDS = ("title", "description_html", "priority", "start_date", "d
 
 class IssueListView(IssueMixin, PublicApiView):
     @extend_schema(
-        tags=["issues"], summary="이슈 목록",
+        tags=["issues"], summary=gettext_lazy("List issues"),
         parameters=[
             OpenApiParameter("project", OpenApiTypes.UUID),
             OpenApiParameter("state", OpenApiTypes.UUID),
             OpenApiParameter("state_group", str, description="backlog | unstarted | started | completed | cancelled"),
             OpenApiParameter("priority", str),
-            OpenApiParameter("assignee", str, description="사용자 id 또는 me"),
+            OpenApiParameter("assignee", str, description=gettext_lazy("User id, or me")),
             OpenApiParameter("label", OpenApiTypes.UUID),
             OpenApiParameter("sprint", OpenApiTypes.UUID),
-            OpenApiParameter("parent", str, description="이슈 id, 또는 none(최상위 이슈만)"),
-            OpenApiParameter("updated_since", OpenApiTypes.DATETIME, description="이 시각 이후 바뀐 이슈만 — 동기화용"),
-            OpenApiParameter("search", str, description="제목에 포함된 글자"),
+            OpenApiParameter("parent", str, description=gettext_lazy("Issue id, or none (top-level issues only)")),
+            OpenApiParameter("updated_since", OpenApiTypes.DATETIME, description=gettext_lazy("Only issues changed after this time — for syncing")),
+            OpenApiParameter("search", str, description=gettext_lazy("Text contained in the title")),
             OpenApiParameter("include_archived", bool),
-            OpenApiParameter("ordering", str, description="-updated_at(기본) | updated_at | created_at | -created_at | sequence | -sequence"),
-            OpenApiParameter("page", int), OpenApiParameter("page_size", int, description="최대 100"),
+            OpenApiParameter("ordering", str, description=gettext_lazy("-updated_at (default) | updated_at | created_at | -created_at | sequence | -sequence")),
+            OpenApiParameter("page", int), OpenApiParameter("page_size", int, description=gettext_lazy("Up to 100")),
         ],
         responses=s.IssueSerializer(many=True),
     )
@@ -258,7 +259,7 @@ class IssueListView(IssueMixin, PublicApiView):
                               ("sprint", "sprint_id")):
             if p.get(param):
                 if not UUID_RE.match(p[param]):
-                    raise ValidationError({param: "Not a valid id."})
+                    raise ValidationError({param: gettext("Not a valid id.")})
                 qs = qs.filter(**{lookup: p[param]})
         if p.get("state_group"):
             qs = qs.filter(state__group=p["state_group"])
@@ -270,18 +271,18 @@ class IssueListView(IssueMixin, PublicApiView):
             elif UUID_RE.match(p["assignee"]):
                 qs = qs.filter(assignees=p["assignee"])
             else:
-                raise ValidationError({"assignee": "Must be a user id or 'me'."})
+                raise ValidationError({"assignee": gettext("Must be a user id or 'me'.")})
         if p.get("parent"):
             if p["parent"] == "none":
                 qs = qs.filter(parent__isnull=True)
             elif UUID_RE.match(p["parent"]):
                 qs = qs.filter(parent_id=p["parent"])
             else:
-                raise ValidationError({"parent": "Must be an issue id or 'none'."})
+                raise ValidationError({"parent": gettext("Must be an issue id or 'none'.")})
         if p.get("updated_since"):
             since = parse_datetime(p["updated_since"])
             if since is None:
-                raise ValidationError({"updated_since": "Must be an ISO 8601 timestamp, e.g. 2026-09-15T09:00:00+09:00"})
+                raise ValidationError({"updated_since": gettext("Must be an ISO 8601 timestamp, e.g. 2026-09-15T09:00:00+09:00")})
             if timezone.is_naive(since):
                 since = timezone.make_aware(since)
             qs = qs.filter(updated_at__gte=since)
@@ -290,22 +291,22 @@ class IssueListView(IssueMixin, PublicApiView):
 
         ordering = p.get("ordering", "-updated_at")
         if ordering not in ISSUE_ORDERINGS:
-            raise ValidationError({"ordering": f"Must be one of: {', '.join(sorted(ISSUE_ORDERINGS))}"})
+            raise ValidationError({"ordering": gettext("Must be one of: %(choices)s") % {"choices": ", ".join(sorted(ISSUE_ORDERINGS))}})
         ordering = ordering.replace("sequence", "sequence_id")
         # 같은 시각이 겹쳐도 페이지 경계에서 빠지거나 두 번 나오지 않게 id 로 한 번 더 정렬한다
         qs = qs.distinct().order_by(ordering, "id")
         return self.paginate(qs, s.IssueSerializer)
 
-    @extend_schema(tags=["issues"], summary="이슈 만들기 (write)", request=s.IssueWriteSerializer,
+    @extend_schema(tags=["issues"], summary=gettext_lazy("Create an issue (write)"), request=s.IssueWriteSerializer,
                    responses={201: s.IssueSerializer})
     def post(self, request):
         ser = s.IssueWriteSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         data = ser.validated_data
         if not data.get("project"):
-            raise ValidationError({"project": "This field is required."})
+            raise ValidationError({"project": gettext("This field is required.")})
         if not data.get("title"):
-            raise ValidationError({"title": "This field is required."})
+            raise ValidationError({"title": gettext("This field is required.")})
 
         project = self.get_project(data["project"])
         self.require_perm(project, "can_edit")
@@ -330,11 +331,11 @@ class IssueListView(IssueMixin, PublicApiView):
 
 
 class IssueDetailView(IssueMixin, PublicApiView):
-    @extend_schema(tags=["issues"], summary="이슈 — id 또는 번호(OUR-12)", responses=s.IssueSerializer)
+    @extend_schema(tags=["issues"], summary=gettext_lazy("Issue — by id or number (OUR-12)"), responses=s.IssueSerializer)
     def get(self, request, ref):
         return Response(s.IssueSerializer(self.get_issue(ref), context={"request": request}).data)
 
-    @extend_schema(tags=["issues"], summary="이슈 고치기 — 보낸 필드만 바뀐다 (write)",
+    @extend_schema(tags=["issues"], summary=gettext_lazy("Update an issue — only the fields sent change (write)"),
                    request=s.IssueWriteSerializer, responses=s.IssueSerializer)
     def patch(self, request, ref):
         issue = self.get_issue(ref)
@@ -343,7 +344,7 @@ class IssueDetailView(IssueMixin, PublicApiView):
         ser.is_valid(raise_exception=True)
         data = ser.validated_data
         if "project" in data and str(data["project"]) != str(issue.project_id):
-            raise ValidationError({"project": "An issue cannot be moved to a different project."})
+            raise ValidationError({"project": gettext("An issue cannot be moved to a different project.")})
         rel = self.resolve_relations(issue.project, data, instance=issue)
 
         before = _issue_field_snapshot(issue)
@@ -370,7 +371,7 @@ class IssueDetailView(IssueMixin, PublicApiView):
             issue.sub_issues.filter(deleted_at__isnull=True).update(sprint=issue.sprint)
         return Response(s.IssueSerializer(issue, context={"request": request}).data)
 
-    @extend_schema(tags=["issues"], summary="이슈 지우기 — 휴지통으로, 하위 이슈 포함 (write)",
+    @extend_schema(tags=["issues"], summary=gettext_lazy("Delete an issue — moves it to the trash with its sub-issues (write)"),
                    responses={204: None})
     def delete(self, request, ref):
         issue = self.get_issue(ref)
@@ -385,13 +386,13 @@ class IssueDetailView(IssueMixin, PublicApiView):
 
 
 class IssueCommentListView(IssueMixin, PublicApiView):
-    @extend_schema(tags=["issues"], summary="이슈 댓글 목록", responses=s.CommentSerializer(many=True))
+    @extend_schema(tags=["issues"], summary=gettext_lazy("List issue comments"), responses=s.CommentSerializer(many=True))
     def get(self, request, ref):
         issue = self.get_issue(ref)
         qs = IssueComment.objects.filter(issue=issue).select_related("actor").order_by("created_at", "id")
         return self.paginate(qs, s.CommentSerializer)
 
-    @extend_schema(tags=["issues"], summary="댓글 달기 (write)", request=s.CommentWriteSerializer,
+    @extend_schema(tags=["issues"], summary=gettext_lazy("Add a comment (write)"), request=s.CommentWriteSerializer,
                    responses={201: s.CommentSerializer})
     def post(self, request, ref):
         issue = self.get_issue(ref)
@@ -402,7 +403,7 @@ class IssueCommentListView(IssueMixin, PublicApiView):
         if ser.validated_data.get("parent"):
             parent = IssueComment.objects.filter(pk=ser.validated_data["parent"], issue=issue).first()
             if parent is None:
-                raise ValidationError({"parent": "That comment does not belong to this issue."})
+                raise ValidationError({"parent": gettext("That comment does not belong to this issue.")})
             # 답글은 1단계만 — 답글에 단 답글은 같은 부모 밑으로
             parent = parent.parent or parent
         comment = IssueComment.objects.create(
@@ -423,24 +424,24 @@ class DocumentMixin:
     def get_space(self, space_id):
         space = self.accessible_spaces().filter(pk=space_id).first() if UUID_RE.match(str(space_id)) else None
         if space is None:
-            raise NotFound("Space not found.")
+            raise NotFound(gettext("Space not found."))
         return space
 
     def require_edit(self, space):
         if not _check_space_edit(self.request.user, space):
-            raise PermissionDenied("You do not have edit permission for this space.")
+            raise PermissionDenied(gettext("You do not have edit permission for this space."))
 
     def resolve_parent(self, space, parent_id, moving=None):
         if parent_id is None:
             return None
         parent = Document.objects.filter(pk=parent_id, space=space, deleted_at__isnull=True).first()
         if parent is None:
-            raise ValidationError({"parent": "That document does not belong to this space."})
+            raise ValidationError({"parent": gettext("That document does not belong to this space.")})
         if moving is not None:
             cur, seen = parent, set()
             while cur is not None and cur.pk not in seen:
                 if cur.pk == moving.pk:
-                    raise ValidationError({"parent": "It cannot be moved under itself or one of its own sub-documents."})
+                    raise ValidationError({"parent": gettext("It cannot be moved under itself or one of its own sub-documents.")})
                 seen.add(cur.pk)
                 cur = cur.parent
         return parent
@@ -463,19 +464,19 @@ class DocumentMixin:
                 .first()
             )
         if doc is None:
-            raise NotFound("Document not found.")
+            raise NotFound(gettext("Document not found."))
         return doc
 
 
 class SpaceListView(DocumentMixin, PublicApiView):
-    @extend_schema(tags=["documents"], summary="문서 스페이스 목록", responses=s.SpaceSerializer(many=True))
+    @extend_schema(tags=["documents"], summary=gettext_lazy("List document spaces"), responses=s.SpaceSerializer(many=True))
     def get(self, request):
         return Response(s.SpaceSerializer(self.accessible_spaces().order_by("name"), many=True).data)
 
 
 class SpaceDocumentListView(DocumentMixin, PublicApiView):
     @extend_schema(
-        tags=["documents"], summary="스페이스의 문서 목록 — 폴더 구조는 parent 로",
+        tags=["documents"], summary=gettext_lazy("List documents in a space — folder structure via parent"),
         parameters=[OpenApiParameter("updated_since", OpenApiTypes.DATETIME),
                     OpenApiParameter("page", int), OpenApiParameter("page_size", int)],
         responses=s.DocumentListSerializer(many=True),
@@ -486,13 +487,13 @@ class SpaceDocumentListView(DocumentMixin, PublicApiView):
         if request.query_params.get("updated_since"):
             since = parse_datetime(request.query_params["updated_since"])
             if since is None:
-                raise ValidationError({"updated_since": "Must be an ISO 8601 timestamp."})
+                raise ValidationError({"updated_since": gettext("Must be an ISO 8601 timestamp.")})
             if timezone.is_naive(since):
                 since = timezone.make_aware(since)
             qs = qs.filter(updated_at__gte=since)
         return self.paginate(qs.order_by("created_at", "id"), s.DocumentListSerializer)
 
-    @extend_schema(tags=["documents"], summary="문서 만들기 (write)", request=s.DocumentCreateSerializer,
+    @extend_schema(tags=["documents"], summary=gettext_lazy("Create a document (write)"), request=s.DocumentCreateSerializer,
                    responses={201: s.DocumentSerializer})
     def post(self, request, space_id):
         space = self.get_space(space_id)
@@ -501,7 +502,7 @@ class SpaceDocumentListView(DocumentMixin, PublicApiView):
         ser.is_valid(raise_exception=True)
         data = ser.validated_data
         if data.get("is_folder") and data.get("content"):
-            raise ValidationError({"content": "A folder cannot have body content."})
+            raise ValidationError({"content": gettext("A folder cannot have body content.")})
 
         # 새 문서는 아직 아무도 열지 않았으므로 DB 에 바로 쓴다. 처음 여는 순간 협업 서버가 이 HTML 로 시작한다.
         doc = Document.objects.create(
@@ -521,11 +522,11 @@ class SpaceDocumentListView(DocumentMixin, PublicApiView):
 
 
 class DocumentDetailView(DocumentMixin, PublicApiView):
-    @extend_schema(tags=["documents"], summary="문서 — 본문은 마크다운", responses=s.DocumentSerializer)
+    @extend_schema(tags=["documents"], summary=gettext_lazy("Document — body as Markdown"), responses=s.DocumentSerializer)
     def get(self, request, doc_id):
         return Response(s.DocumentSerializer(self.get_document(doc_id), context={"request": request}).data)
 
-    @extend_schema(tags=["documents"], summary="제목·위치·프로퍼티 고치기 (write) — 본문은 content/",
+    @extend_schema(tags=["documents"], summary=gettext_lazy("Update title, location, properties (write) — body via content/"),
                    request=s.DocumentUpdateSerializer, responses=s.DocumentSerializer)
     def patch(self, request, doc_id):
         doc = self.get_document(doc_id)
@@ -547,7 +548,7 @@ class DocumentDetailView(DocumentMixin, PublicApiView):
             doc.save(update_fields=[*fields, "updated_at"])
         return Response(s.DocumentSerializer(self.get_document(doc.pk), context={"request": request}).data)
 
-    @extend_schema(tags=["documents"], summary="문서 지우기 — 휴지통으로, 하위 문서 포함 (write)",
+    @extend_schema(tags=["documents"], summary=gettext_lazy("Delete a document — moves it to the trash with its sub-documents (write)"),
                    responses={204: None})
     def delete(self, request, doc_id):
         doc = self.get_document(doc_id)
@@ -574,7 +575,7 @@ class _DocumentContentWrite(DocumentMixin, PublicApiView):
         doc = self.get_document(doc_id)
         self.require_edit(doc.space)
         if doc.is_folder:
-            raise ValidationError({"content": "A folder has no body content."})
+            raise ValidationError({"content": gettext("A folder has no body content.")})
         ser = s.DocumentContentSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         try:
@@ -582,7 +583,7 @@ class _DocumentContentWrite(DocumentMixin, PublicApiView):
                                                       self.mode)
         except CollabUnavailable:
             # DB 에 직접 쓰는 우회로를 두지 않는다 — 편집 중인 사람의 저장에 덮여 조용히 사라진다
-            return Response({"detail": "실시간 협업 서버에 닿지 못해 본문을 고치지 못했습니다. 잠시 뒤 다시 시도하세요."},
+            return Response({"detail": gettext("Could not reach the real-time collaboration server, so the body was not changed. Try again shortly.")},
                             status=status.HTTP_503_SERVICE_UNAVAILABLE)
         Document.objects.filter(pk=doc.pk).update(updated_at=timezone.now())
         return Response(s.DocumentSerializer(doc, context={"request": request}).data)
@@ -593,9 +594,8 @@ class DocumentContentView(_DocumentContentWrite):
 
     @extend_schema(
         tags=["documents"],
-        summary="본문 통째로 바꾸기 (write)",
-        description="편집 중인 사람이 있어도 안전합니다. 살아 있는 문서에 편집으로 반영되어 열어 둔 화면에도 "
-                    "바로 나타나고, 바뀌지 않은 문단은 그대로 남습니다.",
+        summary=gettext_lazy("Replace the whole body (write)"),
+        description=gettext_lazy("Safe even while someone is editing. The change is applied as an edit to the live document, shows up immediately on open screens, and unchanged paragraphs are kept."),
         request=s.DocumentContentSerializer, responses={200: s.DocumentSerializer, 503: None},
     )
     def put(self, request, doc_id):
@@ -605,7 +605,7 @@ class DocumentContentView(_DocumentContentWrite):
 class DocumentAppendView(_DocumentContentWrite):
     mode = "append"
 
-    @extend_schema(tags=["documents"], summary="본문 끝에 덧붙이기 (write) — 로그·회의록 누적용",
+    @extend_schema(tags=["documents"], summary=gettext_lazy("Append to the body (write) — for accumulating logs or meeting notes"),
                    request=s.DocumentContentSerializer, responses={200: s.DocumentSerializer, 503: None})
     def post(self, request, doc_id):
         return self.write(request, doc_id)

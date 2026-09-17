@@ -9,6 +9,7 @@
 from django.db.models import Count, Q, Sum
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from django.utils.translation import gettext
 from rest_framework import status
 from rest_framework.exceptions import NotFound, PermissionDenied
 from rest_framework.pagination import PageNumberPagination
@@ -39,7 +40,7 @@ class WorkspaceManageView(APIView):
             workspace=workspace, member=request.user, role__gte=WorkspaceMember.Role.ADMIN,
         ).exists()
         if not is_admin:
-            raise PermissionDenied("Only a workspace administrator can view this.")
+            raise PermissionDenied(gettext("Only a workspace administrator can view this."))
         self.workspace = workspace
 
 
@@ -70,7 +71,7 @@ class WorkspaceActivityListView(WorkspaceManageView):
         return paginator.get_paginated_response([{
             "id": str(a.id),
             "action": a.action,
-            "actor": _user_brief(a.actor) or {"id": None, "display_name": a.actor_label or "시스템", "email": ""},
+            "actor": _user_brief(a.actor) or {"id": None, "display_name": a.actor_label or gettext("System"), "email": ""},
             "target_type": a.target_type,
             "target_id": str(a.target_id) if a.target_id else None,
             "target_label": a.target_label,
@@ -132,7 +133,7 @@ class ManageProjectDetailView(WorkspaceManageView):
             if lead_id:
                 lead = User.objects.filter(pk=lead_id, workspace_memberships__workspace=self.workspace).first()
                 if lead is None:
-                    return Response({"lead": ["워크스페이스 멤버만 리드로 지정할 수 있습니다."]},
+                    return Response({"lead": [gettext("Only a workspace member can be set as lead.")]},
                                     status=status.HTTP_400_BAD_REQUEST)
                 # 리드는 프로젝트 관리자여야 설정을 다룰 수 있다 — 프로젝트 설정 화면과 같은 규칙
                 pm, _ = ProjectMember.objects.get_or_create(project=project, member=lead,
@@ -179,16 +180,16 @@ class ManageProjectMemberListView(WorkspaceManageView):
         project = _managed_project(self.workspace, pk)
         member = User.objects.filter(pk=request.data.get("member"), workspace_memberships__workspace=self.workspace).first()
         if member is None:
-            return Response({"member": ["워크스페이스 멤버만 추가할 수 있습니다."]}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"member": [gettext("Only workspace members can be added.")]}, status=status.HTTP_400_BAD_REQUEST)
         try:
             role = int(request.data.get("role", ProjectMember.Role.MEMBER))
         except (TypeError, ValueError):
             role = None
         if role not in ProjectMember.Role.values:
-            return Response({"role": ["역할 값이 잘못되었습니다."]}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"role": [gettext("Invalid role value.")]}, status=status.HTTP_400_BAD_REQUEST)
         pm, created = ProjectMember.objects.get_or_create(project=project, member=member, defaults={"role": role})
         if not created:
-            return Response({"detail": "이미 프로젝트 멤버입니다."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": gettext("Already a project member.")}, status=status.HTTP_400_BAD_REQUEST)
         log_workspace_activity(self.workspace, request.user, WorkspaceActivity.Action.PROJECT_MEMBER_ADDED,
                                target=project, member=member.email, role=role, via="workspace_settings",
                                self_added=member.pk == request.user.pk,
@@ -215,9 +216,9 @@ class ManageProjectMemberDetailView(WorkspaceManageView):
         except (TypeError, ValueError):
             role = None
         if role not in ProjectMember.Role.values:
-            return Response({"role": ["역할 값이 잘못되었습니다."]}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"role": [gettext("Invalid role value.")]}, status=status.HTTP_400_BAD_REQUEST)
         if role != ProjectMember.Role.ADMIN and self._last_admin(pm):
-            return Response({"detail": "마지막 관리자는 강등할 수 없습니다."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": gettext("The last administrator cannot be demoted.")}, status=status.HTTP_400_BAD_REQUEST)
         old = pm.role
         pm.role = role
         pm.save(update_fields=["role"])
@@ -230,7 +231,7 @@ class ManageProjectMemberDetailView(WorkspaceManageView):
     def delete(self, request, workspace_slug, pk, member_id):
         project, pm = self._get(pk, member_id)
         if self._last_admin(pm):
-            return Response({"detail": "마지막 관리자는 제거할 수 없습니다."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": gettext("The last administrator cannot be removed.")}, status=status.HTTP_400_BAD_REQUEST)
         if project.lead_id == pm.member_id:
             project.lead = None
             project.save(update_fields=["lead"])

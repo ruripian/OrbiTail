@@ -4,6 +4,7 @@ from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from django.db.models import Q, Count, F
 from django.utils import timezone
+from django.utils.translation import gettext
 from rest_framework import generics, status
 from rest_framework.generics import get_object_or_404
 from rest_framework.response import Response
@@ -148,9 +149,9 @@ def _get_checked_document(request, kwargs, *, edit=False, doc_key="doc_pk", incl
         filters["deleted_at__isnull"] = True
     doc = Document.objects.select_related("space", "space__workspace", "space__project").filter(**filters).first()
     if doc is None or not _check_space_access(request.user, doc.space):
-        raise NotFound("Document not found.")
+        raise NotFound(gettext("Document not found."))
     if edit and not _check_space_edit(request.user, doc.space):
-        raise PermissionDenied("You do not have edit permission.")
+        raise PermissionDenied(gettext("You do not have edit permission."))
     return doc
 
 
@@ -209,7 +210,7 @@ class SpaceListCreateView(generics.ListCreateAPIView):
         ws = get_object_or_404(Workspace, slug=self.kwargs["workspace_slug"])
         if not WorkspaceMember.objects.filter(
                 workspace=ws, member=request.user, role__gte=WorkspaceMember.Role.MEMBER).exists():
-            return Response({"detail": "워크스페이스 멤버만 스페이스를 만들 수 있습니다."},
+            return Response({"detail": gettext("Only a workspace member can create a space.")},
                             status=status.HTTP_403_FORBIDDEN)
 
         # members 가 워크스페이스 소속인지 검증 — 외부 인원 추가 차단.
@@ -268,12 +269,12 @@ class SpaceJoinView(APIView):
         )
         if space.space_type != "shared":
             return Response(
-                {"detail": "공용 스페이스만 자가 가입 가능합니다."},
+                {"detail": gettext("You can only join shared spaces yourself.")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         if space.is_private:
             return Response(
-                {"detail": "비공개 스페이스에는 자가 가입할 수 없습니다."},
+                {"detail": gettext("You cannot join a private space yourself.")},
                 status=status.HTTP_403_FORBIDDEN,
             )
         # 워크스페이스 멤버 확인
@@ -281,7 +282,7 @@ class SpaceJoinView(APIView):
             workspace=space.workspace, member=request.user,
         ).exists():
             return Response(
-                {"detail": "워크스페이스 멤버만 가입할 수 있습니다."},
+                {"detail": gettext("Only a workspace member can join.")},
                 status=status.HTTP_403_FORBIDDEN,
             )
         space.members.add(request.user)
@@ -299,13 +300,13 @@ class SpaceDetailView(generics.RetrieveUpdateDestroyAPIView):
         space = self.get_object()
         if not _check_space_admin(request.user, space):
             return Response(
-                {"detail": "스페이스 설정은 관리자만 변경할 수 있습니다."},
+                {"detail": gettext("Only an administrator can change space settings.")},
                 status=status.HTTP_403_FORBIDDEN,
             )
         # 프로젝트 스페이스의 보관 상태는 프로젝트 보관과 동기화된다 — 여기서 따로 바꾸면 어긋난다
         if space.space_type == "project" and "archived_at" in request.data:
             return Response(
-                {"detail": "프로젝트 스페이스의 보관은 프로젝트 설정에서 변경합니다."},
+                {"detail": gettext("Archive a project space from the project settings.")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         was_private = space.is_private
@@ -320,12 +321,12 @@ class SpaceDetailView(generics.RetrieveUpdateDestroyAPIView):
         space = self.get_object()
         if space.space_type == "project":
             return Response(
-                {"detail": "프로젝트 스페이스는 직접 삭제할 수 없습니다."},
+                {"detail": gettext("A project space cannot be deleted directly.")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         if not _check_space_admin(request.user, space):
             return Response(
-                {"detail": "스페이스 삭제는 관리자만 할 수 있습니다."},
+                {"detail": gettext("Only an administrator can delete a space.")},
                 status=status.HTTP_403_FORBIDDEN,
             )
         log_workspace_activity(space.workspace_id, request.user, WorkspaceActivity.Action.SPACE_DELETED,
@@ -351,25 +352,25 @@ class SpaceMemberListCreateView(APIView):
     def get(self, request, workspace_slug, space_pk):
         space = self._get_space(workspace_slug, space_pk)
         if not self._can_view(request.user, space):
-            return Response({"detail": "접근 권한이 없습니다."}, status=status.HTTP_403_FORBIDDEN)
+            return Response({"detail": gettext("You do not have access.")}, status=status.HTTP_403_FORBIDDEN)
         qs = DocumentSpaceMember.objects.filter(space=space).select_related("member")
         return Response(DocumentSpaceMemberSerializer(qs, many=True).data)
 
     def post(self, request, workspace_slug, space_pk):
         space = self._get_space(workspace_slug, space_pk)
         if not self._can_manage(request.user, space):
-            return Response({"detail": "멤버 추가는 관리자만 할 수 있습니다."}, status=status.HTTP_403_FORBIDDEN)
+            return Response({"detail": gettext("Only an administrator can add members.")}, status=status.HTTP_403_FORBIDDEN)
 
         member_id = request.data.get("member")
         role = int(request.data.get("role", DocumentSpaceMember.Role.EDITOR))
         if role not in DocumentSpaceMember.Role.values:
-            return Response({"detail": "알 수 없는 역할입니다."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": gettext("Unknown role.")}, status=status.HTTP_400_BAD_REQUEST)
         # 워크스페이스 밖 인원 차단 — 스페이스 멤버는 워크스페이스 멤버의 부분집합이어야 한다
         if not WorkspaceMember.objects.filter(
             workspace=space.workspace, member_id=member_id,
         ).exists():
             return Response(
-                {"detail": "워크스페이스 멤버만 추가할 수 있습니다."},
+                {"detail": gettext("Only workspace members can be added.")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         obj, _ = DocumentSpaceMember.objects.update_or_create(
@@ -393,7 +394,7 @@ class SpaceMemberDetailView(APIView):
         space = get_object_or_404(DocumentSpace, pk=space_pk, workspace__slug=workspace_slug)
         if not self._can_manage(request.user, space):
             return None, Response(
-                {"detail": "멤버 관리는 관리자만 할 수 있습니다."},
+                {"detail": gettext("Only an administrator can manage members.")},
                 status=status.HTTP_403_FORBIDDEN,
             )
         return get_object_or_404(
@@ -406,14 +407,14 @@ class SpaceMemberDetailView(APIView):
             return error
         role = int(request.data.get("role", membership.role))
         if role not in DocumentSpaceMember.Role.values:
-            return Response({"detail": "알 수 없는 역할입니다."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": gettext("Unknown role.")}, status=status.HTTP_400_BAD_REQUEST)
         # 마지막 관리자를 강등하면 아무도 설정을 못 바꾸는 스페이스가 된다
         if membership.role == DocumentSpaceMember.Role.ADMIN and role < DocumentSpaceMember.Role.ADMIN:
             if not DocumentSpaceMember.objects.filter(
                 space=membership.space, role=DocumentSpaceMember.Role.ADMIN,
             ).exclude(pk=membership.pk).exists():
                 return Response(
-                    {"detail": "마지막 관리자는 강등할 수 없습니다."},
+                    {"detail": gettext("The last administrator cannot be demoted.")},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
         old_role = membership.role
@@ -433,7 +434,7 @@ class SpaceMemberDetailView(APIView):
                 space=membership.space, role=DocumentSpaceMember.Role.ADMIN,
             ).exclude(pk=membership.pk).exists():
                 return Response(
-                    {"detail": "마지막 관리자는 제거할 수 없습니다."},
+                    {"detail": gettext("The last administrator cannot be removed.")},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
         log_workspace_activity(membership.space.workspace_id, request.user, WorkspaceActivity.Action.SPACE_MEMBER_REMOVED,
@@ -458,7 +459,7 @@ class _WorkspaceSpaceAdminMixin:
         if ws is None:
             raise NotFound()
         if not _is_workspace_admin(request.user, ws):
-            raise PermissionDenied("Only a workspace administrator can do this.")
+            raise PermissionDenied(gettext("Only a workspace administrator can do this."))
         return ws
 
     def _get_managed_space(self, request, workspace_slug, pk):
@@ -581,7 +582,7 @@ class DocumentListCreateView(generics.ListCreateAPIView):
         space = get_object_or_404(DocumentSpace, pk=self.kwargs["space_pk"], workspace__slug=self.kwargs["workspace_slug"])
         if not _check_space_edit(self.request.user, space):
             from rest_framework.exceptions import PermissionDenied
-            raise PermissionDenied("You do not have edit permission.")
+            raise PermissionDenied(gettext("You do not have edit permission."))
         serializer.save(space=space, created_by=self.request.user)
 
 
@@ -631,10 +632,10 @@ class DocumentDetailView(generics.RetrieveUpdateDestroyAPIView):
     def update(self, request, *args, **kwargs):
         doc = self.get_object()
         if not _check_space_edit(request.user, doc.space):
-            return Response({"detail": "You do not have edit permission."}, status=status.HTTP_403_FORBIDDEN)
+            return Response({"detail": gettext("You do not have edit permission.")}, status=status.HTTP_403_FORBIDDEN)
         # 표의 칸은 폴더에만 의미가 있다. 문서에 붙이면 아무도 읽지 않는 값이 되어 혼란만 남는다.
         if "db_columns" in request.data and request.data.get("db_columns") is not None and not doc.is_folder:
-            return Response({"detail": "표의 칸은 폴더에만 지정할 수 있습니다."},
+            return Response({"detail": gettext("Table columns can only be set on a folder.")},
                             status=status.HTTP_400_BAD_REQUEST)
         response = super().update(request, *args, **kwargs)
         if "content_html" in request.data:
@@ -651,7 +652,7 @@ class DocumentDetailView(generics.RetrieveUpdateDestroyAPIView):
         """소프트 삭제 — 하위 문서 포함"""
         if not _check_space_edit(self.request.user, instance.space):
             from rest_framework.exceptions import PermissionDenied
-            raise PermissionDenied("You do not have edit permission.")
+            raise PermissionDenied(gettext("You do not have edit permission."))
         now = timezone.now()
         actor = self.request.user if self.request.user.is_authenticated else None
         instance.deleted_at = now
@@ -684,7 +685,7 @@ class DocumentTrashView(APIView):
     def get(self, request, workspace_slug, space_pk):
         space = self._get_space(request, workspace_slug, space_pk)
         if not _check_space_edit(request.user, space):
-            return Response({"detail": "You do not have edit permission."}, status=status.HTTP_403_FORBIDDEN)
+            return Response({"detail": gettext("You do not have edit permission.")}, status=status.HTTP_403_FORBIDDEN)
         qs = (
             Document.objects.filter(space=space, deleted_at__isnull=False)
             .select_related("created_by", "deleted_by")
@@ -698,7 +699,7 @@ class DocumentTrashView(APIView):
         부모가 아직 삭제 상태면 트리에서 길을 잃으므로 루트로 올린다."""
         space = self._get_space(request, workspace_slug, space_pk)
         if not _check_space_edit(request.user, space):
-            return Response({"detail": "You do not have edit permission."}, status=status.HTTP_403_FORBIDDEN)
+            return Response({"detail": gettext("You do not have edit permission.")}, status=status.HTTP_403_FORBIDDEN)
         ids = request.data.get("ids") or []
         docs = Document.objects.filter(space=space, id__in=ids, deleted_at__isnull=False)
         restored = 0
@@ -717,7 +718,7 @@ class DocumentTrashView(APIView):
         space = self._get_space(request, workspace_slug, space_pk)
         if not _check_space_admin(request.user, space):
             return Response(
-                {"detail": "영구 삭제는 관리자만 할 수 있습니다."},
+                {"detail": gettext("Only an administrator can delete permanently.")},
                 status=status.HTTP_403_FORBIDDEN,
             )
         qs = Document.objects.filter(space=space, deleted_at__isnull=False)
@@ -738,7 +739,7 @@ class DocumentBulkMoveView(APIView):
     def post(self, request, workspace_slug, space_pk):
         space = get_object_or_404(DocumentSpace, pk=space_pk, workspace__slug=workspace_slug)
         if not _check_space_edit(request.user, space):
-            return Response({"detail": "You do not have edit permission."}, status=status.HTTP_403_FORBIDDEN)
+            return Response({"detail": gettext("You do not have edit permission.")}, status=status.HTTP_403_FORBIDDEN)
 
         ids = request.data.get("ids") or []
         parent_id = request.data.get("parent")  # None 이면 최상위
@@ -755,7 +756,7 @@ class DocumentBulkMoveView(APIView):
             descendants = _descendant_ids(space, [d.id for d in docs])
             if parent.id in descendants or str(parent.id) in {str(d.id) for d in docs}:
                 return Response(
-                    {"detail": "자신 또는 하위 문서로는 이동할 수 없습니다."},
+                    {"detail": gettext("It cannot be moved into itself or one of its sub-documents.")},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
@@ -807,7 +808,7 @@ class TrashedDocumentDetailView(APIView):
     def get(self, request, workspace_slug, space_pk, pk):
         space = get_object_or_404(DocumentSpace, pk=space_pk, workspace__slug=workspace_slug)
         if not _check_space_edit(request.user, space):
-            return Response({"detail": "You do not have edit permission."}, status=status.HTTP_403_FORBIDDEN)
+            return Response({"detail": gettext("You do not have edit permission.")}, status=status.HTTP_403_FORBIDDEN)
         doc = get_object_or_404(
             Document.objects.select_related("created_by", "deleted_by"),
             pk=pk, space=space, deleted_at__isnull=False,
@@ -833,16 +834,16 @@ class DocumentMoveView(APIView):
             # 형제 사이 드롭도 parent 가 자기 자신이 될 수 있어(자식의 앞/뒤로 놓는 경우) 반드시 검사한다.
             if target_parent:
                 if not Document.objects.filter(pk=target_parent, space_id=doc.space_id).exists():
-                    return Response({"detail": "같은 스페이스의 문서로만 옮길 수 있습니다."},
+                    return Response({"detail": gettext("It can only be moved to a document in the same space.")},
                                     status=status.HTTP_400_BAD_REQUEST)
                 if target_parent == str(doc.id):
                     return Response(
-                        {"detail": "자신을 부모로 지정할 수 없습니다."},
+                        {"detail": gettext("A document cannot be its own parent.")},
                         status=status.HTTP_400_BAD_REQUEST,
                     )
                 if target_parent in {str(i) for i in _descendant_ids(doc.space, [doc.id])}:
                     return Response(
-                        {"detail": "자신 또는 하위 문서로는 이동할 수 없습니다."},
+                        {"detail": gettext("It cannot be moved into itself or one of its sub-documents.")},
                         status=status.HTTP_400_BAD_REQUEST,
                     )
             doc.parent_id = target_parent
@@ -873,7 +874,7 @@ class DocumentIssueLinkListCreateView(_DocumentScopedMixin, generics.ListCreateA
         # 같은 워크스페이스의, 요청자가 읽을 수 있는 이슈만 — 응답에 이슈 제목·상태가 실린다
         if issue.workspace_id != doc.space.workspace_id or not Issue.objects.filter(pk=issue.pk).filter(
                 _issue_read_q(self.request.user)).exists():
-            raise ValidationError({"issue": "The issue to link was not found."})
+            raise ValidationError({"issue": gettext("The issue to link was not found.")})
         serializer.save(document=doc)
 
 
@@ -964,7 +965,7 @@ class DocumentBacklinkView(APIView):
     def get(self, request, workspace_slug, space_pk, doc_pk):
         doc = get_object_or_404(Document, pk=doc_pk, space_id=space_pk, deleted_at__isnull=True)
         if not _check_space_access(request.user, doc.space):
-            return Response({"detail": "접근 권한이 없습니다."}, status=status.HTTP_403_FORBIDDEN)
+            return Response({"detail": gettext("You do not have access.")}, status=status.HTTP_403_FORBIDDEN)
 
         spaces = _get_accessible_spaces(request.user, workspace_slug)
 
@@ -1114,10 +1115,10 @@ class DocumentLabelListCreateView(generics.ListCreateAPIView):
     def create(self, request, *args, **kwargs):
         ws = self._get_workspace()
         if not WorkspaceMember.objects.filter(workspace=ws, member=request.user).exists():
-            return Response({"detail": "워크스페이스 멤버만 만들 수 있습니다."}, status=status.HTTP_403_FORBIDDEN)
+            return Response({"detail": gettext("Only a workspace member can create this.")}, status=status.HTTP_403_FORBIDDEN)
         name = (request.data.get("name") or "").strip()
         if not name:
-            return Response({"detail": "라벨 이름을 입력하세요."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": gettext("Enter a label name.")}, status=status.HTTP_400_BAD_REQUEST)
         # 같은 이름이 이미 있으면 새로 만들지 않고 그 라벨을 돌려준다 — 분류가 갈라지지 않게
         label, created = DocumentLabel.objects.get_or_create(
             workspace=ws, name=name,
@@ -1146,12 +1147,12 @@ class DocumentLabelDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def update(self, request, *args, **kwargs):
         if not self._can_manage(self.get_object()):
-            return Response({"detail": "라벨을 수정할 권한이 없습니다."}, status=status.HTTP_403_FORBIDDEN)
+            return Response({"detail": gettext("You do not have permission to edit this label.")}, status=status.HTTP_403_FORBIDDEN)
         return super().update(request, *args, **kwargs)
 
     def destroy(self, request, *args, **kwargs):
         if not self._can_manage(self.get_object()):
-            return Response({"detail": "라벨을 삭제할 권한이 없습니다."}, status=status.HTTP_403_FORBIDDEN)
+            return Response({"detail": gettext("You do not have permission to delete this label.")}, status=status.HTTP_403_FORBIDDEN)
         return super().destroy(request, *args, **kwargs)
 
 
@@ -1179,14 +1180,14 @@ class SpaceImportView(APIView):
 
         space = get_object_or_404(DocumentSpace, pk=space_pk, workspace__slug=workspace_slug)
         if not _check_space_edit(request.user, space):
-            return Response({"detail": "You do not have edit permission."}, status=status.HTTP_403_FORBIDDEN)
+            return Response({"detail": gettext("You do not have edit permission.")}, status=status.HTTP_403_FORBIDDEN)
 
         upload = request.FILES.get("file")
         if not upload:
-            return Response({"detail": "파일이 없습니다."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": gettext("No file was provided.")}, status=status.HTTP_400_BAD_REQUEST)
         if upload.size > self.MAX_BYTES:
             return Response(
-                {"detail": f"파일이 너무 큽니다(최대 {self.MAX_BYTES // (1024 * 1024)}MB)."},
+                {"detail": gettext("The file is too large (max %(mb)sMB).") % {"mb": self.MAX_BYTES // (1024 * 1024)}},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -1199,7 +1200,7 @@ class SpaceImportView(APIView):
             try:
                 zf = zipfile.ZipFile(upload)
             except zipfile.BadZipFile:
-                return Response({"detail": "zip 파일을 열 수 없습니다."}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({"detail": gettext("Could not open the zip file.")}, status=status.HTTP_400_BAD_REQUEST)
             unpacked_total = 0
             for info in zf.infolist():
                 if info.is_dir():
@@ -1219,7 +1220,7 @@ class SpaceImportView(APIView):
                 # 수 GB 로 풀려 서버 메모리를 다 먹는다(zip bomb)
                 unpacked_total += info.file_size
                 if info.file_size > self.MAX_BYTES or unpacked_total > self.MAX_BYTES * 4:
-                    return Response({"detail": "압축을 풀면 너무 큽니다."}, status=status.HTTP_400_BAD_REQUEST)
+                    return Response({"detail": gettext("The archive is too large once extracted.")}, status=status.HTTP_400_BAD_REQUEST)
                 try:
                     text = zf.read(info).decode("utf-8")
                 except (UnicodeDecodeError, KeyError):
@@ -1230,12 +1231,12 @@ class SpaceImportView(APIView):
             try:
                 entries.append(([], upload.name, upload.read().decode("utf-8")))
             except UnicodeDecodeError:
-                return Response({"detail": "UTF-8 로 읽을 수 없는 파일입니다."}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({"detail": gettext("The file is not valid UTF-8.")}, status=status.HTTP_400_BAD_REQUEST)
         else:
-            return Response({"detail": ".md 또는 .zip 만 받습니다."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": gettext("Only .md or .zip files are accepted.")}, status=status.HTTP_400_BAD_REQUEST)
 
         if not entries:
-            return Response({"detail": "가져올 마크다운 파일이 없습니다."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": gettext("There are no Markdown files to import.")}, status=status.HTTP_400_BAD_REQUEST)
 
         actor = request.user if request.user.is_authenticated else None
         folder_cache: dict[tuple[str, ...], Document] = {}
@@ -1258,7 +1259,7 @@ class SpaceImportView(APIView):
         created: list[tuple[Document, str]] = []   # (문서, 본문 마크다운)
         for parts, filename, text in entries:
             front, body = parse_frontmatter(text)
-            title = str(front.get("title") or filename[:-3]).strip() or "제목 없음"
+            title = str(front.get("title") or filename[:-3]).strip() or gettext("Untitled")
             properties = {
                 k: v for k, v in front.items()
                 if k not in self.RESERVED_KEYS and isinstance(v, (str, int, float, bool, list))
@@ -1319,7 +1320,7 @@ class DocumentMarkdownExportView(APIView):
     def get(self, request, workspace_slug, space_pk, doc_pk):
         doc = get_object_or_404(Document, pk=doc_pk, space_id=space_pk, deleted_at__isnull=True)
         if not _check_space_access(request.user, doc.space):
-            return Response({"detail": "접근 권한이 없습니다."}, status=status.HTTP_403_FORBIDDEN)
+            return Response({"detail": gettext("You do not have access.")}, status=status.HTTP_403_FORBIDDEN)
 
         from django.http import HttpResponse
         from urllib.parse import quote
@@ -1353,7 +1354,7 @@ class SpaceExportView(APIView):
 
         space = get_object_or_404(DocumentSpace, pk=space_pk, workspace__slug=workspace_slug)
         if not _check_space_access(request.user, space):
-            return Response({"detail": "접근 권한이 없습니다."}, status=status.HTTP_403_FORBIDDEN)
+            return Response({"detail": gettext("You do not have access.")}, status=status.HTTP_403_FORBIDDEN)
 
         as_markdown = request.query_params.get("type", "html").lower() in ("md", "markdown")
         ext = "md" if as_markdown else "html"
@@ -1369,8 +1370,8 @@ class SpaceExportView(APIView):
 
         def safe(text: str) -> str:
             """파일/폴더 이름으로 쓸 수 있게 — 경로 구분자와 제어문자만 걷어낸다(한글은 유지)."""
-            cleaned = re.sub(r'[\\/:*?"<>|\r\n\t]', "_", (text or "제목 없음")).strip()
-            return (cleaned or "제목 없음")[:80]
+            cleaned = re.sub(r'[\\/:*?"<>|\r\n\t]', "_", (text or gettext("Untitled"))).strip()
+            return (cleaned or gettext("Untitled"))[:80]
 
         def path_of(doc) -> str:
             """상위 폴더를 따라 올라가 경로를 만든다. 부모가 잘려나갔으면 루트에 둔다."""
@@ -1402,17 +1403,17 @@ class SpaceExportView(APIView):
             if as_markdown:
                 # 마크다운 묶음에 HTML 목차를 끼우면 볼트에 이물질이 섞인다 — 목차도 마크다운으로.
                 notice = (
-                    f"> [!warning]\n> 문서가 {self.MAX_DOCS}개를 넘어 앞의 {self.MAX_DOCS}개만 포함했습니다.\n\n"
+                    "> [!warning]\n> " + gettext("There are more than %(max)s documents, so only the first %(max)s were included.") % {"max": self.MAX_DOCS} + "\n\n"
                     if truncated else ""
                 )
                 links = "\n".join(f"- [[{t}]]" for _, t in index_rows)
                 zf.writestr(
                     "index.md",
-                    f"# {space.name}\n\n{notice}문서 {len(index_rows)}개\n\n{links}\n",
+                    f"# {space.name}\n\n{notice}" + gettext("%(count)s documents") % {"count": len(index_rows)} + f"\n\n{links}\n",
                 )
             else:
                 notice = (
-                    f"<p style='color:#b45309'>문서가 {self.MAX_DOCS}개를 넘어 앞의 {self.MAX_DOCS}개만 포함했습니다.</p>"
+                    "<p style='color:#b45309'>" + gettext("There are more than %(max)s documents, so only the first %(max)s were included.") % {"max": self.MAX_DOCS} + "</p>"
                     if truncated else ""
                 )
                 from django.utils.html import escape
@@ -1420,7 +1421,7 @@ class SpaceExportView(APIView):
                 links = "".join(f'<li><a href="{escape(n)}">{escape(t)}</a></li>' for n, t in index_rows)
                 zf.writestr(
                     "index.html",
-                    _export_html(space.name, f"{notice}<p>문서 {len(index_rows)}개</p><ul>{links}</ul>"),
+                    _export_html(space.name, f"{notice}<p>" + gettext("%(count)s documents") % {"count": len(index_rows)} + f"</p><ul>{links}</ul>"),
                 )
 
         from django.http import HttpResponse
@@ -1459,7 +1460,7 @@ class SpaceAnalyticsView(APIView):
 
         space = get_object_or_404(DocumentSpace, pk=space_pk, workspace__slug=workspace_slug)
         if not _check_space_access(request.user, space):
-            return Response({"detail": "접근 권한이 없습니다."}, status=status.HTTP_403_FORBIDDEN)
+            return Response({"detail": gettext("You do not have access.")}, status=status.HTTP_403_FORBIDDEN)
 
         try:
             days = max(1, min(int(request.query_params.get("days", 30)), 365))
@@ -1560,14 +1561,14 @@ class SpaceBookmarkToggleView(APIView):
     def post(self, request, workspace_slug, space_id):
         space = self._get_space(request, workspace_slug, space_id)
         if space is None:
-            return Response({"detail": "스페이스가 없거나 접근 권한이 없습니다."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": gettext("The space does not exist or you do not have access.")}, status=status.HTTP_404_NOT_FOUND)
         DocumentSpaceBookmark.objects.get_or_create(user=request.user, space=space)
         return Response({"bookmarked": True})
 
     def delete(self, request, workspace_slug, space_id):
         space = self._get_space(request, workspace_slug, space_id)
         if space is None:
-            return Response({"detail": "스페이스가 없거나 접근 권한이 없습니다."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": gettext("The space does not exist or you do not have access.")}, status=status.HTTP_404_NOT_FOUND)
         DocumentSpaceBookmark.objects.filter(user=request.user, space=space).delete()
         return Response({"bookmarked": False})
 
@@ -1615,12 +1616,12 @@ class OrphanSpaceDeleteView(APIView):
                 pk=pk, workspace__slug=workspace_slug, space_type="personal",
             )
         except DocumentSpace.DoesNotExist:
-            return Response({"detail": "스페이스가 없습니다."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": gettext("Space not found.")}, status=status.HTTP_404_NOT_FOUND)
         # 안전장치 — 활성 사용자의 개인 스페이스는 거부
         owner = space.owner
         if owner and owner.is_active and not owner.deleted_at:
             return Response(
-                {"detail": "활성 사용자의 개인 스페이스는 삭제할 수 없습니다."},
+                {"detail": gettext("An active user's personal space cannot be deleted.")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         log_workspace_activity(space.workspace_id, request.user, WorkspaceActivity.Action.PERSONAL_SPACE_DELETED,
@@ -1677,14 +1678,14 @@ class DocumentBookmarkToggleView(APIView):
     def post(self, request, workspace_slug, doc_id):
         doc, Bookmark = self._get_doc(request, workspace_slug, doc_id)
         if doc is None:
-            return Response({"detail": "문서가 없거나 접근 권한이 없습니다."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": gettext("The document does not exist or you do not have access.")}, status=status.HTTP_404_NOT_FOUND)
         Bookmark.objects.get_or_create(user=request.user, document=doc)
         return Response({"bookmarked": True})
 
     def delete(self, request, workspace_slug, doc_id):
         doc, Bookmark = self._get_doc(request, workspace_slug, doc_id)
         if doc is None:
-            return Response({"detail": "문서가 없거나 접근 권한이 없습니다."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": gettext("The document does not exist or you do not have access.")}, status=status.HTTP_404_NOT_FOUND)
         Bookmark.objects.filter(user=request.user, document=doc).delete()
         return Response({"bookmarked": False})
 
@@ -1777,7 +1778,7 @@ class CommentThreadListCreateView(_DocumentScopedMixin, generics.ListCreateAPIVi
         initial = serializer.validated_data.pop("initial_content", "").strip()
         if not initial:
             from rest_framework.exceptions import ValidationError
-            raise ValidationError({"initial_content": "The first comment needs content."})
+            raise ValidationError({"initial_content": gettext("The first comment needs content.")})
         _get_checked_document(self.request, self.kwargs)
         thread = serializer.save(
             document_id=self.kwargs["doc_pk"],
@@ -1809,10 +1810,10 @@ class CommentThreadDetailView(_DocumentScopedMixin, generics.RetrieveDestroyAPIV
         if instance.created_by_id is None:
             if not _check_space_edit(self.request.user, instance.document.space):
                 from rest_framework.exceptions import PermissionDenied
-                raise PermissionDenied("Edit permission is required.")
+                raise PermissionDenied(gettext("Edit permission is required."))
         elif instance.created_by_id != self.request.user.id:
             from rest_framework.exceptions import PermissionDenied
-            raise PermissionDenied("You can only delete threads you created.")
+            raise PermissionDenied(gettext("You can only delete threads you created."))
         tid = str(instance.id)
         doc_id = str(instance.document_id)
         instance.delete()
@@ -1836,7 +1837,7 @@ class CommentThreadReplyView(_DocumentScopedMixin, generics.CreateAPIView):
         )
         if thread.resolved:
             from rest_framework.exceptions import ValidationError
-            raise ValidationError("You cannot reply to a resolved thread. Reopen it first.")
+            raise ValidationError(gettext("You cannot reply to a resolved thread. Reopen it first."))
         serializer.save(
             document_id=self.kwargs["doc_pk"],
             thread=thread,
@@ -1886,7 +1887,7 @@ class DocumentAttachmentListCreateView(_DocumentScopedMixin, generics.ListCreate
         uploaded_file = self.request.FILES.get("file")
         if not uploaded_file:
             from rest_framework.exceptions import ValidationError
-            raise ValidationError({"file": "A file is required."})
+            raise ValidationError({"file": gettext("A file is required.")})
         serializer.save(
             document=doc,
             uploaded_by=self.request.user,
@@ -1957,9 +1958,9 @@ class PublicDocumentView(APIView):
             share_token=token, deleted_at__isnull=True,
         ).first()
         if not doc:
-            return Response({"detail": "공유 링크가 유효하지 않습니다."}, status=404)
+            return Response({"detail": gettext("This share link is not valid.")}, status=404)
         if doc.share_expires_at and doc.share_expires_at < timezone.now():
-            return Response({"detail": "공유 링크가 만료되었습니다."}, status=404)
+            return Response({"detail": gettext("This share link has expired.")}, status=404)
         cover_url = doc.cover_image.url if doc.cover_image else None
         return Response({
             "id": str(doc.id),
@@ -2036,12 +2037,12 @@ class DocumentTemplateListCreateView(generics.ListCreateAPIView):
             # 내장 템플릿은 슈퍼유저만
             if not self.request.user.is_superuser:
                 from rest_framework.exceptions import PermissionDenied
-                raise PermissionDenied("Only an administrator can create a built-in template.")
+                raise PermissionDenied(gettext("Only an administrator can create a built-in template."))
             serializer.save(scope=DocumentTemplate.Scope.BUILT_IN, workspace=None, owner=None, created_by=self.request.user)
         elif requested_scope == DocumentTemplate.Scope.WORKSPACE:
             if not self._is_admin(ws):
                 from rest_framework.exceptions import PermissionDenied
-                raise PermissionDenied("Only an administrator or owner can create a workspace-shared template.")
+                raise PermissionDenied(gettext("Only an administrator or owner can create a workspace-shared template."))
             serializer.save(scope=DocumentTemplate.Scope.WORKSPACE, workspace=ws, owner=None, created_by=self.request.user)
         elif requested_scope == DocumentTemplate.Scope.SPACE:
             space = get_object_or_404(
@@ -2049,7 +2050,7 @@ class DocumentTemplateListCreateView(generics.ListCreateAPIView):
             )
             if not _check_space_edit(self.request.user, space):
                 from rest_framework.exceptions import PermissionDenied
-                raise PermissionDenied("You do not have permission to create a template in this space.")
+                raise PermissionDenied(gettext("You do not have permission to create a template in this space."))
             serializer.save(
                 scope=DocumentTemplate.Scope.SPACE, workspace=ws, owner=None,
                 space=space, created_by=self.request.user,
@@ -2091,18 +2092,18 @@ class DocumentTemplateDetailView(generics.RetrieveDestroyAPIView):
         user = self.request.user
         if instance.scope == DocumentTemplate.Scope.BUILT_IN:
             if not user.is_superuser:
-                raise PermissionDenied("Only an administrator can delete a built-in template.")
+                raise PermissionDenied(gettext("Only an administrator can delete a built-in template."))
         elif instance.scope == DocumentTemplate.Scope.WORKSPACE:
             is_admin = WorkspaceMember.objects.filter(
                 workspace=instance.workspace, member=user,
                 role__in=[WorkspaceMember.Role.OWNER, WorkspaceMember.Role.ADMIN],
             ).exists()
             if not is_admin:
-                raise PermissionDenied("You do not have permission to delete workspace templates.")
+                raise PermissionDenied(gettext("You do not have permission to delete workspace templates."))
         elif instance.scope == DocumentTemplate.Scope.SPACE:
             if not instance.space or not _check_space_edit(user, instance.space):
-                raise PermissionDenied("You do not have permission to delete templates in this space.")
+                raise PermissionDenied(gettext("You do not have permission to delete templates in this space."))
         else:
             if instance.owner_id != user.id:
-                raise PermissionDenied("You can only delete templates you own.")
+                raise PermissionDenied(gettext("You can only delete templates you own."))
         instance.delete()

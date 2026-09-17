@@ -2,6 +2,7 @@ from datetime import timedelta
 
 from django.db.models import Q
 from django.utils import timezone
+from django.utils.translation import gettext
 from rest_framework import generics, permissions, status
 from rest_framework.generics import get_object_or_404
 from rest_framework.response import Response
@@ -56,12 +57,12 @@ def _require_project_perm(user, workspace_slug, project_pk, perm_key):
         if not Project.objects.filter(pk=project_pk, workspace__slug=workspace_slug).filter(
                 _project_readable_q(user)).exists():
             raise NotFound()
-        raise PermissionDenied("Only a project member can do this.")
+        raise PermissionDenied(gettext("Only a project member can do this."))
     if perm_key == "admin":
         if pm.role < ProjectMember.Role.ADMIN:
-            raise PermissionDenied("Only a project administrator can do this.")
+            raise PermissionDenied(gettext("Only a project administrator can do this."))
     elif not pm.effective_perms.get(perm_key, False):
-        raise PermissionDenied(f"You do not have permission for this action. ({perm_key})")
+        raise PermissionDenied(gettext("You do not have permission for this action. (%(perm)s)") % {"perm": perm_key})
     return pm
 from .serializers import (
     ProjectSerializer,
@@ -111,7 +112,7 @@ class ProjectListCreateView(generics.ListCreateAPIView):
         workspace = get_object_or_404(Workspace, slug=self.kwargs["workspace_slug"])
         role = _workspace_role(self.request.user, workspace.slug)
         if role is None or role < WorkspaceMember.Role.MEMBER:
-            raise PermissionDenied("Only a member of this workspace can create a project.")
+            raise PermissionDenied(gettext("Only a member of this workspace can create a project."))
         serializer.save(workspace=workspace, created_by=self.request.user)
 
 
@@ -194,7 +195,7 @@ class ProjectTrashDetailView(APIView):
         if project is None or _workspace_role(request.user, workspace_slug) is None:
             raise NotFound()
         if not _can_manage_trashed_project(request.user, project):
-            raise PermissionDenied("Only a project or workspace administrator can do this.")
+            raise PermissionDenied(gettext("Only a project or workspace administrator can do this."))
         return project
 
     def post(self, request, workspace_slug, pk):
@@ -254,7 +255,7 @@ class ProjectArchiveView(APIView):
     def post(self, request, workspace_slug, pk):
         project = self._get_project(request, workspace_slug, pk)
         if project.archived_at:
-            return Response({"detail": "이미 보관된 프로젝트입니다."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": gettext("This project is already archived.")}, status=status.HTTP_400_BAD_REQUEST)
         project.archived_at = timezone.now()
         project.save(update_fields=["archived_at"])
         log_workspace_activity(project.workspace_id, request.user, WorkspaceActivity.Action.PROJECT_ARCHIVED, target=project)
@@ -263,7 +264,7 @@ class ProjectArchiveView(APIView):
     def delete(self, request, workspace_slug, pk):
         project = self._get_project(request, workspace_slug, pk)
         if not project.archived_at:
-            return Response({"detail": "보관되지 않은 프로젝트입니다."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": gettext("This project is not archived.")}, status=status.HTTP_400_BAD_REQUEST)
         project.archived_at = None
         project.save(update_fields=["archived_at"])
         log_workspace_activity(project.workspace_id, request.user, WorkspaceActivity.Action.PROJECT_UNARCHIVED, target=project)
@@ -307,11 +308,11 @@ class ProjectJoinView(APIView):
         if role is None:
             return Response(status=status.HTTP_404_NOT_FOUND)
         if role < WorkspaceMember.Role.MEMBER:
-            return Response({"detail": "게스트는 프로젝트에 직접 참여할 수 없습니다."},
+            return Response({"detail": gettext("Guests cannot join a project themselves.")},
                             status=status.HTTP_403_FORBIDDEN)
         # 이미 멤버인지 확인
         if ProjectMember.objects.filter(project=project, member=request.user).exists():
-            return Response({"detail": "이미 참가한 프로젝트입니다."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": gettext("You are already in this project.")}, status=status.HTTP_400_BAD_REQUEST)
 
         pm = ProjectMember.objects.create(
             project=project,
@@ -338,7 +339,7 @@ class ProjectLeaveView(APIView):
             ).count()
             if admin_count <= 1:
                 return Response(
-                    {"detail": "마지막 관리자는 프로젝트를 나갈 수 없습니다. 다른 멤버를 관리자로 지정해주세요."},
+                    {"detail": gettext("The last administrator cannot leave the project. Make another member an administrator first.")},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
         pm.delete()
@@ -375,7 +376,7 @@ class ProjectMemberListCreateView(generics.ListCreateAPIView):
         ).first()
         if not requester_membership:
             return Response(
-                {"detail": "프로젝트 관리자만 멤버를 추가할 수 있습니다."},
+                {"detail": gettext("Only a project administrator can add members.")},
                 status=status.HTTP_403_FORBIDDEN,
             )
 
@@ -383,7 +384,7 @@ class ProjectMemberListCreateView(generics.ListCreateAPIView):
         member = get_object_or_404(User, pk=serializer.validated_data["member_id"])
         if not WorkspaceMember.objects.filter(workspace=project.workspace, member=member).exists():
             return Response(
-                {"detail": "워크스페이스 멤버만 프로젝트에 추가할 수 있습니다."},
+                {"detail": gettext("Only workspace members can be added to the project.")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -395,7 +396,7 @@ class ProjectMemberListCreateView(generics.ListCreateAPIView):
         )
         if not created:
             return Response(
-                {"detail": "이미 프로젝트 멤버입니다."},
+                {"detail": gettext("Already a project member.")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         log_workspace_activity(project.workspace_id, request.user, WorkspaceActivity.Action.PROJECT_MEMBER_ADDED,
@@ -433,7 +434,7 @@ class ProjectMemberDetailView(generics.RetrieveUpdateDestroyAPIView):
     def update(self, request, *args, **kwargs):
         if not self._check_admin():
             return Response(
-                {"detail": "프로젝트 관리자만 역할을 변경할 수 있습니다."},
+                {"detail": gettext("Only a project administrator can change roles.")},
                 status=status.HTTP_403_FORBIDDEN,
             )
 
@@ -442,7 +443,7 @@ class ProjectMemberDetailView(generics.RetrieveUpdateDestroyAPIView):
         try:
             new_role = int(new_role)
         except (TypeError, ValueError):
-            return Response({"detail": "role 값이 올바르지 않습니다."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": gettext("Invalid role value.")}, status=status.HTTP_400_BAD_REQUEST)
 
         # 마지막 Admin 강등 방지
         if target.role == ProjectMember.Role.ADMIN and new_role != ProjectMember.Role.ADMIN:
@@ -451,7 +452,7 @@ class ProjectMemberDetailView(generics.RetrieveUpdateDestroyAPIView):
             ).count()
             if admin_count <= 1:
                 return Response(
-                    {"detail": "마지막 관리자는 강등할 수 없습니다."},
+                    {"detail": gettext("The last administrator cannot be demoted.")},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
@@ -466,7 +467,7 @@ class ProjectMemberDetailView(generics.RetrieveUpdateDestroyAPIView):
     def destroy(self, request, *args, **kwargs):
         if not self._check_admin():
             return Response(
-                {"detail": "프로젝트 관리자만 멤버를 제거할 수 있습니다."},
+                {"detail": gettext("Only a project administrator can remove members.")},
                 status=status.HTTP_403_FORBIDDEN,
             )
 
@@ -479,7 +480,7 @@ class ProjectMemberDetailView(generics.RetrieveUpdateDestroyAPIView):
             ).count()
             if admin_count <= 1:
                 return Response(
-                    {"detail": "마지막 관리자는 제거할 수 없습니다."},
+                    {"detail": gettext("The last administrator cannot be removed.")},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
@@ -592,7 +593,7 @@ class SprintStartView(APIView):
         sprint = get_object_or_404(Sprint, pk=pk, project_id=project_pk)
         if sprint.status != Sprint.Status.DRAFT:
             return Response(
-                {"detail": "예정 상태의 스프린트만 시작할 수 있습니다."},
+                {"detail": gettext("Only a planned sprint can be started.")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         active = Sprint.objects.filter(
@@ -600,7 +601,7 @@ class SprintStartView(APIView):
         ).exclude(pk=pk).first()
         if active:
             return Response(
-                {"detail": f'이미 진행 중인 스프린트가 있습니다: "{active.name}". 먼저 완료해 주세요.'},
+                {"detail": gettext('A sprint is already active: "%(name)s". Complete it first.') % {"name": active.name}},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         sprint.status = Sprint.Status.ACTIVE
@@ -624,7 +625,7 @@ class SprintCompleteView(APIView):
         sprint = get_object_or_404(Sprint, pk=pk, project_id=project_pk)
         if sprint.status != Sprint.Status.ACTIVE:
             return Response(
-                {"detail": "진행 중인 스프린트만 완료할 수 있습니다."},
+                {"detail": gettext("Only an active sprint can be completed.")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -643,7 +644,7 @@ class SprintCompleteView(APIView):
             ).exclude(pk=pk).first()
             if not target_sprint:
                 return Response(
-                    {"detail": "옮길 스프린트를 찾을 수 없습니다."},
+                    {"detail": gettext("The target sprint was not found.")},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
