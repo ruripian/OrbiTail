@@ -24,6 +24,15 @@ _has_domain = bool(config("DOMAIN", default=""))
 SECURE_SSL_REDIRECT = _has_domain
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
+# 컴포즈 네트워크 안에서 오는 내부 호출은 https 강제에서 뺀다.
+# collab(Hocuspocus)은 http://backend:8000/api/internal/... 을 평문으로 부른다.
+# 앞단 프록시가 아니라서 X-Forwarded-Proto 가 없고, 그대로 두면 Django 가
+# https://backend:8000/... 으로 301 을 돌려준다. 그 주소엔 TLS 가 없어
+# 문서 불러오기·저장이 통째로 실패한다.
+# 이 경로는 바깥에 열려 있지 않고 COLLAB_SHARED_SECRET 으로 따로 막혀 있다.
+# (앞의 ^ 다음에 슬래시가 없는 것이 맞다 — Django 는 선행 / 를 뗀 경로로 맞춘다.)
+SECURE_REDIRECT_EXEMPT = [r"^api/internal/"]
+
 # --- HSTS (DOMAIN 설정 시에만 활성화) ---
 SECURE_HSTS_SECONDS = 31536000 if _has_domain else 0  # 1년 또는 비활성화
 SECURE_HSTS_INCLUDE_SUBDOMAINS = _has_domain
