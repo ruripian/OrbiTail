@@ -81,12 +81,17 @@ nginx:
 두어야 합니다. 이때 `DOMAIN` 을 비우지 마세요 — 그 값은 Django 의 쿠키·HSTS
 설정에도 쓰여서, 비우면 보안 설정이 함께 꺼집니다.
 
+레포의 `docker-compose.proxied.yml` 이 이 구성을 담고 있습니다.
+`NGINX_TLS=off`, 443 미개방, certbot 비활성을 한 번에 처리합니다.
+
 ```env
+COMPOSE_FILE=docker-compose.prod.yml:docker-compose.proxied.yml
 DOMAIN=your-domain.com   # 그대로 둔다 (Django 용)
-NGINX_TLS=off            # 컨테이너 nginx 는 HTTP 로
-HOST_BIND_ADDR=127.0.0.1
+HOST_BIND_ADDR=127.0.0.1 # 앞단 프록시만 닿게
 HOST_HTTP_PORT=8080
 ```
+
+운영 서버에는 `docker-compose.prod.yml` 과 함께 이 파일도 복사해 두세요.
 
 앞단 프록시가 `X-Forwarded-Proto: https` 를 붙여 주어야 Django 가 HTTPS 로
 인식합니다. 붙지 않으면 모든 요청이 https 로 301 리다이렉트됩니다.
