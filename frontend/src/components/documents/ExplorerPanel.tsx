@@ -127,14 +127,14 @@ export function ExplorerPanel({
   const deleteMutation = useMutation({
     mutationFn: (ids: string[]) =>
       Promise.all(ids.map((id) => documentsApi.delete(workspaceSlug, spaceId, id))),
-    onSuccess: (_, ids) => { onInvalidate(); setSelected(new Set()); toast.success(`${ids.length}개 삭제됨`); },
+    onSuccess: (_, ids) => { onInvalidate(); setSelected(new Set()); toast.success(t("documents.explorerPanel.deletedCount", { count: ids.length })); },
   });
 
   const renameMutation = useMutation({
     mutationFn: ({ id, title }: { id: string; title: string }) =>
       documentsApi.update(workspaceSlug, spaceId, id, { title }),
     onSuccess: () => { onInvalidate(); setRenamingId(null); },
-    onError: (e) => toast.error(apiErrorMessage(e, "이름 변경 실패")),
+    onError: (e) => toast.error(apiErrorMessage(e, t("documents.explorerPanel.renameFailed"))),
   });
 
   const moveMutation = useMutation({
@@ -145,10 +145,10 @@ export function ExplorerPanel({
       /* 옮긴 곳이 접힌 폴더면 눈앞에서 사라진 것처럼 보인다 — 어디로 갔는지 이름을 말해주고
          되돌릴 수단을 함께 준다. 되돌리기는 옮기기 전 부모를 그대로 복원한다. */
       const targetName = vars.parent
-        ? allDocs.find((d) => d.id === vars.parent)?.title ?? "폴더"
-        : "최상위";
+        ? allDocs.find((d) => d.id === vars.parent)?.title ?? t("documents.explorerPanel.folder")
+        : t("documents.explorerPanel.topLevel");
       pushUndo({
-        label: `${r.moved}개 이동`,
+        label: t("documents.layout.movedCount", { count: r.moved }),
         undo: async () => {
           const byParent = new Map<string | null, string[]>();
           for (const [id, prev] of vars.previous) {
@@ -160,11 +160,11 @@ export function ExplorerPanel({
           onInvalidate();
         },
       });
-      toast.success(`${r.moved}개를 "${targetName}"(으)로 이동`, {
-        action: { label: "실행 취소", onClick: () => popUndo() },
+      toast.success(t("documents.layout.movedTo", { count: r.moved, title: targetName }), {
+        action: { label: t("common.undo"), onClick: () => popUndo() },
       });
     },
-    onError: (e) => toast.error(apiErrorMessage(e, "이동 실패")),
+    onError: (e) => toast.error(apiErrorMessage(e, t("documents.explorerPanel.moveFailed"))),
   });
 
   const moveInto = (ids: string[], targetId: string | null) => {
@@ -302,11 +302,11 @@ export function ExplorerPanel({
         e.preventDefault();
         setSelected(new Set(currentItems.map((d) => d.id)));
       } else if ((e.ctrlKey || e.metaKey) && e.key === "x") {
-        if (selected.size > 0) { setClipboard(Array.from(selected)); toast.success(`${selected.size}개 잘라내기`); }
+        if (selected.size > 0) { setClipboard(Array.from(selected)); toast.success(t("documents.explorerPanel.cutCount", { count: selected.size })); }
       } else if ((e.ctrlKey || e.metaKey) && e.key === "v") {
         if (clipboard.length > 0) { moveInto(clipboard, currentFolder); setClipboard([]); }
       } else if (e.key === "Delete" && selected.size > 0) {
-        if (window.confirm(`${selected.size}개 항목을 삭제할까요?`)) deleteMutation.mutate(Array.from(selected));
+        if (window.confirm(t("documents.explorerPanel.deleteConfirm", { count: selected.size }))) deleteMutation.mutate(Array.from(selected));
       } else if (e.key === "F2" && selected.size === 1) {
         setRenamingId(Array.from(selected)[0]);
       } else if (e.key === "Enter" && selected.size === 1) {
@@ -397,19 +397,19 @@ export function ExplorerPanel({
       {doc && (
         <>
           <button className="ctx-item" onClick={() => openDoc(doc)}>
-            <FolderOpen className="h-3.5 w-3.5" /> 열기
+            <FolderOpen className="h-3.5 w-3.5" /> {t("documents.explorerPanel.open")}
           </button>
           {/* 문서 아래에도 문서가 붙는 구조라, 자식이 있으면 문서도 하위로 들어갈 수 있어야 한다 */}
           {!doc.is_folder && childCount(doc) > 0 && (
             <button className="ctx-item" onClick={() => openFolder(doc)}>
-              <ChevronRight className="h-3.5 w-3.5" /> 하위 문서 보기 ({childCount(doc)})
+              <ChevronRight className="h-3.5 w-3.5" /> {t("documents.explorerPanel.showChildren", { count: childCount(doc) })}
             </button>
           )}
           <button
             className="ctx-item"
             onClick={() => createMutation.mutate({ title: t("documents.untitled"), parent: doc.id })}
           >
-            <FilePlus className="h-3.5 w-3.5" /> 이 안에 문서 만들기
+            <FilePlus className="h-3.5 w-3.5" /> {t("documents.explorerPanel.newInside")}
           </button>
           <button className="ctx-item" onClick={() => setRenamingId(doc.id)}>
             <Pencil className="h-3.5 w-3.5" /> {t("documents.rename")}
@@ -419,10 +419,10 @@ export function ExplorerPanel({
             onClick={() => {
               const ids = selected.has(doc.id) ? Array.from(selected) : [doc.id];
               setClipboard(ids);
-              toast.success(`${ids.length}개 잘라내기`);
+              toast.success(t("documents.explorerPanel.cutCount", { count: ids.length }));
             }}
           >
-            <Scissors className="h-3.5 w-3.5" /> 잘라내기
+            <Scissors className="h-3.5 w-3.5" /> {t("documents.explorerPanel.cut")}
           </button>
         </>
       )}
@@ -431,7 +431,7 @@ export function ExplorerPanel({
         disabled={clipboard.length === 0}
         onClick={() => { moveInto(clipboard, doc?.is_folder ? doc.id : currentFolder); setClipboard([]); }}
       >
-        <ClipboardPaste className="h-3.5 w-3.5" /> 붙여넣기{clipboard.length > 0 && ` (${clipboard.length})`}
+        <ClipboardPaste className="h-3.5 w-3.5" /> {t("documents.explorerPanel.paste")}{clipboard.length > 0 && ` (${clipboard.length})`}
       </button>
       <button className="ctx-item" onClick={() => createMutation.mutate({ title: t("documents.newFolder"), is_folder: true })}>
         <FolderPlus className="h-3.5 w-3.5" /> {t("documents.newFolder")}
@@ -441,7 +441,7 @@ export function ExplorerPanel({
           className="ctx-item text-destructive"
           onClick={() => {
             const ids = selected.has(doc.id) ? Array.from(selected) : [doc.id];
-            if (window.confirm(`${ids.length}개 항목을 삭제할까요?`)) deleteMutation.mutate(ids);
+            if (window.confirm(t("documents.explorerPanel.deleteConfirm", { count: ids.length }))) deleteMutation.mutate(ids);
           }}
         >
           <Trash2 className="h-3.5 w-3.5" /> {t("documents.delete")}
@@ -604,7 +604,7 @@ export function ExplorerPanel({
                 {!doc.is_folder && childCount(doc) > 0 && (
                   <button
                     onClick={(e) => { e.stopPropagation(); openFolder(doc); }}
-                    title={`하위 문서 ${childCount(doc)}개 보기`}
+                title={t("documents.explorerPanel.showChildrenTitle", { count: childCount(doc) })}
                     className="absolute bottom-1 left-1 inline-flex items-center gap-0.5 rounded-full bg-muted px-1.5 py-0.5 text-3xs text-muted-foreground hover:bg-primary/15 hover:text-primary transition-colors"
                   >
                     <ChevronRight className="h-2.5 w-2.5" />
@@ -616,7 +616,7 @@ export function ExplorerPanel({
                   <ItemMenu
                     onOpen={() => openDoc(doc)}
                     onRename={() => setRenamingId(doc.id)}
-                    onCut={() => { setClipboard([doc.id]); toast.success("잘라내기"); }}
+                onCut={() => { setClipboard([doc.id]); toast.success(t("documents.explorerPanel.cut")); }}
                     onDelete={() => {
                       if (window.confirm(t("documents.deleteConfirm"))) deleteMutation.mutate([doc.id]);
                     }}
@@ -655,7 +655,7 @@ export function ExplorerPanel({
                 {!doc.is_folder && childCount(doc) > 0 && (
                   <button
                     onClick={(e) => { e.stopPropagation(); openFolder(doc); }}
-                    title={`하위 문서 ${childCount(doc)}개 보기`}
+                title={t("documents.explorerPanel.showChildrenTitle", { count: childCount(doc) })}
                     className="shrink-0 inline-flex items-center gap-0.5 rounded-full bg-muted px-1.5 py-0.5 text-2xs text-muted-foreground hover:bg-primary/15 hover:text-primary transition-colors"
                   >
                     <ChevronRight className="h-3 w-3" />
@@ -667,7 +667,7 @@ export function ExplorerPanel({
                   <ItemMenu
                     onOpen={() => openDoc(doc)}
                     onRename={() => setRenamingId(doc.id)}
-                    onCut={() => { setClipboard([doc.id]); toast.success("잘라내기"); }}
+                onCut={() => { setClipboard([doc.id]); toast.success(t("documents.explorerPanel.cut")); }}
                     onDelete={() => {
                       if (window.confirm(t("documents.deleteConfirm"))) deleteMutation.mutate([doc.id]);
                     }}
@@ -717,7 +717,7 @@ function ItemMenu({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-36" onClick={(e) => e.stopPropagation()}>
         <DropdownMenuItem onClick={onOpen}>
-          <FolderOpen className="h-3.5 w-3.5 mr-2" /> 열기
+          <FolderOpen className="h-3.5 w-3.5 mr-2" /> {t("documents.explorerPanel.open")}
         </DropdownMenuItem>
         <DropdownMenuItem onClick={onRename}>
           <Pencil className="h-3.5 w-3.5 mr-2" /> {t("documents.rename")}

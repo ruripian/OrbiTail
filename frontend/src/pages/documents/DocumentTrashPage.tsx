@@ -51,14 +51,14 @@ export default function DocumentTrashPage() {
 
   const restore = useMutation({
     mutationFn: (ids: string[]) => documentsApi.spaces.trash.restore(workspaceSlug!, spaceId!, ids),
-    onSuccess: (r) => { invalidate(); setPreviewId(null); toast.success(`${r.restored}개 복구됨`); },
-    onError: (e) => toast.error(apiErrorMessage(e, "복구 실패")),
+    onSuccess: (r) => { invalidate(); setPreviewId(null); toast.success(t("documents.trashPage.restoredCount", { count: r.restored })); },
+    onError: (e) => toast.error(apiErrorMessage(e, t("documents.trashPage.restoreFailed"))),
   });
 
   const purge = useMutation({
     mutationFn: (ids?: string[]) => documentsApi.spaces.trash.purge(workspaceSlug!, spaceId!, ids),
-    onSuccess: () => { invalidate(); setPreviewId(null); toast.success("영구 삭제됨"); },
-    onError: (e) => toast.error(apiErrorMessage(e, "삭제 실패")),
+    onSuccess: () => { invalidate(); setPreviewId(null); toast.success(t("documents.trashPage.purged")); },
+    onError: (e) => toast.error(apiErrorMessage(e, t("sprints.deleteFailed"))),
   });
 
   const toggle = (id: string) =>
@@ -69,8 +69,8 @@ export default function DocumentTrashPage() {
     });
 
   const confirmPurge = (ids?: string[]) => {
-    const label = ids ? `${ids.length}개 문서를` : "휴지통 전체를";
-    if (window.confirm(`${label} 영구 삭제할까요? 되돌릴 수 없습니다.`)) purge.mutate(ids);
+    const label = ids ? t("documents.trashPage.someDocs", { count: ids.length }) : t("documents.trashPage.wholeTrash");
+    if (window.confirm(t("documents.trashPage.purgeConfirm", { what: label }))) purge.mutate(ids);
   };
 
   const allSelected = trashed.length > 0 && selected.size === trashed.length;
@@ -86,16 +86,16 @@ export default function DocumentTrashPage() {
           onClick={() => navigate(`/${workspaceSlug}/documents/space/${spaceId}`)}
         >
           <ArrowLeft className="h-3.5 w-3.5" />
-          스페이스로
+          {t("documents.spaceSettings.backToSpace")}
         </Button>
 
         <div className="w-px h-5 bg-border" />
 
         <div className="flex items-baseline gap-2 flex-1 min-w-0">
-          <h1 className="text-sm font-semibold">휴지통</h1>
+          <h1 className="text-sm font-semibold">{t("memberDetail.trash")}</h1>
           <span className="text-2xs text-muted-foreground">
-            {trashed.length}개
-            {selected.size > 0 && ` · ${selected.size}개 선택`}
+            {t("documents.trashPage.count", { count: trashed.length })}
+            {selected.size > 0 && ` · ${t("documents.trashPage.selectedCount", { count: selected.size })}`}
           </span>
         </div>
 
@@ -103,7 +103,7 @@ export default function DocumentTrashPage() {
           <>
             <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5" onClick={() => restore.mutate(Array.from(selected))}>
               <RotateCcw className="h-3.5 w-3.5" />
-              선택 복원
+              {t("documents.trashPage.restoreSelected")}
             </Button>
             <Button
               size="sm" variant="ghost"
@@ -111,7 +111,7 @@ export default function DocumentTrashPage() {
               onClick={() => confirmPurge(Array.from(selected))}
             >
               <Trash2 className="h-3.5 w-3.5" />
-              선택 삭제
+              {t("documents.trashPage.deleteSelected")}
             </Button>
           </>
         )}
@@ -122,7 +122,7 @@ export default function DocumentTrashPage() {
             onClick={() => confirmPurge()}
           >
             <Trash2 className="h-3.5 w-3.5" />
-            비우기
+            {t("documents.trashPage.empty")}
           </Button>
         )}
       </div>
@@ -136,8 +136,8 @@ export default function DocumentTrashPage() {
         ) : trashed.length === 0 ? (
           <EmptyState
             icon={<Trash2 className="h-10 w-10" />}
-            title="휴지통이 비어 있습니다"
-            description="삭제한 문서가 여기 모입니다. 영구 삭제하기 전까지는 언제든 되살릴 수 있습니다."
+            title={t("documents.trashPage.emptyTitle")}
+            description={t("documents.trashPage.emptyDesc")}
           />
         ) : (
           <div className="max-w-wide mx-auto rounded-xl border overflow-hidden">
@@ -147,12 +147,12 @@ export default function DocumentTrashPage() {
                 checked={allSelected}
                 onChange={() => setSelected(allSelected ? new Set() : new Set(trashed.map((d) => d.id)))}
                 className="h-3.5 w-3.5 accent-primary"
-                aria-label="전체 선택"
+                aria-label={t("documents.trashPage.selectAll")}
               />
               <span className="flex-1">{t("documents.name")}</span>
-              <span className="w-36">삭제한 사람</span>
-              <span className="w-32">삭제일</span>
-              <span className="w-20 text-right">작업</span>
+              <span className="w-36">{t("documents.trashPage.deletedBy")}</span>
+              <span className="w-32">{t("documents.trashPage.deletedOn")}</span>
+              <span className="w-20 text-right">{t("documents.trashPage.actions")}</span>
             </div>
 
             {trashed.map((doc) => (
@@ -170,7 +170,7 @@ export default function DocumentTrashPage() {
                   onChange={() => toggle(doc.id)}
                   onClick={(e) => e.stopPropagation()}
                   className="h-3.5 w-3.5 accent-primary"
-                  aria-label={`${doc.title} 선택`}
+                  aria-label={t("documents.trashPage.selectOne", { title: doc.title })}
                 />
                 {doc.is_folder
                   ? <FolderOpen className="h-4 w-4 text-amber-500 shrink-0" />
@@ -192,7 +192,7 @@ export default function DocumentTrashPage() {
                     </>
                   ) : (
                     /* deleted_by 를 도입하기 전에 지워진 문서는 기록이 없다 */
-                    <span className="text-xs text-muted-foreground/60">기록 없음</span>
+                    <span className="text-xs text-muted-foreground/60">{t("memberDetail.noRecord")}</span>
                   )}
                 </span>
 
@@ -202,14 +202,14 @@ export default function DocumentTrashPage() {
                   <button
                     onClick={() => restore.mutate([doc.id])}
                     className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent"
-                    title="복원"
+                    title={t("documents.trashPage.restore")}
                   >
                     <RotateCcw className="h-3.5 w-3.5" />
                   </button>
                   <button
                     onClick={() => confirmPurge([doc.id])}
                     className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                    title="영구 삭제"
+                    title={t("documents.trashPage.purge")}
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
@@ -226,7 +226,7 @@ export default function DocumentTrashPage() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 pr-8">
               <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
-              <span className="truncate">{preview?.title ?? "미리보기"}</span>
+              <span className="truncate">{preview?.title ?? t("documents.trashPage.preview")}</span>
             </DialogTitle>
           </DialogHeader>
 
@@ -237,18 +237,18 @@ export default function DocumentTrashPage() {
           ) : (
             <>
               <p className="text-xs text-muted-foreground">
-                {preview.deleted_by_detail?.display_name ?? "알 수 없음"} 님이 {fmt(preview.deleted_at)}에 삭제
+                {t("documents.trashPage.deletedByAt", { name: preview.deleted_by_detail?.display_name ?? t("documents.trashPage.unknown"), date: fmt(preview.deleted_at) })}
               </p>
               <div className="flex-1 overflow-y-auto rounded-lg border bg-card p-5">
                 {preview.is_folder ? (
-                  <p className="text-sm text-muted-foreground">폴더입니다. 복원하면 안에 있던 문서도 함께 돌아옵니다.</p>
+                  <p className="text-sm text-muted-foreground">{t("documents.trashPage.folderNote")}</p>
                 ) : preview.content_html ? (
                   <article
                     className="doc-editor"
                     dangerouslySetInnerHTML={{ __html: sanitizeHtml(preview.content_html) }}
                   />
                 ) : (
-                  <p className="text-sm text-muted-foreground">내용이 없는 문서입니다.</p>
+                  <p className="text-sm text-muted-foreground">{t("documents.trashPage.noContent")}</p>
                 )}
               </div>
               <div className="flex justify-end gap-2 pt-2">
@@ -258,11 +258,11 @@ export default function DocumentTrashPage() {
                   onClick={() => confirmPurge([preview.id])}
                 >
                   <Trash2 className="h-4 w-4 mr-1.5" />
-                  영구 삭제
+                  {t("documents.trashPage.purge")}
                 </Button>
                 <Button onClick={() => restore.mutate([preview.id])}>
                   <RotateCcw className="h-4 w-4 mr-1.5" />
-                  복원
+                  {t("documents.trashPage.restore")}
                 </Button>
               </div>
             </>

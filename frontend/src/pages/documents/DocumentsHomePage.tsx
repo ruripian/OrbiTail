@@ -138,7 +138,7 @@ export default function DocumentsHomePage() {
               {space.name}
             </p>
             {isPrivate && (
-              <Lock className="h-3 w-3 shrink-0 text-muted-foreground/60" aria-label="비공개" />
+              <Lock className="h-3 w-3 shrink-0 text-muted-foreground/60" aria-label={t("workspaceSettings.projects.private")} />
             )}
           </div>
           {space.description && (
@@ -161,7 +161,7 @@ export default function DocumentsHomePage() {
             e.stopPropagation();
             toggleSpaceBookmark.mutate({ id: space.id, currently: isBookmarked });
           }}
-          title={isBookmarked ? "즐겨찾기 해제" : "즐겨찾기에 추가"}
+          title={isBookmarked ? t("documents.layout.unbookmark") : t("documents.layout.bookmark")}
           className={cn(
             "shrink-0 h-7 w-7 rounded-md flex items-center justify-center transition-all",
             isBookmarked
@@ -223,7 +223,7 @@ export default function DocumentsHomePage() {
             </div>
           ) : (
             <div className="space-y-8">
-              <SpaceSection title="즐겨찾기" items={spaces.filter((s) => bookmarkedSpaceIds.has(s.id))} />
+              <SpaceSection title={t("documents.layout.bookmarks")} items={spaces.filter((s) => bookmarkedSpaceIds.has(s.id))} />
               <SpaceSection title={t("documents.projectSpaces")} items={projectSpaces} />
               <SpaceSection title={t("documents.sharedSpaces")} items={sharedSpaces} />
               <SpaceSection title={t("documents.personalSpaces")} items={personalSpaces} />
@@ -280,21 +280,21 @@ export default function DocumentsHomePage() {
 
             {/* 공개 / 비공개 카드 */}
             <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">공개 범위</label>
+              <label className="text-xs font-medium text-muted-foreground">{t("request.visibility")}</label>
               <div className="grid grid-cols-2 gap-2">
                 <NetworkCard
                   selected={newIsPrivate}
                   onClick={() => setNewIsPrivate(true)}
                   icon={<Lock className="h-3.5 w-3.5" />}
-                  title="비공개"
-                  description="아래 참여자만 접근 가능"
+                  title={t("workspaceSettings.projects.private")}
+                  description={t("documents.homePage.privateDesc")}
                 />
                 <NetworkCard
                   selected={!newIsPrivate}
                   onClick={() => setNewIsPrivate(false)}
                   icon={<Globe className="h-3.5 w-3.5" />}
-                  title="공개"
-                  description="워크스페이스 전체 + 탐색 노출"
+                  title={t("workspaceSettings.projects.public")}
+                  description={t("documents.homePage.publicDesc")}
                 />
               </div>
             </div>
@@ -302,7 +302,7 @@ export default function DocumentsHomePage() {
             {/* 참여자 — 워크스페이스 멤버에서 선택 */}
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">
-                참여자 {newIsPrivate && <span className="text-rose-500">*</span>}
+                {t("documents.homePage.participants")} {newIsPrivate && <span className="text-rose-500">*</span>}
               </label>
               <UserPicker
                 variant="field"
@@ -310,8 +310,8 @@ export default function DocumentsHomePage() {
                 users={membersToUsers(wsMembers)}
                 value={allSelected}
                 lockedIds={lockedIds}
-                getBadge={(id) => (id === currentUser?.id ? "(나)" : null)}
-                placeholder="참여자 추가"
+                getBadge={(id) => (id === currentUser?.id ? t("team.you") : null)}
+                placeholder={t("documents.homePage.addParticipant")}
                 onChange={(ids) => {
                   const lockedSet = new Set(lockedIds);
                   setNewMemberIds(ids.filter((id) => !lockedSet.has(id)));
@@ -319,8 +319,8 @@ export default function DocumentsHomePage() {
               />
               <p className="text-2xs text-muted-foreground/70">
                 {newIsPrivate
-                  ? "비공개 스페이스 — 추가된 참여자만 볼 수 있습니다."
-                  : "공개 스페이스 — 워크스페이스 멤버 모두 접근 가능. 여기서 추가하면 탐색 없이 바로 참여."}
+                  ? t("documents.homePage.privateNote")
+                  : t("documents.homePage.publicNote")}
               </p>
             </div>
 
@@ -384,6 +384,7 @@ function NetworkCard({
 type TabKey = "spaces" | "discover" | "mine" | "bookmarks" | "recent";
 
 function DocumentTabs({ workspaceSlug, children }: { workspaceSlug: string; children: React.ReactNode }) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [tab, setTab] = useState<TabKey>("spaces");
@@ -419,11 +420,11 @@ function DocumentTabs({ workspaceSlug, children }: { workspaceSlug: string; chil
   });
 
   const TABS: { key: TabKey; label: string; icon: typeof FileText }[] = [
-    { key: "spaces", label: "전체 스페이스", icon: FolderOpen },
-    { key: "discover", label: "탐색", icon: Compass },
-    { key: "mine", label: "내가 만든", icon: UserIcon },
-    { key: "bookmarks", label: "즐겨찾기", icon: Star },
-    { key: "recent", label: "최근", icon: Clock },
+    { key: "spaces", label: t("documents.homePage.tabSpaces"), icon: FolderOpen },
+    { key: "discover", label: t("documents.homePage.tabDiscover"), icon: Compass },
+    { key: "mine", label: t("documents.homePage.tabMine"), icon: UserIcon },
+    { key: "bookmarks", label: t("documents.layout.bookmarks"), icon: Star },
+    { key: "recent", label: t("documents.homePage.tabRecent"), icon: Clock },
   ];
 
   return (
@@ -458,15 +459,15 @@ function DocumentTabs({ workspaceSlug, children }: { workspaceSlug: string; chil
       )}
       {tab === "mine" && (
         <DocList workspaceSlug={workspaceSlug} docs={mine} loading={loadingMine}
-          emptyText="아직 작성한 문서가 없습니다." onNavigate={(d) => navigate(`/${workspaceSlug}/documents/space/${d.space}/${d.id}`)} />
+          emptyText={t("documents.homePage.emptyMine")} onNavigate={(d) => navigate(`/${workspaceSlug}/documents/space/${d.space}/${d.id}`)} />
       )}
       {tab === "recent" && (
         <DocList workspaceSlug={workspaceSlug} docs={recent} loading={loadingRecent}
-          emptyText="최근 문서가 없습니다." onNavigate={(d) => navigate(`/${workspaceSlug}/documents/space/${d.space}/${d.id}`)} />
+          emptyText={t("documents.homePage.emptyRecent")} onNavigate={(d) => navigate(`/${workspaceSlug}/documents/space/${d.space}/${d.id}`)} />
       )}
       {tab === "bookmarks" && (
         <DocList workspaceSlug={workspaceSlug} docs={bookmarks} loading={loadingBm}
-          emptyText="즐겨찾기한 문서가 없습니다. 문서 페이지에서 별 아이콘으로 추가하세요." onNavigate={(d) => navigate(`/${workspaceSlug}/documents/space/${d.space}/${d.id}`)} />
+          emptyText={t("documents.homePage.emptyBookmarks")} onNavigate={(d) => navigate(`/${workspaceSlug}/documents/space/${d.space}/${d.id}`)} />
       )}
     </div>
   );
@@ -481,6 +482,7 @@ function DiscoverSpaceList({
   onJoin: (id: string) => void;
   joiningId?: string;
 }) {
+  const { t } = useTranslation();
   if (loading) {
     return <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
   }
@@ -488,8 +490,8 @@ function DiscoverSpaceList({
     return (
       <div className="rounded-xl border border-dashed p-10 text-center">
         <Compass className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
-        <p className="text-sm text-muted-foreground">참여 가능한 공개 스페이스가 없습니다.</p>
-        <p className="text-2xs text-muted-foreground/70 mt-1">새 공개 스페이스가 생기면 여기에 표시됩니다.</p>
+        <p className="text-sm text-muted-foreground">{t("documents.homePage.noDiscover")}</p>
+        <p className="text-2xs text-muted-foreground/70 mt-1">{t("documents.homePage.noDiscoverHint")}</p>
       </div>
     );
   }
@@ -506,13 +508,13 @@ function DiscoverSpaceList({
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5 min-w-0">
               <p className="font-semibold text-sm truncate">{s.name}</p>
-              <Globe className="h-3 w-3 shrink-0 text-muted-foreground/50" aria-label="공개" />
+              <Globe className="h-3 w-3 shrink-0 text-muted-foreground/50" aria-label={t("workspaceSettings.projects.public")} />
             </div>
             {s.description && (
               <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{s.description}</p>
             )}
             <p className="text-2xs text-muted-foreground mt-1.5">
-              {s.document_count} 문서
+              {t("documents.homePage.docCount", { count: s.document_count })}
             </p>
             <Button
               size="sm"
@@ -522,7 +524,7 @@ function DiscoverSpaceList({
               onClick={() => onJoin(s.id)}
             >
               {joiningId === s.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <LogIn className="h-3 w-3" />}
-              참여
+              {t("documents.homePage.join")}
             </Button>
           </div>
         </div>
@@ -538,6 +540,7 @@ function DocList({ docs, loading, emptyText, onNavigate }: {
   emptyText: string;
   onNavigate: (d: { id: string; space: string }) => void;
 }) {
+  const { t } = useTranslation();
   if (loading) {
     return <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
   }
@@ -558,7 +561,7 @@ function DocList({ docs, loading, emptyText, onNavigate }: {
             className="flex items-center gap-3 w-full px-4 py-2.5 text-left hover:bg-accent/40 transition-colors"
           >
             <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
-            <span className="flex-1 text-sm truncate">{d.title || "제목 없음"}</span>
+            <span className="flex-1 text-sm truncate">{d.title || t("documents.untitled")}</span>
             <span className="text-2xs text-muted-foreground tabular-nums">
               {new Date(d.updated_at).toLocaleDateString()}
             </span>
