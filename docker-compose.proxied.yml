@@ -8,6 +8,8 @@
 #   - 443 포트를 열지 않고, 80 만 HOST_BIND_ADDR:HOST_HTTP_PORT 에 묶는다.
 #     기본은 127.0.0.1:8080 — 앞단 프록시만 닿게 하고 외부에 직접 노출하지 않는다.
 #   - certbot 을 띄우지 않는다. 인증서는 앞단이 관리한다.
+#   - 백엔드가 X-Forwarded-For 를 오른쪽에서 2번째까지 믿게 한다
+#     (TRUSTED_PROXY_COUNT=2 — 앞단 프록시와 nginx).
 #
 # 앞단은 X-Forwarded-Proto: https 를 붙여 넘겨야 한다. 없으면 Django 가 모든
 # 요청을 https 로 301 리다이렉트한다.
@@ -18,6 +20,11 @@ services:
     # !override 필수 — 없으면 base 의 80·443 바인딩이 합쳐져 그대로 남는다.
     ports: !override
       - "${HOST_BIND_ADDR:-127.0.0.1}:${HOST_HTTP_PORT:-8080}:80"
+
+  backend:
+    environment:
+      # 앞단 프록시 + nginx = 2단. 프록시가 한 겹 더 있으면 .env 에서 늘릴 것.
+      TRUSTED_PROXY_COUNT: ${TRUSTED_PROXY_COUNT:-2}
 
   certbot:
     profiles: ["disabled"]

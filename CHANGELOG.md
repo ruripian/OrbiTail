@@ -31,6 +31,12 @@ OrbiTail 의 모든 주요 변경사항 — [SemVer](https://semver.org/lang/ko/
 - `seed_demo_announcements` — 데모 배포용 전역 공지를 심는 멱등 커맨드
 
 ### Fixed
+- **클라이언트 IP 를 곳마다 다르게, 일부는 위조 가능하게 읽던 문제.**
+  로그인 기록(axes)은 프록시 주소만 남겼고, 비로그인 스로틀과 데모 세션 발급
+  제한은 X-Forwarded-For 를 그대로 믿어 nginx 단독 배포에서는 헤더를 바꿔
+  보내는 것만으로 우회할 수 있었다. `TRUSTED_PROXY_COUNT` 하나로 세 곳이 같은
+  규칙(오른쪽에서 N 번째)을 쓰게 했다. 효과가 없던 `AXES_IPWARE_PROXY_COUNT` 는
+  지웠다. compose 파일이 기본값을 주므로 기존 배포는 `.env` 수정이 필요 없다.
 - **이슈 기능이 신규 설치에서 전혀 동작하지 않던 문제.** `issues.0010` 이
   `SeparateDatabaseAndState` 로 Django 상태만 바꾸고 `database_operations` 를
   비워둬, 마이그레이션만으로 만든 DB 에는 `module_id`/`cycle_id` 가 남고

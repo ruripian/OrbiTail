@@ -29,6 +29,8 @@ services:
       - .env
     environment:
       - DJANGO_SETTINGS_MODULE=config.settings.production
+      # 앞단 신뢰 프록시 수. 이 파일 단독 구성은 nginx 하나. .env 값이 있으면 그것을 쓴다.
+      - TRUSTED_PROXY_COUNT=${TRUSTED_PROXY_COUNT:-1}
     depends_on:
       - db
       - redis
