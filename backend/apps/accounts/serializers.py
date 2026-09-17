@@ -1,4 +1,5 @@
 from django.contrib.auth.password_validation import validate_password
+from django.utils.translation import gettext
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from .models import User, Announcement
@@ -72,7 +73,7 @@ class MeSerializer(UserSerializer):
         size = getattr(file_obj, "size", None)
         if size is not None and size > self.AVATAR_MAX_SIZE:
             raise serializers.ValidationError(
-                f"프로필 사진은 {self.AVATAR_MAX_SIZE // (1024 * 1024)}MB 이하만 가능합니다."
+                gettext("The profile photo must be %(mb)sMB or smaller.") % {"mb": self.AVATAR_MAX_SIZE // (1024 * 1024)}
             )
         return file_obj
 
@@ -137,7 +138,7 @@ class EmailChangeRequestSerializer(serializers.Serializer):
 
     def validate_new_email(self, value):
         if User.objects.filter(email=value).exists():
-            raise serializers.ValidationError("That email address is already in use.")
+            raise serializers.ValidationError(gettext("That email address is already in use."))
         return value
 
 

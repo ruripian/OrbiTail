@@ -2,6 +2,7 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.utils import timezone
+from django.utils.translation import gettext
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -43,7 +44,7 @@ class ApiTokenListCreateView(APIView):
         qs = ApiToken.objects.filter(workspace=wm.workspace).select_related("user")
         if request.query_params.get("all") == "true":
             if wm.role < WorkspaceMember.Role.ADMIN:
-                return Response({"detail": "관리자만 전체 토큰을 볼 수 있습니다."},
+                return Response({"detail": gettext("Only an administrator can see all tokens.")},
                                 status=status.HTTP_403_FORBIDDEN)
         else:
             qs = qs.filter(user=request.user)
@@ -52,13 +53,13 @@ class ApiTokenListCreateView(APIView):
     def post(self, request, workspace_slug):
         # 데모 방문자는 계정 없이 들어온다. 그 세션으로 자동화 자격증명을 만들 이유가 없다.
         if getattr(settings, "DEMO_MODE", False):
-            return Response({"detail": "데모에서는 API 토큰을 만들 수 없습니다."},
+            return Response({"detail": gettext("API tokens cannot be created in the demo.")},
                             status=status.HTTP_403_FORBIDDEN)
         wm = _membership(workspace_slug, request.user)
         if wm is None:
             return Response(status=status.HTTP_404_NOT_FOUND)
         if wm.role < WorkspaceMember.Role.MEMBER:
-            return Response({"detail": "게스트는 API 토큰을 만들 수 없습니다."},
+            return Response({"detail": gettext("Guests cannot create API tokens.")},
                             status=status.HTTP_403_FORBIDDEN)
 
         s = ApiTokenCreateSerializer(data=request.data)
@@ -70,7 +71,7 @@ class ApiTokenListCreateView(APIView):
         ).exclude(expires_at__lte=now).count()
         if active >= MAX_ACTIVE_TOKENS_PER_USER:
             return Response(
-                {"detail": f"살아 있는 토큰은 {MAX_ACTIVE_TOKENS_PER_USER}개까지입니다. 안 쓰는 토큰을 폐기하세요."},
+                {"detail": gettext("You can have at most %(max)s active tokens. Revoke the ones you no longer use.") % {"max": MAX_ACTIVE_TOKENS_PER_USER}},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -126,7 +127,7 @@ def _admin_membership(workspace_slug, user):
     if wm is None:
         return None, Response(status=status.HTTP_404_NOT_FOUND)
     if wm.role < WorkspaceMember.Role.ADMIN:
-        return None, Response({"detail": "워크스페이스 관리자만 웹훅을 관리할 수 있습니다."},
+        return None, Response({"detail": gettext("Only a workspace administrator can manage webhooks.")},
                               status=status.HTTP_403_FORBIDDEN)
     return wm, None
 
@@ -142,7 +143,7 @@ class WebhookListCreateView(APIView):
     def post(self, request, workspace_slug):
         # 데모는 누구나 관리자다. 거기서 서버가 임의 주소로 요청을 보내게 둘 이유가 없다.
         if getattr(settings, "DEMO_MODE", False):
-            return Response({"detail": "데모에서는 웹훅을 만들 수 없습니다."}, status=status.HTTP_403_FORBIDDEN)
+            return Response({"detail": gettext("Webhooks cannot be created in the demo.")}, status=status.HTTP_403_FORBIDDEN)
         wm, err = _admin_membership(workspace_slug, request.user)
         if err:
             return err
@@ -150,9 +151,9 @@ class WebhookListCreateView(APIView):
         s.is_valid(raise_exception=True)
         missing = [f for f in ("name", "url", "events") if f not in s.validated_data]
         if missing:
-            return Response({f: ["필수입니다."] for f in missing}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({f: [gettext("This field is required.")] for f in missing}, status=status.HTTP_400_BAD_REQUEST)
         if Webhook.objects.filter(workspace=wm.workspace).count() >= MAX_WEBHOOKS_PER_WORKSPACE:
-            return Response({"detail": f"웹훅은 워크스페이스당 {MAX_WEBHOOKS_PER_WORKSPACE}개까지입니다."},
+            return Response({"detail": gettext("A workspace can have at most %(max)s webhooks.") % {"max": MAX_WEBHOOKS_PER_WORKSPACE}},
                             status=status.HTTP_400_BAD_REQUEST)
         hook = Webhook.objects.create(
             workspace=wm.workspace, created_by=request.user, secret=secrets.token_hex(32),
@@ -213,7 +214,7 @@ class WebhookPingView(_WebhookLookup):
         if err:
             return err
         if not hook.is_active:
-            return Response({"detail": "꺼진 웹훅입니다. 먼저 켜세요."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": gettext("This webhook is off. Turn it on first.")}, status=status.HTTP_400_BAD_REQUEST)
         dispatch_event.delay("ping", str(hook.workspace_id), "ping", str(hook.pk), None, str(hook.pk))
         return Response({"queued": True}, status=status.HTTP_202_ACCEPTED)
 

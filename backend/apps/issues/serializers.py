@@ -1,3 +1,4 @@
+from django.utils.translation import gettext
 from rest_framework import serializers
 from apps.accounts.serializers import UserSerializer
 from apps.projects.serializers import StateSerializer
@@ -69,16 +70,16 @@ class IssueSerializer(serializers.ModelSerializer):
         """
         instance = self.instance
         if instance is not None and "project" in attrs and attrs["project"].pk != instance.project_id:
-            raise serializers.ValidationError({"project": "An issue cannot be moved to a different project."})
+            raise serializers.ValidationError({"project": gettext("An issue cannot be moved to a different project.")})
         project = attrs.get("project") or (instance.project if instance is not None else None)
         if project is None:
             return attrs
         for field in ("state", "sprint", "category", "parent"):
             value = attrs.get(field)
             if value is not None and value.project_id != project.pk:
-                raise serializers.ValidationError({field: "That value does not belong to this project."})
+                raise serializers.ValidationError({field: gettext("That value does not belong to this project.")})
         if any(lb.project_id != project.pk for lb in attrs.get("label", [])):
-            raise serializers.ValidationError({"label": "Some labels do not belong to this project."})
+            raise serializers.ValidationError({"label": gettext("Some labels do not belong to this project.")})
         assignees = attrs.get("assignees")
         if assignees:
             from apps.workspaces.models import WorkspaceMember
@@ -86,7 +87,7 @@ class IssueSerializer(serializers.ModelSerializer):
                 workspace_id=project.workspace_id, member__in=assignees,
             ).values_list("member_id", flat=True))
             if any(u.pk not in member_ids for u in assignees):
-                raise serializers.ValidationError({"assignees": "Some users are not members of this workspace."})
+                raise serializers.ValidationError({"assignees": gettext("Some users are not members of this workspace.")})
         return attrs
 
     def get_sub_issues_count(self, obj):
@@ -113,7 +114,7 @@ class IssueSerializer(serializers.ModelSerializer):
         if instance is None:
             return value  # 신규 생성: 자기 자신이 될 수 없으므로 검증 불필요
         if value.pk == instance.pk:
-            raise serializers.ValidationError("An issue cannot be made a child of itself.")
+            raise serializers.ValidationError(gettext("An issue cannot be made a child of itself."))
         # 자손 체크: parent 후보의 조상 체인을 거슬러 올라가 instance가 나오면 순환
         seen = set()
         cur = value
@@ -122,7 +123,7 @@ class IssueSerializer(serializers.ModelSerializer):
                 break  # 기존 데이터에 이미 순환이 있으면 무한루프 방지
             seen.add(cur.pk)
             if cur.pk == instance.pk:
-                raise serializers.ValidationError("An issue cannot be moved under one of its own descendants.")
+                raise serializers.ValidationError(gettext("An issue cannot be moved under one of its own descendants."))
             cur = cur.parent
         return value
 
@@ -183,7 +184,7 @@ class IssueCommentSerializer(serializers.ModelSerializer):
         # 같은 이슈 안의 댓글이어야 함
         issue_id = self.context.get("issue_id")
         if issue_id and str(value.issue_id) != str(issue_id):
-            raise serializers.ValidationError("The parent comment does not belong to the same issue.")
+            raise serializers.ValidationError(gettext("The parent comment does not belong to the same issue."))
         # parent 자체가 답글이면 그 부모를 사용 (1단계 평탄화)
         if value.parent_id is not None:
             return value.parent
@@ -236,7 +237,7 @@ class IssueNodeLinkSerializer(serializers.ModelSerializer):
         source = attrs.get("source")
         target = attrs.get("target")
         if source == target:
-            raise serializers.ValidationError("An issue cannot be linked to itself.")
+            raise serializers.ValidationError(gettext("An issue cannot be linked to itself."))
         # 한 쌍은 하나의 연결만 — 방향/타입 무관 중복 차단
         from django.db.models import Q
         qs = IssueNodeLink.objects.filter(
@@ -245,7 +246,7 @@ class IssueNodeLinkSerializer(serializers.ModelSerializer):
         if self.instance:
             qs = qs.exclude(pk=self.instance.pk)
         if qs.exists():
-            raise serializers.ValidationError("These issues are already linked. Remove the existing link and try again.")
+            raise serializers.ValidationError(gettext("These issues are already linked. Remove the existing link and try again."))
         return attrs
 
 
@@ -297,14 +298,14 @@ class IssueAttachmentSerializer(serializers.ModelSerializer):
         # 1) 파일 크기 검증
         if file_obj.size > self.MAX_FILE_SIZE:
             raise serializers.ValidationError(
-                f"파일 크기가 {self.MAX_FILE_SIZE // (1024 * 1024)}MB를 초과합니다."
+                gettext("The file is larger than %(mb)sMB.") % {"mb": self.MAX_FILE_SIZE // (1024 * 1024)}
             )
 
         # 2) 확장자 화이트리스트 검증
         ext = os.path.splitext(file_obj.name)[1].lower()
         if ext not in self.ALLOWED_EXTENSIONS:
             raise serializers.ValidationError(
-                f"허용되지 않는 파일 형식입니다: {ext}"
+                gettext("That file type is not allowed: %(ext)s") % {"ext": ext}
             )
 
         # 3) 이중 확장자 방지 (예: malware.php.jpg → 차단하지 않지만 .php 포함 시 차단)
@@ -313,7 +314,7 @@ class IssueAttachmentSerializer(serializers.ModelSerializer):
         for dext in dangerous_exts:
             if dext in name_lower:
                 raise serializers.ValidationError(
-                    f"보안상 허용되지 않는 파일명입니다."
+                    gettext("That file name is not allowed for security reasons.")
                 )
 
         return file_obj

@@ -1,3 +1,4 @@
+from django.utils.translation import gettext
 from rest_framework import serializers
 
 from .models import ApiToken
@@ -36,7 +37,7 @@ class ApiTokenCreateSerializer(serializers.Serializer):
     def validate_name(self, value):
         value = value.strip()
         if not value:
-            raise serializers.ValidationError("Enter a name.")
+            raise serializers.ValidationError(gettext("Enter a name."))
         return value
 
 
@@ -71,7 +72,7 @@ class WebhookWriteSerializer(serializers.Serializer):
     def validate_name(self, value):
         value = value.strip()
         if not value:
-            raise serializers.ValidationError("Enter a name.")
+            raise serializers.ValidationError(gettext("Enter a name."))
         return value
 
     def validate_url(self, value):
@@ -87,7 +88,7 @@ class WebhookWriteSerializer(serializers.Serializer):
         allowed = set(Webhook.Event.values)
         unknown = [e for e in value if e not in allowed]
         if unknown:
-            raise serializers.ValidationError(f"Unknown event: {', '.join(unknown)}")
+            raise serializers.ValidationError(gettext("Unknown event: %(events)s") % {"events": ", ".join(unknown)})
         return sorted(set(value))
 
 

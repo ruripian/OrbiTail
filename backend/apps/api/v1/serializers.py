@@ -8,6 +8,7 @@
 저장된 HTML 을 그대로 그리므로, 외부에서 HTML 을 넣게 하면 스크립트 주입 통로가 된다.
 마크다운 → HTML 변환기는 태그를 이스케이프하고 위험한 링크 스킴을 막는다.
 """
+from django.utils.translation import gettext, gettext_lazy
 from rest_framework import serializers
 
 from apps.documents.markdown import html_to_markdown, markdown_to_html
@@ -42,7 +43,7 @@ class RefSerializer(serializers.Serializer):
 
 class ProjectSerializer(serializers.Serializer):
     id = serializers.UUIDField()
-    identifier = serializers.CharField(help_text="이슈 번호 앞에 붙는 식별자. 예: OUR")
+    identifier = serializers.CharField(help_text=gettext_lazy("Identifier placed before issue numbers, e.g. OUR"))
     name = serializers.CharField()
     description = serializers.CharField()
     visibility = serializers.SerializerMethodField(help_text="public | private")
@@ -101,10 +102,10 @@ class ProjectMemberSerializer(serializers.Serializer):
 
 class IssueSerializer(serializers.Serializer):
     id = serializers.UUIDField()
-    identifier = serializers.SerializerMethodField(help_text="사람이 읽는 번호. 예: OUR-12")
+    identifier = serializers.SerializerMethodField(help_text=gettext_lazy("Human-readable number, e.g. OUR-12"))
     project = serializers.SerializerMethodField()
     title = serializers.CharField()
-    description = serializers.SerializerMethodField(help_text="마크다운")
+    description = serializers.SerializerMethodField(help_text=gettext_lazy("Markdown"))
     priority = serializers.CharField(help_text="none | urgent | high | medium | low")
     state = serializers.SerializerMethodField()
     assignees = serializers.SerializerMethodField()
@@ -164,13 +165,13 @@ class IssueWriteSerializer(serializers.Serializer):
     다른 프로젝트의 상태·라벨을 붙이면 화면이 그 값을 찾지 못해 깨진다.
     """
 
-    project = serializers.UUIDField(required=False, help_text="생성 시 필수. 수정할 수 없다")
+    project = serializers.UUIDField(required=False, help_text=gettext_lazy("Required on create. Cannot be changed"))
     title = serializers.CharField(max_length=255, required=False)
-    description = serializers.CharField(required=False, allow_blank=True, help_text="마크다운")
+    description = serializers.CharField(required=False, allow_blank=True, help_text=gettext_lazy("Markdown"))
     priority = serializers.ChoiceField(choices=["none", "urgent", "high", "medium", "low"], required=False)
-    state = serializers.UUIDField(required=False, help_text="생략하면 프로젝트의 기본 상태")
-    assignees = serializers.ListField(child=serializers.UUIDField(), required=False, help_text="사용자 id 목록 — 통째로 교체")
-    labels = serializers.ListField(child=serializers.UUIDField(), required=False, help_text="라벨 id 목록 — 통째로 교체")
+    state = serializers.UUIDField(required=False, help_text=gettext_lazy("Defaults to the project's default state"))
+    assignees = serializers.ListField(child=serializers.UUIDField(), required=False, help_text=gettext_lazy("List of user ids — replaces the whole set"))
+    labels = serializers.ListField(child=serializers.UUIDField(), required=False, help_text=gettext_lazy("List of label ids — replaces the whole set"))
     sprint = serializers.UUIDField(required=False, allow_null=True)
     category = serializers.UUIDField(required=False, allow_null=True)
     parent = serializers.UUIDField(required=False, allow_null=True)
@@ -181,13 +182,13 @@ class IssueWriteSerializer(serializers.Serializer):
     def validate_title(self, value):
         value = value.strip()
         if not value:
-            raise serializers.ValidationError("Enter a title.")
+            raise serializers.ValidationError(gettext("Enter a title."))
         return value
 
     def validate(self, attrs):
         start, due = attrs.get("start_date"), attrs.get("due_date")
         if start and due and start > due:
-            raise serializers.ValidationError({"due_date": "The due date cannot be earlier than the start date."})
+            raise serializers.ValidationError({"due_date": gettext("The due date cannot be earlier than the start date.")})
         if "description" in attrs:
             attrs["description_html"] = markdown_to_html(attrs.pop("description"))
         return attrs
@@ -195,7 +196,7 @@ class IssueWriteSerializer(serializers.Serializer):
 
 class CommentSerializer(serializers.Serializer):
     id = serializers.UUIDField()
-    body = serializers.SerializerMethodField(help_text="마크다운")
+    body = serializers.SerializerMethodField(help_text=gettext_lazy("Markdown"))
     author = serializers.SerializerMethodField()
     parent = serializers.UUIDField(source="parent_id", allow_null=True)
     created_at = serializers.DateTimeField()
@@ -209,12 +210,12 @@ class CommentSerializer(serializers.Serializer):
 
 
 class CommentWriteSerializer(serializers.Serializer):
-    body = serializers.CharField(help_text="마크다운")
-    parent = serializers.UUIDField(required=False, allow_null=True, help_text="답글을 달 댓글 id")
+    body = serializers.CharField(help_text=gettext_lazy("Markdown"))
+    parent = serializers.UUIDField(required=False, allow_null=True, help_text=gettext_lazy("Id of the comment to reply to"))
 
     def validate_body(self, value):
         if not value.strip():
-            raise serializers.ValidationError("Enter some content.")
+            raise serializers.ValidationError(gettext("Enter some content."))
         return value
 
 
@@ -241,7 +242,7 @@ class DocumentSerializer(serializers.Serializer):
     parent = serializers.UUIDField(source="parent_id", allow_null=True)
     title = serializers.CharField()
     is_folder = serializers.BooleanField()
-    content = serializers.SerializerMethodField(help_text="본문 마크다운 (머리말 없음)")
+    content = serializers.SerializerMethodField(help_text=gettext_lazy("Body as Markdown (no front matter)"))
     properties = serializers.JSONField()
     labels = serializers.SerializerMethodField()
     created_by = serializers.SerializerMethodField()
@@ -273,15 +274,15 @@ def _validate_properties(value):
 
 class DocumentCreateSerializer(serializers.Serializer):
     title = serializers.CharField(max_length=500)
-    parent = serializers.UUIDField(required=False, allow_null=True, help_text="같은 스페이스의 문서·폴더 id")
+    parent = serializers.UUIDField(required=False, allow_null=True, help_text=gettext_lazy("Id of a document or folder in the same space"))
     is_folder = serializers.BooleanField(required=False, default=False)
-    content = serializers.CharField(required=False, allow_blank=True, help_text="본문 마크다운")
+    content = serializers.CharField(required=False, allow_blank=True, help_text=gettext_lazy("Body as Markdown"))
     properties = serializers.JSONField(required=False)
 
     def validate_title(self, value):
         value = value.strip()
         if not value:
-            raise serializers.ValidationError("Enter a title.")
+            raise serializers.ValidationError(gettext("Enter a title."))
         return value
 
     def validate_properties(self, value):
@@ -292,8 +293,8 @@ class DocumentUpdateSerializer(serializers.Serializer):
     """본문은 여기서 받지 않는다 — content/ 와 append/ 로 따로. 메타데이터와 본문은 반영 경로가 다르다."""
 
     title = serializers.CharField(max_length=500, required=False)
-    parent = serializers.UUIDField(required=False, allow_null=True, help_text="옮길 곳. null 이면 최상위")
-    properties = serializers.JSONField(required=False, help_text="통째로 교체")
+    parent = serializers.UUIDField(required=False, allow_null=True, help_text=gettext_lazy("Where to move it. null means the top level"))
+    properties = serializers.JSONField(required=False, help_text=gettext_lazy("Replaces the whole set"))
 
     validate_title = DocumentCreateSerializer.validate_title
 
@@ -302,4 +303,4 @@ class DocumentUpdateSerializer(serializers.Serializer):
 
 
 class DocumentContentSerializer(serializers.Serializer):
-    content = serializers.CharField(allow_blank=True, help_text="본문 마크다운")
+    content = serializers.CharField(allow_blank=True, help_text=gettext_lazy("Body as Markdown"))

@@ -9,6 +9,7 @@ from datetime import datetime, time
 from django.db.models import Q
 from django.utils import timezone
 from django.utils.dateparse import parse_date, parse_datetime
+from django.utils.translation import gettext
 from rest_framework import generics
 from rest_framework.exceptions import ValidationError
 
@@ -31,7 +32,7 @@ def as_datetime(raw: str):
     if value is None:
         date_only = parse_date(raw)
         if date_only is None:
-            raise ValidationError(f"Invalid date format: {raw}")
+            raise ValidationError(gettext("Invalid date format: %(value)s") % {"value": raw})
         value = datetime.combine(date_only, time.min)
     return _aware(value)
 
@@ -46,7 +47,7 @@ def as_datetime_end(raw: str):
     if value is None:
         date_only = parse_date(raw)
         if date_only is None:
-            raise ValidationError(f"Invalid date format: {raw}")
+            raise ValidationError(gettext("Invalid date format: %(value)s") % {"value": raw})
         value = datetime.combine(date_only, time.max)
     return _aware(value)
 
@@ -55,7 +56,7 @@ def as_int(raw: str) -> int:
     try:
         return int(raw)
     except (TypeError, ValueError):
-        raise ValidationError(f"A number is required: {raw}")
+        raise ValidationError(gettext("A number is required: %(value)s") % {"value": raw})
 
 
 def as_bool(raw: str) -> bool:
@@ -64,7 +65,7 @@ def as_bool(raw: str) -> bool:
         return True
     if lowered in ("0", "false", "no"):
         return False
-    raise ValidationError(f"true or false is required: {raw}")
+    raise ValidationError(gettext("true or false is required: %(value)s") % {"value": raw})
 
 
 class AdminResourceListView(generics.ListAPIView):
@@ -119,8 +120,8 @@ class AdminResourceListView(generics.ListAPIView):
             field = requested.lstrip("-")
             if field not in self.ordering_allow:
                 raise ValidationError(
-                    f"정렬할 수 없는 필드입니다: {field} "
-                    f"(가능: {', '.join(self.ordering_allow) or '없음'})"
+                    gettext("Cannot sort by this field: %(field)s (allowed: %(allowed)s)")
+                    % {"field": field, "allowed": ", ".join(self.ordering_allow) or gettext("none")}
                 )
             return queryset.order_by(requested)
         return queryset.order_by(self.default_ordering) if self.default_ordering else queryset

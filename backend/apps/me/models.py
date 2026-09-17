@@ -1,6 +1,7 @@
 import uuid
 from django.db import models
 from django.conf import settings
+from django.utils.translation import gettext_lazy
 
 
 class PersonalEvent(models.Model):
@@ -11,12 +12,12 @@ class PersonalEvent(models.Model):
     """
 
     class EventType(models.TextChoices):
-        MEETING      = "meeting",      "회의"
-        TRIP         = "trip",         "출장"
-        DEADLINE     = "deadline",     "마감"
-        PRESENTATION = "presentation", "발표"
-        MILESTONE    = "milestone",    "마일스톤"
-        OTHER        = "other",        "기타"
+        MEETING      = "meeting",      gettext_lazy("Meeting")
+        TRIP         = "trip",         gettext_lazy("Business trip")
+        DEADLINE     = "deadline",     gettext_lazy("Deadline")
+        PRESENTATION = "presentation", gettext_lazy("Presentation")
+        MILESTONE    = "milestone",    gettext_lazy("Milestone")
+        OTHER        = "other",        gettext_lazy("Other")
 
     id          = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user        = models.ForeignKey(

@@ -10,10 +10,12 @@ import logging
 
 from celery import shared_task
 from django.conf import settings
+from django.utils import translation
 from django.contrib.auth import get_user_model
 from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
 from django.utils import timezone
+from django.utils.translation import gettext_lazy
 
 logger = logging.getLogger(__name__)
 
@@ -30,10 +32,10 @@ def cleanup_old_notifications():
 
 # 알림 타입별 한/영 라벨 — 메일 제목 및 본문 헤더에 사용
 _TYPE_LABELS = {
-    "issue_assigned": {"ko": "이슈 배정", "en": "Issue Assigned"},
-    "issue_updated": {"ko": "이슈 변경", "en": "Issue Updated"},
-    "comment_added": {"ko": "새 댓글", "en": "New Comment"},
-    "issue_created": {"ko": "새 이슈", "en": "New Issue"},
+    "issue_assigned": gettext_lazy("Issue assigned"),
+    "issue_updated": gettext_lazy("Issue updated"),
+    "comment_added": gettext_lazy("New comment"),
+    "issue_created": gettext_lazy("New issue"),
 }
 
 
@@ -64,11 +66,10 @@ def send_notification_email(self, recipient_id, ntype, message, issue_id, actor_
     if not prefs.email_allowed(ntype, project=project):
         return "opted out"
 
-    lang = (recipient.language or "ko").lower()
-    if lang not in ("ko", "en"):
-        lang = "ko"
-
-    type_label = _TYPE_LABELS.get(ntype, {}).get(lang, ntype)
+    from apps.accounts.models import user_language
+    lang = user_language(recipient)
+    with translation.override(lang):
+        type_label = str(_TYPE_LABELS.get(ntype, ntype))
     subject = f"[OrbiTail] {type_label}"
 
     # 이슈 딥링크 — 라우트 형식: /<slug>/projects/<id>/issues?issue=<uuid>

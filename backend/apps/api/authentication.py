@@ -1,6 +1,7 @@
 from datetime import timedelta
 
 from django.utils import timezone
+from django.utils.translation import gettext
 from rest_framework.authentication import BaseAuthentication, get_authorization_header
 from rest_framework.exceptions import AuthenticationFailed
 
@@ -38,16 +39,16 @@ class ApiTokenAuthentication(BaseAuthentication):
         )
         # 없는 토큰·폐기·만료를 구분해서 알려주지 않는다 — 훔친 토큰이 살아 있는지 떠볼 수 없게
         if token is None or not token.is_active:
-            raise AuthenticationFailed("유효하지 않은 토큰입니다.")
+            raise AuthenticationFailed(gettext("Invalid token."))
 
         user = token.user
         if not user.is_active or user.is_suspended or user.deleted_at is not None:
-            raise AuthenticationFailed("유효하지 않은 토큰입니다.")
+            raise AuthenticationFailed(gettext("Invalid token."))
         # 발급 후 워크스페이스에서 나갔거나 게스트로 내려갔으면 토큰도 함께 죽는다
         if not WorkspaceMember.objects.filter(
             workspace_id=token.workspace_id, member=user, role__gte=WorkspaceMember.Role.MEMBER,
         ).exists():
-            raise AuthenticationFailed("유효하지 않은 토큰입니다.")
+            raise AuthenticationFailed(gettext("Invalid token."))
 
         now = timezone.now()
         if token.last_used_at is None or now - token.last_used_at > LAST_USED_RESOLUTION:

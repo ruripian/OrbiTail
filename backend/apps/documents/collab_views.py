@@ -17,6 +17,7 @@ import base64
 import hmac
 
 from django.conf import settings
+from django.utils.translation import gettext
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
@@ -48,7 +49,7 @@ class CollabAuthView(APIView):
         # 참이라 문서 id 만 알면 누구나 협업 서버에 붙어 본문을 받았다.
         role = document_role(request.user, str(doc_pk))
         if role is None:
-            return Response({"detail": "접근 권한이 없습니다."}, status=status.HTTP_403_FORBIDDEN)
+            return Response({"detail": gettext("You do not have access.")}, status=status.HTTP_403_FORBIDDEN)
         return Response({
             "allowed": True,
             # 편집 권한이 없으면 협업 서버가 읽기 전용으로 붙인다
@@ -98,7 +99,7 @@ class CollabDocumentView(APIView):
             try:
                 state = base64.b64decode(raw)
             except Exception:
-                return Response({"detail": "yjs_base64 를 읽을 수 없습니다."},
+                return Response({"detail": gettext("Could not read yjs_base64.")},
                                 status=status.HTTP_400_BAD_REQUEST)
             # 빈 Y.Doc 의 업데이트는 2바이트다. 그걸 저장하면 다음 로드에서 "상태 있음"으로
             # 잘못 판정돼 시드가 건너뛰어지고 빈 문서가 확정된다.

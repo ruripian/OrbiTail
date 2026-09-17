@@ -1,9 +1,11 @@
 from datetime import timedelta
 
 from django.conf import settings
+from django.utils import translation
 from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
 from django.utils import timezone
+from django.utils.translation import gettext
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -30,26 +32,35 @@ def _notify_workspace_admins_join_request(join_request):
     )
     if not admin_ids:
         return
-    msg = f"{user.display_name}님이 '{workspace.name}' 워크스페이스 가입을 신청했습니다."
+    from apps.accounts.models import user_language
+    from django.contrib.auth import get_user_model
+    admins = list(get_user_model().objects.filter(id__in=admin_ids))
+    messages = {}
+    for admin in admins:
+        with translation.override(user_language(admin)):
+            messages[admin.id] = gettext("%(name)s requested to join the '%(workspace)s' workspace.") % {
+                "name": user.display_name, "workspace": workspace.name}
     Notification.objects.bulk_create([
         Notification(
-            recipient_id=admin_id,
+            recipient=admin,
             actor=user,
             type=Notification.Type.JOIN_REQUESTED,
             workspace=workspace,
-            message=msg,
+            message=messages[admin.id],
         )
-        for admin_id in admin_ids
+        for admin in admins
     ])
-    # WebSocket 브로드캐스트 — 어드민 클라이언트에서 즉시 뱃지 갱신
+    # WebSocket — 관리자 각자에게 그 사람 언어로. 예전에는 워크스페이스 전체에 보내
+    # 관리자가 아닌 멤버에게도 가입 신청 알림이 흘렀다.
     try:
-        from apps.notifications.signals import _broadcast_to_workspace
-        _broadcast_to_workspace(workspace.slug, {
-            "type": "notification.new",
-            "notification_type": Notification.Type.JOIN_REQUESTED,
-            "message": msg,
-            "actor_name": user.display_name,
-        })
+        from apps.notifications.signals import _broadcast_to_user
+        for admin in admins:
+            _broadcast_to_user(admin.id, {
+                "type": "notification.new",
+                "notification_type": Notification.Type.JOIN_REQUESTED,
+                "message": messages[admin.id],
+                "actor_name": user.display_name,
+            })
     except Exception:
         pass
 
@@ -62,12 +73,14 @@ def _notify_user_join_decision(join_request, approved: bool):
     actor = join_request.decided_by
     if not actor:
         return
-    if approved:
-        ntype = Notification.Type.JOIN_APPROVED
-        msg = f"'{workspace.name}' 워크스페이스 가입이 승인되었습니다."
-    else:
-        ntype = Notification.Type.JOIN_REJECTED
-        msg = f"'{workspace.name}' 워크스페이스 가입 신청이 거절되었습니다."
+    from apps.accounts.models import user_language
+    with translation.override(user_language(join_request.user)):
+        if approved:
+            ntype = Notification.Type.JOIN_APPROVED
+            msg = gettext("Your request to join the '%(workspace)s' workspace was approved.") % {"workspace": workspace.name}
+        else:
+            ntype = Notification.Type.JOIN_REJECTED
+            msg = gettext("Your request to join the '%(workspace)s' workspace was rejected.") % {"workspace": workspace.name}
     Notification.objects.create(
         recipient=join_request.user,
         actor=actor,
@@ -100,7 +113,7 @@ class WorkspaceListCreateView(generics.ListCreateAPIView):
         실제로는 누구나 워크스페이스를 만들 수 있었다. 화면(CreateWorkspacePage)도 is_staff 전용이다."""
         if not (request.user.is_staff or request.user.is_superuser):
             return Response(
-                {"detail": "워크스페이스 생성은 슈퍼어드민만 할 수 있습니다."},
+                {"detail": gettext("Only a superadmin can create a workspace.")},
                 status=status.HTTP_403_FORBIDDEN,
             )
         return super().create(request, *args, **kwargs)
@@ -151,20 +164,20 @@ class WorkspaceJoinRequestCreateView(APIView):
         try:
             workspace = Workspace.objects.get(slug=slug)
         except Workspace.DoesNotExist:
-            return Response({"detail": "워크스페이스를 찾을 수 없습니다."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": gettext("Workspace not found.")}, status=status.HTTP_404_NOT_FOUND)
 
         # 이미 멤버
         if WorkspaceMember.objects.filter(workspace=workspace, member=user).exists():
             return Response({
                 "already_member": True,
                 "workspace_slug": workspace.slug,
-                "detail": "이미 멤버입니다.",
+                "detail": gettext("Already a member."),
             })
 
         # 이메일 미인증은 신청 차단 (이메일 본인 확인이 셀프 가입의 전제)
         if not user.is_email_verified and not user.is_staff:
             return Response(
-                {"detail": "이메일 인증 후 가입 신청이 가능합니다."},
+                {"detail": gettext("Verify your email before requesting to join.")},
                 status=status.HTTP_403_FORBIDDEN,
             )
 
@@ -206,9 +219,9 @@ class MyJoinRequestCancelView(APIView):
         try:
             jr = WorkspaceJoinRequest.objects.get(id=request_id, user=request.user)
         except WorkspaceJoinRequest.DoesNotExist:
-            return Response({"detail": "신청을 찾을 수 없습니다."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": gettext("Request not found.")}, status=status.HTTP_404_NOT_FOUND)
         if jr.status != WorkspaceJoinRequest.Status.PENDING:
-            return Response({"detail": "이미 처리된 신청입니다."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": gettext("This request has already been handled.")}, status=status.HTTP_400_BAD_REQUEST)
         jr.status = WorkspaceJoinRequest.Status.CANCELED
         jr.decided_at = timezone.now()
         jr.save(update_fields=["status", "decided_at", "updated_at"])
@@ -247,7 +260,7 @@ class WorkspaceJoinRequestDecisionView(APIView):
         ).first()
         if not membership or membership.role < WorkspaceMember.Role.ADMIN:
             return Response(
-                {"detail": "관리자만 가입 신청을 처리할 수 있습니다."},
+                {"detail": gettext("Only an administrator can handle join requests.")},
                 status=status.HTTP_403_FORBIDDEN,
             )
         try:
@@ -255,10 +268,10 @@ class WorkspaceJoinRequestDecisionView(APIView):
                 id=request_id, workspace__slug=slug,
             )
         except WorkspaceJoinRequest.DoesNotExist:
-            return Response({"detail": "신청을 찾을 수 없습니다."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": gettext("Request not found.")}, status=status.HTTP_404_NOT_FOUND)
 
         if jr.status != WorkspaceJoinRequest.Status.PENDING:
-            return Response({"detail": "이미 처리된 신청입니다."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": gettext("This request has already been handled.")}, status=status.HTTP_400_BAD_REQUEST)
 
         action = (request.data or {}).get("action")
         if action == "approve":
@@ -270,7 +283,7 @@ class WorkspaceJoinRequestDecisionView(APIView):
         elif action == "reject":
             jr.status = WorkspaceJoinRequest.Status.REJECTED
         else:
-            return Response({"detail": "action 은 approve|reject 중 하나여야 합니다."},
+            return Response({"detail": gettext("action must be approve or reject.")},
                             status=status.HTTP_400_BAD_REQUEST)
 
         jr.decided_by = request.user
@@ -306,7 +319,7 @@ class WorkspaceDetailView(generics.RetrieveUpdateDestroyAPIView):
         ).first()
         if membership is None or membership.role != WorkspaceMember.Role.OWNER:
             from rest_framework.exceptions import PermissionDenied
-            raise PermissionDenied("Only the owner or a superadmin can delete a workspace.")
+            raise PermissionDenied(gettext("Only the owner or a superadmin can delete a workspace."))
         instance.delete()
 
     def update(self, request, *args, **kwargs):
@@ -317,7 +330,7 @@ class WorkspaceDetailView(generics.RetrieveUpdateDestroyAPIView):
         ).first()
         if membership is None or membership.role < WorkspaceMember.Role.ADMIN:
             return Response(
-                {"detail": "워크스페이스 정보 수정은 관리자 이상만 가능합니다."},
+                {"detail": gettext("Only administrators and above can edit workspace details.")},
                 status=status.HTTP_403_FORBIDDEN,
             )
         return super().update(request, *args, **kwargs)
@@ -353,12 +366,12 @@ class WorkspaceMemberDetailView(APIView):
             )
         except WorkspaceMember.DoesNotExist:
             return None, Response(
-                {"detail": "워크스페이스 멤버가 아닙니다."},
+                {"detail": gettext("You are not a member of this workspace.")},
                 status=status.HTTP_403_FORBIDDEN,
             )
         if requester_membership.role < WorkspaceMember.Role.ADMIN:
             return None, Response(
-                {"detail": "관리자 이상만 멤버를 관리할 수 있습니다."},
+                {"detail": gettext("Only administrators and above can manage members.")},
                 status=status.HTTP_403_FORBIDDEN,
             )
         return requester_membership, None
@@ -375,19 +388,19 @@ class WorkspaceMemberDetailView(APIView):
 
         target = self._get_target(slug, member_id)
         if target is None:
-            return Response({"detail": "멤버를 찾을 수 없습니다."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": gettext("Member not found.")}, status=status.HTTP_404_NOT_FOUND)
 
         new_role = request.data.get("role")
         if new_role is None:
-            return Response({"detail": "role이 필요합니다."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": gettext("role is required.")}, status=status.HTTP_400_BAD_REQUEST)
         try:
             new_role = int(new_role)
         except (TypeError, ValueError):
-            return Response({"detail": "role 값이 올바르지 않습니다."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": gettext("Invalid role value.")}, status=status.HTTP_400_BAD_REQUEST)
 
         valid_roles = {r.value for r in WorkspaceMember.Role}
         if new_role not in valid_roles:
-            return Response({"detail": "role 값이 올바르지 않습니다."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": gettext("Invalid role value.")}, status=status.HTTP_400_BAD_REQUEST)
 
         workspace = requester_membership.workspace
 
@@ -398,7 +411,7 @@ class WorkspaceMemberDetailView(APIView):
         )
         if is_owner_change and requester_membership.role != WorkspaceMember.Role.OWNER:
             return Response(
-                {"detail": "소유자 변경은 현재 소유자만 할 수 있습니다."},
+                {"detail": gettext("Only the current owner can change the owner.")},
                 status=status.HTTP_403_FORBIDDEN,
             )
 
@@ -409,7 +422,7 @@ class WorkspaceMemberDetailView(APIView):
             ).count()
             if owner_count <= 1:
                 return Response(
-                    {"detail": "마지막 소유자는 강등할 수 없습니다. 먼저 다른 멤버를 소유자로 지정하세요."},
+                    {"detail": gettext("The last owner cannot be demoted. Make another member an owner first.")},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
@@ -437,13 +450,13 @@ class WorkspaceMemberDetailView(APIView):
 
         target = self._get_target(slug, member_id)
         if target is None:
-            return Response({"detail": "멤버를 찾을 수 없습니다."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": gettext("Member not found.")}, status=status.HTTP_404_NOT_FOUND)
 
         # Owner는 Owner만 제거 가능 + 마지막 Owner 보호
         if target.role == WorkspaceMember.Role.OWNER:
             if requester_membership.role != WorkspaceMember.Role.OWNER:
                 return Response(
-                    {"detail": "소유자를 제거하려면 소유자 권한이 필요합니다."},
+                    {"detail": gettext("Removing an owner requires owner rights.")},
                     status=status.HTTP_403_FORBIDDEN,
                 )
             owner_count = WorkspaceMember.objects.filter(
@@ -452,14 +465,14 @@ class WorkspaceMemberDetailView(APIView):
             ).count()
             if owner_count <= 1:
                 return Response(
-                    {"detail": "마지막 소유자는 제거할 수 없습니다."},
+                    {"detail": gettext("The last owner cannot be removed.")},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
         # 본인 제거 금지 — 본인은 leave API(추후)나 탈퇴로 나가야 함
         if target.member_id == request.user.id:
             return Response(
-                {"detail": "본인을 제거할 수 없습니다."},
+                {"detail": gettext("You cannot remove yourself.")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -505,7 +518,7 @@ class WorkspaceInvitationListCreateView(APIView):
         if membership is None:
             return Response(status=status.HTTP_404_NOT_FOUND)
         if membership.role < WorkspaceMember.Role.ADMIN:
-            return Response({"detail": "Admin 이상만 초대 목록을 볼 수 있습니다."}, status=status.HTTP_403_FORBIDDEN)
+            return Response({"detail": gettext("Only Admin and above can see the invitation list.")}, status=status.HTTP_403_FORBIDDEN)
         workspace = membership.workspace
         invitations = WorkspaceInvitation.objects.filter(workspace=workspace).order_by("-created_at")
         serializer = WorkspaceInvitationSerializer(invitations, many=True)
@@ -519,13 +532,13 @@ class WorkspaceInvitationListCreateView(APIView):
             )
         except WorkspaceMember.DoesNotExist:
             return Response(
-                {"detail": "워크스페이스 멤버가 아닙니다."},
+                {"detail": gettext("You are not a member of this workspace.")},
                 status=status.HTTP_403_FORBIDDEN,
             )
 
         if membership.role < WorkspaceMember.Role.ADMIN:
             return Response(
-                {"detail": "초대 권한이 없습니다. Admin 이상만 초대할 수 있습니다."},
+                {"detail": gettext("You do not have permission to invite. Only Admin and above can invite.")},
                 status=status.HTTP_403_FORBIDDEN,
             )
 
@@ -535,7 +548,7 @@ class WorkspaceInvitationListCreateView(APIView):
         # 관리자가 자기 다른 이메일을 OWNER 로 초대해 소유자가 되는 우회를 막는다
         if data["role"] > membership.role or (
                 data["role"] == WorkspaceMember.Role.OWNER and membership.role != WorkspaceMember.Role.OWNER):
-            return Response({"detail": "자신보다 높은 역할로는 초대할 수 없습니다."},
+            return Response({"detail": gettext("You cannot invite someone with a higher role than your own.")},
                             status=status.HTTP_403_FORBIDDEN)
 
         workspace = membership.workspace
@@ -545,7 +558,7 @@ class WorkspaceInvitationListCreateView(APIView):
             workspace=workspace, member__email=data["email"]
         ).exists():
             return Response(
-                {"detail": "이미 워크스페이스 멤버입니다."},
+                {"detail": gettext("Already a workspace member.")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -595,7 +608,7 @@ class WorkspaceInvitationListCreateView(APIView):
         html_body = render_to_string("emails/workspace_invitation.html", context)
 
         mail = EmailMultiAlternatives(
-            subject=f"[OrbiTail] {workspace.name} 워크스페이스 초대",
+            subject=gettext("[OrbiTail] Invitation to the %(workspace)s workspace") % {"workspace": workspace.name},
             body=text_body,
             from_email=settings.DEFAULT_FROM_EMAIL,
             to=[data["email"]],
@@ -622,7 +635,7 @@ class WorkspaceInvitationRevokeView(APIView):
 
         if membership.role < WorkspaceMember.Role.ADMIN:
             return Response(
-                {"detail": "권한이 없습니다."}, status=status.HTTP_403_FORBIDDEN
+                {"detail": gettext("You do not have permission.")}, status=status.HTTP_403_FORBIDDEN
             )
 
         try:
@@ -633,14 +646,14 @@ class WorkspaceInvitationRevokeView(APIView):
             )
         except WorkspaceInvitation.DoesNotExist:
             return Response(
-                {"detail": "초대를 찾을 수 없습니다."}, status=status.HTTP_404_NOT_FOUND
+                {"detail": gettext("Invitation not found.")}, status=status.HTTP_404_NOT_FOUND
             )
 
         invitation.status = WorkspaceInvitation.Status.REVOKED
         invitation.save()
         log_workspace_activity(membership.workspace, request.user, WorkspaceActivity.Action.INVITATION_REVOKED,
                                target_type="invitation", target_label=invitation.email)
-        return Response({"detail": "초대가 취소되었습니다."})
+        return Response({"detail": gettext("The invitation was revoked.")})
 
 
 class InvitationDetailView(APIView):
@@ -654,13 +667,13 @@ class InvitationDetailView(APIView):
             ).get(token=token)
         except WorkspaceInvitation.DoesNotExist:
             return Response(
-                {"detail": "유효하지 않은 초대 링크입니다."},
+                {"detail": gettext("This invitation link is not valid.")},
                 status=status.HTTP_404_NOT_FOUND,
             )
 
         if not invitation.is_valid():
             return Response(
-                {"detail": "만료되었거나 이미 처리된 초대입니다."},
+                {"detail": gettext("This invitation has expired or was already handled.")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -707,16 +720,16 @@ class AdminWorkspaceCreateView(APIView):
 
         if not name or not slug or not owner_id:
             return Response(
-                {"detail": "name, slug, owner_id 가 모두 필요합니다."},
+                {"detail": gettext("name, slug and owner_id are all required.")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         if Workspace.objects.filter(slug=slug).exists():
-            return Response({"detail": "이미 사용 중인 slug 입니다."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": gettext("That slug is already in use.")}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             owner = User.objects.get(pk=owner_id)
         except User.DoesNotExist:
-            return Response({"detail": "소유자로 지정할 사용자를 찾을 수 없습니다."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": gettext("The user to make owner was not found.")}, status=status.HTTP_404_NOT_FOUND)
 
         workspace = Workspace.objects.create(name=name, slug=slug, owner=owner)
         WorkspaceMember.objects.create(
@@ -743,7 +756,7 @@ class AdminWorkspaceDeleteView(APIView):
         try:
             workspace = Workspace.objects.get(slug=slug)
         except Workspace.DoesNotExist:
-            return Response({"detail": "워크스페이스를 찾을 수 없습니다."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": gettext("Workspace not found.")}, status=status.HTTP_404_NOT_FOUND)
 
         ws_id = workspace.id
         ws_name = workspace.name
@@ -773,15 +786,15 @@ class AdminWorkspaceOwnerView(APIView):
         try:
             workspace = Workspace.objects.get(slug=slug)
         except Workspace.DoesNotExist:
-            return Response({"detail": "워크스페이스를 찾을 수 없습니다."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": gettext("Workspace not found.")}, status=status.HTTP_404_NOT_FOUND)
 
         new_owner_id = request.data.get("owner_id")
         if not new_owner_id:
-            return Response({"detail": "owner_id 가 필요합니다."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": gettext("owner_id is required.")}, status=status.HTTP_400_BAD_REQUEST)
         try:
             new_owner = User.objects.get(pk=new_owner_id)
         except User.DoesNotExist:
-            return Response({"detail": "사용자를 찾을 수 없습니다."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": gettext("User not found.")}, status=status.HTTP_404_NOT_FOUND)
 
         old_owner_email = workspace.owner.email if workspace.owner else ""
 
@@ -823,13 +836,13 @@ class InvitationAcceptView(APIView):
             )
         except WorkspaceInvitation.DoesNotExist:
             return Response(
-                {"detail": "유효하지 않은 초대 링크입니다."},
+                {"detail": gettext("This invitation link is not valid.")},
                 status=status.HTTP_404_NOT_FOUND,
             )
 
         if not invitation.is_valid():
             return Response(
-                {"detail": "만료되었거나 이미 처리된 초대입니다."},
+                {"detail": gettext("This invitation has expired or was already handled.")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -839,8 +852,8 @@ class InvitationAcceptView(APIView):
         if request.user.email.lower() != invitation.email.lower():
             return Response(
                 {
-                    "detail": f"이 초대는 {invitation.email} 앞으로 발송되었습니다. "
-                    f"해당 이메일 계정으로 로그인해주세요.",
+                    "detail": gettext("This invitation was sent to %(email)s. Sign in with that email account.")
+                    % {"email": invitation.email},
                     "invited_email": invitation.email,
                 },
                 status=status.HTTP_403_FORBIDDEN,
@@ -854,7 +867,7 @@ class InvitationAcceptView(APIView):
             invitation.status = WorkspaceInvitation.Status.ACCEPTED
             invitation.save()
             return Response({
-                "detail": "이미 해당 워크스페이스의 멤버입니다.",
+                "detail": gettext("Already a member of that workspace."),
                 "workspace_slug": invitation.workspace.slug,
             })
 
@@ -869,7 +882,7 @@ class InvitationAcceptView(APIView):
         invitation.save()
 
         return Response({
-            "detail": "초대를 수락했습니다.",
+            "detail": gettext("Invitation accepted."),
             "workspace_slug": invitation.workspace.slug,
         })
 
@@ -922,13 +935,13 @@ class TeamListCreateView(generics.ListCreateAPIView):
     def create(self, request, *args, **kwargs):
         ws, _ = _get_workspace_or_403(self.kwargs["workspace_slug"], request.user)
         if not ws:
-            return Response({"detail": "워크스페이스 멤버만 팀을 만들 수 있습니다."},
+            return Response({"detail": gettext("Only a workspace member can create a team.")},
                             status=status.HTTP_403_FORBIDDEN)
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         # 같은 ws 내 이름 중복은 unique_together 가 막지만 사용자 친화적 메시지 위해 미리 체크
         if Team.objects.filter(workspace=ws, name=serializer.validated_data["name"]).exists():
-            return Response({"detail": "같은 이름의 팀이 이미 있습니다."},
+            return Response({"detail": gettext("A team with that name already exists.")},
                             status=status.HTTP_400_BAD_REQUEST)
         team = Team.objects.create(
             workspace=ws,
@@ -959,13 +972,13 @@ class TeamDetailView(generics.RetrieveUpdateDestroyAPIView):
     def update(self, request, *args, **kwargs):
         team = self.get_object()
         if not _is_team_admin(request.user, team):
-            return Response({"detail": "팀 관리자만 수정할 수 있습니다."}, status=status.HTTP_403_FORBIDDEN)
+            return Response({"detail": gettext("Only a team administrator can edit this.")}, status=status.HTTP_403_FORBIDDEN)
         return super().update(request, *args, **kwargs)
 
     def destroy(self, request, *args, **kwargs):
         team = self.get_object()
         if not _is_team_admin(request.user, team):
-            return Response({"detail": "팀 관리자만 삭제할 수 있습니다."}, status=status.HTTP_403_FORBIDDEN)
+            return Response({"detail": gettext("Only a team administrator can delete this.")}, status=status.HTTP_403_FORBIDDEN)
         log_workspace_activity(team.workspace, request.user, WorkspaceActivity.Action.TEAM_DELETED, target=team)
         return super().destroy(request, *args, **kwargs)
 
@@ -997,7 +1010,7 @@ class TeamMemberListCreateView(generics.ListCreateAPIView):
         if not team:
             return Response(status=status.HTTP_404_NOT_FOUND)
         if not _is_team_admin(request.user, team):
-            return Response({"detail": "팀 관리자만 멤버를 추가할 수 있습니다."},
+            return Response({"detail": gettext("Only a team administrator can add members.")},
                             status=status.HTTP_403_FORBIDDEN)
         target_user_id = request.data.get("member")
         role = request.data.get("role", TeamMember.Role.MEMBER)
@@ -1006,12 +1019,12 @@ class TeamMemberListCreateView(generics.ListCreateAPIView):
         except (TypeError, ValueError):
             role = None
         if role not in TeamMember.Role.values:
-            return Response({"detail": "role 값이 올바르지 않습니다."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": gettext("Invalid role value.")}, status=status.HTTP_400_BAD_REQUEST)
         if not target_user_id:
-            return Response({"detail": "member 필드가 필요합니다."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": gettext("The member field is required.")}, status=status.HTTP_400_BAD_REQUEST)
         # 워크스페이스 멤버 subset 검증 — 외부 인원 차단
         if not WorkspaceMember.objects.filter(workspace=team.workspace, member_id=target_user_id).exists():
-            return Response({"detail": "워크스페이스 멤버만 팀에 추가할 수 있습니다."},
+            return Response({"detail": gettext("Only workspace members can be added to the team.")},
                             status=status.HTTP_400_BAD_REQUEST)
         tm, created = TeamMember.objects.get_or_create(
             team=team,
@@ -1019,7 +1032,7 @@ class TeamMemberListCreateView(generics.ListCreateAPIView):
             defaults={"role": role, "added_by": request.user},
         )
         if not created:
-            return Response({"detail": "이미 팀 멤버입니다."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": gettext("Already a team member.")}, status=status.HTTP_400_BAD_REQUEST)
         return Response(TeamMemberSerializer(tm).data, status=status.HTTP_201_CREATED)
 
 
@@ -1052,7 +1065,7 @@ class TeamMemberDetailView(APIView):
         # role — 권한 변경이므로 team admin 전용
         if "role" in request.data:
             if not is_admin:
-                return Response({"detail": "팀 관리자만 역할을 변경할 수 있습니다."},
+                return Response({"detail": gettext("Only a team administrator can change roles.")},
                                 status=status.HTTP_403_FORBIDDEN)
             new_role = request.data.get("role")
             try:
@@ -1060,12 +1073,12 @@ class TeamMemberDetailView(APIView):
             except (TypeError, ValueError):
                 new_role = None
             if new_role not in TeamMember.Role.values:
-                return Response({"detail": "role 값이 올바르지 않습니다."}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({"detail": gettext("Invalid role value.")}, status=status.HTTP_400_BAD_REQUEST)
             # 마지막 admin 강등 차단 — 팀이 admin 없는 상태로 빠지는 것 방지
             if tm.role == TeamMember.Role.ADMIN and int(new_role) < TeamMember.Role.ADMIN:
                 admin_count = TeamMember.objects.filter(team=team, role=TeamMember.Role.ADMIN).count()
                 if admin_count <= 1:
-                    return Response({"detail": "마지막 관리자를 강등할 수 없습니다."},
+                    return Response({"detail": gettext("The last administrator cannot be demoted.")},
                                     status=status.HTTP_400_BAD_REQUEST)
             tm.role = int(new_role)
             update_fields.append("role")
@@ -1073,18 +1086,18 @@ class TeamMemberDetailView(APIView):
         # title — 표시 전용이라 본인도 수정 가능
         if "title" in request.data:
             if not (is_admin or is_self):
-                return Response({"detail": "본인 또는 팀 관리자만 직책을 변경할 수 있습니다."},
+                return Response({"detail": gettext("Only the member or a team administrator can change the title.")},
                                 status=status.HTTP_403_FORBIDDEN)
             title = (request.data.get("title") or "").strip()
             max_len = TeamMember._meta.get_field("title").max_length
             if len(title) > max_len:
-                return Response({"detail": f"직책은 {max_len}자까지 입력할 수 있습니다."},
+                return Response({"detail": gettext("A title can be at most %(max)s characters.") % {"max": max_len}},
                                 status=status.HTTP_400_BAD_REQUEST)
             tm.title = title
             update_fields.append("title")
 
         if not update_fields:
-            return Response({"detail": "role 또는 title 필드가 필요합니다."},
+            return Response({"detail": gettext("The role or title field is required.")},
                             status=status.HTTP_400_BAD_REQUEST)
         tm.save(update_fields=update_fields)
         return Response(TeamMemberSerializer(tm).data)
@@ -1096,14 +1109,14 @@ class TeamMemberDetailView(APIView):
         # 본인 탈퇴는 자유, 그 외는 team admin
         is_self = tm.member_id == request.user.id
         if not is_self and not _is_team_admin(request.user, team):
-            return Response({"detail": "팀 관리자만 멤버를 제거할 수 있습니다."},
+            return Response({"detail": gettext("Only a team administrator can remove members.")},
                             status=status.HTTP_403_FORBIDDEN)
         # 마지막 admin 본인이 탈퇴하면 팀에 admin 이 0 — 팀 삭제 권유 / 차단
         if tm.role == TeamMember.Role.ADMIN:
             admin_count = TeamMember.objects.filter(team=team, role=TeamMember.Role.ADMIN).count()
             if admin_count <= 1:
                 return Response(
-                    {"detail": "마지막 관리자는 탈퇴할 수 없습니다. 다른 멤버를 관리자로 승격하거나 팀을 삭제해주세요."},
+                    {"detail": gettext("The last administrator cannot leave. Promote another member to administrator or delete the team.")},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
         tm.delete()

@@ -16,6 +16,7 @@ import ssl
 from urllib.parse import urlsplit
 
 from django.conf import settings
+from django.utils.translation import gettext
 
 TIMEOUT_SECONDS = 10
 MAX_RESPONSE_BYTES = 1000
@@ -38,18 +39,18 @@ def resolve_target(url: str) -> tuple[str, str, int, str]:
     """(scheme, host, port, ip) — 보낼 수 없으면 WebhookTargetError."""
     parts = urlsplit(url)
     if parts.scheme not in ("http", "https") or not parts.hostname:
-        raise WebhookTargetError("http 또는 https 주소여야 합니다.")
+        raise WebhookTargetError(gettext("Must be an http or https URL."))
     if parts.username or parts.password:
-        raise WebhookTargetError("주소에 사용자 정보를 넣을 수 없습니다.")
+        raise WebhookTargetError(gettext("The URL cannot contain user credentials."))
     port = parts.port or (443 if parts.scheme == "https" else 80)
     try:
         infos = socket.getaddrinfo(parts.hostname, port, type=socket.SOCK_STREAM)
     except socket.gaierror as exc:
-        raise WebhookTargetError(f"주소를 찾을 수 없습니다: {parts.hostname}") from exc
+        raise WebhookTargetError(gettext("Could not resolve the address: %(host)s") % {"host": parts.hostname}) from exc
     ips = [info[4][0] for info in infos]
     # 여러 IP 가 나오면 전부 공인이어야 한다. 하나라도 내부면 그쪽으로 붙을 수 있다.
     if not ips or not all(_allowed_ip(ip) for ip in ips):
-        raise WebhookTargetError("내부망 주소로는 보낼 수 없습니다.")
+        raise WebhookTargetError(gettext("Cannot send to a private network address."))
     return parts.scheme, parts.hostname, port, ips[0]
 
 

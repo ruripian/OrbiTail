@@ -47,3 +47,5 @@ develop_claude/
 .claude
 CLAUDE.md
 .agents/
+# 번역 컴파일 산출물 — entrypoint 가 기동 때 만든다
+*.mo

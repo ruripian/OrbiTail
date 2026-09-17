@@ -9,6 +9,7 @@ UUIDField(primary_key=True, default=uuid.uuid4) 라 저장 전에도 pk 가
 """
 from django.conf import settings
 from django.db.models.signals import post_save, pre_save
+from django.utils.translation import gettext_lazy
 from rest_framework.exceptions import ValidationError
 
 
@@ -24,10 +25,16 @@ def _sandbox_of_workspace(workspace):
     return workspace.demo_sandboxes.first()
 
 
+# 종류 이름을 문장에 끼우면 언어마다 조사·어순이 달라 번역이 어색해진다 — 문장을 통째로 둔다
+_TOO_MANY = {
+    "workspaces": gettext_lazy("The demo allows at most %(limit)s workspaces."),
+    "issues": gettext_lazy("The demo allows at most %(limit)s issues."),
+    "documents": gettext_lazy("The demo allows at most %(limit)s documents."),
+}
+
+
 def _too_many(kind: str, limit: int):
-    return ValidationError({
-        "detail": f"The demo allows at most {limit} {kind}."
-    })
+    return ValidationError({"detail": str(_TOO_MANY[kind]) % {"limit": limit}})
 
 
 # --- 상한 ---------------------------------------------------------------

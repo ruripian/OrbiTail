@@ -8,7 +8,7 @@ from django.http import JsonResponse
 from django.utils.translation import gettext as _
 
 LOCKOUT_DETAIL = _(
-    "로그인 실패가 너무 많습니다. 잠시 후 다시 시도해 주세요."
+    "Too many failed sign-in attempts. Please try again later."
 )
 
 

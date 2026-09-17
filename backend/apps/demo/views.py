@@ -8,6 +8,7 @@ import hashlib
 
 from django.conf import settings
 from django.utils import timezone
+from django.utils.translation import gettext
 from datetime import timedelta
 
 from rest_framework import status
@@ -58,7 +59,7 @@ class DemoSessionView(APIView):
     def post(self, request):
         if not settings.DEMO_MODE:
             return Response(
-                {"detail": "데모 모드가 아닙니다."},
+                {"detail": gettext("Demo mode is not enabled.")},
                 status=status.HTTP_404_NOT_FOUND,
             )
 
@@ -69,11 +70,15 @@ class DemoSessionView(APIView):
         ).count()
         if recent >= settings.DEMO_MAX_SANDBOXES_PER_CLIENT:
             return Response(
-                {"detail": "잠시 후 다시 시도해 주세요. 데모 세션을 너무 자주 만들었습니다."},
+                {"detail": gettext("Too many demo sessions were started. Please try again later.")},
                 status=status.HTTP_429_TOO_MANY_REQUESTS,
             )
 
         sandbox = create_sandbox(client_hash=client_hash)
+        # 샌드박스 계정은 모델 기본 언어로 만들어진다 — 데모를 연 화면의 언어로 맞춘다
+        from apps.accounts.models import request_language
+        type(sandbox.user).objects.filter(email__endswith="@" + sandbox.email_domain).update(language=request_language())
+        sandbox.user.refresh_from_db(fields=["language"])
         refresh = RefreshToken.for_user(sandbox.user)
         return Response({
             "access": str(refresh.access_token),

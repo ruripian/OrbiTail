@@ -5,6 +5,10 @@ ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
+# gettext — 번역 파일(.po)을 컴파일(.mo)하는 데 필요하다. entrypoint 가 기동 때 컴파일한다.
+RUN apt-get update && apt-get install -y --no-install-recommends gettext \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 

@@ -39,6 +39,11 @@ fi
 
 echo "Database ready!"
 
+# ── 번역 컴파일 ──
+# .mo 는 저장소에 두지 않는다(.po 만 추적). 개발 compose 는 소스를 /app 에 마운트해
+# 이미지에 구운 파일이 가려지므로, 기동할 때마다 컴파일한다. 1초 안쪽이다.
+python manage.py compilemessages --verbosity 0 || echo "WARN: compilemessages 실패 — 응답이 영어로만 나간다"
+
 # ── 마이그레이션 ──
 # 이 이미지는 backend / celery / celery-beat 세 컨테이너가 함께 쓴다.
 # 셋이 동시에 뜨면서 각자 migrate 를 돌리면 같은 테이블을 서로 만들다

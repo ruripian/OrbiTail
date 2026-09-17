@@ -11,6 +11,8 @@
   - 기본 State 5개 자동 셋업 — 일반 프로젝트와 동일 UX(상태 변경/Board 뷰는 안 쓰지만 미래 확장 대비).
 """
 from django.db import transaction
+from django.utils import translation
+from django.utils.translation import gettext
 from .constants import DEFAULT_STATES
 from .models import Project, ProjectMember, State
 
@@ -34,16 +36,17 @@ def get_or_create_personal_project(workspace, user) -> Project:
     user_suffix = str(user.id).replace("-", "")[:6].upper()
     identifier = f"MINE-{user_suffix}"[:12]  # max_length=12 안전
 
-    with transaction.atomic():
+    from apps.accounts.models import user_language
+    with transaction.atomic(), translation.override(user_language(user)):
         # 동시성 race 대비 — 다른 트랜잭션이 먼저 만들었으면 그것 사용
         project, created = Project.objects.get_or_create(
             workspace=workspace,
             kind=Project.Kind.PERSONAL,
             owner=user,
             defaults={
-                "name": "내 작업",
+                "name": gettext("My work"),
                 "identifier": identifier,
-                "description": "단발성 이슈 컨테이너 — 본인만 접근",
+                "description": gettext("Container for one-off issues — only you can access it"),
                 "created_by": user,
                 "lead": user,
                 # 사이드바·검색 등은 kind 로 차단하므로 network 는 SECRET 유지(기본값)

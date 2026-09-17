@@ -6,6 +6,7 @@
 """
 from django.conf import settings
 from django.http import JsonResponse
+from django.utils.translation import gettext
 
 # 관리자 영역 — 전역 콘솔, 감사 로그, Django admin
 BLOCKED_PREFIXES = ("/api/admin/", "/admin/", "/api/auth/admin/")
@@ -37,12 +38,12 @@ class DemoGuardMiddleware:
     def _blocked_reason(request):
         path = request.path
         if path.startswith(BLOCKED_PREFIXES):
-            return "Administrator features are not available in the demo."
+            return gettext("Administrator features are not available in the demo.")
         if request.method not in SAFE_METHODS and path.startswith(ANNOUNCEMENT_PREFIX) \
                 and not path.rstrip("/").endswith("mark-seen"):
-            return "Announcements cannot be changed in the demo."
+            return gettext("Announcements cannot be changed in the demo.")
         if request.method not in SAFE_METHODS:
             content_type = (request.META.get("CONTENT_TYPE") or "").lower()
             if content_type.startswith(UPLOAD_CONTENT_TYPE) and request.FILES:
-                return "File uploads are not available in the demo."
+                return gettext("File uploads are not available in the demo.")
         return None
