@@ -25,7 +25,7 @@ cp .env.example .env
 | `POSTGRES_PASSWORD` | DB 비밀번호 (강력한 값) | `super-strong-password-123!` |
 | `FRONTEND_URL` | 프론트엔드 URL (이메일 링크용) | `https://your-domain.com` |
 | `COLLAB_SHARED_SECRET` | 문서 실시간 협업 서버 ↔ 백엔드 내부 호출용 공유 비밀. **비어 있으면 `collab` 컨테이너가 시작하지 않는다.** | `python3 -c "import secrets;print(secrets.token_urlsafe(48))"` |
-| `AXES_IPWARE_PROXY_COUNT` | 앞단 프록시 개수. 리버스 프록시 뒤에서 `0` 이면 모든 사용자가 프록시 IP 를 공유해 한 사람의 로그인 실패 5회로 전체가 잠긴다 | nginx 만 `1`, Caddy→nginx 2단은 `2` |
+| `AXES_IPWARE_PROXY_COUNT` | **현재 효과 없음.** `django-ipware` 가 설치돼 있지 않아 axes 가 이 값을 읽지 않고 `REMOTE_ADDR` 를 쓴다. 로그인 잠금은 계정 단위라 이 값과 무관하다 | 설정 불필요 |
 | `NGINX_TLS` | `auto` (기본) 면 `DOMAIN` 유무로 HTTPS/HTTP 를 정하고, `off` 면 항상 HTTP. 앞단(호스트 nginx·Caddy)이 TLS 를 끝내는 구성에서 쓴다 | `auto` / `off` |
 
 ---
