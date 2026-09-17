@@ -9,14 +9,17 @@
  *   2. t() 를 거치지 않고 소스에 직접 박힌 한글
  *      → 언어 설정과 무관하게 항상 한글로 보인다.
  *
- * 사용: node scripts/check-i18n.mjs        (문제가 있으면 exit 1)
+ * 사용: npm run check:i18n        (문제가 있으면 exit 1)
+ *
+ * 키 대칭성(ko↔en)은 check-translations.cjs 가 따로 본다. 이 스크립트는
+ * 대칭성만으로는 못 잡는 부분을 맡는다.
  */
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const SRC = path.join(ROOT, "frontend/src");
+const SRC = path.join(ROOT, "src");
 const HANGUL = /[가-힣ㄱ-ㅎㅏ-ㅣ]/;
 
 /** 주석만 공백으로 지우고 나머지는 그대로 둔다(줄 번호 유지).

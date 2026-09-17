@@ -1455,7 +1455,136 @@
     "underline": "Underline",
     "noResults": "No results",
     "imageTooLarge": "The image is larger than 5MB. Please use a smaller file.",
-    "imageUploadFailed": "Image upload failed"
+    "imageUploadFailed": "Image upload failed",
+    "slash": {
+      "h1": {
+        "title": "Heading 1",
+        "desc": "Large heading",
+        "kw": "h1 heading title"
+      },
+      "h2": {
+        "title": "Heading 2",
+        "desc": "Medium heading",
+        "kw": "h2 heading title"
+      },
+      "h3": {
+        "title": "Heading 3",
+        "desc": "Small heading",
+        "kw": "h3 heading title"
+      },
+      "bulletList": {
+        "title": "Bullet List",
+        "desc": "Bulleted list",
+        "kw": "bullet list dot"
+      },
+      "numberedList": {
+        "title": "Numbered List",
+        "desc": "Numbered list",
+        "kw": "numbered ordered list"
+      },
+      "taskList": {
+        "title": "Task List",
+        "desc": "Checkable to-dos",
+        "kw": "task todo checkbox"
+      },
+      "quote": {
+        "title": "Quote",
+        "desc": "Block quote",
+        "kw": "quote blockquote"
+      },
+      "codeBlock": {
+        "title": "Code Block",
+        "desc": "Code block with syntax highlighting",
+        "kw": "code block syntax"
+      },
+      "table": {
+        "title": "Table",
+        "desc": "Insert a 3×3 table",
+        "kw": "table grid"
+      },
+      "callout": {
+        "title": "Callout",
+        "desc": "Highlighted box",
+        "kw": "callout note highlight"
+      },
+      "toggle": {
+        "title": "Toggle",
+        "desc": "Collapsible section",
+        "kw": "toggle collapse fold"
+      },
+      "divider": {
+        "title": "Divider",
+        "desc": "Horizontal rule",
+        "kw": "divider hr separator"
+      },
+      "status": {
+        "title": "Status",
+        "desc": "Status tag",
+        "kw": "status tag badge"
+      },
+      "subpages": {
+        "title": "Subpages",
+        "desc": "List of sub-documents",
+        "kw": "subpages children"
+      },
+      "date": {
+        "title": "Date",
+        "desc": "Today's date",
+        "kw": "date today"
+      },
+      "emoji": {
+        "title": "Emoji",
+        "desc": "Pick an emoji",
+        "kw": "emoji icon"
+      },
+      "mentionUser": {
+        "title": "Mention user",
+        "desc": "@mention a person",
+        "kw": "mention user person"
+      },
+      "refDoc": {
+        "title": "Reference doc",
+        "desc": "#reference a document",
+        "kw": "doc document reference"
+      },
+      "refIssue": {
+        "title": "Reference issue",
+        "desc": "$reference an issue",
+        "kw": "issue reference"
+      },
+      "bookmark": {
+        "title": "Bookmark",
+        "desc": "Show a URL as a card",
+        "kw": "bookmark link url"
+      },
+      "gallery": {
+        "title": "Image gallery",
+        "desc": "Several images in a grid",
+        "kw": "gallery image grid"
+      },
+      "issueBoard": {
+        "title": "Issue board",
+        "desc": "Embed a kanban board",
+        "kw": "board kanban"
+      },
+      "issueTable": {
+        "title": "Issue table",
+        "desc": "Embed an issue table",
+        "kw": "issue table"
+      },
+      "issueCalendar": {
+        "title": "Issue calendar",
+        "desc": "Embed an issue calendar",
+        "kw": "issue calendar"
+      },
+      "cat": {
+        "basic": "Basic",
+        "list": "Lists",
+        "block": "Blocks",
+        "insert": "Insert",
+        "issue": "Issues"
+      }
+    }
   },
   "search": {
     "placeholder": "Search issues... (by title)",
@@ -2271,6 +2400,61 @@
       "linkedIssues": "Linked issues",
       "linkIssue": "Link an issue",
       "noLinkedIssues": "No issues linked."
+    },
+    "content": {
+      "labelUpdateFailed": "Could not update the label",
+      "labelDeleted": "Label deleted",
+      "labelDeleteFailed": "Could not delete the label",
+      "exportFailed": "Export failed",
+      "importSkipped": "skipped {{count}} ({{examples}}…)",
+      "imported": "Imported {{docs}} documents and {{folders}} folders",
+      "importFailed": "Import failed",
+      "subtitle": "Manage labels and templates, see what is being read, or export the whole space.",
+      "labelsNote": "Labels are shared across the workspace. Changing a name or colour affects every document carrying that label.",
+      "labelsEmpty": "No labels yet. Attach one from a document and it shows up here.",
+      "changeColor": "Change colour",
+      "labelDeleteConfirm": "Delete the label \"{{name}}\"? The documents stay; only the label is removed.",
+      "deleteLabel": "Delete label",
+      "mostViewed": "Most-read documents",
+      "viewStats": "Last 30 days · {{views}} views · {{viewers}} readers",
+      "noViews": "No reads in the last 30 days.",
+      "rowStats": "{{views}} views · {{viewers}} readers",
+      "exportTitle": "Export the space",
+      "exportNote": "Download every document as a zip, folder structure intact. The Markdown export carries front matter (YAML) and <c>[[links]]</c>, so it drops straight into an Obsidian vault. Attached images are kept as links only.",
+      "preparing": "Preparing...",
+      "markdown": "Markdown",
+      "importTitle": "Import Markdown",
+      "importNote": "Bring a single <c>.md</c> file, or a zipped vault as <c>.zip</c>, into this space. Folder structure, front matter, tags and <m>[[links]]</m> come with it. Non-Markdown files such as images are skipped.",
+      "importing": "Importing...",
+      "pickFile": "Choose a file",
+      "templates": "Templates",
+      "templatesNote": "Forms you can pick when creating a document. Add one with \"Save as template\" from a document.",
+      "templatesEmpty": "No templates yet.",
+      "spaceOnly": "This space only"
+    },
+    "editor": {
+      "commentCount": "{{count}} comments",
+      "attachmentCount": "{{count}} attachments",
+      "period": "Dates",
+      "subIssues": "{{count}} sub-issues",
+      "render": "Render",
+      "subDocs": "Sub-documents",
+      "noSubDocs": "No sub-documents",
+      "tag": "Tag",
+      "projectSpaceOnly": "Only available in a project space",
+      "typeName": "Type a name or title...",
+      "addComment": "Add a comment",
+      "colBefore": "Add a column to the left",
+      "colAfter": "Add a column to the right",
+      "delCol": "Delete column",
+      "rowBefore": "Add a row above",
+      "rowAfter": "Add a row below",
+      "delRow": "Delete row",
+      "toggleHeaderRow": "Toggle header row",
+      "toggleHeaderCol": "Toggle header column",
+      "mergeCells": "Merge cells",
+      "splitCell": "Split cell",
+      "delTable": "Delete table"
     }
   },
   "projectFilter": {
@@ -2339,7 +2523,39 @@
     "labelSize": "Label size",
     "labelSizeHint": "0 hides labels.",
     "empty": "No issues in this project yet.",
-    "stats": "{{nodes}} nodes · {{edges}} links"
+    "stats": "{{nodes}} nodes · {{edges}} links",
+    "linkRelates": "Related",
+    "linkRelatesShort": "Related",
+    "linkRelatesDesc": "An equal, undirected relationship — for example two bugs touching the same API. Drawn as a double line.",
+    "linkBlocks": "Depends on",
+    "linkBlocksShort": "blocker → blocked",
+    "linkBlocksDesc": "B cannot start until A is done. The node you click first is the blocker, the second is the blocked one. Drawn as an orange arrow.",
+    "counts": "{{nodes}} nodes · {{edges}} links",
+    "connectHint": "Click two nodes to link the issues",
+    "relayoutHint": "Release pins and lay out to fit the screen",
+    "guideHint": "Graph guide and shortcuts",
+    "pickSecond": "Click a second node to create the link (Esc to cancel)",
+    "pickFirst": "Click the first node to link",
+    "guide": "Graph guide",
+    "nodes": "Nodes",
+    "nodeThisProject": "An issue in this project",
+    "nodeOtherProject": "An issue in another project, reached by a link",
+    "nodeLabelColor": "A coloured border is the label colour",
+    "linkTypes": "Link types",
+    "parentChild": "Parent → child (purple arrow)",
+    "parentChildDesc": "The sub-issue relationship. It appears automatically; remove it from the issue tree.",
+    "controls": "Controls",
+    "ctrlOrbit": "In orbit mode, dragging a centre node moves all of its children with it",
+    "disconnectNote": "Click a line to remove it. Parent-child and label edges are excluded. Esc cancels.",
+    "showAllCount": "Show all · {{count}}",
+    "topLevel": "Top level",
+    "depthN": "└ {{depth}} levels down",
+    "countSuffix": "{{count}}",
+    "layersNote": "Only the chosen level is highlighted. Click again to clear.",
+    "animationNote": "Turn it off for a static view — it settles once and stops.",
+    "force": "Force",
+    "orbit": "Orbit",
+    "relayout": "Re-layout"
   },
   "empty": {
     "table": {

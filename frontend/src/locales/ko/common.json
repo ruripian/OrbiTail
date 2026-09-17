@@ -1455,7 +1455,136 @@
     "underline": "밑줄",
     "noResults": "결과 없음",
     "imageTooLarge": "이미지가 5MB 를 초과합니다. 더 작은 파일을 사용해주세요.",
-    "imageUploadFailed": "이미지 업로드 실패"
+    "imageUploadFailed": "이미지 업로드 실패",
+    "slash": {
+      "h1": {
+        "title": "Heading 1",
+        "desc": "큰 제목",
+        "kw": "h1 헤더 제목"
+      },
+      "h2": {
+        "title": "Heading 2",
+        "desc": "중간 제목",
+        "kw": "h2 헤더 제목"
+      },
+      "h3": {
+        "title": "Heading 3",
+        "desc": "작은 제목",
+        "kw": "h3 헤더 제목"
+      },
+      "bulletList": {
+        "title": "Bullet List",
+        "desc": "글머리 기호 목록",
+        "kw": "bullet 목록 점"
+      },
+      "numberedList": {
+        "title": "Numbered List",
+        "desc": "번호 매기기 목록",
+        "kw": "numbered 번호 목록"
+      },
+      "taskList": {
+        "title": "Task List",
+        "desc": "체크 가능한 할 일",
+        "kw": "task todo 할일 체크"
+      },
+      "quote": {
+        "title": "Quote",
+        "desc": "인용문",
+        "kw": "quote 인용"
+      },
+      "codeBlock": {
+        "title": "Code Block",
+        "desc": "코드 블록 (구문 강조)",
+        "kw": "code 코드"
+      },
+      "table": {
+        "title": "Table",
+        "desc": "표 삽입 (3×3)",
+        "kw": "table 표"
+      },
+      "callout": {
+        "title": "Callout",
+        "desc": "강조 박스",
+        "kw": "callout 강조"
+      },
+      "toggle": {
+        "title": "Toggle",
+        "desc": "접기/펼치기",
+        "kw": "toggle 접기"
+      },
+      "divider": {
+        "title": "Divider",
+        "desc": "가로 구분선",
+        "kw": "divider hr 구분선"
+      },
+      "status": {
+        "title": "Status",
+        "desc": "상태 태그",
+        "kw": "status 상태 태그"
+      },
+      "subpages": {
+        "title": "Subpages",
+        "desc": "하위 문서 목록",
+        "kw": "subpages 하위문서"
+      },
+      "date": {
+        "title": "Date",
+        "desc": "오늘 날짜",
+        "kw": "date 날짜"
+      },
+      "emoji": {
+        "title": "Emoji",
+        "desc": "이모지 선택",
+        "kw": "emoji 이모지"
+      },
+      "mentionUser": {
+        "title": "Mention user",
+        "desc": "@사용자 멘션",
+        "kw": "mention 멘션 사용자 user"
+      },
+      "refDoc": {
+        "title": "Reference doc",
+        "desc": "#문서 참조",
+        "kw": "doc 문서 참조 reference"
+      },
+      "refIssue": {
+        "title": "Reference issue",
+        "desc": "$이슈 참조",
+        "kw": "issue 이슈 참조 reference"
+      },
+      "bookmark": {
+        "title": "북마크",
+        "desc": "URL을 카드로 표시",
+        "kw": "bookmark link 링크 url"
+      },
+      "gallery": {
+        "title": "이미지 갤러리",
+        "desc": "여러 이미지를 그리드로",
+        "kw": "gallery image 갤러리 이미지"
+      },
+      "issueBoard": {
+        "title": "이슈 보드",
+        "desc": "칸반 보드 임베드",
+        "kw": "board kanban 보드"
+      },
+      "issueTable": {
+        "title": "이슈 표",
+        "desc": "이슈 표 임베드",
+        "kw": "table 표"
+      },
+      "issueCalendar": {
+        "title": "이슈 캘린더",
+        "desc": "이슈 캘린더 임베드",
+        "kw": "calendar 캘린더"
+      },
+      "cat": {
+        "basic": "기본",
+        "list": "리스트",
+        "block": "블록",
+        "insert": "삽입",
+        "issue": "이슈"
+      }
+    }
   },
   "search": {
     "placeholder": "이슈 검색... (제목으로 검색)",
@@ -2271,6 +2400,61 @@
       "linkedIssues": "연결된 이슈",
       "linkIssue": "이슈 연결",
       "noLinkedIssues": "연결된 이슈가 없습니다."
+    },
+    "content": {
+      "labelUpdateFailed": "라벨 수정 실패",
+      "labelDeleted": "라벨 삭제됨",
+      "labelDeleteFailed": "라벨 삭제 실패",
+      "exportFailed": "내보내기 실패",
+      "importSkipped": "건너뜀 {{count}}건({{examples}}…)",
+      "imported": "문서 {{docs}}개 · 폴더 {{folders}}개 반입",
+      "importFailed": "반입 실패",
+      "subtitle": "라벨과 템플릿을 관리하고, 조회 현황을 보거나 스페이스를 통째로 내보냅니다.",
+      "labelsNote": "워크스페이스 전체에서 공유하는 분류입니다. 이름·색을 바꾸면 이 라벨이 붙은 모든 문서에 반영됩니다.",
+      "labelsEmpty": "아직 라벨이 없습니다. 문서 편집 화면에서 라벨을 붙이면 여기에 나타납니다.",
+      "changeColor": "색 변경",
+      "labelDeleteConfirm": "\"{{name}}\" 라벨을 삭제할까요? 문서는 지워지지 않고 라벨만 떨어집니다.",
+      "deleteLabel": "라벨 삭제",
+      "mostViewed": "많이 본 문서",
+      "viewStats": "최근 30일 · 조회 {{views}}회 · 조회자 {{viewers}}명",
+      "noViews": "최근 30일 조회 기록이 없습니다.",
+      "rowStats": "{{views}}회 · {{viewers}}명",
+      "exportTitle": "스페이스 내보내기",
+      "exportNote": "모든 문서를 폴더 구조 그대로 zip 으로 받습니다. 마크다운으로 받으면 머리말(YAML)과 <c>[[링크]]</c>가 함께 나가 Obsidian 볼트에 그대로 옮길 수 있습니다. 첨부 이미지는 링크로만 남습니다.",
+      "preparing": "준비 중...",
+      "markdown": "마크다운",
+      "importTitle": "마크다운 반입",
+      "importNote": "<c>.md</c> 한 장 또는 볼트를 압축한 <c>.zip</c> 을 이 스페이스로 가져옵니다. 폴더 구조·머리말·태그·<m>[[링크]]</m>가 함께 들어옵니다. 이미지 등 마크다운이 아닌 파일은 건너뜁니다.",
+      "importing": "가져오는 중...",
+      "pickFile": "파일 고르기",
+      "templates": "템플릿",
+      "templatesNote": "새 문서를 만들 때 고를 수 있는 양식입니다. 문서 편집 화면의 \"템플릿으로 저장\"으로 추가합니다.",
+      "templatesEmpty": "등록된 템플릿이 없습니다.",
+      "spaceOnly": "이 스페이스 전용"
+    },
+    "editor": {
+      "commentCount": "댓글 {{count}}",
+      "attachmentCount": "첨부 {{count}}",
+      "period": "기간",
+      "subIssues": "하위 이슈 {{count}}개",
+      "render": "렌더",
+      "subDocs": "하위 문서",
+      "noSubDocs": "하위 문서 없음",
+      "tag": "태그",
+      "projectSpaceOnly": "프로젝트 스페이스에서만 가능",
+      "typeName": "이름/제목 입력...",
+      "addComment": "댓글 달기",
+      "colBefore": "왼쪽에 열 추가",
+      "colAfter": "오른쪽에 열 추가",
+      "delCol": "열 삭제",
+      "rowBefore": "위에 행 추가",
+      "rowAfter": "아래에 행 추가",
+      "delRow": "행 삭제",
+      "toggleHeaderRow": "헤더 행 토글",
+      "toggleHeaderCol": "헤더 열 토글",
+      "mergeCells": "셀 병합",
+      "splitCell": "셀 분할",
+      "delTable": "표 삭제"
     }
   },
   "projectFilter": {
@@ -2339,7 +2523,39 @@
     "labelSize": "라벨 크기",
     "labelSizeHint": "0 으로 두면 라벨이 숨겨집니다.",
     "empty": "이 프로젝트에 아직 이슈가 없습니다.",
-    "stats": "{{nodes}}개 노드 · {{edges}}개 연결"
+    "stats": "{{nodes}}개 노드 · {{edges}}개 연결",
+    "linkRelates": "연결",
+    "linkRelatesShort": "연결",
+    "linkRelatesDesc": "서로 관련 있는 대등한 관계. 방향성 없음. 예: 같은 API 를 건드리는 버그 둘. — 그래프에서 이중선으로 표시.",
+    "linkBlocks": "의존",
+    "linkBlocksShort": "선행 → 후행",
+    "linkBlocksDesc": "A가 끝나야 B 진행 가능. 첫 번째로 클릭한 노드가 '선행(막는 쪽)', 두 번째가 '후행(막히는 쪽)'. — 그래프에서 주황 화살표로 표시.",
+    "counts": "{{nodes}}개 노드 · {{edges}}개 연결",
+    "connectHint": "두 노드 클릭으로 이슈 연결",
+    "relayoutHint": "고정 해제 + 화면에 맞춰 재정렬",
+    "guideHint": "그래프 설명 & 단축키",
+    "pickSecond": "두 번째 노드 클릭 → 연결 생성 (Esc: 취소)",
+    "pickFirst": "연결할 첫 번째 노드를 클릭하세요",
+    "guide": "그래프 가이드",
+    "nodes": "노드",
+    "nodeThisProject": "이 프로젝트의 이슈",
+    "nodeOtherProject": "외부 프로젝트의 이슈 (링크로 연결됨)",
+    "nodeLabelColor": "색 테두리 = 라벨 색",
+    "linkTypes": "연결 타입",
+    "parentChild": "부모 → 자식 (보라 화살표)",
+    "parentChildDesc": "하위 이슈 관계. 그래프에서 자동으로 표시되며 삭제는 이슈 트리에서.",
+    "controls": "조작",
+    "ctrlOrbit": "궤도 모드에서 중심 노드 드래그 = 자식 전체가 따라 이동",
+    "disconnectNote": "연결선을 클릭하면 해제됩니다 (부모-자식 / 라벨 엣지 제외, Esc: 취소)",
+    "showAllCount": "전체 보기 · {{count}}개",
+    "topLevel": "최상위",
+    "depthN": "└ 하위 {{depth}}단계",
+    "countSuffix": "{{count}}개",
+    "layersNote": "선택한 계층만 강조됩니다. 다시 누르면 해제.",
+    "animationNote": "끄면 정적 뷰 모드 — 한 번 자리잡고 멈춥니다.",
+    "force": "포스",
+    "orbit": "궤도",
+    "relayout": "재정렬"
   },
   "empty": {
     "table": {

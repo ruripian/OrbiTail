@@ -124,8 +124,8 @@ describe("WorkspaceUsagePage", () => {
     });
     renderAt("usage", <WorkspaceUsagePage />);
     expect(await screen.findByText("2.0 MB")).toBeInTheDocument();
-    expect(screen.getByText(/워크스페이스를 떠남 · 문서 2/)).toBeInTheDocument();
-    expect(screen.getByText(/시스템 관리자에게 요청/)).toBeInTheDocument();
+    expect(screen.getByText(/workspaceSettings\.usage\.reason\.ownerLeft · workspaceSettings\.usage\.docCount/)).toBeInTheDocument();
+    expect(screen.getByText(/workspaceSettings\.usage\.askAdmin/)).toBeInTheDocument();
     expect(formatBytes(512)).toBe("512 B");
   });
 });

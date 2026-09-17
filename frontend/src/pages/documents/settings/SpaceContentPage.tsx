@@ -5,6 +5,7 @@
  * 설정을 바꾸는 일이 아니라 목록을 훑고 고르는 작업이라서.
  */
 import { useState, useRef } from "react";
+import { useTranslation, Trans } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Download, Upload, FileText, Trash2 } from "lucide-react";
@@ -14,6 +15,7 @@ import { apiErrorMessage } from "@/lib/api-error";
 import { useSpaceSettings } from "./DocumentSpaceSettingsLayout";
 
 export default function SpaceContentPage() {
+  const { t } = useTranslation();
   const { space, workspaceSlug, spaceId } = useSpaceSettings();
   const qc = useQueryClient();
   const [exporting, setExporting] = useState(false);
@@ -39,16 +41,16 @@ export default function SpaceContentPage() {
     mutationFn: ({ id, name, color }: { id: string; name?: string; color?: string }) =>
       documentsApi.labels.update(workspaceSlug, id, { name, color }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["document-labels", workspaceSlug] }),
-    onError: (e) => toast.error(apiErrorMessage(e, "라벨 수정 실패")),
+    onError: (e) => toast.error(apiErrorMessage(e, t("documents.content.labelUpdateFailed"))),
   });
 
   const deleteLabel = useMutation({
     mutationFn: (id: string) => documentsApi.labels.delete(workspaceSlug, id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["document-labels", workspaceSlug] });
-      toast.success("라벨 삭제됨");
+      toast.success(t("documents.content.labelDeleted"));
     },
-    onError: (e) => toast.error(apiErrorMessage(e, "라벨 삭제 실패")),
+    onError: (e) => toast.error(apiErrorMessage(e, t("documents.content.labelDeleteFailed"))),
   });
 
   const handleExport = async (type: "html" | "md") => {
@@ -62,7 +64,7 @@ export default function SpaceContentPage() {
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
-      toast.error(apiErrorMessage(e, "내보내기 실패"));
+      toast.error(apiErrorMessage(e, t("documents.content.exportFailed")));
     } finally {
       setExporting(false);
     }
@@ -75,11 +77,11 @@ export default function SpaceContentPage() {
     try {
       const r = await documentsApi.spaces.importMarkdown(workspaceSlug, spaceId, file);
       /* 건너뛴 파일이 있으면 조용히 넘기지 않는다 — 이미지·첨부는 문서로 만들 수 없다 */
-      const skipped = r.skipped > 0 ? ` · 건너뜀 ${r.skipped}건(${r.skipped_examples.slice(0, 2).join(", ")}…)` : "";
-      toast.success(`문서 ${r.created}개 · 폴더 ${r.folders}개 반입${skipped}`);
+      const skipped = r.skipped > 0 ? ` · ${t("documents.content.importSkipped", { count: r.skipped, examples: r.skipped_examples.slice(0, 2).join(", ") })}` : "";
+      toast.success(t("documents.content.imported", { docs: r.created, folders: r.folders }) + skipped);
       qc.invalidateQueries({ queryKey: ["documents", workspaceSlug, spaceId] });
     } catch (e) {
-      toast.error(apiErrorMessage(e, "반입 실패"));
+      toast.error(apiErrorMessage(e, t("documents.content.importFailed")));
     } finally {
       setImporting(false);
       if (importFile.current) importFile.current.value = "";
@@ -89,23 +91,23 @@ export default function SpaceContentPage() {
   return (
     <div className="max-w-regular space-y-6">
       <div>
-        <h1 className="text-lg font-semibold">콘텐츠</h1>
+        <h1 className="text-lg font-semibold">{t("documents.spaceSettings.content")}</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          라벨과 템플릿을 관리하고, 조회 현황을 보거나 스페이스를 통째로 내보냅니다.
+          {t("documents.content.subtitle")}
         </p>
       </div>
 
       {/* 라벨 — 워크스페이스 단위라 여기서 고치면 다른 스페이스 문서에도 반영된다 */}
       <section className="rounded-xl border bg-card">
         <div className="px-5 py-4 border-b">
-          <h2 className="text-sm font-semibold">라벨</h2>
+          <h2 className="text-sm font-semibold">{t("documents.labelPicker.trigger")}</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            워크스페이스 전체에서 공유하는 분류입니다. 이름·색을 바꾸면 이 라벨이 붙은 모든 문서에 반영됩니다.
+            {t("documents.content.labelsNote")}
           </p>
         </div>
         {labels.length === 0 ? (
           <p className="p-5 text-xs text-muted-foreground">
-            아직 라벨이 없습니다. 문서 편집 화면에서 라벨을 붙이면 여기에 나타납니다.
+            {t("documents.content.labelsEmpty")}
           </p>
         ) : (
           <ul className="divide-y">
@@ -116,7 +118,7 @@ export default function SpaceContentPage() {
                   value={label.color}
                   onChange={(e) => renameLabel.mutate({ id: label.id, color: e.target.value })}
                   className="h-5 w-5 rounded cursor-pointer border-0 bg-transparent p-0"
-                  title="색 변경"
+                  title={t("documents.content.changeColor")}
                 />
                 <input
                   defaultValue={label.name}
@@ -126,15 +128,15 @@ export default function SpaceContentPage() {
                   }}
                   className="flex-1 bg-transparent text-sm outline-none focus:border-b focus:border-primary"
                 />
-                <span className="text-2xs text-muted-foreground shrink-0">문서 {label.document_count}개</span>
+                <span className="text-2xs text-muted-foreground shrink-0">{t("workspaceSettings.usage.docCount", { count: label.document_count })}</span>
                 <button
                   onClick={() => {
-                    if (window.confirm(`"${label.name}" 라벨을 삭제할까요? 문서는 지워지지 않고 라벨만 떨어집니다.`)) {
+                    if (window.confirm(t("documents.content.labelDeleteConfirm", { name: label.name }))) {
                       deleteLabel.mutate(label.id);
                     }
                   }}
                   className="text-muted-foreground hover:text-destructive p-1"
-                  title="라벨 삭제"
+                  title={t("documents.content.deleteLabel")}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
@@ -147,13 +149,13 @@ export default function SpaceContentPage() {
       {/* 조회 통계 — 개인별 이력은 두지 않고 집계만 보여준다 */}
       <section className="rounded-xl border bg-card">
         <div className="px-5 py-4 border-b">
-          <h2 className="text-sm font-semibold">많이 본 문서</h2>
+          <h2 className="text-sm font-semibold">{t("documents.content.mostViewed")}</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            최근 30일 · 조회 {analytics?.total_views ?? 0}회 · 조회자 {analytics?.unique_viewers ?? 0}명
+            {t("documents.content.viewStats", { views: analytics?.total_views ?? 0, viewers: analytics?.unique_viewers ?? 0 })}
           </p>
         </div>
         {!analytics || analytics.top_documents.length === 0 ? (
-          <p className="p-5 text-xs text-muted-foreground">최근 30일 조회 기록이 없습니다.</p>
+          <p className="p-5 text-xs text-muted-foreground">{t("documents.content.noViews")}</p>
         ) : (
           <ul className="divide-y">
             {analytics.top_documents.map((row, i) => (
@@ -161,7 +163,7 @@ export default function SpaceContentPage() {
                 <span className="w-5 text-2xs font-mono text-muted-foreground shrink-0">{i + 1}</span>
                 <span className="flex-1 truncate text-sm">{row.title}</span>
                 <span className="text-2xs text-muted-foreground shrink-0">
-                  {row.views}회 · {row.viewers}명
+                  {t("documents.content.rowStats", { views: row.views, viewers: row.viewers })}
                 </span>
               </li>
             ))}
@@ -172,17 +174,15 @@ export default function SpaceContentPage() {
       {/* 내보내기 */}
       <section className="rounded-xl border bg-card p-5 flex items-center justify-between gap-4">
         <div>
-          <h2 className="text-sm font-semibold">스페이스 내보내기</h2>
+          <h2 className="text-sm font-semibold">{t("documents.content.exportTitle")}</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            모든 문서를 폴더 구조 그대로 zip 으로 받습니다. 마크다운으로 받으면 머리말(YAML)과
-            <code className="mx-1">[[링크]]</code>가 함께 나가 Obsidian 볼트에 그대로 옮길 수 있습니다.
-            첨부 이미지는 링크로만 남습니다.
+          <Trans i18nKey="documents.content.exportNote" components={{ c: <code className="mx-1" /> }} />
           </p>
         </div>
         <div className="flex gap-2 shrink-0">
           <Button size="sm" variant="outline" disabled={exporting} onClick={() => handleExport("md")}>
             <Download className="h-3.5 w-3.5 mr-1.5" />
-            {exporting ? "준비 중..." : "마크다운"}
+            {exporting ? t("documents.content.preparing") : t("documents.content.markdown")}
           </Button>
           <Button size="sm" variant="outline" disabled={exporting} onClick={() => handleExport("html")}>
             <Download className="h-3.5 w-3.5 mr-1.5" />
@@ -194,11 +194,9 @@ export default function SpaceContentPage() {
       {/* 반입 */}
       <section className="rounded-xl border bg-card p-5 flex items-center justify-between gap-4">
         <div>
-          <h2 className="text-sm font-semibold">마크다운 반입</h2>
+          <h2 className="text-sm font-semibold">{t("documents.content.importTitle")}</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            <code>.md</code> 한 장 또는 볼트를 압축한 <code>.zip</code> 을 이 스페이스로 가져옵니다.
-            폴더 구조·머리말·태그·<code className="mx-1">[[링크]]</code>가 함께 들어옵니다.
-            이미지 등 마크다운이 아닌 파일은 건너뜁니다.
+          <Trans i18nKey="documents.content.importNote" components={{ c: <code />, m: <code className="mx-1" /> }} />
           </p>
         </div>
         <div className="shrink-0">
@@ -211,20 +209,20 @@ export default function SpaceContentPage() {
           />
           <Button size="sm" variant="outline" disabled={importing} onClick={() => importFile.current?.click()}>
             <Upload className="h-3.5 w-3.5 mr-1.5" />
-            {importing ? "가져오는 중..." : "파일 고르기"}
+            {importing ? t("documents.content.importing") : t("documents.content.pickFile")}
           </Button>
         </div>
       </section>
 
       <section className="rounded-xl border bg-card">
         <div className="px-5 py-4 border-b">
-          <h2 className="text-sm font-semibold">템플릿</h2>
+          <h2 className="text-sm font-semibold">{t("documents.content.templates")}</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            새 문서를 만들 때 고를 수 있는 양식입니다. 문서 편집 화면의 "템플릿으로 저장"으로 추가합니다.
+            {t("documents.content.templatesNote")}
           </p>
         </div>
         {templates.length === 0 ? (
-          <p className="p-5 text-xs text-muted-foreground">등록된 템플릿이 없습니다.</p>
+          <p className="p-5 text-xs text-muted-foreground">{t("documents.content.templatesEmpty")}</p>
         ) : (
           <ul className="divide-y">
             {templates.map((tpl) => (
@@ -237,7 +235,7 @@ export default function SpaceContentPage() {
                   )}
                 </div>
                 <span className="text-2xs text-muted-foreground shrink-0">
-                  {tpl.scope === "space" ? "이 스페이스 전용" : "워크스페이스 공유"}
+                  {tpl.scope === "space" ? t("documents.content.spaceOnly") : t("documents.templates.workspaceShared")}
                 </span>
               </li>
             ))}
