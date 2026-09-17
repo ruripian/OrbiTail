@@ -24,6 +24,8 @@ cp .env.example .env
 | `CORS_ALLOWED_ORIGINS` | 프론트엔드 URL | `https://your-domain.com` |
 | `POSTGRES_PASSWORD` | DB 비밀번호 (강력한 값) | `super-strong-password-123!` |
 | `FRONTEND_URL` | 프론트엔드 URL (이메일 링크용) | `https://your-domain.com` |
+| `COLLAB_SHARED_SECRET` | 문서 실시간 협업 서버 ↔ 백엔드 내부 호출용 공유 비밀. **비어 있으면 `collab` 컨테이너가 시작하지 않는다.** | `python3 -c "import secrets;print(secrets.token_urlsafe(48))"` |
+| `AXES_IPWARE_PROXY_COUNT` | 앞단 프록시 개수. 리버스 프록시 뒤에서 `0` 이면 모든 사용자가 프록시 IP 를 공유해 한 사람의 로그인 실패 5회로 전체가 잠긴다 | nginx 만 `1`, Caddy→nginx 2단은 `2` |
 
 ---
 
@@ -64,10 +66,13 @@ nginx:
     - /etc/letsencrypt:/etc/letsencrypt:ro  # 추가
 ```
 
-### 3-3. nginx.conf 수정
+### 3-3. nginx 설정
 
-`nginx/nginx.conf` 파일 하단의 HTTPS 서버 블록 주석을 해제하고,
-HTTP 서버 블록에서 `return 301 https://$host$request_uri;` 주석을 해제합니다.
+`.env` 에 `DOMAIN` 을 넣으면 nginx 진입점이 `nginx/templates/https.conf.template`
+으로 설정을 만들고, 비워 두면 `http.conf.template` 을 씁니다. 따로 손댈 것은 없습니다.
+
+설정을 바꿔야 하면 **`nginx/templates/` 의 두 파일을 함께** 고치세요.
+`nginx/nginx.conf` 는 진입점이 덮어쓰므로 고쳐도 반영되지 않습니다.
 
 ### 3-4. 인증서 자동 갱신
 
@@ -184,6 +189,27 @@ docker compose -f docker-compose.prod.yml up -d
 ```
 
 `--build` 를 붙이지 않는 점에 유의하세요. 이미 만들어 둔 이미지를 그대로 씁니다.
+
+### 배포 후 확인
+
+기동만으로는 안 잡히는 것들이 있습니다. 컨테이너가 전부 `Up` 이어도 문서
+실시간 협업 경로가 끊겨 있을 수 있습니다 — 실제로 그렇게 새어 나간 적이
+있습니다. 아래를 돌려 확인하세요.
+
+```bash
+scripts/smoke-collab.sh https://your-domain.com
+```
+
+보는 것은 세 가지입니다.
+
+1. nginx 가 `/collab` 을 프록시하는가 — `nginx/templates/` 두 파일에 블록이
+   빠져 있으면 요청이 프론트로 새어 404 가 됩니다.
+2. collab → backend 내부 호출이 통하는가 — `ALLOWED_HOSTS` 문제면 400 이
+   납니다. 403(비밀값 불일치)이나 404(없는 문서)는 정상 통과입니다.
+3. `/collab` 이 WebSocket 으로 업그레이드되는가 — 101 이어야 합니다.
+
+브라우저에서 문서를 둘 이상 띄워 동시에 편집하고 새로고침해 내용이 남는지도
+한 번은 직접 확인하세요. 위 검사는 API·WebSocket 수준까지만 봅니다.
 
 ### 되돌리기
 

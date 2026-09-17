@@ -110,7 +110,7 @@ a rebuild**, pin it to the deployed commit SHA — see the
 sudo apt install certbot
 sudo certbot certonly --standalone -d your-domain.com
 
-# Enable HTTPS block in nginx/nginx.conf, then:
+# Set DOMAIN in .env to switch to the HTTPS template, then:
 docker compose -f docker-compose.prod.yml restart nginx
 ```
 

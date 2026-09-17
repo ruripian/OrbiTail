@@ -4,6 +4,26 @@ OrbiTail 의 모든 주요 변경사항 — [SemVer](https://semver.org/lang/ko/
 
 ## [Unreleased]
 
+### 업그레이드 시 필수 조치
+
+기존 배포를 이 버전으로 올릴 때 다음을 먼저 하세요. 빠뜨리면 문서 실시간
+협업이 동작하지 않습니다.
+
+1. **`.env` 에 `COLLAB_SHARED_SECRET` 추가.** collab(Hocuspocus) 서버가
+   백엔드 내부 엔드포인트를 부를 때 쓰는 공유 비밀입니다. 없으면 collab
+   컨테이너가 시작하지 않습니다.
+
+   ```bash
+   python3 -c "import secrets;print(secrets.token_urlsafe(48))"
+   ```
+
+2. **`docker-compose.prod.yml` 을 이 버전의 것으로 교체.** `collab` 서비스가
+   새로 생겼습니다. 예전 파일을 그대로 쓰면 컨테이너 자체가 뜨지 않습니다.
+
+3. **`.env` 의 `AXES_IPWARE_PROXY_COUNT` 확인.** 리버스 프록시 뒤라면 앞단
+   프록시 개수를 넣으세요. `0` 이면 한 사람의 로그인 5회 실패로 전체가
+   15분간 잠깁니다.
+
 ### Added
 - 공개 데모 모드 (`DEMO_MODE`) — 방문자마다 격리된 샌드박스를 발급한다.
   로그인 없이 들어와 자유롭게 만질 수 있고 24시간 뒤 자동 삭제된다.

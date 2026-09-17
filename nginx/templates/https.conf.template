@@ -86,6 +86,21 @@ server {
         proxy_read_timeout 86400;
     }
 
+    # --- 문서 실시간 협업 (Hocuspocus) ---
+    location /collab {
+        set $collab_upstream collab:1234;
+        proxy_pass http://$collab_upstream/;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        # 편집 중 오래 열려 있는 연결이라 넉넉히
+        proxy_read_timeout 86400;
+    }
+
     # --- Django Admin ---
     location /admin/ {
         set $backend_upstream backend:8000;
