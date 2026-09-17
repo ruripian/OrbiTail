@@ -125,7 +125,9 @@ services:
       - certbot_conf:/etc/letsencrypt        # SSL 인증서
       - certbot_www:/var/www/certbot          # ACME 챌린지
     environment:
-      - DOMAIN=${DOMAIN:-}                    # 비어있으면 HTTP 모드
+      - DOMAIN=${DOMAIN:-}                    # HTTPS 모드일 때 server_name·인증서 경로
+      # auto = DOMAIN 있으면 HTTPS / off = 항상 HTTP (앞단에서 TLS 종단)
+      - NGINX_TLS=${NGINX_TLS:-auto}
       - MAX_UPLOAD_SIZE_MB=${MAX_UPLOAD_SIZE_MB:-10}
     # restart: true — backend/frontend 컨테이너가 recreate 되면 nginx 도 자동 재시작
     # (upstream 컨테이너 IP 변경으로 발생하는 502 Bad Gateway 방지)
@@ -149,7 +151,8 @@ services:
       - certbot_conf:/etc/letsencrypt
       - certbot_www:/var/www/certbot
     # 12시간마다 갱신 시도 (만료 30일 전에만 실제 갱신됨)
-    entrypoint: /bin/sh -c "if [ -z '${DOMAIN:-}' ]; then echo '[certbot] DOMAIN 미설정 — 건너뜀'; exit 0; fi; trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 43200; done"
+    # NGINX_TLS=off 면 인증서는 앞단이 맡으므로 여기서 갱신하지 않는다.
+    entrypoint: /bin/sh -c "if [ -z '${DOMAIN:-}' ] || [ '${NGINX_TLS:-auto}' = 'off' ]; then echo '[certbot] TLS 를 여기서 종단하지 않음 — 건너뜀'; exit 0; fi; trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 43200; done"
     depends_on:
       - nginx
     restart: unless-stopped

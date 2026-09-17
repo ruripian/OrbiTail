@@ -26,6 +26,7 @@ cp .env.example .env
 | `FRONTEND_URL` | 프론트엔드 URL (이메일 링크용) | `https://your-domain.com` |
 | `COLLAB_SHARED_SECRET` | 문서 실시간 협업 서버 ↔ 백엔드 내부 호출용 공유 비밀. **비어 있으면 `collab` 컨테이너가 시작하지 않는다.** | `python3 -c "import secrets;print(secrets.token_urlsafe(48))"` |
 | `AXES_IPWARE_PROXY_COUNT` | 앞단 프록시 개수. 리버스 프록시 뒤에서 `0` 이면 모든 사용자가 프록시 IP 를 공유해 한 사람의 로그인 실패 5회로 전체가 잠긴다 | nginx 만 `1`, Caddy→nginx 2단은 `2` |
+| `NGINX_TLS` | `auto` (기본) 면 `DOMAIN` 유무로 HTTPS/HTTP 를 정하고, `off` 면 항상 HTTP. 앞단(호스트 nginx·Caddy)이 TLS 를 끝내는 구성에서 쓴다 | `auto` / `off` |
 
 ---
 
@@ -73,6 +74,22 @@ nginx:
 
 설정을 바꿔야 하면 **`nginx/templates/` 의 두 파일을 함께** 고치세요.
 `nginx/nginx.conf` 는 진입점이 덮어쓰므로 고쳐도 반영되지 않습니다.
+
+#### 앞단에서 TLS 를 끝내는 경우
+
+호스트 nginx 나 Caddy 가 이미 인증서를 들고 있다면 컨테이너 nginx 는 평문으로
+두어야 합니다. 이때 `DOMAIN` 을 비우지 마세요 — 그 값은 Django 의 쿠키·HSTS
+설정에도 쓰여서, 비우면 보안 설정이 함께 꺼집니다.
+
+```env
+DOMAIN=your-domain.com   # 그대로 둔다 (Django 용)
+NGINX_TLS=off            # 컨테이너 nginx 는 HTTP 로
+HOST_BIND_ADDR=127.0.0.1
+HOST_HTTP_PORT=8080
+```
+
+앞단 프록시가 `X-Forwarded-Proto: https` 를 붙여 주어야 Django 가 HTTPS 로
+인식합니다. 붙지 않으면 모든 요청이 https 로 301 리다이렉트됩니다.
 
 ### 3-4. 인증서 자동 갱신
 
