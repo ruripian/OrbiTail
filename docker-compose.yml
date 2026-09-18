@@ -12,6 +12,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
 
   redis:
     image: redis:7-alpine
@@ -22,6 +23,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
 
   backend:
     build:
@@ -66,6 +68,7 @@ services:
       # 마이그레이션은 backend 컨테이너만 적용한다. 여기서는 적용이
       # 끝날 때까지 기다렸다 시작한다 (backend/entrypoint.sh 참고).
       - RUN_MIGRATIONS=0
+    restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
@@ -88,6 +91,7 @@ services:
       # 마이그레이션은 backend 컨테이너만 적용한다. 여기서는 적용이
       # 끝날 때까지 기다렸다 시작한다 (backend/entrypoint.sh 참고).
       - RUN_MIGRATIONS=0
+    restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
@@ -124,6 +128,7 @@ services:
       - "5173:5173"
     env_file:
       - .env
+    restart: unless-stopped
     depends_on:
       - backend
       - collab
