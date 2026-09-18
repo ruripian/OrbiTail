@@ -40,9 +40,11 @@ def _parse_first_client_id(inner_awareness_bytes: bytes):
     return None
 
 
-WS_CODE_UNAUTHORIZED = 4001
-WS_CODE_FORBIDDEN = 4003
-WS_CODE_NOT_FOUND = 4004
+from apps.core.ws_codes import (  # noqa: E402  — 상수는 core 로 옮겨 컨슈머끼리 공유한다
+    WS_CODE_UNAUTHORIZED,
+    WS_CODE_FORBIDDEN,
+    WS_CODE_NOT_FOUND,
+)
 
 
 # ──────────────────────────────────────────────────────────────

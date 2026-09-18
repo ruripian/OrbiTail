@@ -41,6 +41,10 @@ interface WebSocketEvent {
 
 export type WsStatus = "connecting" | "connected" | "disconnected";
 
+/* 서버가 거부할 때 쓰는 close 코드 — backend/apps/core/ws_codes.py 와 맞춰 둔다.
+   4001(만료)은 토큰을 새로 읽어 재시도하면 되고, 4003(권한 없음)은 재시도해도 같다. */
+const WS_CODE_FORBIDDEN = 4003;
+
 /* 모듈 단위 WS 참조 — useProjectPresence 같이 외부에서 메시지를 보내야 할 때 사용.
    여러 곳에서 동시에 useWebSocket 을 호출하지 않는다는 가정(앱당 1개) 하에 안전. */
 let activeWs: WebSocket | null = null;
@@ -63,14 +67,24 @@ export function useWebSocket(workspaceSlug: string | undefined): WsStatus {
 
   useEffect(() => {
     if (!workspaceSlug) return;
+    if (!getAccessToken()) return;
 
-    const token = getAccessToken();
-    if (!token) return;
-
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const url = `${protocol}//${window.location.host}/ws/workspace/${workspaceSlug}/?token=${token}`;
+    /* 이 effect 가 정리되며 스스로 닫은 것인지 구분한다.
+       close 코드로는 판단할 수 없다 — 서버가 거부할 때도 1000 이 나갈 수 있고,
+       그걸 "의도적 종료"로 읽으면 재연결이 영구히 멈춘다. */
+    let intentionalClose = false;
 
     function connect() {
+      /* 토큰을 매번 다시 읽는다 — effect 최초 실행 때 캡처해 두면 재연결이 만료된
+         토큰을 계속 재사용해, 갱신이 끝난 뒤에도 영영 붙지 못한다. */
+      const token = getAccessToken();
+      if (!token) {
+        setStatus("disconnected");
+        return;
+      }
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const url = `${protocol}//${window.location.host}/ws/workspace/${workspaceSlug}/?token=${token}`;
+
       setStatus("connecting");
       const ws = new WebSocket(url);
       wsRef.current = ws;
@@ -97,9 +111,10 @@ export function useWebSocket(workspaceSlug: string | undefined): WsStatus {
         wsRef.current = null;
         if (activeWs === ws) activeWs = null;
         setStatus("disconnected");
-        if (e.code !== 1000) {
-          reconnectTimer.current = setTimeout(connect, 5000);
-        }
+        if (intentionalClose) return;
+        /* 권한 없음은 다시 붙어도 같은 결과라 멈춘다. 그 외(만료·네트워크)는 재시도. */
+        if (e.code === WS_CODE_FORBIDDEN) return;
+        reconnectTimer.current = setTimeout(connect, 5000);
       };
 
       ws.onerror = () => {
@@ -114,6 +129,10 @@ export function useWebSocket(workspaceSlug: string | undefined): WsStatus {
       qc.invalidateQueries({ queryKey: ["my-issues", workspaceSlug] });
       qc.invalidateQueries({ queryKey: ["recent-issues", workspaceSlug] });
       qc.invalidateQueries({ queryKey: ["issue-stats", workspaceSlug] });
+      /* "내 작업"(MyPage) 은 ["me", ...] 네임스페이스를 쓴다. 위 키들과 첫 요소가 달라
+         prefix 매칭이 하나도 걸리지 않아 WS 이벤트를 전혀 못 받고 있었다. */
+      qc.invalidateQueries({ queryKey: ["me", "issues"] });
+      qc.invalidateQueries({ queryKey: ["me", "summary", workspaceSlug] });
 
       // 단건 이슈 (IssueDetailPage 패널)
       if (event.issue_id) {
@@ -163,6 +182,9 @@ export function useWebSocket(workspaceSlug: string | undefined): WsStatus {
           if (event.project_id) {
             qc.invalidateQueries({ queryKey: ["events", workspaceSlug, event.project_id] });
           }
+          /* "내 작업" 캘린더도 같은 일정을 그린다 — 여기도 같이 털어야 반영된다 */
+          qc.invalidateQueries({ queryKey: ["me", "events"] });
+          qc.invalidateQueries({ queryKey: ["me", "summary", workspaceSlug] });
           break;
 
         case "notification.new": {
@@ -216,6 +238,7 @@ export function useWebSocket(workspaceSlug: string | undefined): WsStatus {
     }, 30_000);
 
     return () => {
+      intentionalClose = true;
       clearInterval(pingInterval);
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
       if (wsRef.current) {

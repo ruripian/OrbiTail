@@ -19,6 +19,8 @@ from django_redis import get_redis_connection
 from apps.workspaces.models import WorkspaceMember
 from apps.accounts.models import User
 
+from apps.core.ws_codes import WS_CODE_UNAUTHORIZED, WS_CODE_FORBIDDEN
+
 # Presence TTL — 이 시간 동안 heartbeat 없으면 offline 으로 간주.
 # Frontend 는 30s 마다 heartbeat 보내야 함 (consumer 가 각 메시지마다 score refresh).
 PRESENCE_TTL_SEC = 60
@@ -101,12 +103,15 @@ class WorkspaceConsumer(AsyncJsonWebsocketConsumer):
         user = self.scope.get("user")
 
         # 인증 + 멤버십 체크
+        # 코드 없이 close() 하면 1000(정상 종료)이 나가고, 클라이언트가 "의도적 종료"로 읽어
+        # 재연결을 영구히 멈춘다. 토큰 만료(갱신 후 재시도 가능)와 권한 없음(재시도 무의미)을
+        # 코드로 구분해 알려 준다.
         if not user or user.is_anonymous:
-            await self.close()
+            await self.close(code=WS_CODE_UNAUTHORIZED)
             return
 
         if not await is_workspace_member(user, self.workspace_slug):
-            await self.close()
+            await self.close(code=WS_CODE_FORBIDDEN)
             return
 
         # 워크스페이스 그룹에 참가
