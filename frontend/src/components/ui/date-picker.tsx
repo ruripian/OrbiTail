@@ -13,12 +13,15 @@
  *  <DatePicker value={issue.due_date} onChange={(v) => update({ due_date: v })} />
  */
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Z_DATEPICKER } from "@/constants/z-index";
+
+/** 트리거와 팝오버 사이 간격 겸 화면 가장자리 최소 여백 */
+const GAP = 4;
 
 export interface DatePickerProps {
   value:        string | null;
@@ -42,7 +45,7 @@ export function DatePicker({
   const WEEKDAYS = [t("datePicker.sun"), t("datePicker.mon"), t("datePicker.tue"), t("datePicker.wed"), t("datePicker.thu"), t("datePicker.fri"), t("datePicker.sat")];
   const MONTHS = Array.from({ length: 12 }, (_, i) => t(`datePicker.month${i + 1}`));
   const [open, setOpen]     = useState(false);
-  const [pos,  setPos]      = useState({ top: 0, left: 0, openUp: false });
+  const [pos,  setPos]      = useState({ top: 0, left: 0 });
   const [viewDate, setViewDate] = useState<Date>(new Date());
 
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -67,18 +70,14 @@ export function DatePicker({
     return dt;
   })() : null;
 
-  /* 달력 열기 — trigger 위치 기준으로 팝오버 위치 계산 */
+  /* 달력 열기 — 일단 아래로 잡아두고, 실제 위치는 렌더 후 useLayoutEffect 가 확정한다 */
   const openCalendar = () => {
     if (!triggerRef.current) return;
-    const rect       = triggerRef.current.getBoundingClientRect();
-    const panelH     = 300; // 예상 패널 높이
-    const spaceBelow = window.innerHeight - rect.bottom;
-    const openUp     = spaceBelow < panelH && rect.top > panelH;
+    const rect = triggerRef.current.getBoundingClientRect();
 
     setPos({
-      top:    openUp ? rect.top - panelH - 4 : rect.bottom + 4,
-      left:   Math.min(rect.left, window.innerWidth - 260),
-      openUp,
+      top:  rect.bottom + GAP,
+      left: Math.min(rect.left, window.innerWidth - 260),
     });
 
     /* viewDate를 선택값 또는 오늘 기준으로 초기화 */
@@ -90,6 +89,23 @@ export function DatePicker({
     }
     setOpen(true);
   };
+
+  /* 아래 공간이 모자라면 위로 띄운다 — 패널 높이는 상수로 추정하지 않고 실측한다.
+     달마다 주 수가 5~6 으로 달라 높이가 40px 가까이 차이나므로, viewDate 도 deps 에 둔다.
+     paint 전에 도는 useLayoutEffect 라 위치가 튀어 보이지 않는다. */
+  useLayoutEffect(() => {
+    if (!open || !panelRef.current || !triggerRef.current) return;
+    const rect   = triggerRef.current.getBoundingClientRect();
+    const panelH = panelRef.current.offsetHeight;
+
+    let top = rect.bottom + GAP;
+    if (top + panelH > window.innerHeight - GAP) {
+      const above = rect.top - panelH - GAP;
+      /* 위아래 둘 다 모자라면 화면 안쪽에 붙인다 — 잘려 나가는 것보다 낫다 */
+      top = above >= GAP ? above : Math.max(GAP, window.innerHeight - panelH - GAP);
+    }
+    setPos((prev) => (prev.top === top ? prev : { ...prev, top }));
+  }, [open, viewDate]);
 
   /* 바깥 클릭 / Escape 닫기 */
   useEffect(() => {

@@ -1445,6 +1445,8 @@
     "orderedList": "번호 목록",
     "quote": "인용",
     "link": "링크",
+    "linkApply": "적용",
+    "linkRemove": "링크 해제",
     "undo": "실행 취소",
     "redo": "다시 실행",
     "alignCenter": "가운데 정렬",

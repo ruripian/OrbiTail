@@ -1445,6 +1445,8 @@
     "orderedList": "Numbered list",
     "quote": "Quote",
     "link": "Link",
+    "linkApply": "Apply",
+    "linkRemove": "Remove link",
     "undo": "Undo",
     "redo": "Redo",
     "alignCenter": "Align center",

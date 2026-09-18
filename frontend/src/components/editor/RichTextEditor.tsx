@@ -25,7 +25,7 @@ import {
   Bold, Italic, Strikethrough, Code, Quote, List, ListOrdered,
   Link as LinkIcon, Underline as UnderlineIcon, Image as ImageIcon,
   Heading1, Heading2, Heading3,
-  AlignLeft, AlignCenter, AlignRight, Highlighter,
+  AlignLeft, AlignCenter, AlignRight, Highlighter, X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -66,6 +66,9 @@ export function RichTextEditor({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
   const [uploading, setUploading] = useState(false);
+  /* 링크 입력 — DocumentEditor 의 BubbleMenu 와 같은 인라인 방식 */
+  const [linkEditorOpen, setLinkEditorOpen] = useState(false);
+  const [linkInput, setLinkInput] = useState("");
 
   /* 멘션 후보를 ref 로 유지 — 부모가 새 배열을 넘겨도 에디터 재초기화 없이 최신 데이터 사용. */
   const mentionItemsRef = useRef<MentionItem[]>(mentionItems ?? []);
@@ -110,11 +113,16 @@ export function RichTextEditor({
     onBlur: ({ event }) => {
       const related = (event as FocusEvent)?.relatedTarget as Node | null;
       if (menuRef.current?.contains(related)) return;
+      /* 툴바의 링크 입력란으로 포커스가 넘어간 경우도 blur 로 보지 않는다 —
+         버튼과 달리 input 은 포커스를 받아야 하므로 에디터가 실제로 blur 된다. */
+      if (wrapperRef.current?.contains(related)) return;
       onBlur?.();
     },
     onSelectionUpdate: ({ editor: e }) => {
       const { from, to } = e.state.selection;
       if (from === to) setMenuPos(null);
+      /* 선택이 바뀌면 열려 있던 링크 입력란은 대상이 달라지므로 닫는다 */
+      setLinkEditorOpen(false);
     },
   });
 
@@ -152,17 +160,26 @@ export function RichTextEditor({
     return () => document.removeEventListener("mouseup", handleMouseUp);
   }, [editor, showToolbar]);
 
-  /* 링크 삽입 */
+  /* 링크 삽입 — 입력란을 열기만 한다. 실제 적용은 applyLink. */
   const setLink = useCallback(() => {
     if (!editor) return;
-    const prev = editor.getAttributes("link").href;
-    const url = window.prompt("URL", prev || "https://");
-    if (url === null) return;
-    if (url === "") {
+    setLinkInput(editor.getAttributes("link").href ?? "");
+    setLinkEditorOpen(true);
+  }, [editor]);
+
+  const applyLink = useCallback((url: string) => {
+    if (!editor) return;
+    const trimmed = url.trim();
+    if (!trimmed) {
       editor.chain().focus().extendMarkRange("link").unsetLink().run();
     } else {
-      editor.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
+      /* 스킴이 없으면 https 로 보정 — 없이 넣으면 상대경로로 잡힌다 */
+      const normalized = /^https?:\/\//i.test(trimmed) || trimmed.startsWith("/") || trimmed.startsWith("mailto:")
+        ? trimmed
+        : `https://${trimmed}`;
+      editor.chain().focus().extendMarkRange("link").setLink({ href: normalized }).run();
     }
+    setLinkEditorOpen(false);
   }, [editor]);
 
   /* 이미지 업로드 — onImageUpload 핸들러가 있으면 그걸로, 없으면 base64 */
@@ -263,7 +280,13 @@ export function RichTextEditor({
 
       {/* 상단 툴바 */}
       {showToolbar && (
-        <Toolbar editor={editor} onLink={setLink} onImage={openImagePicker} uploading={uploading} showHeadings={showHeadings} />
+        <Toolbar
+          editor={editor} onLink={setLink} onImage={openImagePicker}
+          uploading={uploading} showHeadings={showHeadings}
+          linkEditorOpen={linkEditorOpen} linkInput={linkInput}
+          onLinkInputChange={setLinkInput} onApplyLink={applyLink}
+          onCloseLinkEditor={() => setLinkEditorOpen(false)}
+        />
       )}
 
       {/* 선택 시 플로팅 메뉴 */}
@@ -289,6 +312,16 @@ export function RichTextEditor({
           <BubbleBtn active={editor.isActive("orderedList")} onClick={() => editor.chain().focus().toggleOrderedList().run()} title={t("editor.orderedList")}><ListOrdered className="h-3.5 w-3.5" /></BubbleBtn>
           <BubbleBtn active={editor.isActive("blockquote")} onClick={() => editor.chain().focus().toggleBlockquote().run()} title={t("editor.quote")}><Quote className="h-3.5 w-3.5" /></BubbleBtn>
           <BubbleBtn active={editor.isActive("link")} onClick={setLink} title={t("editor.link")}><LinkIcon className="h-3.5 w-3.5" /></BubbleBtn>
+
+          {linkEditorOpen && (
+            <LinkEditor
+              value={linkInput}
+              active={editor.isActive("link")}
+              onChange={setLinkInput}
+              onApply={applyLink}
+              onClose={() => setLinkEditorOpen(false)}
+            />
+          )}
         </div>,
         document.body
       )}
@@ -303,12 +336,18 @@ export function RichTextEditor({
 /* ── 상단 툴바 ── */
 function Toolbar({
   editor, onLink, onImage, uploading, showHeadings,
+  linkEditorOpen, linkInput, onLinkInputChange, onApplyLink, onCloseLinkEditor,
 }: {
   editor: Editor;
   onLink: () => void;
   onImage: () => void;
   uploading: boolean;
   showHeadings: boolean;
+  linkEditorOpen: boolean;
+  linkInput: string;
+  onLinkInputChange: (v: string) => void;
+  onApplyLink: (url: string) => void;
+  onCloseLinkEditor: () => void;
 }) {
   const { t } = useTranslation();
   return (
@@ -341,6 +380,69 @@ function Toolbar({
         <ImageIcon className="h-3.5 w-3.5" />
         {uploading && <span className="ml-1 text-2xs">…</span>}
       </ToolbarBtn>
+
+      {linkEditorOpen && (
+        <LinkEditor
+          value={linkInput}
+          active={editor.isActive("link")}
+          onChange={onLinkInputChange}
+          onApply={onApplyLink}
+          onClose={onCloseLinkEditor}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ── 링크 입력란 — 툴바/플로팅 메뉴 바로 아래에 붙는다 ── */
+function LinkEditor({
+  value, active, onChange, onApply, onClose,
+}: {
+  value: string;
+  /** 현재 선택에 link 마크가 있는지 — 해제 버튼 노출 여부 */
+  active: boolean;
+  onChange: (v: string) => void;
+  onApply: (url: string) => void;
+  onClose: () => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <div
+      className="absolute top-full left-0 right-0 z-20 mt-1 flex items-center gap-1 rounded-lg border bg-popover px-2 py-1.5 shadow-lg"
+      /* 부모 버튼들의 mousedown preventDefault 와 달리 input 은 포커스를 받아야 한다 */
+      onMouseDown={(e) => e.stopPropagation()}
+    >
+      <LinkIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+      <input
+        autoFocus
+        value={value}
+        placeholder="https://..."
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => {
+          /* 에디터 단축키로 새어나가지 않게 한다 */
+          e.stopPropagation();
+          if (e.key === "Enter")  { e.preventDefault(); onApply(value); }
+          if (e.key === "Escape") { e.preventDefault(); onClose(); }
+        }}
+        className="flex-1 min-w-0 bg-transparent px-1 text-sm outline-none"
+      />
+      {active && (
+        <button
+          type="button"
+          title={t("editor.linkRemove")}
+          onMouseDown={(e) => { e.preventDefault(); onApply(""); }}
+          className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      )}
+      <button
+        type="button"
+        onMouseDown={(e) => { e.preventDefault(); onApply(value); }}
+        className="rounded-md bg-primary px-2 py-1 text-xs text-primary-foreground hover:bg-primary/90"
+      >
+        {t("editor.linkApply")}
+      </button>
     </div>
   );
 }
