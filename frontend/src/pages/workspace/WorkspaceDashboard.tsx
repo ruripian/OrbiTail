@@ -27,7 +27,7 @@ import { ProjectFilterDropdown, type ProjectFilterItem } from "@/components/issu
 import { useRecentChangesStore } from "@/stores/recentChangesStore";
 import { useOpenIssue } from "@/hooks/useOpenIssue";
 import { PRIORITY_LIST, PRIORITY_LABEL_KEY } from "@/constants/priority";
-import { getStateIcon, STATE_GROUP_COLOR, STATE_GROUP_LABEL } from "@/constants/state-icons";
+import { getStateIcon, STATE_GROUP_COLOR, STATE_GROUP_LABEL, STATE_GROUP_LIST } from "@/constants/state-icons";
 import type { Issue, State } from "@/types";
 
 /* ──────────────── 대시보드 필터 영속화 ──────────────── */
@@ -155,21 +155,21 @@ export function IssueRow({ issue, workspaceSlug }: { issue: Issue; workspaceSlug
 function GroupSection({ g, workspaceSlug }: { g: IssueGroup; workspaceSlug: string }) {
   const StateIcon = getStateIcon(g.group);
   return (
-    // 반투명(30% 투과) — 뒤의 궤도 dot 이 비쳐 보이되 blur 없음(blur 걸면 dot 이 흐려져 "뒤로 밀린 느낌" 을 줌)
-    <div className="rounded-2xl border border-border bg-card/70 overflow-hidden shadow-sm">
-      <div className="flex items-center gap-3 px-5 py-4 border-b border-border">
-        <StateIcon className="h-4 w-4 shrink-0" style={{ color: g.color }} />
-        <h2 className="text-base font-semibold flex-1">{g.label}</h2>
-        <span className="text-sm font-mono text-muted-foreground bg-muted px-2.5 py-0.5 rounded-full">
-          {g.issues.length}
-        </span>
+    /* 그룹마다 카드를 두면 상태 수만큼 패널이 쌓여 목록이 토막난다.
+       머리글과 가는 구분선만 두고 행은 한 흐름으로 이어지게 한다. */
+    <section>
+      <div className="flex items-center gap-2 px-4 sm:px-5 pb-2">
+        <StateIcon className="h-3.5 w-3.5 shrink-0" style={{ color: g.color }} />
+        <h2 className="text-sm font-semibold">{g.label}</h2>
+        <span className="text-xs font-mono text-muted-foreground">{g.issues.length}</span>
+        <div className="flex-1 h-px bg-border" />
       </div>
-      <div className="divide-y divide-border">
+      <div className="divide-y divide-border/60">
         {g.issues.map((issue) => (
           <IssueRow key={issue.id} issue={issue} workspaceSlug={workspaceSlug} />
         ))}
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -267,18 +267,29 @@ export function WorkspaceDashboard() {
     });
   }, [myIssues, projectFilter, priorityFilter, stateGroupFilter]);
 
-  // 그룹핑 — 상태별 (PASS3-5)
+  // 그룹핑 — 상태 group 별 (PASS3-5)
+  /* state.id 로 묶지 않는다: 상태는 프로젝트마다 별도 레코드라 같은 "To do" 라도
+     프로젝트 수만큼 그룹이 쪼개진다. 필터(stateGroupFilter)도 group 축을 쓰므로 이쪽이 맞다. */
   const groups = useMemo((): IssueGroup[] => {
     const map = new Map<string, IssueGroup>();
     for (const issue of filtered) {
       const sd = issue.state_detail as State | null;
-      const key = sd?.id ?? "__none__";
-      const label = sd?.name ?? "Unassigned";
-      const color = sd?.color ?? "#9ca3af";
-      if (!map.has(key)) map.set(key, { key, label, color, group: sd?.group, issues: [] });
+      const group = sd?.group;
+      const key = group ?? "__none__";
+      if (!map.has(key)) {
+        map.set(key, {
+          key,
+          label: STATE_GROUP_LABEL[group as keyof typeof STATE_GROUP_LABEL] ?? "Unassigned",
+          color: STATE_GROUP_COLOR[group as keyof typeof STATE_GROUP_COLOR] ?? "#9ca3af",
+          group,
+          issues: [],
+        });
+      }
       map.get(key)!.issues.push(issue);
     }
-    return Array.from(map.values());
+    /* 순서를 고정한다 — Map 삽입 순서(=이슈가 실린 순서)면 새로고침마다 뒤바뀐다 */
+    const order = [...STATE_GROUP_LIST, "__none__"] as string[];
+    return Array.from(map.values()).sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key));
   }, [filtered]);
 
   // Field 이슈는 "내 할 일" 성격이 아니라 본문에서 제외 — 헤더 카운트도 동일 기준
