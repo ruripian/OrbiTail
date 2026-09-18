@@ -227,22 +227,37 @@ export function CalendarView({ workspaceSlug, projectId, onIssueClick, issueFilt
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: Partial<Issue> }) =>
       issuesApi.update(workspaceSlug, projectId, id, data),
-    onMutate: ({ id, data }) => {
+    /* 드롭한 칸에 즉시 반영한다 — 서버 왕복 + refetch 동안 이슈가 원래 날짜에
+       머물러 "드래그가 안 먹었다" 처럼 보이던 문제. BoardView 와 같은 방식. */
+    onMutate: async ({ id, data }) => {
       const issue = issues.find((i) => i.id === id);
-      if (!issue) return;
-      const prev = capturePrevious(issue, data);
-      return { id, prev };
+      const prev = issue ? capturePrevious(issue, data) : null;
+
+      const filterKey = { queryKey: ["issues", workspaceSlug, projectId] };
+      await qc.cancelQueries(filterKey);
+      const snapshots = qc.getQueriesData<Issue[]>(filterKey);
+      qc.setQueriesData<Issue[]>(filterKey, (old) =>
+        old ? old.map((i) => (i.id === id ? { ...i, ...data } : i)) : old,
+      );
+
+      return { id, prev, snapshots };
+    },
+    onError: (_err, _vars, context) => {
+      context?.snapshots?.forEach(([key, data]) => qc.setQueryData(key, data));
     },
     onSuccess: (_, variables, context) => {
       refresh();
       refreshIssue(variables.id);
-      if (context?.prev) {
+      /* 지역 변수로 받아 둔다 — context.prev 를 클로저 안에서 바로 쓰면 좁히기가 풀린다 */
+      const prev = context?.prev;
+      const id = context?.id;
+      if (prev && id) {
         pushUndo({
           label: `Calendar: ${Object.keys(variables.data).join(", ")}`,
           undo: async () => {
-            await issuesApi.update(workspaceSlug, projectId, context.id, context.prev);
+            await issuesApi.update(workspaceSlug, projectId, id, prev);
             refresh();
-            refreshIssue(context.id);
+            refreshIssue(id);
           },
         });
       }

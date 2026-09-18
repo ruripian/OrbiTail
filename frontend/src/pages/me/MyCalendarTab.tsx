@@ -186,13 +186,30 @@ export function MyCalendarTab() {
   }, [projectEvents, personalEvents]);
 
   /* ── mutations — 항목 종류별 ────────────────────────────── */
+  /* 드롭한 칸에 즉시 반영 — 서버 왕복 + refetch 동안 항목이 원래 날짜에 머물러
+     드래그가 튕긴 것처럼 보이던 문제. 실패하면 스냅샷으로 되돌린다. */
+  const optimisticPatch = async <T extends { id: string }>(prefix: string[], id: string, data: Partial<T>) => {
+    const filterKey = { queryKey: prefix };
+    await qc.cancelQueries(filterKey);
+    const snapshots = qc.getQueriesData<T[]>(filterKey);
+    qc.setQueriesData<T[]>(filterKey, (old) =>
+      old ? old.map((item) => (item.id === id ? { ...item, ...data } : item)) : old,
+    );
+    return snapshots;
+  };
+  const rollback = (snapshots?: [readonly unknown[], unknown][]) => {
+    snapshots?.forEach(([key, data]) => qc.setQueryData(key, data));
+  };
+
   const issueMutation = useMutation({
     mutationFn: ({ workspaceSlug, projectId, id, data }: { workspaceSlug: string; projectId: string; id: string; data: Partial<Issue> }) =>
       issuesApi.update(workspaceSlug, projectId, id, data),
+    onMutate: ({ id, data }) => optimisticPatch<Issue>(["me", "issues"], id, data).then((s) => ({ snapshots: s })),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["me", "issues"] });
     },
-    onError: () => {
+    onError: (_e, _v, ctx) => {
+      rollback(ctx?.snapshots);
       toast.error(t("me.calendar.toast.updateFailed", "일정 수정에 실패했습니다"));
     },
   });
@@ -200,10 +217,12 @@ export function MyCalendarTab() {
   const projectEventMutation = useMutation({
     mutationFn: ({ workspaceSlug, projectId, id, data }: { workspaceSlug: string; projectId: string; id: string; data: Partial<ProjectEvent> }) =>
       projectsApi.events.update(workspaceSlug, projectId, id, data),
+    onMutate: ({ id, data }) => optimisticPatch<ProjectEvent>(["me", "events"], id, data).then((s) => ({ snapshots: s })),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["me", "events"] });
     },
-    onError: () => {
+    onError: (_e, _v, ctx) => {
+      rollback(ctx?.snapshots);
       toast.error(t("me.calendar.toast.eventUpdateFailed", "이벤트 수정 권한이 없습니다"));
     },
   });
@@ -211,10 +230,12 @@ export function MyCalendarTab() {
   const personalMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: Partial<PersonalEvent> }) =>
       meApi.personalEvents.update(id, data),
+    onMutate: ({ id, data }) => optimisticPatch<PersonalEvent>(["me", "personal-events"], id, data).then((s) => ({ snapshots: s })),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["me", "personal-events"] });
     },
-    onError: () => {
+    onError: (_e, _v, ctx) => {
+      rollback(ctx?.snapshots);
       toast.error(t("me.calendar.toast.updateFailed", "일정 수정에 실패했습니다"));
     },
   });
