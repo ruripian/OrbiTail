@@ -204,28 +204,31 @@ function ProjectItem({
         <button
           onClick={(e) => { e.stopPropagation(); onToggleExpanded(project.id); }}
           className={cn(
-            "shrink-0 p-1 rounded-lg transition-all",
+            /* 접힌 상태에서도 보여 둔다 — 투명하게 두면 행에 마우스를 올리기 전까지
+               펼칠 수 있다는 것 자체를 알 수 없다 */
+            "shrink-0 p-1.5 rounded-lg transition-all",
             showSubLinks
-              ? "text-muted-foreground/70 hover:text-foreground"
-              : "text-muted-foreground/0 group-hover/proj:text-muted-foreground/50 hover:text-foreground"
+              ? "text-muted-foreground hover:text-foreground"
+              : "text-muted-foreground/50 group-hover/proj:text-muted-foreground hover:text-foreground"
           )}
           title={showSubLinks ? t("sidebar.collapseProject", "접기") : t("sidebar.expandProject", "펴기")}
         >
           {showSubLinks
-            ? <ChevronDown className="h-3.5 w-3.5" />
-            : <ChevronRight className="h-3.5 w-3.5" />}
+            ? <ChevronDown className="h-4 w-4" />
+            : <ChevronRight className="h-4 w-4" />}
         </button>
         <button
           onClick={(e) => { e.stopPropagation(); onToggleFavorite(project.id); }}
           className={cn(
-            "shrink-0 p-1 rounded-lg transition-all",
+            /* 별은 액션이라 hover 노출을 유지하되, chevron 과 같은 크기로 맞춘다 */
+            "shrink-0 p-1.5 rounded-lg transition-all",
             isFavorite
               ? "text-amber-500"
-              : "text-muted-foreground/0 group-hover/proj:text-muted-foreground/40 hover:!text-amber-500"
+              : "text-muted-foreground/0 group-hover/proj:text-muted-foreground/50 hover:!text-amber-500"
           )}
           title={isFavorite ? t("sidebar.unfavorite") : t("sidebar.favorite")}
         >
-          <Star className="h-3.5 w-3.5" fill={isFavorite ? "currentColor" : "none"} />
+          <Star className="h-4 w-4" fill={isFavorite ? "currentColor" : "none"} />
         </button>
       </div>
 
