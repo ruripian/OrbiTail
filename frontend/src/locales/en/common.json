@@ -206,6 +206,13 @@
       "deleteConfirm": "Delete {{count}} selected issues?",
       "updated": "{{count}} issues updated",
       "deleted": "{{count}} issues deleted",
+      "move": "Move to another project",
+      "archive": "Archive",
+      "archived": "Archived {{count}} issues",
+      "archivedPartial": "Only some were archived — {{count}} failed",
+      "moved": "Moved {{count}} issues to {{project}}",
+      "movedPartial": "Only some were moved — {{count}} failed",
+      "moveNoteUndo": "Moving cannot be undone.",
       "deselect": "Deselect"
     },
     "filter": {

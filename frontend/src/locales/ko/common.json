@@ -206,6 +206,13 @@
       "deleteConfirm": "선택한 {{count}}개 이슈를 삭제하시겠습니까?",
       "updated": "{{count}}개 이슈가 업데이트되었습니다",
       "deleted": "{{count}}개 이슈가 삭제되었습니다",
+      "move": "다른 프로젝트로 이동",
+      "archive": "보관",
+      "archived": "{{count}}개 이슈를 보관함으로 옮겼습니다",
+      "archivedPartial": "일부만 보관했습니다 — {{count}}건 실패",
+      "moved": "{{count}}개 이슈를 {{project}}(으)로 옮겼습니다",
+      "movedPartial": "일부만 옮겼습니다 — {{count}}건 실패",
+      "moveNoteUndo": "이동은 실행취소로 되돌릴 수 없습니다.",
       "deselect": "선택 해제"
     },
     "filter": {

@@ -27,6 +27,7 @@ import { AvatarInitials } from "@/components/ui/avatar-initials";
 import { issuesApi } from "@/api/issues";
 import { formatDate } from "@/utils/date-format";
 import { IssueCreateDialog } from "@/components/issues/IssueCreateDialog";
+import { BulkMoveIssuesDialog } from "@/components/issues/BulkMoveIssuesDialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { StatePicker } from "@/components/issues/state-picker";
 import { PriorityPicker } from "@/components/issues/priority-picker";
@@ -501,6 +502,22 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
     });
     setLastClickedId(id);
   };
+
+  /** 조상이 함께 선택된 이슈를 뺀, 선택의 최상위만.
+   *  보관·이동은 서버가 하위 이슈까지 함께 처리하는데 toggleSelect 는 부모를 고르면
+   *  하위까지 선택에 담는다. 그대로 호출하면 자식 차례에 "이미 보관됨"·"원본에 없음"
+   *  으로 실패하므로, 최상위에만 요청을 보낸다. */
+  const selectionRoots = useMemo(() => {
+    const covered = new Set<string>();
+    for (const id of selectedIds) {
+      for (const descendantId of collectDescendants(id)) {
+        if (selectedIds.has(descendantId)) covered.add(descendantId);
+      }
+    }
+    return [...selectedIds].filter((id) => !covered.has(id));
+    // collectDescendants 는 렌더마다 새로 만들어지지만 읽는 캐시가 같아 결과가 안정적이다
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedIds]);
 
   const toggleSelectAll = () => {
     if (selectedIds.size === allSelectableIds.size && [...allSelectableIds].every((id) => selectedIds.has(id))) {
@@ -1187,6 +1204,7 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
         workspaceSlug={workspaceSlug}
         projectId={projectId}
         selectedIds={Array.from(selectedIds)}
+        selectionRoots={selectionRoots}
         allIssues={issues}
         onDone={() => setSelectedIds(new Set())}
         readOnly={readOnly}
@@ -1197,7 +1215,7 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
 }
 
 function BulkToolbar({
-  selectedCount, states, members, workspaceSlug, projectId, selectedIds, onDone, allIssues, readOnly = false,
+  selectedCount, states, members, workspaceSlug, projectId, selectedIds, selectionRoots, onDone, allIssues, readOnly = false,
 }: {
   selectedCount: number;
   states: State[];
@@ -1205,6 +1223,8 @@ function BulkToolbar({
   workspaceSlug: string;
   projectId: string;
   selectedIds: string[];
+  /* 조상이 함께 선택된 이슈를 뺀 최상위만 — 보관·이동은 하위까지 연쇄 처리되므로 이쪽을 쓴다 */
+  selectionRoots: string[];
   onDone: () => void;
   allIssues: Issue[];
   /* 읽기 전용 — 상태/우선순위/담당자 일괄 변경 액션 숨김 */
@@ -1214,6 +1234,7 @@ function BulkToolbar({
   const { perms } = useProjectPerms();
   const qc = useQueryClient();
   const pushUndo = useUndoStore((s) => s.push);
+  const [moveOpen, setMoveOpen] = useState(false);
 
   const bulkUpdateMutation = useMutation({
     mutationFn: (updates: Record<string, unknown>) => {
@@ -1275,6 +1296,43 @@ function BulkToolbar({
         },
       });
       toast.success(t("issues.bulk.deleted", { count: selectedCount }));
+      onDone();
+    },
+  });
+
+  /* 보관은 하위 이슈까지 연쇄되므로 최상위에만 호출한다.
+     한 건이 실패해도 멈추지 않고 끝까지 간 뒤 결과를 요약한다. */
+  const bulkArchiveMutation = useMutation({
+    mutationFn: async () => {
+      const ids = [...selectionRoots];
+      const results = await Promise.allSettled(
+        ids.map((id) => issuesApi.archive(workspaceSlug, projectId, id)),
+      );
+      const archivedIds = ids.filter((_, i) => results[i].status === "fulfilled");
+      return { archivedIds, failed: ids.length - archivedIds.length };
+    },
+    onSuccess: async ({ archivedIds, failed }) => {
+      selectedIds.forEach((id) => qc.invalidateQueries({ queryKey: ["sub-issues", id] }));
+      await Promise.all([
+        qc.refetchQueries({ queryKey: ["issues", workspaceSlug, projectId], type: "active" }),
+        qc.refetchQueries({ queryKey: ["issues-archive", workspaceSlug, projectId], type: "active" }),
+        qc.refetchQueries({ queryKey: ["my-issues", workspaceSlug], type: "active" }),
+      ]);
+      /* undo: 보관한 것만 되돌린다 — 실패한 건까지 unarchive 하면 없던 변화를 만든다 */
+      if (archivedIds.length > 0) {
+        pushUndo({
+          label: t("issues.bulk.archived", { count: selectedCount }),
+          undo: async () => {
+            await Promise.all(archivedIds.map((id) => issuesApi.unarchive(workspaceSlug, projectId, id)));
+            await qc.refetchQueries({ queryKey: ["issues", workspaceSlug, projectId], type: "active" });
+          },
+        });
+      }
+      if (failed > 0) {
+        toast.warning(t("issues.bulk.archivedPartial", { count: failed }));
+      } else {
+        toast.success(t("issues.bulk.archived", { count: selectedCount }));
+      }
       onDone();
     },
   });
@@ -1351,6 +1409,26 @@ function BulkToolbar({
         </>
       )}
 
+      {/* 보관·이동 — 둘 다 하위 이슈까지 함께 처리된다 */}
+      {!readOnly && (
+        <Button variant="ghost" size="sm" className="text-xs" onClick={() => setMoveOpen(true)}>
+          {t("issues.bulk.move")}
+        </Button>
+      )}
+
+      {perms.can_archive && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-xs"
+          disabled={bulkArchiveMutation.isPending}
+          /* 실행취소가 있으므로 확인창은 두지 않는다 */
+          onClick={() => bulkArchiveMutation.mutate()}
+        >
+          {t("issues.bulk.archive")}
+        </Button>
+      )}
+
       {perms.can_delete && (
         <Button
           variant="ghost"
@@ -1371,6 +1449,16 @@ function BulkToolbar({
       <Button variant="ghost" size="sm" className="text-xs" onClick={onDone}>
         {t("issues.bulk.deselect")}
       </Button>
+
+      <BulkMoveIssuesDialog
+        open={moveOpen}
+        onOpenChange={setMoveOpen}
+        workspaceSlug={workspaceSlug}
+        projectId={projectId}
+        issueIds={selectionRoots}
+        selectedCount={selectedCount}
+        onMoved={onDone}
+      />
     </div>
   );
 }
