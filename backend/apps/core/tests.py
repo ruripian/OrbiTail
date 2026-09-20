@@ -3,7 +3,7 @@ from pathlib import Path
 
 from django.test import SimpleTestCase, TestCase
 
-from apps.documents.markdown import markdown_to_html
+from apps.documents.markdown import html_to_markdown, markdown_to_html
 
 from .html_sanitize import sanitize_html
 
@@ -39,6 +39,20 @@ class SanitizeTests(SimpleTestCase):
               "$x^2$\n\n```mermaid\ngraph TD\n```\n\n![그림](https://a.io/p.png)")
         html = markdown_to_html(md)
         self.assertEqual(_shape(sanitize_html(html)), _shape(html))
+
+    def test_task_list_matches_editor_schema(self):
+        """할 일 목록은 에디터가 찍는 모양과 같아야 한다.
+
+        `data-type="taskItem"` 이 빠지면 TipTap 이 li 를 할 일 항목으로 못 읽어서, 열었을 때
+        빈 체크박스 하나와 글자만 든 별개 불릿으로 쪼개진다.
+        """
+        html = markdown_to_html("- [ ] 할 일\n- [x] 끝난 일")
+        self.assertIn('<ul data-type="taskList">', html)
+        self.assertEqual(html.count('data-type="taskItem"'), 2)
+        self.assertIn('data-checked="false"', html)
+        self.assertIn('data-checked="true"', html)
+        # 체크 상태까지 되돌아와야 한다
+        self.assertEqual(html_to_markdown(html).strip(), "- [ ] 할 일\n- [x] 끝난 일")
 
     def test_pasted_image_data_uri_kept(self):
         html = '<img src="data:image/png;base64,iVBORw0KGgo=" alt="p">'

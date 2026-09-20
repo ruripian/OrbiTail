@@ -654,7 +654,13 @@ def _list_html(block: list[str], inline: "_Inline", resolve_wikilink) -> str:
         inner = f"<p>{inline.run(text)}</p>"
         if nested:
             inner += _list_html(nested, inline, resolve_wikilink)
-        attr = f' data-checked="{"true" if checked else "false"}"' if checked is not None else ""
+        # TipTap 의 TaskItem 은 li[data-type="taskItem"] 만 할 일 항목으로 읽는다.
+        # data-checked 만 붙이면 taskList 안에서 li 가 항목으로 인식되지 않아
+        # 빈 체크박스 하나와 글자만 든 별개 불릿으로 쪼개진다.
+        attr = (
+            f' data-type="taskItem" data-checked="{"true" if checked else "false"}"'
+            if checked is not None else ""
+        )
         items.append(f"<li{attr}>{inner}</li>")
 
     tag = "ol" if ordered else "ul"
