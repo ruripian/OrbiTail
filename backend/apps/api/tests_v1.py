@@ -148,6 +148,26 @@ class IssueReadTests(V1TestBase):
 
 
 class IssueWriteTests(V1TestBase):
+    def test_create_without_project_goes_to_my_work(self):
+        """프로젝트를 안 주면 본인 Personal 프로젝트로 간다 — 어디에도 안 붙는 단발성 할 일용."""
+        r = self.w.post("/api/v1/issues/", {"title": "DHL 통관 서류 제출"}, format="json")
+        self.assertEqual(r.status_code, 201, r.data)
+        issue = Issue.objects.get(pk=r.data["id"])
+        self.assertEqual(issue.project.kind, "personal")
+        self.assertEqual(issue.project.workspace, self.ws)
+
+        # 두 번째 이슈도 같은 Personal 프로젝트를 재사용해야 한다 (매번 새로 만들면 안 된다)
+        r2 = self.w.post("/api/v1/issues/", {"title": "출장보고서 결재"}, format="json")
+        self.assertEqual(Issue.objects.get(pk=r2.data["id"]).project_id, issue.project_id)
+
+        # 핵심 — Personal 프로젝트는 일반 프로젝트 목록에 나오지 않는다.
+        # 잡다한 할 일이 실제 프로젝트 지표를 오염시키지 않는 근거.
+        listed = [p["id"] for p in self.r.get("/api/v1/projects/").data["results"]]
+        self.assertNotIn(str(issue.project_id), listed)
+
+    def test_create_still_requires_title(self):
+        self.assertEqual(self.w.post("/api/v1/issues/", {}, format="json").status_code, 400)
+
     def test_create_with_defaults_and_markdown(self):
         r = self.w.post("/api/v1/issues/", {
             "project": str(self.proj.id), "title": "새 이슈",
@@ -253,6 +273,22 @@ class DocumentReadTests(V1TestBase):
         listed = self.r.get(f"/api/v1/spaces/{self.open_space.id}/documents/").data["results"]
         self.assertEqual([d["title"] for d in listed], ["회의록"])
         self.assertEqual(self.r.get(f"/api/v1/spaces/{self.closed_space.id}/documents/").status_code, 404)
+
+    def test_create_space_with_write_token(self):
+        r = self.w.post("/api/v1/spaces/", {"name": "새 스페이스", "type": "personal"}, format="json")
+        self.assertEqual(r.status_code, 201)
+        self.assertEqual(r.data["type"], "personal")
+        space = DocumentSpace.objects.get(pk=r.data["id"])
+        self.assertEqual(space.workspace, self.ws)
+        self.assertIsNotNone(space.owner)          # personal 은 만든 사람 전용이라 주인이 있어야 한다
+        self.assertIn("새 스페이스", [sp["name"] for sp in self.w.get("/api/v1/spaces/").data])
+
+    def test_create_space_rejects_read_token_and_project_type(self):
+        self.assertEqual(
+            self.r.post("/api/v1/spaces/", {"name": "읽기"}, format="json").status_code, 403)
+        # project 스페이스는 프로젝트를 만들 때 딸려 생긴다 — 여기서 만들 수 없다
+        self.assertEqual(
+            self.w.post("/api/v1/spaces/", {"name": "x", "type": "project"}, format="json").status_code, 400)
 
     def test_document_as_markdown(self):
         r = self.r.get(f"/api/v1/documents/{self.doc.id}/")

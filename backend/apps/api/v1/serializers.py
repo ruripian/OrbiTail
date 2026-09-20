@@ -165,7 +165,8 @@ class IssueWriteSerializer(serializers.Serializer):
     다른 프로젝트의 상태·라벨을 붙이면 화면이 그 값을 찾지 못해 깨진다.
     """
 
-    project = serializers.UUIDField(required=False, help_text=gettext_lazy("Required on create. Cannot be changed"))
+    project = serializers.UUIDField(required=False, help_text=gettext_lazy(
+        "On create, omit it to file the issue under your own \"My work\" project. Cannot be changed afterwards"))
     title = serializers.CharField(max_length=255, required=False)
     description = serializers.CharField(required=False, allow_blank=True, help_text=gettext_lazy("Markdown"))
     priority = serializers.ChoiceField(choices=["none", "urgent", "high", "medium", "low"], required=False)
@@ -226,6 +227,18 @@ class SpaceSerializer(serializers.Serializer):
     name = serializers.CharField()
     type = serializers.CharField(source="space_type", help_text="project | shared | personal")
     project = serializers.UUIDField(source="project_id", allow_null=True)
+
+
+class SpaceCreateSerializer(serializers.Serializer):
+    """스페이스 생성 입력. project 스페이스는 프로젝트를 만들 때 딸려 생기므로 여기서 못 만든다."""
+
+    name = serializers.CharField(max_length=200)
+    type = serializers.ChoiceField(
+        choices=["personal", "shared"], default="personal",
+        help_text=gettext_lazy("personal (only its creator) | shared (everyone in the workspace)"),
+    )
+    icon = serializers.CharField(max_length=10, required=False, allow_blank=True, default="")
+    description = serializers.CharField(required=False, allow_blank=True, default="")
 
 
 class DocumentListSerializer(serializers.Serializer):

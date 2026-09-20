@@ -17,15 +17,16 @@ from rest_framework.response import Response
 from apps.accounts.models import User
 from apps.documents.links import sync_document_links
 from apps.documents.markdown import markdown_to_html
-from apps.documents.models import Document
+from apps.documents.models import Document, DocumentSpace
 from apps.documents.views import _check_space_edit
+from apps.projects.services import get_or_create_personal_project
 from apps.issues.models import Issue, IssueActivity, IssueComment, Label
 from apps.issues.views import IssueArchiveView, _issue_field_snapshot, _log_activities
 from apps.projects.models import Category, ProjectMember, Sprint, State
 from apps.workspaces.models import WorkspaceMember
 
 from . import serializers as s
-from .access import accessible_spaces, readable_projects
+from .access import accessible_spaces, readable_issue_projects, readable_projects
 from .base import PublicApiView
 from .collab_client import CollabUnavailable, write_document_content
 
@@ -140,7 +141,7 @@ class IssueMixin(ProjectMixin):
             Issue.objects.filter(
                 workspace=self.workspace,
                 deleted_at__isnull=True,
-                project__in=self.readable_projects(),
+                project__in=readable_issue_projects(self.request.user, self.workspace),
             )
             .select_related("project", "workspace", "state", "sprint", "category", "created_by")
             .prefetch_related("assignees", "label")
@@ -303,12 +304,15 @@ class IssueListView(IssueMixin, PublicApiView):
         ser = s.IssueWriteSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         data = ser.validated_data
-        if not data.get("project"):
-            raise ValidationError({"project": gettext("This field is required.")})
         if not data.get("title"):
             raise ValidationError({"title": gettext("This field is required.")})
 
-        project = self.get_project(data["project"])
+        if data.get("project"):
+            project = self.get_project(data["project"])
+        else:
+            # 프로젝트를 안 주면 본인 "내 작업"(Personal) 으로 보낸다. 어느 프로젝트에도 안 붙는
+            # 단발성 할 일용 — kind=personal 이라 일반 프로젝트 목록·지표에는 잡히지 않는다.
+            project = get_or_create_personal_project(self.workspace, request.user)
         self.require_perm(project, "can_edit")
         rel = self.resolve_relations(project, data)
 
@@ -472,6 +476,26 @@ class SpaceListView(DocumentMixin, PublicApiView):
     @extend_schema(tags=["documents"], summary=gettext_lazy("List document spaces"), responses=s.SpaceSerializer(many=True))
     def get(self, request):
         return Response(s.SpaceSerializer(self.accessible_spaces().order_by("name"), many=True).data)
+
+
+    @extend_schema(tags=["documents"], summary=gettext_lazy("Create a document space (write)"),
+                   request=s.SpaceCreateSerializer, responses={201: s.SpaceSerializer})
+    def post(self, request):
+        ser = s.SpaceCreateSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        data = ser.validated_data
+
+        space_type = data["type"]
+        space = DocumentSpace.objects.create(
+            workspace=self.workspace,
+            name=data["name"],
+            icon=data.get("icon") or "",
+            description=data.get("description") or "",
+            space_type=space_type,
+            # personal 은 만든 사람만 본다. shared 는 워크스페이스 전체 공개(is_private 기본 False).
+            owner=request.user if space_type == "personal" else None,
+        )
+        return Response(s.SpaceSerializer(space).data, status=201)
 
 
 class SpaceDocumentListView(DocumentMixin, PublicApiView):

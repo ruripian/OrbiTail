@@ -27,7 +27,7 @@ def _payload_for(webhook, event, object_type, object_id, snapshot):
     from apps.workspaces.models import WorkspaceMember
 
     from .v1 import serializers as s
-    from .v1.access import accessible_spaces, readable_projects
+    from .v1.access import accessible_spaces, readable_issue_projects
 
     user = webhook.created_by
     if not user.is_active or user.is_suspended or not WorkspaceMember.objects.filter(
@@ -40,7 +40,7 @@ def _payload_for(webhook, event, object_type, object_id, snapshot):
 
     if object_type == "issue":
         issue = (
-            Issue.objects.filter(pk=object_id, project__in=readable_projects(user, webhook.workspace))
+            Issue.objects.filter(pk=object_id, project__in=readable_issue_projects(user, webhook.workspace))
             .select_related("project", "workspace", "state", "sprint", "category", "created_by")
             .prefetch_related("assignees", "label")
             .first()
@@ -55,7 +55,7 @@ def _payload_for(webhook, event, object_type, object_id, snapshot):
 
     if object_type == "comment":
         comment = IssueComment.objects.filter(pk=object_id).select_related("actor", "issue").first()
-        if comment is None or not readable_projects(user, webhook.workspace).filter(pk=comment.issue.project_id).exists():
+        if comment is None or not readable_issue_projects(user, webhook.workspace).filter(pk=comment.issue.project_id).exists():
             return None
         issue = comment.issue
         return {
