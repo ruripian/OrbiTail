@@ -80,9 +80,11 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { Document as DocType } from "@/types";
+import { useDialogs } from "@/lib/dialogs";
 
 export function DocumentLayout() {
   const { t } = useTranslation();
+  const { confirmDelete } = useDialogs();
   const { workspaceSlug, spaceId, docId } = useParams<{
     workspaceSlug: string;
     spaceId?: string;
@@ -486,8 +488,8 @@ export function DocumentLayout() {
                   activeId={docId}
                   spaceId={activeSpaceId!}
                   workspaceSlug={workspaceSlug!}
-                  onDelete={(id) => {
-                    if (window.confirm(t("documents.deleteConfirm"))) deleteMutation.mutate(id);
+                  onDelete={async (id) => {
+                    if (await confirmDelete(t("documents.deleteConfirm"))) deleteMutation.mutate(id);
                   }}
                   onRename={(id, title) => updateMutation.mutate({ id, data: { title } })}
                   onUpdate={(id, data) => updateMutation.mutate({ id, data })}

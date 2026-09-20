@@ -27,6 +27,7 @@ import {
   ActivityTab,
 } from "./issue-detail/tabs";
 import type { Issue } from "@/types";
+import { useDialogs } from "@/lib/dialogs";
 
 type TabId = "sub-issues" | "nodes" | "attachments" | "comments" | "activity";
 
@@ -44,6 +45,7 @@ interface Props {
 
 export function IssueDetailPage({ issueIdOverride, workspaceSlugOverride, projectIdOverride, inPanel = false, onClose }: Props = {}) {
   const { t } = useTranslation();
+  const { confirmDelete } = useDialogs();
   const navigate = useNavigate();
   const [, setSearchParams] = useSearchParams();
   const { workspaceSlug: paramWorkspaceSlug, projectId: paramProjectId, issueId: paramIssueId } = useParams<{
@@ -602,8 +604,8 @@ export function IssueDetailPage({ issueIdOverride, workspaceSlugOverride, projec
                 size="sm"
                 className="w-full text-xs font-semibold h-7"
                 disabled={deleteMutation.isPending}
-                onClick={() => {
-                  if (confirm(t("issues.detail.deleteConfirm"))) {
+                onClick={async () => {
+                  if (await confirmDelete(t("issues.detail.deleteConfirm"))) {
                     deleteMutation.mutate();
                   }
                 }}

@@ -19,6 +19,7 @@ import { ThemeProvider } from "./lib/theme-provider";
 import { MotionProvider } from "./lib/motion-provider";
 import { DensityProvider } from "./lib/density-provider";
 import { FontSettingsProvider } from "./lib/font-settings";
+import { DialogsProvider } from "./lib/dialogs";
 import { setupApi } from "./api/setup";
 import { SetupPage } from "./pages/setup/SetupPage";
 import { demoApi } from "./api/demo";
@@ -111,10 +112,12 @@ createRoot(document.getElementById("root")!).render(
         <DensityProvider>
           <FontSettingsProvider>
             <QueryClientProvider client={queryClient}>
-              <AppBootstrap />
-              <Toaster position="top-right" richColors closeButton />
-              <DemoBadge />
-              {/* DevTools는 개발 환경에서만 표시 — 프로덕션 빌드 시 제거됨 */}
+              <DialogsProvider>
+                <AppBootstrap />
+                <Toaster position="top-right" richColors closeButton />
+                <DemoBadge />
+                {/* DevTools는 개발 환경에서만 표시 — 프로덕션 빌드 시 제거됨 */}
+              </DialogsProvider>
             </QueryClientProvider>
           </FontSettingsProvider>
         </DensityProvider>

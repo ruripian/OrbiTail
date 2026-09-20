@@ -56,6 +56,7 @@ import type { Issue, State, WorkspaceMember, Label, Category, Sprint } from "@/t
 /* 우선순위 상수 — 필터 표시용 (Picker는 자체 상수 사용) */
 import { PRIORITY_COLOR, PRIORITY_LIST } from "@/constants/priority";
 import { EmptyState } from "@/components/ui/empty-state";
+import { useDialogs } from "@/lib/dialogs";
 
 type ColId =
   | "title" | "id"
@@ -250,6 +251,7 @@ interface Props {
 
 export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter, readOnly }: Props) {
   const { t } = useTranslation();
+  const { prompt } = useDialogs();
   const qc = useQueryClient();
   const { refresh } = useIssueRefresh(workspaceSlug, projectId);
 
@@ -882,8 +884,8 @@ export function TableView({ workspaceSlug, projectId, onIssueClick, issueFilter,
               {t("issues.table.resetFilters")}
             </button>
             <button
-              onClick={() => {
-                const name = window.prompt(t("issues.filter.savePrompt"));
+              onClick={async () => {
+                const name = await prompt({ title: t("issues.filter.savePrompt"), requireValue: true });
                 if (name?.trim()) savedFilters.saveFilter(name.trim(), filters);
               }}
               className="text-xs text-primary hover:underline px-1"
@@ -1231,6 +1233,7 @@ function BulkToolbar({
   readOnly?: boolean;
 }) {
   const { t } = useTranslation();
+  const { confirmDelete } = useDialogs();
   const { perms } = useProjectPerms();
   const qc = useQueryClient();
   const pushUndo = useUndoStore((s) => s.push);
@@ -1434,8 +1437,8 @@ function BulkToolbar({
           variant="ghost"
           size="sm"
           className="text-xs text-destructive hover:text-destructive"
-          onClick={() => {
-            if (window.confirm(t("issues.bulk.deleteConfirm", { count: selectedCount }))) {
+          onClick={async () => {
+            if (await confirmDelete(t("issues.bulk.deleteConfirm", { count: selectedCount }))) {
               bulkDeleteMutation.mutate();
             }
           }}

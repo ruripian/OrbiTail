@@ -3,6 +3,7 @@ import { ChevronDown, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/utils";
+import { useDialogs } from "@/lib/dialogs";
 
 /**
  * RestorableListView — Archive / Trash 공유 base (PASS5-B).
@@ -11,7 +12,7 @@ import { cn } from "@/lib/utils";
  *  - hierarchy 가 있으면 트리 + chevron 들여쓰기 (Archive)
  *  - 없으면 평면 (Trash)
  *  - actions[].visible 로 권한 체크 (예: can_purge)
- *  - actions[].confirmMessage 로 window.confirm 자동 처리
+ *  - actions[].confirmMessage 로 확인 다이얼로그 자동 처리
  */
 
 export interface Column<T> {
@@ -34,7 +35,7 @@ export interface Action<T> {
   disabled?: (row: T) => boolean;
   /** 권한 분기 (예: can_purge). default true */
   visible?: (row: T) => boolean;
-  /** window.confirm 메시지. 있으면 클릭 → confirm → 통과 시 onClick */
+  /** 확인 메시지. 있으면 클릭 → 확인 다이얼로그 → 통과 시 onClick */
   confirmMessage?: string;
 }
 
@@ -134,6 +135,7 @@ function Row<T>({
   hierarchy?: Hierarchy<T>;
   onRowClick?: (row: T) => void;
 }) {
+  const { confirm } = useDialogs();
   const [expanded, setExpanded] = useState(false);
   const children = hierarchy?.childrenOf(row) ?? [];
   const hasChildren = hierarchy ? hierarchy.canExpand(row) && children.length > 0 : false;
@@ -216,8 +218,14 @@ function Row<T>({
                 a.variant === "destructive" && "text-destructive hover:text-destructive",
               )}
               disabled={a.disabled?.(row)}
-              onClick={() => {
-                if (a.confirmMessage && !window.confirm(a.confirmMessage)) return;
+              onClick={async () => {
+                if (
+                  a.confirmMessage &&
+                  !(await confirm({
+                    title: a.confirmMessage,
+                    variant: a.variant === "destructive" ? "destructive" : "default",
+                  }))
+                ) return;
                 a.onClick(row);
               }}
             >

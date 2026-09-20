@@ -28,6 +28,7 @@ import {
   AlignLeft, AlignCenter, AlignRight, Highlighter, X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useDialogs } from "@/lib/dialogs";
 
 interface Props {
   content: string;
@@ -61,6 +62,7 @@ export function RichTextEditor({
   mentionItems,
 }: Props) {
   const { t } = useTranslation();
+  const { alert } = useDialogs();
   const wrapperRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -194,7 +196,7 @@ export function RichTextEditor({
       } else {
         // base64 임베드 — 5MB 이하만
         if (file.size > 5 * 1024 * 1024) {
-          alert(t("editor.imageTooLarge"));
+          await alert(t("editor.imageTooLarge"));
           return;
         }
         url = await new Promise<string>((resolve, reject) => {
@@ -208,7 +210,7 @@ export function RichTextEditor({
     } catch (e) {
       // eslint-disable-next-line no-console
       console.error(e);
-      alert(t("editor.imageUploadFailed"));
+      await alert(t("editor.imageUploadFailed"));
     } finally {
       setUploading(false);
     }

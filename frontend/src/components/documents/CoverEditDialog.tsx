@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Image as ImageIcon, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { CoverView } from "./CoverView";
+import { useDialogs } from "@/lib/dialogs";
 
 export interface CoverEditValues {
   file?: File;
@@ -46,6 +47,7 @@ export function CoverEditDialog({
   onSave, onRemove,
 }: Props) {
   const { t } = useTranslation();
+  const { confirmDelete } = useDialogs();
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(currentUrl ?? null);
   const [offsetX, setOffsetX] = useState(initialOffsetX);
@@ -99,7 +101,7 @@ export function CoverEditDialog({
 
   const handleRemove = async () => {
     if (!onRemove) return;
-    if (!window.confirm(t("documents.cover.removeConfirm"))) return;
+    if (!(await confirmDelete(t("documents.cover.removeConfirm")))) return;
     setSaving(true);
     try { await onRemove(); onOpenChange(false); }
     finally { setSaving(false); }

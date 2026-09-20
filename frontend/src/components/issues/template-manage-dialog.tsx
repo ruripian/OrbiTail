@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { issuesApi } from "@/api/issues";
 import type { IssueTemplate } from "@/types";
+import { useDialogs } from "@/lib/dialogs";
 
 /**
  * PASS4-3bis — Templates contextual 관리 다이얼로그.
@@ -40,6 +41,7 @@ const EMPTY_FORM: FormState = {
 
 export function TemplateManageDialog({ open, onOpenChange, workspaceSlug, projectId }: Props) {
   const { t } = useTranslation();
+  const { confirmDelete } = useDialogs();
   const qc = useQueryClient();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
@@ -143,8 +145,8 @@ export function TemplateManageDialog({ open, onOpenChange, workspaceSlug, projec
                     </button>
                     <button
                       type="button"
-                      onClick={() => {
-                        if (window.confirm(t("issues.templates.deleteConfirm"))) deleteMutation.mutate(tmpl.id);
+                      onClick={async () => {
+                        if (await confirmDelete(t("issues.templates.deleteConfirm"))) deleteMutation.mutate(tmpl.id);
                       }}
                       className="p-1 rounded text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100"
                     >

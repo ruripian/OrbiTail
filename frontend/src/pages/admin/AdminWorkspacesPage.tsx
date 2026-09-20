@@ -18,9 +18,11 @@ import {
 } from "@/components/ui/dialog";
 import { UserPicker } from "./UserPicker";
 import type { Workspace } from "@/types";
+import { useDialogs } from "@/lib/dialogs";
 
 export function AdminWorkspacesPage() {
   const { t } = useTranslation();
+  const { confirmDelete } = useDialogs();
   const qc = useQueryClient();
   const user = useAuthStore((s) => s.user);
 
@@ -141,8 +143,8 @@ export function AdminWorkspacesPage() {
                   size="sm"
                   variant="outline"
                   className="text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/30"
-                  onClick={() => {
-                    if (confirm(t("admin.workspaces.deleteConfirm", { name: ws.name }))) {
+                  onClick={async () => {
+                    if (await confirmDelete(t("admin.workspaces.deleteConfirm", { name: ws.name }))) {
                       deleteMutation.mutate(ws.slug);
                     }
                   }}

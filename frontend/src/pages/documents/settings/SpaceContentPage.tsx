@@ -13,9 +13,11 @@ import { documentsApi } from "@/api/documents";
 import { Button } from "@/components/ui/button";
 import { apiErrorMessage } from "@/lib/api-error";
 import { useSpaceSettings } from "./DocumentSpaceSettingsLayout";
+import { useDialogs } from "@/lib/dialogs";
 
 export default function SpaceContentPage() {
   const { t } = useTranslation();
+  const { confirmDelete } = useDialogs();
   const { space, workspaceSlug, spaceId } = useSpaceSettings();
   const qc = useQueryClient();
   const [exporting, setExporting] = useState(false);
@@ -130,8 +132,8 @@ export default function SpaceContentPage() {
                 />
                 <span className="text-2xs text-muted-foreground shrink-0">{t("workspaceSettings.usage.docCount", { count: label.document_count })}</span>
                 <button
-                  onClick={() => {
-                    if (window.confirm(t("documents.content.labelDeleteConfirm", { name: label.name }))) {
+                  onClick={async () => {
+                    if (await confirmDelete(t("documents.content.labelDeleteConfirm", { name: label.name }))) {
                       deleteLabel.mutate(label.id);
                     }
                   }}

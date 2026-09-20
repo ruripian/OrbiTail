@@ -21,12 +21,14 @@ import {
 import { apiErrorMessage } from "@/lib/api-error";
 import { useSpaceSettings } from "./DocumentSpaceSettingsLayout";
 import type { DocumentSpace } from "@/types";
+import { useDialogs } from "@/lib/dialogs";
 
 /** Radix Select 는 빈 문자열을 placeholder 로 예약하므로 "지정 안 함"에 sentinel 이 필요하다 */
 const NO_HOME = "__none__";
 
 export default function SpaceGeneralPage() {
   const { t } = useTranslation();
+  const { confirmDelete } = useDialogs();
   const { space, workspaceSlug, spaceId, isAdmin } = useSpaceSettings();
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -234,8 +236,8 @@ export default function SpaceGeneralPage() {
               size="sm" variant="ghost"
               className="text-destructive hover:text-destructive hover:bg-destructive/10"
               disabled={!isAdmin || remove.isPending}
-              onClick={() => {
-                if (window.confirm(t("documents.spaceGeneral.deleteConfirm", { name: space.name }))) remove.mutate();
+              onClick={async () => {
+                if (await confirmDelete(t("documents.spaceGeneral.deleteConfirm", { name: space.name }))) remove.mutate();
               }}
             >
               <Trash2 className="h-3.5 w-3.5 mr-1.5" />

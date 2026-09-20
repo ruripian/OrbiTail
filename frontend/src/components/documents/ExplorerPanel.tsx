@@ -26,6 +26,7 @@ import { useUndoStore } from "@/stores/undoStore";
 import { apiErrorMessage } from "@/lib/api-error";
 import { cn } from "@/lib/utils";
 import type { Document as DocType } from "@/types";
+import { useDialogs } from "@/lib/dialogs";
 
 type ViewMode = "grid" | "list";
 
@@ -61,6 +62,7 @@ export function ExplorerPanel({
   folderId, onFolderChange,
 }: Props) {
   const { t } = useTranslation();
+  const { confirmDelete } = useDialogs();
   const navigate = useNavigate();
   const pushUndo = useUndoStore((s) => s.push);
   const popUndo = useUndoStore((s) => s.popAndRun);
@@ -294,7 +296,7 @@ export function ExplorerPanel({
   /* ── 키보드 — 활성 패널에서만 ── */
   useEffect(() => {
     if (!isActive) return;
-    const onKey = (e: KeyboardEvent) => {
+    const onKey = async (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || renamingId) return;
 
@@ -306,7 +308,7 @@ export function ExplorerPanel({
       } else if ((e.ctrlKey || e.metaKey) && e.key === "v") {
         if (clipboard.length > 0) { moveInto(clipboard, currentFolder); setClipboard([]); }
       } else if (e.key === "Delete" && selected.size > 0) {
-        if (window.confirm(t("documents.explorerPanel.deleteConfirm", { count: selected.size }))) deleteMutation.mutate(Array.from(selected));
+        if (await confirmDelete(t("documents.explorerPanel.deleteConfirm", { count: selected.size }))) deleteMutation.mutate(Array.from(selected));
       } else if (e.key === "F2" && selected.size === 1) {
         setRenamingId(Array.from(selected)[0]);
       } else if (e.key === "Enter" && selected.size === 1) {
@@ -439,9 +441,9 @@ export function ExplorerPanel({
       {doc && (
         <button
           className="ctx-item text-destructive"
-          onClick={() => {
+          onClick={async () => {
             const ids = selected.has(doc.id) ? Array.from(selected) : [doc.id];
-            if (window.confirm(t("documents.explorerPanel.deleteConfirm", { count: ids.length }))) deleteMutation.mutate(ids);
+            if (await confirmDelete(t("documents.explorerPanel.deleteConfirm", { count: ids.length }))) deleteMutation.mutate(ids);
           }}
         >
           <Trash2 className="h-3.5 w-3.5" /> {t("documents.delete")}
@@ -617,8 +619,8 @@ export function ExplorerPanel({
                     onOpen={() => openDoc(doc)}
                     onRename={() => setRenamingId(doc.id)}
                 onCut={() => { setClipboard([doc.id]); toast.success(t("documents.explorerPanel.cut")); }}
-                    onDelete={() => {
-                      if (window.confirm(t("documents.deleteConfirm"))) deleteMutation.mutate([doc.id]);
+                    onDelete={async () => {
+                      if (await confirmDelete(t("documents.deleteConfirm"))) deleteMutation.mutate([doc.id]);
                     }}
                   />
                 </div>
@@ -668,8 +670,8 @@ export function ExplorerPanel({
                     onOpen={() => openDoc(doc)}
                     onRename={() => setRenamingId(doc.id)}
                 onCut={() => { setClipboard([doc.id]); toast.success(t("documents.explorerPanel.cut")); }}
-                    onDelete={() => {
-                      if (window.confirm(t("documents.deleteConfirm"))) deleteMutation.mutate([doc.id]);
+                    onDelete={async () => {
+                      if (await confirmDelete(t("documents.deleteConfirm"))) deleteMutation.mutate([doc.id]);
                     }}
                   />
                 </div>

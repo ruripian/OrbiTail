@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/dialog";
 import { ProjectIconPicker, ProjectIcon, type IconProp } from "@/components/ui/project-icon-picker";
 import type { Category } from "@/types";
+import { useDialogs } from "@/lib/dialogs";
 
 /* 카테고리 = 거대 분류(백엔드/프론트엔드/DB 등). 단순한 이름·설명만 유지.
    상태/일정은 Sprint(스프린트)에서 관리하므로 여기선 제거. */
@@ -35,6 +36,7 @@ export function CategoriesPage() {
     projectId: string;
   }>();
   const { t } = useTranslation();
+  const { confirmDelete } = useDialogs();
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [createOpen, setCreateOpen] = useState(false);
@@ -139,9 +141,9 @@ export function CategoriesPage() {
     dragIdRef.current = null;
   };
 
-  const handleDelete = (e: React.MouseEvent, categoryId: string) => {
+  const handleDelete = async (e: React.MouseEvent, categoryId: string) => {
     e.stopPropagation();
-    if (window.confirm(t("modules.deleteConfirm"))) {
+    if (await confirmDelete(t("modules.deleteConfirm"))) {
       deleteMutation.mutate(categoryId);
     }
   };

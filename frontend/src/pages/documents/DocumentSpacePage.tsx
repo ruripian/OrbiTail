@@ -50,6 +50,7 @@ import { getAccessToken } from "@/lib/token-storage";
 import { formatRelativeTime } from "@/lib/relative-time";
 import type { Document as DocType, DbColumn } from "@/types";
 import { sanitizeHtml } from "@/lib/sanitize-html";
+import { useDialogs } from "@/lib/dialogs";
 
 interface LayoutContext {
   /** 스페이스를 고르기 전에는 비어 있다 */
@@ -59,6 +60,7 @@ interface LayoutContext {
 
 export default function DocumentSpacePage() {
   const { t } = useTranslation();
+  const { confirmDelete } = useDialogs();
   const { workspaceSlug, spaceId, docId } = useParams<{
     workspaceSlug: string;
     spaceId: string;
@@ -143,8 +145,8 @@ export default function DocumentSpacePage() {
       doc={currentDoc}
       projectId={projectId ?? undefined}
       onUpdate={(data) => updateMutation.mutate(data)}
-      onDelete={() => {
-        if (window.confirm(t("documents.deleteConfirm"))) {
+      onDelete={async () => {
+        if (await confirmDelete(t("documents.deleteConfirm"))) {
           documentsApi.delete(workspaceSlug!, spaceId!, docId!).then(() => {
             toast.success(t("documents.deleted"));
             ctx?.invalidate();

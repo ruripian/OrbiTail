@@ -12,6 +12,7 @@ import { apiErrorMessage } from "@/lib/api-error";
 import { getRefreshToken } from "@/lib/token-storage";
 import { Button } from "@/components/ui/button";
 import type { Workspace, WorkspaceJoinRequest } from "@/types";
+import { useDialogs } from "@/lib/dialogs";
 
 /* useQuery 의 default `= []` 를 매 render 마다 새 array 로 만들지 않기 위한 모듈 단위 안정 ref.
    이 reference 가 매번 바뀌면 자식 effect deps 가 매 render 변경되어 setState 무한 루프 위험.
@@ -21,6 +22,7 @@ const EMPTY_REQUESTS: WorkspaceJoinRequest[] = [];
 
 export function WorkspaceSelectPage() {
   const { t } = useTranslation();
+  const { prompt } = useDialogs();
   const navigate = useNavigate();
   const qc = useQueryClient();
   /* zustand selector 형태 — destructuring 으로 전체 state 받으면 store 의 어떤 변경에도 re-render 됨.
@@ -124,9 +126,13 @@ export function WorkspaceSelectPage() {
     onError: (e) => toast.error(apiErrorMessage(e, t("workspaceSelect.deleteFailed"))),
   });
 
-  const handleDelete = (e: React.MouseEvent, slug: string, name: string) => {
+  const handleDelete = async (e: React.MouseEvent, slug: string, name: string) => {
     e.stopPropagation();
-    const typed = window.prompt(t("workspaceSelect.deleteConfirm", { name }));
+    const typed = await prompt({
+      title: t("workspaceSelect.deleteConfirm", { name }),
+      placeholder: name,
+      requireValue: true,
+    });
     if (typed === name) deleteMutation.mutate(slug);
     else if (typed !== null) toast.error(t("workspaceSelect.deleteMismatch"));
   };

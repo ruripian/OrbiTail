@@ -21,9 +21,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { apiErrorMessage } from "@/lib/api-error";
 import { cn } from "@/lib/utils";
 import { sanitizeHtml } from "@/lib/sanitize-html";
+import { useDialogs } from "@/lib/dialogs";
 
 export default function DocumentTrashPage() {
   const { t } = useTranslation();
+  const { confirmDelete } = useDialogs();
   const { workspaceSlug, spaceId } = useParams<{ workspaceSlug: string; spaceId: string }>();
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -68,9 +70,9 @@ export default function DocumentTrashPage() {
       return next;
     });
 
-  const confirmPurge = (ids?: string[]) => {
+  const confirmPurge = async (ids?: string[]) => {
     const label = ids ? t("documents.trashPage.someDocs", { count: ids.length }) : t("documents.trashPage.wholeTrash");
-    if (window.confirm(t("documents.trashPage.purgeConfirm", { what: label }))) purge.mutate(ids);
+    if (await confirmDelete(t("documents.trashPage.purgeConfirm", { what: label }))) purge.mutate(ids);
   };
 
   const allSelected = trashed.length > 0 && selected.size === trashed.length;

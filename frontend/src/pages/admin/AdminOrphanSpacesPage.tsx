@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { ChevronLeft, Trash2, User as UserIcon, Loader2 } from "lucide-react";
 import { api } from "@/lib/axios";
 import { Button } from "@/components/ui/button";
+import { useDialogs } from "@/lib/dialogs";
 
 interface OrphanSpace {
   id: string;
@@ -24,6 +25,7 @@ interface OrphanSpace {
 
 export function AdminOrphanSpacesPage() {
   const { t } = useTranslation();
+  const { confirmDelete } = useDialogs();
   const { workspaceSlug } = useParams<{ workspaceSlug: string }>();
   const qc = useQueryClient();
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -46,8 +48,8 @@ export function AdminOrphanSpacesPage() {
     onSettled: () => setDeleting(null),
   });
 
-  const handleDelete = (s: OrphanSpace) => {
-    if (!window.confirm(t("admin.orphanSpaces.deleteConfirm", { name: s.name }))) return;
+  const handleDelete = async (s: OrphanSpace) => {
+    if (!(await confirmDelete(t("admin.orphanSpaces.deleteConfirm", { name: s.name })))) return;
     setDeleting(s.id);
     delMut.mutate(s.id);
   };

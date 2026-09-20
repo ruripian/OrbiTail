@@ -18,6 +18,7 @@ import {
 import { formatDate } from "@/utils/date-format";
 import { MemberDetailDialog } from "./MemberDetailDialog";
 import type { WorkspaceMember } from "@/types";
+import { useDialogs } from "@/lib/dialogs";
 
 /**
  * 워크스페이스 멤버 관리 페이지 (JIRA 스타일 자유 권한 관리)
@@ -41,6 +42,7 @@ const ROLES = [
 export function WorkspaceMembersPage() {
   const { workspaceSlug } = useParams<{ workspaceSlug: string }>();
   const { t } = useTranslation();
+  const { confirm, confirmDelete } = useDialogs();
   const qc = useQueryClient();
   const currentUser = useAuthStore((s) => s.user);
 
@@ -118,8 +120,8 @@ export function WorkspaceMembersPage() {
     onError: (e) => toast.error(apiErrorMessage(e, t("settings.workspaceMembers.removeFailed"))),
   });
 
-  const handleRemove = (wm: WorkspaceMember) => {
-    if (!window.confirm(t("settings.workspaceMembers.confirmRemove", { name: wm.member.display_name }))) {
+  const handleRemove = async (wm: WorkspaceMember) => {
+    if (!(await confirmDelete(t("settings.workspaceMembers.confirmRemove", { name: wm.member.display_name })))) {
       return;
     }
     removeMutation.mutate(wm.id);
@@ -250,8 +252,8 @@ export function WorkspaceMembersPage() {
                   </div>
                   <button
                     type="button"
-                    onClick={() => {
-                      if (window.confirm(t("settings.workspaceMembers.confirmRevoke", { email: inv.email }))) {
+                    onClick={async () => {
+                      if (await confirmDelete(t("settings.workspaceMembers.confirmRevoke", { email: inv.email }))) {
                         revokeMutation.mutate(inv.id);
                       }
                     }}
@@ -340,13 +342,13 @@ export function WorkspaceMembersPage() {
               <Select
                 value={String(wm.role)}
                 disabled={!canChangeRole}
-                onValueChange={(v) => {
+                onValueChange={async (v) => {
                   const newRole = Number(v);
                   if (newRole === 25 && wm.role !== 25) {
                     /* 소유자 이전 — 경고 확인 */
-                    if (!window.confirm(
+                    if (!(await confirm(
                       t("settings.workspaceMembers.confirmTransferOwner", { name: wm.member.display_name })
-                    )) {
+                    ))) {
                       return;
                     }
                   }

@@ -47,6 +47,7 @@ import { requestsApi } from "@/api/requests";
 import { cn } from "@/lib/utils";
 import type { IssueRequest } from "@/types";
 import { sanitizeHtml } from "@/lib/sanitize-html";
+import { useDialogs } from "@/lib/dialogs";
 
 /* ────────────── 배지 ────────────── */
 function KindBadge({ kind }: { kind: IssueRequest["kind"] }) {
@@ -93,6 +94,7 @@ function MetaBlock({ label, children }: { label: string; children: React.ReactNo
 /* ────────────── 본체 ────────────── */
 export function RequestDialog() {
   const { t } = useTranslation();
+  const { confirmDelete } = useDialogs();
   const current = useRequestDialogStore((s) => s.current);
   const context = useRequestDialogStore((s) => s.context);
   const storeClose = useRequestDialogStore((s) => s.close);
@@ -266,8 +268,8 @@ export function RequestDialog() {
                 variant="outline"
                 size="sm"
                 className="h-8 gap-1 text-destructive hover:text-destructive"
-                onClick={() => {
-                  if (window.confirm(t("request.deleteConfirm"))) deleteMutation.mutate();
+                onClick={async () => {
+                  if (await confirmDelete(t("request.deleteConfirm"))) deleteMutation.mutate();
                 }}
                 disabled={deleteMutation.isPending}
               >

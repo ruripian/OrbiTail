@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { RestorableListView, type Column, type Action } from "./RestorableListView";
+import { DialogsProvider } from "@/lib/dialogs";
 
 interface Row {
   id: string;
@@ -19,15 +20,17 @@ const sampleRows: Row[] = [
 
 function renderView(props: Partial<Parameters<typeof RestorableListView<Row>>[0]> = {}) {
   return render(
-    <RestorableListView<Row>
-      rows={sampleRows}
-      isLoading={false}
-      rowKey={(r) => r.id}
-      columns={cols}
-      actions={[]}
-      emptyState={{ icon: null, title: "Empty title", description: "Empty desc" }}
-      {...props}
-    />,
+    <DialogsProvider>
+      <RestorableListView<Row>
+        rows={sampleRows}
+        isLoading={false}
+        rowKey={(r) => r.id}
+        columns={cols}
+        actions={[]}
+        emptyState={{ icon: null, title: "Empty title", description: "Empty desc" }}
+        {...props}
+      />
+    </DialogsProvider>,
   );
 }
 
@@ -69,31 +72,31 @@ describe("RestorableListView", () => {
     buttons.forEach((b) => expect(b).toBeDisabled());
   });
 
-  it("confirmMessage 거부 시 onClick 호출 안 됨", () => {
+  it("confirmMessage 거부 시 onClick 호출 안 됨", async () => {
     const onClick = vi.fn();
-    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
     const actions: Action<Row>[] = [
       { id: "del", label: "Del", icon: null, confirmMessage: "정말요?", onClick },
     ];
     renderView({ actions });
 
     fireEvent.click(screen.getAllByRole("button", { name: /del/i })[0]);
-    expect(confirmSpy).toHaveBeenCalledWith("정말요?");
+    expect(await screen.findByText("정말요?")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /common\.cancel/i }));
+    await waitFor(() => expect(screen.queryByText("정말요?")).not.toBeInTheDocument());
     expect(onClick).not.toHaveBeenCalled();
-    confirmSpy.mockRestore();
   });
 
-  it("confirmMessage 수락 시 onClick 호출", () => {
+  it("confirmMessage 수락 시 onClick 호출", async () => {
     const onClick = vi.fn();
-    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
     const actions: Action<Row>[] = [
       { id: "del", label: "Del", icon: null, confirmMessage: "정말요?", onClick },
     ];
     renderView({ actions });
 
     fireEvent.click(screen.getAllByRole("button", { name: /del/i })[0]);
-    expect(onClick).toHaveBeenCalledWith(sampleRows[0]);
-    confirmSpy.mockRestore();
+    expect(await screen.findByText("정말요?")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /common\.confirm/i }));
+    await waitFor(() => expect(onClick).toHaveBeenCalledWith(sampleRows[0]));
   });
 
   it("confirmMessage 없으면 즉시 onClick", () => {

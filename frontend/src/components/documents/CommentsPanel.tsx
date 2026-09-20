@@ -20,6 +20,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { cn } from "@/lib/utils";
 import { formatRelativeTime } from "@/lib/relative-time";
 import type { CommentThread } from "@/types";
+import { useDialogs } from "@/lib/dialogs";
 
 export interface NewThreadRequest {
   selectedText: string;
@@ -42,6 +43,7 @@ export function CommentsPanel({
   newThread, onNewThreadHandled,
 }: Props) {
   const { t } = useTranslation();
+  const { confirmDelete } = useDialogs();
   const qc = useQueryClient();
   const currentUser = useAuthStore((s) => s.user);
   const [tab, setTab] = useState<"open" | "resolved">("open");
@@ -196,8 +198,8 @@ export function CommentsPanel({
                 onActivate={() => onActiveThreadChange(th.id)}
                 onReply={(content) => replyMutation.mutate({ threadId: th.id, content })}
                 onResolve={() => resolveMutation.mutate(th.id)}
-                onDelete={() => {
-                  if (confirm(t("documents.commentsPanel.deleteConfirm"))) deleteMutation.mutate(th.id);
+                onDelete={async () => {
+                  if (await confirmDelete(t("documents.commentsPanel.deleteConfirm"))) deleteMutation.mutate(th.id);
                 }}
                 replyPending={replyMutation.isPending && replyMutation.variables?.threadId === th.id}
               />

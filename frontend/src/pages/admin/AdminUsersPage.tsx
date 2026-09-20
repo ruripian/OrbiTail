@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AvatarInitials } from "@/components/ui/avatar-initials";
 import type { AdminUser } from "@/types";
+import { useDialogs } from "@/lib/dialogs";
 
 type Tab = UserStatusFilter | "all";
 
@@ -23,6 +24,7 @@ const TABS: Tab[] = ["pending", "approved", "suspended", "superusers", "all"];
 
 export function AdminUsersPage() {
   const { t } = useTranslation();
+  const { confirmDelete } = useDialogs();
   const qc = useQueryClient();
   const currentUser = useAuthStore((s) => s.user);
   const isSuper = !!currentUser?.is_superuser;
@@ -142,8 +144,8 @@ export function AdminUsersPage() {
                 isSelf={u.id === currentUser?.id}
                 onApprove={() => approveMutation.mutate(u.id)}
                 onSuspend={(v) => suspendMutation.mutate({ id: u.id, value: v })}
-                onDelete={() => {
-                  if (confirm(t("admin.users.deleteConfirm", { email: u.email }))) {
+                onDelete={async () => {
+                  if (await confirmDelete(t("admin.users.deleteConfirm", { email: u.email }))) {
                     deleteMutation.mutate(u.id);
                   }
                 }}

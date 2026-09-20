@@ -24,6 +24,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { AvatarInitials } from "@/components/ui/avatar-initials";
 import { UserPicker, membersToUsers } from "@/components/ui/user-picker";
 import type { TeamMember } from "@/types";
+import { useDialogs } from "@/lib/dialogs";
 
 const ROLE_MEMBER = 15;
 const ROLE_ADMIN = 20;
@@ -148,6 +149,7 @@ function MemberRow({
   onRemove: () => void;
 }) {
   const { t } = useTranslation();
+  const { confirmDelete } = useDialogs();
   const [editingTitle, setEditingTitle] = useState(false);
   const [draft, setDraft] = useState(m.title);
 
@@ -239,11 +241,11 @@ function MemberRow({
             <DropdownMenuContent align="end">
               <DropdownMenuItem
                 className="text-destructive focus:text-destructive"
-                onClick={() => {
+                onClick={async () => {
                   const msg = isSelf
                     ? t("team.settings.members.leaveConfirm")
                     : t("team.settings.members.removeConfirm", { name: m.member.display_name });
-                  if (window.confirm(msg)) onRemove();
+                  if (await confirmDelete(msg)) onRemove();
                 }}
               >
                 {t(isSelf ? "team.settings.members.leave" : "team.settings.members.remove")}

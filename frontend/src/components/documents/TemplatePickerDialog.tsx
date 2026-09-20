@@ -15,6 +15,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
 import type { DocumentTemplate } from "@/types";
+import { useDialogs } from "@/lib/dialogs";
 
 interface Props {
   open: boolean;
@@ -31,6 +32,7 @@ const BLANK_TEMPLATE_NAME = "빈 페이지"; // i18n-ignore
 
 export function TemplatePickerDialog({ open, onOpenChange, workspaceSlug, onPick }: Props) {
   const { t } = useTranslation();
+  const { confirmDelete } = useDialogs();
   const [tab, setTab] = useState<Tab>("all");
   const currentUser = useAuthStore((s) => s.user);
   const qc = useQueryClient();
@@ -127,9 +129,9 @@ export function TemplatePickerDialog({ open, onOpenChange, workspaceSlug, onPick
                     </div>
                     {canDelete(tpl) && (
                       <button
-                        onClick={(e) => {
+                        onClick={async (e) => {
                           e.stopPropagation();
-                          if (confirm(t("documents.templates.deleteConfirm", { name: tpl.name }))) deleteMutation.mutate(tpl.id);
+                          if (await confirmDelete(t("documents.templates.deleteConfirm", { name: tpl.name }))) deleteMutation.mutate(tpl.id);
                         }}
                         className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 h-6 w-6 rounded-md hover:bg-destructive/10 hover:text-destructive flex items-center justify-center transition-opacity"
                         title={t("documents.templates.delete")}

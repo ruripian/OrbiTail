@@ -48,6 +48,7 @@ import {
   GROUP_ORDER, GROUP_LABEL_KEY, GROUP_COLOR,
   type SprintMetrics,
 } from "./sprint-metrics";
+import { useDialogs } from "@/lib/dialogs";
 
 interface Props {
   workspaceSlug: string;
@@ -77,6 +78,7 @@ const STATUS_BADGE: Record<string, { labelKey: string; cls: string }> = {
 
 export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
   const { t } = useTranslation();
+  const { confirm, confirmDelete } = useDialogs();
   const qc = useQueryClient();
   const { perms } = useProjectPerms(workspaceSlug, projectId);
   const canEdit = !!perms.can_edit;
@@ -331,8 +333,8 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
           </DropdownMenuItem>
           {sprint.status !== "cancelled" && (
             <DropdownMenuItem
-              onClick={() => {
-                if (window.confirm(t("sprints.cancelConfirm", { name: sprint.name }))) {
+              onClick={async () => {
+                if (await confirm(t("sprints.cancelConfirm", { name: sprint.name }))) {
                   cancelMutation.mutate(sprint.id);
                 }
               }}
@@ -343,8 +345,8 @@ export function SprintView({ workspaceSlug, projectId, onIssueClick }: Props) {
           <DropdownMenuSeparator />
           <DropdownMenuItem
             className="text-destructive focus:text-destructive"
-            onClick={() => {
-              if (window.confirm(t("sprints.deleteConfirm", { name: sprint.name }))) {
+            onClick={async () => {
+              if (await confirmDelete(t("sprints.deleteConfirm", { name: sprint.name }))) {
                 deleteMutation.mutate(sprint.id);
               }
             }}

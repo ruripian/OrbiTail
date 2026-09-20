@@ -13,12 +13,14 @@ interface Props {
   variant?: "default" | "destructive";
   onConfirm: () => void;
   loading?: boolean;
+  /** 알림(alert)처럼 되돌릴 게 없는 경우 취소 버튼을 감춘다. */
+  hideCancel?: boolean;
 }
 
 export function ConfirmDialog({
   open, onOpenChange, title, description,
   confirmLabel, cancelLabel,
-  variant = "default", onConfirm, loading,
+  variant = "default", onConfirm, loading, hideCancel,
 }: Props) {
   const { t } = useTranslation();
   const isDanger = variant === "destructive";
@@ -42,9 +44,11 @@ export function ConfirmDialog({
           </div>
         </DialogHeader>
         <div className="flex justify-end gap-2 mt-2">
-          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={loading}>
-            {cancelLabel ?? t("common.cancel")}
-          </Button>
+          {!hideCancel && (
+            <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={loading}>
+              {cancelLabel ?? t("common.cancel")}
+            </Button>
+          )}
           <Button
             variant={isDanger ? "destructive" : "default"}
             onClick={() => { onConfirm(); }}

@@ -11,9 +11,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { UserPicker } from "./UserPicker";
+import { useDialogs } from "@/lib/dialogs";
 
 export function AdminSuperusersPage() {
   const { t } = useTranslation();
+  const { confirm } = useDialogs();
   const qc = useQueryClient();
   const currentUser = useAuthStore((s) => s.user);
   const isSuperuser = !!currentUser?.is_superuser;
@@ -137,8 +139,8 @@ export function AdminSuperusersPage() {
                     size="sm"
                     variant="outline"
                     disabled={isSelf || demote.isPending}
-                    onClick={() => {
-                      if (confirm(t("admin.superusers.demoteConfirm", { email: u.email }))) {
+                    onClick={async () => {
+                      if (await confirm(t("admin.superusers.demoteConfirm", { email: u.email }))) {
                         demote.mutate(u.id);
                       }
                     }}
